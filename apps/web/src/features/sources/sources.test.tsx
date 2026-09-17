@@ -53,3 +53,21 @@ it("shows source failures, actual coverage and queued uploads", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Reload status" }));
   error.mockRestore();
 });
+it("reports linked profiles, cached images and failed image refreshes", () => {
+  render(
+    <SourcesPage
+      status={status}
+      year={2026}
+      timezone="UTC"
+      entities={{
+        last: { at: "2026-03-01T00:00:00Z", links: 2, catalogTeams: 3, ambiguous: 1 },
+        counts: [{ kind: "team", identities: 5, linked: 2, images: 3 }],
+        images: { cached: 3, failed: 1 },
+      }}
+    />,
+  );
+  expect(screen.getByRole("table", { name: "Resolved library" })).toBeVisible();
+  expect(screen.getByText(/1 ambiguous candidates/)).toBeVisible();
+  expect(screen.getByText(/1 image downloads unavailable/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Refresh identities & images" })).toBeVisible();
+});

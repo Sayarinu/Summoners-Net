@@ -5,7 +5,7 @@ export function RefreshButton({
   kind,
   year,
 }: {
-  kind: "matches" | "running" | "rosters" | "metadata" | "history";
+  kind: "matches" | "running" | "rosters" | "metadata" | "history" | "entities";
   year?: number;
 }) {
   const [pending, setPending] = useState(false);
@@ -35,7 +35,11 @@ export function RefreshButton({
         loading={pending}
         disabled={pending}
       >
-        {kind === "history" ? `Queue ${year} import` : "Refresh"}
+        {kind === "history"
+          ? `Queue ${year} import`
+          : kind === "entities"
+            ? "Refresh identities & images"
+            : "Refresh"}
       </Button>
       <span role="status" className="np-meta">
         {message}

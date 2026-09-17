@@ -81,3 +81,7 @@ success does not by itself claim a remote CI run succeeded.
 - [Linear reconciliation](docs/linear-reconciliation.md)
 
 Original copyright and licensing remain in [LICENSE](LICENSE).
+
+Entity linking and local portraits/logos are described in
+[Entity resolution and images](docs/entity-resolution.md), including bounded catalog refresh and
+historical roster commands.

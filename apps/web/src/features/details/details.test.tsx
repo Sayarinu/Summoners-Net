@@ -76,3 +76,84 @@ it("separates roster observations, filtered game pages and full-sample summaries
   expect(screen.getByText("No current roster observation")).toBeVisible();
   expect(screen.getAllByText("—")).toHaveLength(2);
 });
+it("shows linked identity evidence, canonical destinations and portraits without altering historical names", () => {
+  const image = "/api/images/" + "a".repeat(64);
+  const identity = {
+    ...profile.identity,
+    imageUrl: image,
+    imageSource: "PandaScore",
+    entityId: "canonical",
+    sourceCount: 2,
+  };
+  const linked = {
+    ...profile,
+    identity,
+    sources: [profile.identity],
+    aliases: ["Old handle", identity.name],
+    resolution: [{ gameId: game.id, playedAt: instant, observedAt: instant, matchedPlayers: 3 }],
+    roster: profile.roster.map((r) => ({
+      ...r,
+      player: { ...r.player, imageUrl: image },
+      team: { ...r.team, imageUrl: image },
+    })),
+  };
+  const view = render(<ProfilePage profile={linked} query={{}} hideSpoilers={false} />);
+  expect(
+    screen.getAllByRole("img", { name: `${identity.name} portrait` })[0]!.querySelector("img"),
+  ).toHaveAttribute("src", image);
+  fireEvent.click(screen.getByText("Names & source records"));
+  expect(screen.getByText(/Old handle/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "played lineup" })).toHaveAttribute(
+    "href",
+    `/games/${encodeURIComponent(game.id)}`,
+  );
+  view.rerender(
+    <ProfilePage
+      profile={{
+        ...linked,
+        identity: { ...blue, imageUrl: image, sourceCount: 2 },
+        resolution: [
+          {
+            gameId: game.id,
+            playedAt: instant,
+            observedAt: instant,
+            matchedPlayers: 0,
+            method: "fixtures",
+            matchedFixtures: 2,
+          },
+        ],
+      }}
+      query={{}}
+      hideSpoilers={false}
+    />,
+  );
+  expect(screen.getByText(/2 corresponding fixtures/)).toBeVisible();
+  view.rerender(
+    <GamePage
+      game={{
+        ...game,
+        participants: game.participants.map((p) => ({
+          ...p,
+          team: { ...p.team, imageUrl: image, entityId: "canonical-team" },
+          player: p.player ? { ...p.player, imageUrl: image, entityId: "canonical-player" } : null,
+        })),
+      }}
+      timezone="UTC"
+      hideSpoilers={false}
+    />,
+  );
+  expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
+  expect(screen.getByRole("link", { name: new RegExp(profile.identity.name) })).toHaveAttribute(
+    "href",
+    "/players/canonical-player",
+  );
+  view.rerender(
+    <MatchPage
+      match={{ ...match, teams: match.teams.map((t) => ({ ...t, imageUrl: image })) }}
+      timezone="UTC"
+      now={instant}
+      hideSpoilers={false}
+    />,
+  );
+  expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
+});

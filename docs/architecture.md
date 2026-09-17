@@ -24,7 +24,10 @@ statement snapshot, including empty pages. Profile aggregates use the entire eli
 sample in SQL, not the current displayed page. Missing statistics remain null and have explicit
 result/KDA sample counts. A zero-death sample has no finite KDA ratio and displays an em dash.
 
-Source-prefixed identities never merge by name. Missing Oracle IDs create game/side/slot observation
+Source-prefixed identities never merge by name. A derived, evidence-backed crosswalk joins
+corroborated Oracle/PandaScore records for browsing, while preserving all original IDs and
+appearance names. See [entity resolution](entity-resolution.md) for corroboration rules, historical
+tournament rosters and local image storage. Missing Oracle IDs create game/side/slot observation
 identities. Observed PandaScore rosters are timestamped snapshots; historical lineups are the people
 who actually appear in a game. Neither is contractual employment history. Oracle games stay
 independently addressable unless a series association has source evidence. Match-level PandaScore
@@ -68,8 +71,9 @@ A match contains one selected Twitch or YouTube player. Selection resets consent
 player. No iframe loads before consent; users can unload it or select the explicit failure fallback.
 Safe provider links remain available even if the URL cannot be embedded. A browser cannot reliably
 detect every cross-origin player failure, so the visible “Player not working” control is
-intentional. Provider CDN images are presentation assets; provider API data is fetched only by the
-worker.
+intentional. Team/player images are fetched by the coordinated worker and cached in PostgreSQL. The
+browser receives content-addressed local image URLs; it does not fetch provider APIs or the
+PandaScore image CDN.
 
 ## References
 

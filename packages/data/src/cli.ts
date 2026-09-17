@@ -16,7 +16,26 @@ process.on("SIGTERM", () => {
 });
 try {
   if (command === "migrate") await sync.migrate();
-  else if (command === "import" || command === "backfill") {
+  else if (
+    command === "entities" ||
+    command === "resolve" ||
+    command === "entity-history" ||
+    command === "entity-rosters"
+  ) {
+    const id = await sync.request({
+      kind: command,
+      ...(command === "entity-history" || command === "entity-rosters"
+        ? { year: Number(args[0]) }
+        : {}),
+    });
+    process.stdout.write(`Queued ${command} job ${id}.\n`);
+    // A bounded drain does not schedule other recurring work or leave a worker running.
+    while (!stop) {
+      const result = await sync.runNext();
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      if (result.state === "idle" || result.state === "busy" || result.id === id) break;
+    }
+  } else if (command === "import" || command === "backfill") {
     const year = Number(args[0]);
     const file = args[1];
     if (command === "import" && !file)
@@ -47,7 +66,10 @@ try {
     } finally {
       await q.close();
     }
-  } else throw new Error("Commands: migrate, work, once, import YEAR FILE, backfill YEAR, status");
+  } else
+    throw new Error(
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, backfill YEAR, status",
+    );
 } finally {
   await sync.close();
 }

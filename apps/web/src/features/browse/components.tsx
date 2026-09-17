@@ -7,10 +7,11 @@ import {
   Table,
   TextLink,
   StatusIndicator,
+  TeamIdentity,
 } from "@esportsviewer/ui";
 import type { BrowseQuery, Game, Page } from "@esportsviewer/data";
 import { regions } from "@esportsviewer/data/contracts";
-import { dateTime, gameTeams } from "./presentation";
+import { dateTime, gameTeams, identityHref } from "./presentation";
 export function Filters({
   query,
   history = false,
@@ -115,10 +116,20 @@ export function GamesTable({ games, timezone }: { games: Game[]; timezone: strin
         {
           id: "teams",
           header: "Teams",
-          render: (g) =>
-            gameTeams(g)
-              .map((t) => t.name)
-              .join(" vs "),
+          render: (g) => (
+            <div className="np-cluster">
+              {gameTeams(g).map((t) => (
+                <TeamIdentity
+                  key={t.id}
+                  name={t.name}
+                  shortName={t.name}
+                  size="compact"
+                  href={identityHref(t)}
+                  {...(t.imageUrl ? { logo: t.imageUrl } : {})}
+                />
+              ))}
+            </div>
+          ),
         },
         { id: "league", header: "League", render: (g) => g.league },
         { id: "game", header: "Game", render: (g) => g.number },

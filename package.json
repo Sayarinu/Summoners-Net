@@ -30,7 +30,11 @@
     "browser:test": "pnpm --filter @esportsviewer/web browser:test",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm tokens:check && pnpm test:coverage && pnpm build && pnpm storybook:build",
     "history:import": "node --env-file-if-exists=.env packages/data/dist/cli.js import",
-    "sync:status": "node --env-file-if-exists=.env packages/data/dist/cli.js status"
+    "sync:status": "node --env-file-if-exists=.env packages/data/dist/cli.js status",
+    "entities:sync": "node --env-file-if-exists=.env packages/data/dist/cli.js entities",
+    "entities:resolve": "node --env-file-if-exists=.env packages/data/dist/cli.js resolve",
+    "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",
+    "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -136,3 +136,30 @@ describe("browse presentation", () => {
     error.mockRestore();
   });
 });
+it("uses linked profile destinations and locally cached search images", () => {
+  const image = "/api/images/" + "a".repeat(64);
+  expect(identityHref({ ...player, entityId: "linked" })).toBe("/players/linked");
+  const view = render(
+    <DirectoryPage
+      kind="player"
+      data={page([{ ...player, sourceCount: 2, imageUrl: image, entityId: "linked" }])}
+      query={{}}
+    />,
+  );
+  expect(screen.getByText("Linked Oracle + PandaScore")).toBeVisible();
+  view.rerender(
+    <SearchPage
+      query={{ q: player.name }}
+      data={page([
+        {
+          id: "linked",
+          kind: "player",
+          name: player.name,
+          detail: "Linked sources",
+          imageUrl: image,
+        },
+      ])}
+    />,
+  );
+  expect(screen.getByRole("img").querySelector("img")).toHaveAttribute("src", image);
+});

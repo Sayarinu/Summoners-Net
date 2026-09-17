@@ -36,7 +36,7 @@ test("search, history, observed rosters and independently accessible played line
   await page.getByRole("button", { name: "Apply" }).click();
   await page.getByRole("link", { name: /Player Blue mid/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
-  await expect(page.getByText("No current roster observation")).toBeVisible();
+  await expect(page.getByRole("table", { name: "Latest roster observation" })).toBeVisible();
   await page.getByRole("button", { name: "Reveal summary statistics" }).click();
   await expect(page.getByText("100.0%")).toBeVisible();
   await page.getByRole("table", { name: "Historical games" }).getByRole("link").first().click();
@@ -149,6 +149,50 @@ test("keyboard navigation, accessible names and responsive layout", async ({ pag
   );
   await page.screenshot({
     path: `../../output/playwright/${info.project.name}-game.png`,
+    fullPage: true,
+  });
+});
+
+test("canonical profiles share local portraits across search, rosters and played lineups", async ({
+  page,
+}, info) => {
+  const external: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("pandascore.co")) external.push(request.url());
+  });
+  await page.goto("/search?q=Player+Blue+mid");
+  await expect(page.getByRole("link", { name: /Player Blue mid/ })).toHaveCount(1);
+  await page.getByRole("link", { name: /Player Blue mid/ }).click();
+  await expect(page).toHaveURL(/oracle%3Aplayer%3A10-mid/);
+  const portrait = page.locator(".ev-title img");
+  await expect(portrait).toHaveAttribute("src", /^\/api\/images\/[a-f0-9]{64}$/);
+  await expect
+    .poll(() => portrait.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  await page.getByText("Names & source records", { exact: true }).click();
+  await expect(page.getByText(/pandascore · 32/)).toBeVisible();
+  await expect(page.getByText(/5 matching players and roles/)).toBeVisible();
+  await page.getByRole("link", { name: "played lineup" }).click();
+  const player = page.getByRole("link", { name: /Player Blue mid/ });
+  await expect(player.locator("img")).toHaveAttribute("src", /^\/api\/images\//);
+  await player.click();
+  await page.goto("/players/pandascore%3Aplayer%3A32");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
+  await expect(page.getByRole("table", { name: "Latest roster observation" })).toBeVisible();
+  expect(external).toEqual([]);
+  await page.addScriptTag({ content: AxeBuilder.source });
+  expect(
+    await page.evaluate(async () =>
+      (
+        await (window as unknown as { axe: typeof AxeBuilder }).axe.run(document, {
+          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+        })
+      ).violations.map((v) => v.id),
+    ),
+  ).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: `../../output/playwright/${info.project.name}-linked-profile.png`,
     fullPage: true,
   });
 });

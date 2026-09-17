@@ -3,7 +3,7 @@ import { z } from "zod";
 import { synchronization } from "./data";
 import { preferencesSchema } from "../features/preferences/model";
 const refreshSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.enum(["matches", "running", "rosters", "metadata"]) }).strict(),
+  z.object({ kind: z.enum(["matches", "running", "rosters", "metadata", "entities"]) }).strict(),
   z
     .object({
       kind: z.literal("history"),
