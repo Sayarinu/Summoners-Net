@@ -1,0 +1,39 @@
+{
+  "name": "@esportsviewer/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 node --env-file-if-exists=../../.env node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
+    "start": "NEXT_TELEMETRY_DISABLED=1 node --env-file-if-exists=../../.env node_modules/next/dist/bin/next start --hostname 127.0.0.1",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "browser:test": "playwright test"
+  },
+  "dependencies": {
+    "@esportsviewer/data": "workspace:*",
+    "@esportsviewer/ui": "workspace:*",
+    "@esportsviewer/tokens": "workspace:*",
+    "@fontsource/ibm-plex-sans": "5.2.8",
+    "@fontsource/ibm-plex-mono": "5.2.7",
+    "next": "16.2.10",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "axe-core": "4.12.1",
+    "jsdom": "27.2.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
