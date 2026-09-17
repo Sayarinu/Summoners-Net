@@ -1,0 +1,14 @@
+.next
+.playwright-cli
+.turbo
+coverage
+dist
+node_modules
+pnpm-lock.yaml
+storybook-static
+packages/tokens/generated
+
+.local
+playwright-report
+test-results
+output

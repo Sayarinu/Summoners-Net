@@ -1,0 +1,26 @@
+{
+  "name": "@esportsviewer/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./generated/tokens.css": "./generated/tokens.css",
+    "./generated/tokens.json": "./generated/tokens.json",
+    "./source": "./src/tokens.json",
+    "./validate": "./src/validate.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "corepack pnpm build && git diff --exit-code -- generated",
+    "clean": "rm -rf coverage",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "style-dictionary": "5.2.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
