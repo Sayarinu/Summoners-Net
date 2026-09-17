@@ -1,0 +1,435 @@
+@layer np-reset, np-base, np-components, np-layout, np-utilities;
+
+@import "./components.css";
+@import "./core-advanced.css";
+@import "./esports-extended.css";
+@import "./statistics.css";
+@import "./reliability-operations.css";
+
+@layer np-reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    min-height: 100%;
+    color-scheme: dark;
+    background: var(--color-bg-canvas, #070809);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100%;
+    margin: 0;
+  }
+
+  :where(button, input, optgroup, select, textarea) {
+    margin: 0;
+    color: inherit;
+    font: inherit;
+  }
+
+  :where(button, [type="button"], [type="reset"], [type="submit"]) {
+    appearance: button;
+  }
+
+  :where(img, picture, video, canvas, svg) {
+    display: block;
+    max-inline-size: 100%;
+  }
+
+  :where(h1, h2, h3, h4, p, figure, blockquote, dl, dd) {
+    margin: 0;
+  }
+
+  :where(ul, ol) {
+    margin: 0;
+    padding: 0;
+  }
+
+  :where(table) {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+}
+
+@layer np-base {
+  :root {
+    --np-page-gutter: var(--space-4, 16px);
+    --np-row-height: var(--size-control, 44px);
+    --np-control-height: var(--size-control, 44px);
+    --np-motion-distance-sm: 2px;
+    --np-motion-distance-md: 8px;
+    --np-focus-width: 2px;
+    --np-focus-offset: 3px;
+  }
+
+  body {
+    background: var(--color-bg-canvas, #070809);
+    color: var(--color-text-primary, #f4f6f8);
+    font-family: var(--font-family-sans, "IBM Plex Sans"), ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--font-size-md, 16px);
+    font-weight: var(--font-weight-regular, 400);
+    line-height: var(--font-line-height-body, 1.5);
+  }
+
+  ::selection {
+    background: var(--color-bg-selected, rgb(200 169 107 / 16%));
+    color: var(--color-text-primary, #f4f6f8);
+  }
+
+  :where(a) {
+    color: inherit;
+  }
+
+  :where(code, kbd, samp, pre) {
+    font-family: var(--font-family-mono, "IBM Plex Mono"), ui-monospace, monospace;
+  }
+
+  :where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible,
+  .np-focus-ring:focus-visible,
+  .np-focus-ring[data-focus-visible="true"] {
+    outline: var(--np-focus-width) solid var(--color-focus-ring, #e7d4af);
+    outline-offset: var(--np-focus-offset);
+  }
+
+  .np-display,
+  .np-heading-xl,
+  .np-heading-lg,
+  .np-heading-md,
+  .np-heading-sm {
+    color: var(--color-text-primary, #f4f6f8);
+    font-weight: var(--font-weight-medium, 500);
+    text-wrap: balance;
+  }
+
+  .np-display {
+    font-size: clamp(var(--font-size-2xl, 36px), 4.5vw, var(--font-size-display, 48px));
+    letter-spacing: -0.045em;
+    line-height: var(--font-line-height-tight, 1.1);
+  }
+
+  .np-heading-xl {
+    font-size: var(--font-size-2xl, 36px);
+    letter-spacing: -0.035em;
+    line-height: var(--font-line-height-tight, 1.1);
+  }
+
+  .np-heading-lg {
+    font-size: var(--font-size-xl, 28px);
+    letter-spacing: -0.025em;
+    line-height: var(--font-line-height-heading, 1.2);
+  }
+
+  .np-heading-md {
+    font-size: var(--font-size-lg, 20px);
+    letter-spacing: -0.015em;
+    line-height: var(--font-line-height-heading, 1.2);
+  }
+
+  .np-heading-sm {
+    font-size: var(--font-size-md, 16px);
+    line-height: var(--font-line-height-heading, 1.2);
+  }
+
+  .np-body-lg {
+    color: var(--color-text-secondary, #c3c8ce);
+    font-size: var(--font-size-lg, 20px);
+    line-height: var(--font-line-height-body, 1.5);
+  }
+
+  .np-body,
+  .np-body-sm {
+    color: var(--color-text-secondary, #c3c8ce);
+    line-height: var(--font-line-height-body, 1.5);
+  }
+
+  .np-body {
+    font-size: var(--font-size-md, 16px);
+  }
+
+  .np-body-sm {
+    font-size: var(--font-size-sm, 14px);
+  }
+
+  .np-overline,
+  .np-meta,
+  .np-data {
+    font-family: var(--font-family-mono, "IBM Plex Mono"), ui-monospace, monospace;
+  }
+
+  .np-overline {
+    color: var(--color-text-accent, #d8bf8c);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: var(--font-weight-medium, 500);
+    letter-spacing: 0.1em;
+    line-height: var(--font-line-height-heading, 1.2);
+    text-transform: uppercase;
+  }
+
+  .np-meta {
+    color: var(--color-text-muted, #aab0b8);
+    font-size: var(--font-size-xs, 12px);
+    letter-spacing: 0.02em;
+    line-height: var(--font-line-height-body, 1.5);
+  }
+
+  .np-data,
+  .np-tabular {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  .np-data {
+    font-size: var(--font-size-sm, 14px);
+    line-height: var(--font-line-height-heading, 1.2);
+  }
+}
+
+@layer np-layout {
+  .np-page {
+    min-block-size: 100svh;
+    padding-inline: var(--np-page-gutter);
+  }
+
+  .np-container {
+    inline-size: min(100%, var(--size-content, 1280px));
+    margin-inline: auto;
+  }
+
+  .np-reading {
+    inline-size: min(100%, var(--size-reading, 720px));
+  }
+
+  .np-section {
+    padding-block: clamp(var(--space-10, 40px), 6vw, var(--space-16, 64px));
+  }
+
+  .np-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--np-stack-gap, var(--space-4, 16px));
+  }
+
+  .np-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--np-cluster-gap, var(--space-3, 12px));
+  }
+
+  .np-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--np-grid-min, 240px)), 1fr));
+    gap: var(--np-grid-gap, var(--space-6, 24px));
+  }
+
+  .np-split {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: var(--np-split-align, center);
+    justify-content: space-between;
+    gap: var(--np-split-gap, var(--space-4, 16px));
+  }
+
+  .np-surface {
+    background: var(--color-bg-surface, #0e1012);
+    border: 1px solid var(--color-border-subtle, #23272d);
+  }
+
+  .np-rule {
+    block-size: 1px;
+    inline-size: 100%;
+    background: var(--color-border-subtle, #23272d);
+    border: 0;
+  }
+
+  .np-density-compact {
+    --np-control-height: var(--size-control-compact, 32px);
+    --np-row-height: 36px;
+  }
+
+  .np-density-default {
+    --np-control-height: var(--size-control, 44px);
+    --np-row-height: 48px;
+  }
+
+  .np-density-comfortable {
+    --np-control-height: var(--size-control-large, 52px);
+    --np-row-height: 60px;
+  }
+
+  .np-control-height {
+    min-block-size: var(--np-control-height);
+  }
+
+  .np-row-height {
+    min-block-size: var(--np-row-height);
+  }
+}
+
+@layer np-utilities {
+  .np-text-primary {
+    color: var(--color-text-primary, #f4f6f8);
+  }
+
+  .np-text-secondary {
+    color: var(--color-text-secondary, #c3c8ce);
+  }
+
+  .np-text-muted {
+    color: var(--color-text-muted, #aab0b8);
+  }
+
+  .np-text-accent {
+    color: var(--color-text-accent, #d8bf8c);
+  }
+
+  .np-icon {
+    inline-size: var(--size-icon, 20px);
+    block-size: var(--size-icon, 20px);
+    flex: 0 0 auto;
+    stroke-width: 1.75;
+  }
+
+  .np-icon[data-size="small"] {
+    inline-size: var(--size-icon-small, 16px);
+    block-size: var(--size-icon-small, 16px);
+  }
+
+  .np-icon[data-size="large"] {
+    inline-size: var(--size-icon-large, 24px);
+    block-size: var(--size-icon-large, 24px);
+  }
+
+  .np-motion-enter {
+    animation: np-enter var(--motion-duration-deliberate, 260ms)
+      var(--motion-easing-enter, cubic-bezier(0, 0, 0.2, 1)) both;
+  }
+
+  .np-motion-interactive {
+    transition:
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-standard, ease),
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-standard, ease),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-easing-standard, ease),
+      opacity var(--motion-duration-fast, 120ms) var(--motion-easing-standard, ease),
+      transform var(--motion-duration-standard, 180ms) var(--motion-easing-standard, ease);
+  }
+
+  .np-chart-series-1 {
+    --np-chart-series: var(--color-chart-1, #c8a96b);
+  }
+
+  .np-chart-series-2 {
+    --np-chart-series: var(--color-chart-2, #6ea7d9);
+  }
+
+  .np-chart-series-3 {
+    --np-chart-series: var(--color-chart-3, #65b888);
+  }
+
+  .np-chart-series-4 {
+    --np-chart-series: var(--color-chart-4, #9b8ad1);
+  }
+
+  .np-chart-series-5 {
+    --np-chart-series: var(--color-chart-5, #63b7c9);
+  }
+
+  .np-chart-series-6 {
+    --np-chart-series: var(--color-chart-6, #cf7e9d);
+  }
+
+  .np-chart-series-7 {
+    --np-chart-series: var(--color-chart-7, #d9a657);
+  }
+
+  .np-chart-series-8 {
+    --np-chart-series: var(--color-chart-8, #67b6a2);
+  }
+
+  .np-sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@keyframes np-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--np-motion-distance-md));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --np-page-gutter: var(--space-6, 24px);
+  }
+}
+
+@media (min-width: 90rem) {
+  :root {
+    --np-page-gutter: var(--space-8, 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-instant: 0.01ms;
+    --motion-duration-fast: 0.01ms;
+    --motion-duration-standard: 0.01ms;
+    --motion-duration-deliberate: 0.01ms;
+    --motion-duration-slow: 0.01ms;
+  }
+
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  .np-motion-enter {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --color-bg-canvas: Canvas;
+    --color-bg-surface: Canvas;
+    --color-bg-raised: Canvas;
+    --color-bg-interactive: ButtonFace;
+    --color-bg-selected: Highlight;
+    --color-text-primary: CanvasText;
+    --color-text-secondary: CanvasText;
+    --color-text-muted: GrayText;
+    --color-text-accent: LinkText;
+    --color-border-subtle: CanvasText;
+    --color-border-strong: CanvasText;
+    --color-border-accent: Highlight;
+    --color-focus-ring: Highlight;
+  }
+
+  :where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible,
+  .np-focus-ring:focus-visible,
+  .np-focus-ring[data-focus-visible="true"] {
+    outline-color: Highlight;
+  }
+
+  .np-surface {
+    border-color: CanvasText;
+  }
+}

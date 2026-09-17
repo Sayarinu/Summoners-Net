@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*
+
+autoInstallPeers: false
+engineStrict: true
+saveExact: true
+strictPeerDependencies: true
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+overrides:
+  postcss: 8.5.16
+
+catalog:
+  "@types/node": 24.10.1
+  "@types/react": 19.2.7
+  "@types/react-dom": 19.2.3
+  react: 19.2.7
+  react-dom: 19.2.7
+  typescript: 6.0.3
+  vitest: 4.1.10
