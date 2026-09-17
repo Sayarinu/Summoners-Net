@@ -116,10 +116,10 @@ export function DirectoryPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Source identities</span>
+          <span className="np-overline">Your library</span>
           <h1>{kind === "team" ? "Teams" : "Players"}</h1>
           <p className="np-body-sm">
-            Current observations and historical appearances. Sources retain separate identities.
+            Current observations and historical appearances, linked where lineup evidence agrees.
           </p>
         </div>
       </header>
@@ -132,7 +132,9 @@ export function DirectoryPage({
             shortName={i.name}
             type={i.kind}
             href={identityHref(i)}
-            description={`${i.source} · ${i.sourceId}`}
+            description={
+              i.sourceCount === 2 ? "Linked Oracle + PandaScore" : `${i.source} · ${i.sourceId}`
+            }
             {...(i.imageUrl ? { image: i.imageUrl } : {})}
           />
         ))}
@@ -169,6 +171,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
               : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
           }
           description={`${i.kind} · ${i.detail}`}
+          {...(i.imageUrl ? { image: i.imageUrl } : {})}
         />
       ))}
       {!data.items.length && (

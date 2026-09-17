@@ -192,3 +192,13 @@
     gap: var(--space-5);
   }
 }
+
+.ev-title .np-identity__copy > strong {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+}
+
+.ev-profile-title {
+  display: grid;
+  gap: var(--space-2);
+}

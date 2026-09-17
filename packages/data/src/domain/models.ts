@@ -18,9 +18,13 @@ export const identitySchema = z.object({
   sourceId: z.string(),
   kind: z.enum(["team", "player"]),
   name: z.string().min(1),
-  imageUrl: z.url().nullable(),
+  imageUrl: z.union([z.url(), z.string().regex(/^\/api\/images\/[a-f0-9]{64}$/)]).nullable(),
   country: z.string().nullable(),
   role: z.string().nullable(),
+  entityId: z.string().optional(),
+  imageSource: z.string().nullable().optional(),
+  sourceCount: z.number().int().positive().optional(),
+  aliases: z.array(z.string()).optional(),
 });
 export type Identity = z.infer<typeof identitySchema>;
 export const broadcastSchema = z.object({
@@ -41,6 +45,7 @@ export const matchGameSchema = z.object({
 export const matchSchema = z.object({
   id: z.string(),
   sourceId: z.string(),
+  tournamentSourceId: z.string().nullable().optional(),
   name: z.string(),
   league: z.enum(regions),
   event: z.string(),
@@ -116,6 +121,16 @@ export interface Profile {
   summary: Summary;
   games: Page<Game>;
   roster: RosterObservation[];
+  sources?: Identity[];
+  aliases?: string[];
+  resolution?: {
+    gameId: string;
+    playedAt: string;
+    observedAt: string;
+    matchedPlayers: number;
+    method?: "lineup" | "fixtures";
+    matchedFixtures?: number;
+  }[];
 }
 export const timezoneSchema = z
   .string()
@@ -142,7 +157,15 @@ export const querySchema = z.object({
 export type BrowseQuery = z.input<typeof querySchema>;
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.enum(["running", "matches", "rosters", "metadata"]) }).strict(),
+  z
+    .object({ kind: z.enum(["running", "matches", "rosters", "metadata", "entities", "resolve"]) })
+    .strict(),
+  z
+    .object({
+      kind: z.enum(["entity-history", "entity-rosters"]),
+      year: z.number().int().min(2014).max(2100),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal("history"),

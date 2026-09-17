@@ -6,6 +6,7 @@ const identity = z.object({
   name: z.string().nullable(),
   slug: z.string().nullable().optional(),
   image_url: z.url().nullable().optional(),
+  dark_mode_image_url: z.url().nullable().optional(),
   nationality: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
 });
@@ -32,7 +33,7 @@ const rawMatch = z.object({
       name: z.string().nullable().optional(),
     })
     .nullable(),
-  tournament: z.object({ name: z.string() }).optional(),
+  tournament: z.object({ id: z.number().int().positive().optional(), name: z.string() }).optional(),
   opponents: z.array(z.object({ opponent: identity })),
   results: z
     .array(
@@ -53,9 +54,10 @@ function toIdentity(value: z.infer<typeof identity>, kind: "team" | "player"): I
     sourceId: String(value.id),
     kind,
     name: value.name ?? value.slug ?? `Unknown ${kind} ${value.id}`,
-    imageUrl: value.image_url ?? null,
+    imageUrl: (kind === "team" ? value.dark_mode_image_url : null) ?? value.image_url ?? null,
     country: value.nationality ?? null,
     role: value.role ?? null,
+    aliases: value.slug ? [value.slug] : [],
   };
 }
 export function parseBroadcast(raw: string, language = "unknown"): Broadcast | null {
@@ -115,6 +117,7 @@ export function parseMatches(payload: unknown, now: Date): Match[] {
         matchSchema.parse({
           id: `pandascore:match:${raw.id}`,
           sourceId: String(raw.id),
+          tournamentSourceId: raw.tournament?.id ? String(raw.tournament.id) : null,
           name: raw.name,
           league,
           event:
@@ -161,4 +164,20 @@ export function parseTeams(payload: unknown) {
             },
           ],
     );
+}
+export function parseCoveredLeagues(payload: unknown, year: number) {
+  return z
+    .array(z.object({ id: z.number().int().positive(), name: z.string() }))
+    .parse(payload)
+    .filter((l) => coveredLeague(l.name, year))
+    .map((l) => l.id);
+}
+export function parseTournamentRosters(payload: unknown) {
+  const raw = z
+    .object({
+      type: z.literal("Team"),
+      rosters: z.array(team.extend({ players: z.array(identity) })),
+    })
+    .parse(payload);
+  return parseTeams(raw.rosters);
 }

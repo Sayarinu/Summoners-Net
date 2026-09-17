@@ -20,8 +20,8 @@ export function dateTime(iso: string | null, timezone: string) {
       }).format(new Date(iso))
     : "Time to be confirmed";
 }
-export function identityHref(identity: Pick<Identity, "id" | "kind">) {
-  return `/${identity.kind === "team" ? "teams" : "players"}/${encodeURIComponent(identity.id)}`;
+export function identityHref(identity: Pick<Identity, "id" | "kind" | "entityId">) {
+  return `/${identity.kind === "team" ? "teams" : "players"}/${encodeURIComponent(identity.entityId ?? identity.id)}`;
 }
 export function matchDisplay(match: Match, timezone: string, now: string): MatchDisplay {
   const team = (i: number): MatchTeam => {

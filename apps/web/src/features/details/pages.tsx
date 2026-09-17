@@ -47,7 +47,13 @@ export function MatchPage({
       />
       <div className="np-cluster">
         {match.teams.map((t) => (
-          <TeamIdentity key={t.id} name={t.name} shortName={t.name} href={identityHref(t)} />
+          <TeamIdentity
+            key={t.id}
+            name={t.name}
+            shortName={t.name}
+            href={identityHref(t)}
+            {...(t.imageUrl ? { logo: t.imageUrl } : {})}
+          />
         ))}
       </div>
       <WatchPlayer broadcasts={match.broadcasts} />
@@ -141,7 +147,15 @@ export function GamePage({
           {
             id: "team",
             header: "Team",
-            render: (p) => <TextLink href={identityHref(p.team)}>{p.team.name}</TextLink>,
+            render: (p) => (
+              <TeamIdentity
+                name={p.team.name}
+                shortName={p.team.name}
+                size="compact"
+                href={identityHref(p.team)}
+                {...(p.team.imageUrl ? { logo: p.team.imageUrl } : {})}
+              />
+            ),
           },
           { id: "role", header: "Role", render: (p) => p.role },
           {
@@ -149,7 +163,11 @@ export function GamePage({
             header: "Player",
             render: (p) =>
               p.player ? (
-                <PlayerIdentity handle={p.player.name} href={identityHref(p.player)} />
+                <PlayerIdentity
+                  handle={p.player.name}
+                  href={identityHref(p.player)}
+                  {...(p.player.imageUrl ? { portrait: p.player.imageUrl } : {})}
+                />
               ) : (
                 "—"
               ),
@@ -203,14 +221,54 @@ export function ProfilePage({
         ]}
       />
       <header className="ev-title">
-        <div>
+        <div className="ev-profile-title">
           <span className="np-overline">
-            {identity.kind} · {identity.source}
+            {identity.kind} · {identity.sourceCount === 2 ? "Linked sources" : identity.source}
           </span>
-          <h1>{identity.name}</h1>
-          <p className="np-meta">Source ID {identity.sourceId}</p>
+          <h1 className="np-visually-hidden">{identity.name}</h1>
+          {identity.kind === "team" ? (
+            <TeamIdentity
+              name={identity.name}
+              shortName={identity.name}
+              size="large"
+              {...(identity.imageUrl ? { logo: identity.imageUrl } : {})}
+            />
+          ) : (
+            <PlayerIdentity
+              handle={identity.name}
+              {...(identity.imageUrl ? { portrait: identity.imageUrl } : {})}
+            />
+          )}
+          <p className="np-meta">
+            {identity.imageSource
+              ? `${identity.imageSource} image · Current source reference`
+              : "No verified image available"}
+          </p>
         </div>
       </header>
+      <details className="np-stack">
+        <summary>Names & source records</summary>
+        <p className="np-body-sm">{(profile.aliases ?? [identity.name]).join(" · ")}</p>
+        {(profile.sources ?? [identity]).map((source) => (
+          <p key={source.id} className="np-meta">
+            {source.source} · {source.sourceId} · {source.name}
+          </p>
+        ))}
+        {(profile.resolution ?? []).map((evidence) => (
+          <p key={evidence.gameId} className="np-body-sm">
+            Linked using{" "}
+            {evidence.method === "fixtures"
+              ? `${evidence.matchedFixtures} corresponding fixtures against multiple opponents, including a`
+              : `${evidence.matchedPlayers} matching players and roles in a`}{" "}
+            <TextLink href={`/games/${encodeURIComponent(evidence.gameId)}`}>
+              played lineup
+            </TextLink>{" "}
+            from {dateTime(evidence.playedAt, query.timezone ?? "UTC")}. Roster observed{" "}
+            {dateTime(evidence.observedAt, query.timezone ?? "UTC")}. This is identity evidence, not
+            a contract timeline.
+          </p>
+        ))}
+      </details>
       <section className="np-stack">
         <h2>Observed current roster</h2>
         <p className="np-body-sm">
@@ -229,6 +287,7 @@ export function ProfilePage({
                   <PlayerIdentity
                     handle={r.player.name}
                     href={identityHref(r.player)}
+                    {...(r.player.imageUrl ? { portrait: r.player.imageUrl } : {})}
                     {...(r.player.role ? { role: r.player.role } : {})}
                   />
                 ),
@@ -236,7 +295,15 @@ export function ProfilePage({
               {
                 id: "team",
                 header: "Team",
-                render: (r) => <TextLink href={identityHref(r.team)}>{r.team.name}</TextLink>,
+                render: (r) => (
+                  <TeamIdentity
+                    name={r.team.name}
+                    shortName={r.team.name}
+                    size="compact"
+                    href={identityHref(r.team)}
+                    {...(r.team.imageUrl ? { logo: r.team.imageUrl } : {})}
+                  />
+                ),
               },
               {
                 id: "observed",

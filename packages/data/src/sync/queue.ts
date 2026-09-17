@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 export function jobKey(r: SyncRequest) {
+  if (r.kind === "entity-history" || r.kind === "entity-rosters") return `${r.kind}:${r.year}`;
   return r.kind === "history"
     ? `history:${r.year}${r.file ? ":" + createHash("sha256").update(r.file).digest("hex").slice(0, 16) : ""}`
     : r.kind;
@@ -30,6 +31,7 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
       },
       interval: 86400,
     },
+    { request: { kind: "entities" }, interval: 86400 },
   ];
   await transaction(pool, async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(9183274)");

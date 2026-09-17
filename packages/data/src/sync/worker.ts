@@ -1,20 +1,29 @@
 import { readFile, stat } from "node:fs/promises";
+import { setTimeout as pauseFor } from "node:timers/promises";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { Source, SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 import { digest, saveGames, saveMatches, saveRosters } from "../persistence/write.js";
-import { parseMatches, parseTeams } from "../providers/pandascore.js";
+import {
+  parseMatches,
+  parseTeams,
+  parseCoveredLeagues,
+  parseTournamentRosters,
+} from "../providers/pandascore.js";
 import { archiveDownload, parseHistory } from "../providers/oracle.js";
 import { parseMetadata, parseVersions } from "../providers/ddragon.js";
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
+import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
+import { cacheImages } from "./images.js";
 
 export interface WorkerOptions {
   clock?: () => Date;
   fetch?: typeof fetch;
   token?: string;
   currentFile?: string;
+  pause?: (milliseconds: number) => Promise<void>;
 }
 class ProviderError extends Error {
   constructor(
@@ -29,10 +38,16 @@ const sourceOf = (r: SyncRequest): Source =>
 export function worker(pool: Pool, options: WorkerOptions) {
   const clock = options.clock ?? (() => new Date());
   const fetcher = options.fetch ?? fetch;
+  const pause = options.pause ?? pauseFor;
+  let lastPandaAttempt = 0;
   async function request(url: string, panda = false): Promise<Response> {
     if (panda) {
       if (!options.token) throw new ProviderError("PANDASCORE_TOKEN is not configured.");
+      // Space catalog/backfill requests as well as respecting the durable hourly ceiling.
+      const delay = Math.min(1000, 1000 - (clock().valueOf() - lastPandaAttempt));
+      if (delay > 0) await pause(delay);
       await reserveRequest(pool, clock());
+      lastPandaAttempt = clock().valueOf();
     }
     let response: Response;
     try {
@@ -69,6 +84,78 @@ export function worker(pool: Pool, options: WorkerOptions) {
     );
   }
   async function perform(r: SyncRequest): Promise<number> {
+    if (r.kind === "entity-rosters") {
+      const tournaments = (
+        await pool.query<{ id: string; first: Date; last: Date }>(
+          `SELECT document->>'tournamentSourceId' AS id,min((document->>'startsAt')::timestamptz) AS first,max((document->>'startsAt')::timestamptz) AS last FROM identity_match_context WHERE year=$1 AND document->>'tournamentSourceId' IS NOT NULL AND document->>'startsAt' IS NOT NULL GROUP BY document->>'tournamentSourceId' ORDER BY id`,
+          [r.year],
+        )
+      ).rows;
+      if (!tournaments.length)
+        throw new ProviderError(
+          "Backfill fixture context for this year before tournament rosters.",
+        );
+      for (const tournament of tournaments) {
+        const fresh = await pool.query(
+          "SELECT 1 FROM identity_tournament_rosters WHERE tournament_id=$1 AND observed_at>$2::timestamptz-interval '1 day'",
+          [tournament.id, clock()],
+        );
+        if (fresh.rowCount) continue;
+        const teams = parseTournamentRosters(
+          await (
+            await request(`https://api.pandascore.co/tournaments/${tournament.id}/rosters`, true)
+          ).json(),
+        );
+        const at = clock();
+        const contexts = teams.map((team) => ({
+          ...team,
+          observedAt: at.toISOString(),
+          tournamentId: tournament.id,
+          playedAfter: new Date(tournament.first.valueOf() - 12 * 3600000).toISOString(),
+          playedBefore: new Date(tournament.last.valueOf() + 12 * 3600000).toISOString(),
+        }));
+        await pool.query(
+          "INSERT INTO identity_tournament_rosters VALUES($1,$2,$3,$4) ON CONFLICT(tournament_id) DO UPDATE SET document=EXCLUDED.document,observed_at=EXCLUDED.observed_at",
+          [tournament.id, r.year, JSON.stringify(contexts), at],
+        );
+      }
+      await resolveStored(pool, clock());
+      await cacheImages(pool, fetcher, clock);
+      return tournaments.length;
+    }
+    if (r.kind === "entity-history") {
+      const leagueIds = parseCoveredLeagues(await pandaPages("leagues?sort=id"), r.year);
+      if (!leagueIds.length)
+        throw new ProviderError("No covered leagues in provider context; saved evidence retained.");
+      const matches = parseMatches(
+        await pandaPages(
+          `matches/past?sort=begin_at&filter[league_id]=${leagueIds.join(",")}&range[begin_at]=${r.year}-01-01T00:00:00Z,${r.year}-12-31T23:59:59Z`,
+        ),
+        clock(),
+      );
+      if (!matches.length)
+        throw new ProviderError(
+          "No historical fixture context available for this year; saved evidence retained.",
+        );
+      await saveIdentityContext(pool, matches, r.year, clock());
+      await resolveStored(pool, clock());
+      await cacheImages(pool, fetcher, clock);
+      return matches.length;
+    }
+    if (r.kind === "entities" || r.kind === "resolve") {
+      if (r.kind === "entities") {
+        const teams = parseTeams(await pandaPages("teams?sort=id"));
+        if (!teams.length)
+          throw new ProviderError("Empty entity catalog; previous context retained.");
+        await saveCatalog(
+          pool,
+          teams.map((t) => ({ ...t, observedAt: clock().toISOString() })),
+        );
+      }
+      const report = await resolveStored(pool, clock());
+      await cacheImages(pool, fetcher, clock);
+      return report.links;
+    }
     if (r.kind === "history") {
       let csv: string;
       if (r.file) {
@@ -158,17 +245,19 @@ export function worker(pool: Pool, options: WorkerOptions) {
         const job = await claim(pool, clock());
         if (!job) return { state: "idle" as const };
         const source = sourceOf(job.request);
-        await pool.query("UPDATE source_status SET last_attempt=$2 WHERE source=$1", [
-          source,
-          clock(),
-        ]);
+        if (job.request.kind !== "resolve")
+          await pool.query("UPDATE source_status SET last_attempt=$2 WHERE source=$1", [
+            source,
+            clock(),
+          ]);
         try {
           const records = await perform(job.request);
           await transaction(pool, async (c) => {
-            await c.query(
-              "UPDATE source_status SET last_success=$2,error=NULL,records=$3 WHERE source=$1",
-              [source, clock(), records],
-            );
+            if (job.request.kind !== "resolve")
+              await c.query(
+                "UPDATE source_status SET last_success=$2,error=NULL,records=$3 WHERE source=$1",
+                [source, clock(), records],
+              );
             await c.query(
               "UPDATE sync_jobs SET state='done',lease_until=NULL,error=NULL WHERE id=$1",
               [job.id],
@@ -179,7 +268,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
           const deferred = error instanceof DeferredRequest;
           const retry =
             deferred || (error instanceof ProviderError && error.retryable && job.attempts < 3);
-          const message =
+          const detail =
             error instanceof z.ZodError
               ? "Provider schema validation failed; saved data is unchanged."
               : error instanceof ProviderError || deferred
@@ -187,6 +276,10 @@ export function worker(pool: Pool, options: WorkerOptions) {
                 : job.request.kind === "history"
                   ? "Historical import failed validation or could not be read; saved data is unchanged."
                   : "Synchronization failed; saved data is unchanged.";
+          const message =
+            job.request.kind === "entity-rosters"
+              ? `Tournament roster refresh incomplete. Valid observations are retained for resume. ${detail}`
+              : detail;
           const available = deferred
             ? error.until
             : new Date(clock().valueOf() + 60000 * 2 ** Math.min(job.attempts, 6));
@@ -195,7 +288,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
               "UPDATE sync_jobs SET state=$2,available_at=$3,lease_until=NULL,error=$4,attempts=attempts-$5 WHERE id=$1",
               [job.id, retry ? "queued" : "failed", available, message, deferred ? 1 : 0],
             );
-            await c.query("UPDATE source_status SET error=$2 WHERE source=$1", [source, message]);
+            if (job.request.kind !== "resolve")
+              await c.query("UPDATE source_status SET error=$2 WHERE source=$1", [source, message]);
           });
           return {
             state: retry ? ("queued" as const) : ("failed" as const),

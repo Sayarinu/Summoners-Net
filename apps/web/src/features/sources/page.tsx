@@ -1,17 +1,19 @@
 "use client";
 import { useState } from "react";
 import { Button, Input, Table, TextLink, StatusIndicator } from "@esportsviewer/ui";
-import type { SyncStatus } from "@esportsviewer/data";
+import type { SyncStatus, Queries } from "@esportsviewer/data";
 import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
 export function SourcesPage({
   status,
   timezone,
   year,
+  entities,
 }: {
   status: SyncStatus;
   timezone: string;
   year: number;
+  entities?: Awaited<ReturnType<Queries["entityStatus"]>>;
 }) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -90,6 +92,36 @@ export function SourcesPage({
           ? `Cooldown until ${dateTime(status.cooldownUntil, timezone)}.`
           : "No provider cooldown."}
       </p>
+      <section className="np-stack">
+        <h2>Identity & image coverage</h2>
+        <p className="np-body-sm">
+          Source records are linked using corroborating lineups or repeated fixtures. Ambiguous
+          identities remain separate. Images are saved locally from PandaScore and may reflect
+          current branding.
+        </p>
+        {entities && (
+          <Table
+            caption="Resolved library"
+            rows={entities.counts}
+            getRowKey={(r) => r.kind}
+            columns={[
+              { id: "kind", header: "Kind", render: (r) => r.kind },
+              { id: "total", header: "Profiles", render: (r) => r.identities },
+              { id: "linked", header: "Linked sources", render: (r) => r.linked },
+              { id: "images", header: "With images", render: (r) => r.images },
+            ]}
+          />
+        )}
+        <p className="np-meta">
+          {entities?.last
+            ? `Last resolved ${dateTime(entities.last.at, timezone)} · ${entities.last.ambiguous} ambiguous candidates kept separate.`
+            : "No identity resolution has run yet."}
+          {entities?.images.failed
+            ? ` ${entities.images.failed} image downloads unavailable; saved images retained.`
+            : ""}
+        </p>
+        <RefreshButton kind="entities" />
+      </section>
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">

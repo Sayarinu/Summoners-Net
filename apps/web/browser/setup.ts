@@ -10,8 +10,19 @@ export default async function setup() {
   const sync = createSync(url, {
     clock: () => now,
     token: "browser-test-only",
+    pause: () => Promise.resolve(),
     fetch: (input) => {
       const endpoint = input instanceof Request ? input.url : input.toString();
+      if (endpoint.includes("cdn-api.pandascore.co"))
+        return Promise.resolve(
+          new Response(
+            Buffer.from(
+              "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomrgAK2IYWhIAdr5swVmNv80AAAAASUVORK5CYII=",
+              "base64",
+            ),
+            { headers: { "content-type": "image/png" } },
+          ),
+        );
       return Promise.resolve(
         Response.json(
           endpoint.includes("/teams")
@@ -19,7 +30,16 @@ export default async function setup() {
                 {
                   id: 10,
                   name: "Acceptance Blue",
-                  players: [{ id: 30, name: "Observed Player", role: "mid" }],
+                  image_url: "https://cdn-api.pandascore.co/browser-fixture.png",
+                  players: [
+                    ...["top", "jng", "mid", "bot", "sup"].map((role, i) => ({
+                      id: 30 + i,
+                      name: `Player Blue ${role}`,
+                      role,
+                      image_url: "https://cdn-api.pandascore.co/browser-fixture.png",
+                    })),
+                    { id: 50, name: "Observed Player", role: "mid" },
+                  ],
                 },
               ]
             : Array.from({ length: 30 }, (_, i) =>
@@ -37,7 +57,7 @@ export default async function setup() {
   try {
     await sync.migrate();
     await pool.query(
-      "TRUNCATE participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
     );
     await pool.query(
       "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -54,6 +74,9 @@ export default async function setup() {
     await writeFile(file, historyCsv());
     await sync.request({ kind: "history", year: 2026, file });
     if ((await sync.runNext()).state !== "done") throw new Error("Browser fixture import failed");
+    await sync.request({ kind: "entities" });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser fixture identity linking failed");
   } finally {
     await sync.close();
     await pool.end();

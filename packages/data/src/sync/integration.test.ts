@@ -18,9 +18,12 @@ const queries = createQueries(connection, () => now);
 let instant = new Date(now);
 let directory: string;
 const fetcher = vi.fn<typeof fetch>();
+const endpoint = (input: Parameters<typeof fetch>[0] | undefined) =>
+  input instanceof Request ? input.url : (input?.toString() ?? "");
 const sync = createSync(connection, {
   clock: () => instant,
   fetch: fetcher,
+  pause: () => Promise.resolve(),
   token: "test-only-token",
 });
 const json = (value: unknown, headers: Record<string, string> = {}) =>
@@ -45,7 +48,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -176,7 +179,7 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
   });
   it("keeps source identities distinct, replaces observed rosters, and commits all match pages together", async () => {
     fetcher.mockImplementation((input) => {
-      const url = input instanceof Request ? input.url : input.toString();
+      const url = input instanceof Request ? input.url : endpoint(input);
       if (url.includes("/teams"))
         return Promise.resolve(
           json([
@@ -294,6 +297,7 @@ describe("durable synchronization and request budgeting", () => {
     const restarted = createSync(connection, {
       clock: () => now,
       fetch: fetcher,
+      pause: () => Promise.resolve(),
       token: "test",
     });
     try {
@@ -377,6 +381,7 @@ describe("durable synchronization and request budgeting", () => {
     const missing = createSync(connection, {
       clock: () => now,
       fetch: fetcher,
+      pause: () => Promise.resolve(),
     });
     try {
       await missing.request({ kind: "running" });
@@ -398,4 +403,254 @@ describe("durable synchronization and request budgeting", () => {
     expect((await run({ kind: "history", year: 2024 })).state).toBe("done");
     expect((await run({ kind: "history", year: 2099 })).state).toBe("failed");
   });
+});
+
+describe("resolved profiles and local image persistence", () => {
+  it("backfills free fixture evidence separately from schedules and resolves retired teams without current rosters", async () => {
+    await importCsv();
+    await importCsv(
+      historyCsv({ id: "second" })
+        .replaceAll("2026-03-01 01:00:00", "2026-03-02 01:00:00")
+        .replaceAll(",11,", ",12,")
+        .replaceAll("Acceptance Red", "Acceptance Green"),
+    );
+    fetcher.mockImplementation((input) =>
+      Promise.resolve(
+        endpoint(input).includes("/leagues")
+          ? json([
+              { id: 1, name: "LCK" },
+              { id: 2, name: "LCK Challengers" },
+            ])
+          : json([
+              rawMatch(1),
+              rawMatch(2, {
+                begin_at: "2026-03-02T01:00:00Z",
+                opponents: [
+                  { opponent: { id: 10, name: "Acceptance Blue" } },
+                  { opponent: { id: 21, name: "Acceptance Green" } },
+                ],
+              }),
+            ]),
+      ),
+    );
+    expect((await run({ kind: "entity-history", year: 2026 })).state).toBe("done");
+    expect((await queries.profile("pandascore:team:10"))?.summary.eligibleGames).toBe(2);
+    expect((await queries.profile("pandascore:team:10"))?.resolution).toMatchObject([
+      { method: "fixtures", matchedFixtures: 2 },
+    ]);
+    expect((await queries.matches()).total).toBe(0);
+    expect(endpoint(fetcher.mock.calls[1]?.[0])).toContain("filter%5Bleague_id%5D=1");
+    fetcher.mockResolvedValue(json([]));
+    expect((await run({ kind: "entity-history", year: 2025 })).state).toBe("failed");
+    expect((await queries.profile("pandascore:team:10"))?.summary.eligibleGames).toBe(2);
+  });
+  const portrait = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomrgAK2IYWhIAdr5swVmNv80AAAAASUVORK5CYII=",
+    "base64",
+  );
+  const imageUrl = "https://cdn-api.pandascore.co/images/test.png";
+  function catalog() {
+    return [
+      {
+        id: 10,
+        name: "Acceptance Blue",
+        image_url: imageUrl,
+        players: ["top", "jng", "mid", "bot", "sup"].map((role, index) => ({
+          id: 30 + index,
+          name: `Player Blue ${role}`,
+          role,
+          image_url: imageUrl,
+        })),
+      },
+      { id: 999, name: "Unrelated Academy", players: [] },
+    ];
+  }
+  function provider() {
+    fetcher.mockImplementation((input, init) => {
+      const url = endpoint(input);
+      if (url.includes("cdn-api")) {
+        expect(init?.headers).toBeUndefined();
+        expect(init?.redirect).toBe("error");
+        return Promise.resolve(
+          new Response(portrait, { headers: { "content-type": "image/png" } }),
+        );
+      }
+      if (url.includes("/teams")) return Promise.resolve(json(catalog()));
+      return Promise.resolve(json([rawMatch()]));
+    });
+  }
+  it("links corroborated sources, combines samples and rosters, deduplicates paginated alias search, and serves cached images after restart", async () => {
+    await importCsv();
+    provider();
+    expect((await run({ kind: "entities" })).state).toBe("done");
+    const profile = await queries.profile("pandascore:player:32");
+    expect(profile?.identity).toMatchObject({
+      id: "oracle:player:10-mid",
+      entityId: "oracle:player:10-mid",
+      sourceCount: 2,
+      imageSource: "PandaScore",
+    });
+    expect(profile?.sources).toHaveLength(2);
+    expect(profile?.summary.eligibleGames).toBe(1);
+    expect(profile?.roster).toHaveLength(1);
+    expect(profile?.resolution?.[0]).toMatchObject({
+      gameId: "oracle:game:acceptance-game",
+      matchedPlayers: 5,
+    });
+    expect((await queries.profile("oracle:team:10"))?.roster).toHaveLength(5);
+    expect((await queries.directory("team")).total).toBe(2);
+    expect((await queries.directory("team", { q: "Academy" })).total).toBe(0);
+    expect((await queries.search({ q: "Player Blue mid" })).items).toHaveLength(1);
+    expect(
+      (await queries.directory("player", { q: "Player Blue", pageSize: 2, page: 3 })).items,
+    ).toHaveLength(1);
+    expect(
+      (await queries.directory("player", { q: "Player Blue", pageSize: 2, page: 4 })).total,
+    ).toBe(5);
+    const oldImage = profile!.identity.imageUrl!;
+    const hash = oldImage.split("/").at(-1)!;
+    expect((await queries.image(hash))?.bytes).toEqual(new Uint8Array(portrait));
+    expect(await queries.image("0".repeat(64))).toBeNull();
+    await expect(queries.image("bad")).rejects.toThrow();
+    const restarted = createQueries(connection);
+    try {
+      expect((await restarted.profile("oracle:player:10-mid"))?.identity.imageUrl).toBe(oldImage);
+    } finally {
+      await restarted.close();
+    }
+    expect(
+      (await queries.game("oracle:game:acceptance-game"))?.participants.find(
+        (p) => p.player?.id === "oracle:player:10-mid",
+      )?.player?.imageUrl,
+    ).toBe(oldImage);
+    expect((await queries.entityStatus()).counts.find((c) => c.kind === "player")).toMatchObject({
+      identities: 10,
+      linked: 5,
+      images: 5,
+    });
+    expect(
+      fetcher.mock.calls.filter((c) => endpoint(c[0]).includes("api.pandascore.co/lol")),
+    ).toHaveLength(1);
+    expect((await queries.status()).pandaRequests).toBe(1);
+    const calls = fetcher.mock.calls.length;
+    expect((await run({ kind: "resolve" })).state).toBe("done");
+    expect(fetcher.mock.calls).toHaveLength(calls);
+  });
+  it("retains images after missing URLs, invalid content and partial provider failure; resolves corrections without rewriting source IDs", async () => {
+    await importCsv();
+    provider();
+    await run({ kind: "entities" });
+    const before = await queries.profile("oracle:player:10-mid");
+    instant = new Date(now.valueOf() + 8 * 86400000);
+    fetcher.mockResolvedValue(
+      new Response("<html>unavailable</html>", { headers: { "content-type": "text/html" } }),
+    );
+    expect((await run({ kind: "resolve" })).state).toBe("done");
+    expect((await queries.profile("oracle:player:10-mid"))?.identity.imageUrl).toBe(
+      before?.identity.imageUrl,
+    );
+    expect((await queries.entityStatus()).images.failed).toBe(6);
+    fetcher.mockResolvedValue(
+      json(
+        catalog().map((t) => ({
+          ...t,
+          image_url: null,
+          players: t.players.map((p) => ({ ...p, image_url: null })),
+        })),
+      ),
+    );
+    expect((await run({ kind: "entities" })).state).toBe("done");
+    expect((await queries.profile("oracle:player:10-mid"))?.identity.imageUrl).toBe(
+      before?.identity.imageUrl,
+    );
+    fetcher
+      .mockResolvedValueOnce(json(catalog(), { link: '<https://untrusted>; rel="next"' }))
+      .mockResolvedValueOnce(json({ error: "broken schema" }));
+    expect((await run({ kind: "entities" })).state).toBe("failed");
+    expect((await queries.profile("oracle:player:10-mid"))?.summary).toEqual(before?.summary);
+    // A correction invalidating the one corroborating lineup removes the derived links, not the sources.
+    await importCsv(
+      historyCsv()
+        .replaceAll("Player Blue mid", "Different Player")
+        .replaceAll("Player Blue jng", "Different Jungler")
+        .replaceAll("Player Blue top", "Different Top"),
+    );
+    expect((await run({ kind: "resolve" })).state).toBe("done");
+    expect((await queries.profile("pandascore:player:32"))?.sources).toHaveLength(1);
+    expect((await queries.profile("oracle:player:10-mid"))?.summary.eligibleGames).toBe(1);
+  });
+});
+it("links retired players using period-bounded tournament rosters without replacing current observations, and resumes saved tournament work", async () => {
+  await importCsv();
+  expect((await run({ kind: "entity-rosters", year: 2026 })).state).toBe("failed");
+  fetcher.mockImplementation((input) =>
+    Promise.resolve(
+      endpoint(input).includes("/leagues")
+        ? json([{ id: 1, name: "LCK" }])
+        : json([
+            rawMatch(1, { tournament: { id: 100, name: "Spring" } }),
+            rawMatch(2, {
+              tournament: { id: 101, name: "Spring playoffs" },
+              begin_at: "2026-03-03T01:00:00Z",
+            }),
+          ]),
+    ),
+  );
+  await run({ kind: "entity-history", year: 2026 });
+  const roster = {
+    type: "Team",
+    rosters: [
+      {
+        id: 10,
+        name: "Acceptance Blue",
+        players: ["top", "jng", "mid", "bot", "sup"].map((role, index) => ({
+          id: 30 + index,
+          name: `Player Blue ${role}`,
+          role,
+        })),
+      },
+    ],
+  };
+  fetcher.mockReset();
+  fetcher
+    .mockResolvedValueOnce(json(roster))
+    .mockResolvedValueOnce(json({ type: "Player", rosters: [] }));
+  expect((await run({ kind: "entity-rosters", year: 2026 })).state).toBe("failed");
+  expect((await queries.status()).jobs[0]?.error).toContain("retained for resume");
+  expect((await queries.profile("oracle:player:10-mid"))?.sources).toHaveLength(1);
+  fetcher.mockReset();
+  fetcher.mockResolvedValue(json(roster));
+  expect((await run({ kind: "entity-rosters", year: 2026 })).state).toBe("done");
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0]?.[0]).toBe("https://api.pandascore.co/tournaments/101/rosters");
+  const profile = await queries.profile("pandascore:player:32");
+  expect(profile?.sources).toHaveLength(2);
+  expect(profile?.summary.eligibleGames).toBe(1);
+  expect(profile?.roster).toEqual([]);
+  expect((await queries.profile("oracle:team:10"))?.roster).toEqual([]);
+});
+it("enriches each historical appearance without replacing its source-era name or role", async () => {
+  await importCsv();
+  await importCsv(
+    historyCsv({ id: "renamed" })
+      .replaceAll("Acceptance Blue", "Renamed Blue")
+      .replaceAll("Player Blue mid", "New Handle"),
+  );
+  const games = await queries.games();
+  expect(
+    games.items.find((g) => g.sourceId === "acceptance-game")?.participants[0]?.team.name,
+  ).toBe("Acceptance Blue");
+  expect(games.items.find((g) => g.sourceId === "renamed")?.participants[0]?.team.name).toBe(
+    "Renamed Blue",
+  );
+  expect(
+    games.items
+      .find((g) => g.sourceId === "acceptance-game")
+      ?.participants.find((p) => p.player?.id === "oracle:player:10-mid")?.player?.name,
+  ).toBe("Player Blue mid");
+  expect(
+    games.items
+      .find((g) => g.sourceId === "renamed")
+      ?.participants.find((p) => p.player?.id === "oracle:player:10-mid")?.player?.name,
+  ).toBe("New Handle");
 });

@@ -5,9 +5,18 @@ import { transaction } from "./database.js";
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 export async function saveIdentity(client: PoolClient, identity: Identity) {
   await client.query(
-    "INSERT INTO identities(id,kind,name,source,source_id,document) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document",
+    "INSERT INTO identities(id,kind,name,source,source_id,document) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document || jsonb_build_object('imageUrl',coalesce(EXCLUDED.document->>'imageUrl',identities.document->>'imageUrl'))",
     [identity.id, identity.kind, identity.name, identity.source, identity.sourceId, identity],
   );
+  await client.query("INSERT INTO identity_aliases VALUES($1,$2) ON CONFLICT DO NOTHING", [
+    identity.id,
+    identity.name,
+  ]);
+  for (const alias of identity.aliases ?? [])
+    await client.query("INSERT INTO identity_aliases VALUES($1,$2) ON CONFLICT DO NOTHING", [
+      identity.id,
+      alias,
+    ]);
   await client.query(
     "INSERT INTO source_mappings(source,kind,external_id,identity_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
     [identity.source, identity.kind, identity.sourceId, identity.id],
@@ -99,6 +108,9 @@ export async function saveGames(pool: Pool, games: Game[], fileHash: string, yea
         [ids],
       );
     }
+    await client.query(
+      `INSERT INTO identity_aliases SELECT DISTINCT value->'team'->>'id',value->'team'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') UNION SELECT DISTINCT value->'player'->>'id',value->'player'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') WHERE value->'player'->>'id' IS NOT NULL ON CONFLICT DO NOTHING`,
+    );
     await client.query(
       "INSERT INTO imports(source,file_hash,year,records) VALUES('oracle',$1,$2,$3)",
       [fileHash, year, games.length],
