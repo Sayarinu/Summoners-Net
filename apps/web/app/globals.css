@@ -65,7 +65,6 @@
   min-width: 125px;
   max-width: 185px;
 }
-.ev-source-line,
 .ev-row-note {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);

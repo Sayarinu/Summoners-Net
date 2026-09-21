@@ -32,7 +32,7 @@ export function WatchPlayer({ broadcasts }: { broadcasts: Broadcast[] }) {
     return (
       <EmptyState
         title="No broadcast supplied"
-        description="This match has no Twitch or YouTube link in the source."
+        description="This match has no available Twitch or YouTube link."
       />
     );
   const src = consented ? embedUrl(b, window.location.hostname) : null;

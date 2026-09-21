@@ -2,12 +2,12 @@ import { it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MatchPage, GamePage, ProfilePage } from "./pages";
 import { match, game, profile, blue, instant, page } from "../../../tests/fixtures";
-it("prioritizes match identity and consented watching while retaining source game context", () => {
+it("prioritizes match identity and consented watching while retaining game context", () => {
   const view = render(<MatchPage match={match} timezone="UTC" hideSpoilers now={instant} />);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
   );
-  expect(screen.getByText("Source game context")).toBeVisible();
+  expect(screen.getByText("Game context")).toBeVisible();
   expect(document.querySelector("iframe")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Hidden")).toBeNull();
@@ -101,7 +101,7 @@ it("shows linked identity evidence, canonical destinations and portraits without
   expect(
     screen.getAllByRole("img", { name: `${identity.name} portrait` })[0]!.querySelector("img"),
   ).toHaveAttribute("src", image);
-  fireEvent.click(screen.getByText("Names & source records"));
+  fireEvent.click(screen.getByText("Identity details"));
   expect(screen.getByText(/Old handle/)).toBeVisible();
   expect(screen.getByRole("link", { name: "played lineup" })).toHaveAttribute(
     "href",

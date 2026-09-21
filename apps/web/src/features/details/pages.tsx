@@ -61,7 +61,7 @@ export function MatchPage({
         <h2>Game information</h2>
         {match.games.length > 0 && (
           <Table
-            caption="Source game context"
+            caption="Game context"
             rows={match.games}
             getRowKey={(g) => g.sourceId}
             columns={[
@@ -80,25 +80,17 @@ export function MatchPage({
                     ? "Hidden"
                     : (match.teams.find((t) => t.id === g.winnerId)?.name ?? "Unknown"),
               },
-              {
-                id: "source",
-                header: "Source game ID",
-                render: (g) => g.sourceId,
-              },
             ]}
           />
         )}
         <EmptyState
           title="Historical games remain independently accessible"
-          description="No verified Oracle series association is available. Browse the game archive for sourced lineups and statistics."
+          description="No verified series association is available. Browse the game archive for played lineups and statistics."
         />
         <TextLink href={`/history?league=${encodeURIComponent(match.league)}`}>
           Browse {match.league} games
         </TextLink>
       </section>
-      <p className="np-meta">
-        PandaScore · {match.sourceId} · Received {dateTime(match.updatedAt, timezone)}
-      </p>
     </div>
   );
 }
@@ -191,10 +183,7 @@ export function GamePage({
           },
         ]}
       />
-      <p className="np-meta">
-        Oracle’s Elixir · {game.sourceId} · Series association{" "}
-        {game.matchId ? "verified" : "unconfirmed"}
-      </p>
+      <p className="np-meta">Series association {game.matchId ? "verified" : "unconfirmed"}.</p>
     </div>
   );
 }
@@ -222,9 +211,7 @@ export function ProfilePage({
       />
       <header className="ev-title">
         <div className="ev-profile-title">
-          <span className="np-overline">
-            {identity.kind} · {identity.sourceCount === 2 ? "Linked sources" : identity.source}
-          </span>
+          <span className="np-overline">{identity.kind}</span>
           <h1 className="np-visually-hidden">{identity.name}</h1>
           {identity.kind === "team" ? (
             <TeamIdentity
@@ -239,21 +226,11 @@ export function ProfilePage({
               {...(identity.imageUrl ? { portrait: identity.imageUrl } : {})}
             />
           )}
-          <p className="np-meta">
-            {identity.imageSource
-              ? `${identity.imageSource} image · Current source reference`
-              : "No verified image available"}
-          </p>
         </div>
       </header>
       <details className="np-stack">
-        <summary>Names & source records</summary>
+        <summary>Identity details</summary>
         <p className="np-body-sm">{(profile.aliases ?? [identity.name]).join(" · ")}</p>
-        {(profile.sources ?? [identity]).map((source) => (
-          <p key={source.id} className="np-meta">
-            {source.source} · {source.sourceId} · {source.name}
-          </p>
-        ))}
         {(profile.resolution ?? []).map((evidence) => (
           <p key={evidence.gameId} className="np-body-sm">
             Linked using{" "}
@@ -263,7 +240,7 @@ export function ProfilePage({
             <TextLink href={`/games/${encodeURIComponent(evidence.gameId)}`}>
               played lineup
             </TextLink>{" "}
-            from {dateTime(evidence.playedAt, query.timezone ?? "UTC")}. Roster observed{" "}
+            played {dateTime(evidence.playedAt, query.timezone ?? "UTC")}. Roster observed{" "}
             {dateTime(evidence.observedAt, query.timezone ?? "UTC")}. This is identity evidence, not
             a contract timeline.
           </p>
@@ -272,7 +249,8 @@ export function ProfilePage({
       <section className="np-stack">
         <h2>Observed current roster</h2>
         <p className="np-body-sm">
-          Provider observations describe the latest supplied lineup, not contractual roster history.
+          Current roster records describe the latest supplied lineup, not contractual roster
+          history.
         </p>
         {profile.roster.length ? (
           <Table

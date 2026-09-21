@@ -29,13 +29,13 @@ it("queues manual refresh and reports success or failure without pretending to f
     ),
   );
 });
-it("shows source failures, actual coverage and queued uploads", async () => {
+it("shows data freshness, actual coverage and queued uploads", async () => {
   const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status: 202 }));
   vi.stubGlobal("fetch", fetcher);
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  expect(screen.getByText(/10 \/ 600 requests/)).toBeVisible();
-  expect(screen.getAllByText("Archive quota")).toHaveLength(2);
+  expect(screen.getByRole("table", { name: "Data freshness" })).toBeVisible();
+  expect(screen.getAllByText("Needs attention")).toHaveLength(2);
   expect(screen.getByRole("link", { name: "2026" })).toHaveAttribute("href", "/history?year=2026");
   fireEvent.submit(screen.getByRole("button", { name: "Queue local import" }).closest("form")!);
   await screen.findByText(/Import queued/);
@@ -49,7 +49,7 @@ it("shows source failures, actual coverage and queued uploads", async () => {
   view.rerender(
     <SourcesPage status={{ ...status, cooldownUntil: instant }} timezone="UTC" year={2026} />,
   );
-  expect(screen.getByText(/Cooldown until/)).toBeVisible();
+  expect(screen.getByText(/Refresh cooldown until/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Reload status" }));
   error.mockRestore();
 });

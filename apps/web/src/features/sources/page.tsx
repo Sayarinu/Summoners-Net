@@ -4,6 +4,20 @@ import { Button, Input, Table, TextLink, StatusIndicator } from "@esportsviewer/
 import type { SyncStatus, Queries } from "@esportsviewer/data";
 import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
+
+function dataLabel(source: string) {
+  switch (source) {
+    case "pandascore":
+      return "Live matches";
+    case "oracle":
+      return "Historical games";
+    case "ddragon":
+      return "Game metadata";
+    default:
+      return "Other records";
+  }
+}
+
 export function SourcesPage({
   status,
   timezone,
@@ -39,7 +53,7 @@ export function SourcesPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Your local library</span>
-          <h1>Sources & imports</h1>
+          <h1>Data management</h1>
           <p className="np-body-sm">
             Refreshes join the shared queue. Keep <code>pnpm sync</code> running to process them.
           </p>
@@ -47,11 +61,11 @@ export function SourcesPage({
         <Button onPress={() => window.location.reload()}>Reload status</Button>
       </header>
       <Table
-        caption="Source freshness"
+        caption="Data freshness"
         rows={status.sources}
         getRowKey={(s) => s.source}
         columns={[
-          { id: "source", header: "Source", render: (s) => s.source },
+          { id: "source", header: "Data", render: (s) => dataLabel(s.source) },
           {
             id: "success",
             header: "Last success",
@@ -67,7 +81,7 @@ export function SourcesPage({
             header: "Last job records",
             render: (s) => s.records,
           },
-          { id: "error", header: "Status", render: (s) => s.error ?? "Ready" },
+          { id: "error", header: "Status", render: (s) => (s.error ? "Needs attention" : "Ready") },
           {
             id: "refresh",
             header: "Refresh",
@@ -87,17 +101,15 @@ export function SourcesPage({
         ]}
       />
       <p className="np-meta">
-        PandaScore: {status.pandaRequests} / 600 requests in the rolling hour.{" "}
         {status.cooldownUntil
-          ? `Cooldown until ${dateTime(status.cooldownUntil, timezone)}.`
-          : "No provider cooldown."}
+          ? `Refresh cooldown until ${dateTime(status.cooldownUntil, timezone)}.`
+          : "No refresh cooldown."}
       </p>
       <section className="np-stack">
         <h2>Identity & image coverage</h2>
         <p className="np-body-sm">
-          Source records are linked using corroborating lineups or repeated fixtures. Ambiguous
-          identities remain separate. Images are saved locally from PandaScore and may reflect
-          current branding.
+          Records are linked using corroborating lineups or repeated fixtures. Ambiguous identities
+          remain separate. Images are saved locally and may reflect current branding.
         </p>
         {entities && (
           <Table
@@ -107,7 +119,7 @@ export function SourcesPage({
             columns={[
               { id: "kind", header: "Kind", render: (r) => r.kind },
               { id: "total", header: "Profiles", render: (r) => r.identities },
-              { id: "linked", header: "Linked sources", render: (r) => r.linked },
+              { id: "linked", header: "Linked records", render: (r) => r.linked },
               { id: "images", header: "With images", render: (r) => r.images },
             ]}
           />
@@ -125,8 +137,8 @@ export function SourcesPage({
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">
-          Choose the original Oracle’s Elixir annual CSV. Summary exports are not game records. A
-          failed file leaves saved games intact.
+          Choose an original annual game CSV. Summary exports are not game records. A failed file
+          leaves saved games intact.
         </p>
         <form
           className="ev-import"
@@ -151,16 +163,8 @@ export function SourcesPage({
         </form>
         <p role="status">{message}</p>
         <p className="np-body-sm">
-          Older years can also be queued with <code>pnpm backfill YEAR</code>. If Google Drive
-          returns a download quota page, use a local CSV from the{" "}
-          <TextLink
-            href="https://drive.google.com/drive/folders/1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH"
-            target="_blank"
-            rel="noreferrer"
-          >
-            official archive
-          </TextLink>
-          .
+          Older years can also be queued with <code>pnpm backfill YEAR</code>. Use a local CSV when
+          an archive download is unavailable.
         </p>
       </section>
       <Table
@@ -208,11 +212,11 @@ export function SourcesPage({
             header: "Queued",
             render: (j) => dateTime(j.requestedAt, timezone),
           },
-          { id: "error", header: "Detail", render: (j) => j.error ?? "—" },
+          { id: "error", header: "Detail", render: (j) => (j.error ? "Needs attention" : "—") },
         ]}
       />
       <section className="np-stack ev-prose">
-        <h2>Coverage & source boundaries</h2>
+        <h2>Coverage & data notes</h2>
         <p className="np-body-sm">
           Korea, China, Europe, North America, LCP, Worlds, MSI, First Stand and EWC. Historical
           regional names are grouped for browsing. PCS, VCS, LJL and Oceania predecessors are
@@ -220,10 +224,8 @@ export function SourcesPage({
           northern conference and shared finals, not the southern conference.
         </p>
         <p className="np-body-sm">
-          PandaScore supplies match context, available results, roster observations and broadcast
-          links. Oracle’s Elixir supplies game records and played lineups. Riot Data Dragon supplies
-          versioned champion and item metadata. Records are kept under their original source IDs;
-          identical names do not establish identity or a series association.
+          Records retain their original identifiers internally. Identical names do not establish
+          identity or a series association.
         </p>
         <p className="np-body-sm">
           History is available only for imported years. Missing statistics stay unknown, and partial
