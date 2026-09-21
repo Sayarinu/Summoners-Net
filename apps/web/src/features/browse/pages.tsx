@@ -1,30 +1,20 @@
 "use client";
 import { useState } from "react";
 import { MatchRow, EmptyState, SearchResult, TextLink } from "@esportsviewer/ui";
-import type {
-  BrowseQuery,
-  Match,
-  Game,
-  Identity,
-  Page,
-  SearchHit,
-  SourceStatus,
-} from "@esportsviewer/data";
+import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@esportsviewer/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { identityHref, localDate, matchDisplay, dateTime } from "./presentation";
+import { identityHref, localDate, matchDisplay } from "./presentation";
 import { RefreshButton } from "../sources/refresh";
 export function MatchesPage({
   data,
   query,
   hideSpoilers,
   now,
-  source,
 }: {
   data: Page<Match>;
   query: BrowseQuery;
   hideSpoilers: boolean;
   now: string;
-  source: SourceStatus | undefined;
 }) {
   const [revealed, setRevealed] = useState<string[]>([]);
   const timezone = query.timezone ?? "UTC";
@@ -43,13 +33,6 @@ export function MatchesPage({
         <RefreshButton kind="matches" />
       </header>
       <Filters query={query} />
-      <p className="ev-source-line">
-        PandaScore ·{" "}
-        {source?.lastSuccess
-          ? `Last received ${dateTime(source.lastSuccess, timezone)}`
-          : "No successful refresh yet"}
-        {source?.error ? ` · ${source.error}` : ""}
-      </p>
       {Object.entries(groups).map(([name, items]) => (
         <section key={name} className="ev-match-group">
           <h2>{name}</h2>
@@ -89,13 +72,13 @@ export function HistoryPage({ data, query }: { data: Page<Game>; query: BrowseQu
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Oracle’s Elixir</span>
+          <span className="np-overline">Historical records</span>
           <h1>Game archive</h1>
           <p className="np-body-sm">
             Played lineups and basic statistics, from 2014 onward where imported.
           </p>
         </div>
-        <TextLink href="/sources">Import & coverage</TextLink>
+        <TextLink href="/sources">Manage imports</TextLink>
       </header>
       <Filters query={query} history />
       <GamesTable games={data.items} timezone={query.timezone ?? "UTC"} />
@@ -132,9 +115,6 @@ export function DirectoryPage({
             shortName={i.name}
             type={i.kind}
             href={identityHref(i)}
-            description={
-              i.sourceCount === 2 ? "Linked Oracle + PandaScore" : `${i.source} · ${i.sourceId}`
-            }
             {...(i.imageUrl ? { image: i.imageUrl } : {})}
           />
         ))}
@@ -170,14 +150,13 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
               ? identityHref({ ...i, kind: i.kind })
               : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
           }
-          description={`${i.kind} · ${i.detail}`}
           {...(i.imageUrl ? { image: i.imageUrl } : {})}
         />
       ))}
       {!data.items.length && (
         <EmptyState
           title={query.q ? "No results" : "Find a team, player or match"}
-          description="Search source names or paste a historical game ID."
+          description="Search a team, player, match or historical game ID."
         />
       )}
       <Pages data={data} />

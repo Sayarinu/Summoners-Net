@@ -25,7 +25,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Acceptance Blue vs Acceptance Red",
   );
-  await expect(page.getByRole("table", { name: "Source game context" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Game context" })).toBeVisible();
   await expect(page.locator("iframe")).toHaveCount(0);
 });
 test("search, history, observed rosters and independently accessible played lineups", async ({
@@ -169,8 +169,8 @@ test("canonical profiles share local portraits across search, rosters and played
   await expect
     .poll(() => portrait.evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBeGreaterThan(0);
-  await page.getByText("Names & source records", { exact: true }).click();
-  await expect(page.getByText(/pandascore · 32/)).toBeVisible();
+  await page.getByText("Identity details", { exact: true }).click();
+  await expect(page.getByText(/pandascore · 32/)).toHaveCount(0);
   await expect(page.getByText(/5 matching players and roles/)).toBeVisible();
   await page.getByRole("link", { name: "played lineup" }).click();
   const player = page.getByRole("link", { name: /Player Blue mid/ });

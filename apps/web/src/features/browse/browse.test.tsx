@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MatchesPage, HistoryPage, DirectoryPage, SearchPage } from "./pages";
 import { matchDisplay, localDate, dateTime, identityHref } from "./presentation";
 import { Pages, Filters } from "./components";
-import { match, game, blue, player, page, instant, status } from "../../../tests/fixtures";
+import { match, game, blue, player, page, instant } from "../../../tests/fixtures";
 describe("browse presentation", () => {
   it("formats timezone boundaries and incomplete match identities without invented scores", () => {
     expect(localDate("2026-03-01T01:00:00Z", "America/Phoenix")).toBe("2026-02-28");
@@ -31,7 +31,7 @@ describe("browse presentation", () => {
     expect(identityHref(blue)).toContain("/teams/");
     expect(identityHref(player)).toContain("/players/");
   });
-  it("groups matches, hides scores until reveal, and exposes source freshness", () => {
+  it("groups matches, hides scores until reveal, and marks stale observations", () => {
     render(
       <MatchesPage
         data={page([
@@ -47,7 +47,6 @@ describe("browse presentation", () => {
         query={{ timezone: "America/Phoenix" }}
         hideSpoilers
         now={instant}
-        source={status.sources[0]}
       />,
     );
     expect(screen.getByRole("heading", { name: "2026-02-28 · LCK" })).toBeVisible();
@@ -58,25 +57,10 @@ describe("browse presentation", () => {
   });
   it("renders honest empty states, filters and historical table links", () => {
     const view = render(
-      <MatchesPage
-        data={page([])}
-        query={{}}
-        hideSpoilers={false}
-        now={instant}
-        source={status.sources[1]}
-      />,
+      <MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />,
     );
     expect(screen.getByText("No matches in this view")).toBeVisible();
-    view.rerender(
-      <MatchesPage
-        data={page([])}
-        query={{}}
-        hideSpoilers={false}
-        now={instant}
-        source={undefined}
-      />,
-    );
-    expect(screen.getByText(/No successful refresh/)).toBeVisible();
+    view.rerender(<MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />);
     view.rerender(
       <HistoryPage
         data={page([game, { ...game, id: "partial", patch: null, complete: false }])}
@@ -89,7 +73,7 @@ describe("browse presentation", () => {
     view.rerender(<Filters query={{ state: "final", date: "2026-03-01", q: "Blue" }} />);
     expect(screen.getByLabelText("Date")).toHaveValue("2026-03-01");
   });
-  it("links identities and global results without collapsing source identities", () => {
+  it("links identities and global results", () => {
     const view = render(
       <DirectoryPage
         kind="team"
@@ -146,7 +130,7 @@ it("uses linked profile destinations and locally cached search images", () => {
       query={{}}
     />,
   );
-  expect(screen.getByText("Linked Oracle + PandaScore")).toBeVisible();
+  expect(screen.queryByText("Linked Oracle + PandaScore")).toBeNull();
   view.rerender(
     <SearchPage
       query={{ q: player.name }}

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
-    "dev": "NEXT_TELEMETRY_DISABLED=1 node --env-file-if-exists=../../.env node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
-    "start": "NEXT_TELEMETRY_DISABLED=1 node --env-file-if-exists=../../.env node_modules/next/dist/bin/next start --hostname 127.0.0.1",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 node --import=./scripts/load-root-env.mjs node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
+    "start": "NEXT_TELEMETRY_DISABLED=1 node --import=./scripts/load-root-env.mjs node_modules/next/dist/bin/next start --hostname 127.0.0.1",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",

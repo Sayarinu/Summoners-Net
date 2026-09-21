@@ -1,5 +1,5 @@
 "use client";
-import { Header, Navigation, Footer, TextLink } from "@esportsviewer/ui";
+import { Header, Navigation, Footer } from "@esportsviewer/ui";
 import { usePathname } from "next/navigation";
 import { PreferencesControl } from "../preferences/controls";
 import type { Preferences } from "../preferences/model";
@@ -27,7 +27,6 @@ export function ShellHeader({ preferences }: { preferences: Preferences }) {
               { href: "/teams", label: "Teams" },
               { href: "/players", label: "Players" },
               { href: "/search", label: "Search" },
-              { href: "/sources", label: "Sources" },
             ]}
           />
         }
@@ -37,14 +36,5 @@ export function ShellHeader({ preferences }: { preferences: Preferences }) {
   );
 }
 export function ShellFooter() {
-  return (
-    <Footer
-      copyright="EsportsViewer · Local library"
-      status={
-        <TextLink href="/sources" variant="muted">
-          Sources & coverage
-        </TextLink>
-      }
-    />
-  );
+  return <Footer copyright="EsportsViewer · Local library" />;
 }
