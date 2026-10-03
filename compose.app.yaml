@@ -1,0 +1,66 @@
+# Optional local rehearsal for the same private setup on a future VPS.
+# docker compose -f compose.yaml -f compose.app.yaml up --build -d
+x-application: &application
+  image: esportsviewer:local
+  build: .
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  volumes:
+    - esportsviewer_imports:/app/.local/imports
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  migrate:
+    <<: *application
+    command: ["node", "worker/dist/cli.js", "migrate"]
+    environment:
+      DATABASE_URL: ${CONTAINER_DATABASE_URL:-postgresql://esportsviewer:local-esportsviewer-only@postgres:5432/esportsviewer}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *application
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${CONTAINER_DATABASE_URL:-postgresql://esportsviewer:local-esportsviewer-only@postgres:5432/esportsviewer}
+      ORACLE_CURRENT_FILE: ${CONTAINER_ORACLE_CURRENT_FILE:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  worker:
+    <<: *application
+    command: ["node", "worker/dist/cli.js", "work"]
+    restart: unless-stopped
+    stop_grace_period: 5m
+    environment:
+      DATABASE_URL: ${CONTAINER_DATABASE_URL:-postgresql://esportsviewer:local-esportsviewer-only@postgres:5432/esportsviewer}
+      PANDASCORE_TOKEN: ${PANDASCORE_TOKEN:-}
+      ORACLE_CURRENT_FILE: ${CONTAINER_ORACLE_CURRENT_FILE:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  esportsviewer_imports:

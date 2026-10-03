@@ -1,6 +1,6 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import {
-  Button,
   Input,
   Select,
   Pagination,
@@ -12,6 +12,19 @@ import {
 import type { BrowseQuery, Game, Page } from "@esportsviewer/data";
 import { regions } from "@esportsviewer/data/contracts";
 import { dateTime, gameTeams, identityHref } from "./presentation";
+
+function todayInputValue(timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: "year" | "month" | "day") =>
+    parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export function Filters({
   query,
   history = false,
@@ -21,14 +34,40 @@ export function Filters({
   history?: boolean;
   search?: boolean;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const timeoutRef = useRef<number | undefined>(undefined);
+  const defaultDate = todayInputValue(query.timezone ?? "UTC");
+  const [dateValue, setDateValue] = useState(query.date ?? defaultDate);
+  const [dateIsFilter, setDateIsFilter] = useState(Boolean(query.date));
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== undefined) window.clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    setDateValue(query.date ?? defaultDate);
+    setDateIsFilter(Boolean(query.date));
+  }, [defaultDate, query.date]);
+
+  function scheduleSubmit() {
+    if (timeoutRef.current !== undefined) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(() => {
+      formRef.current?.requestSubmit();
+      timeoutRef.current = undefined;
+    }, 350);
+  }
+
   return (
-    <form className="ev-filters" method="get">
+    <form ref={formRef} className="ev-filters" method="get">
       <Input
         type="search"
-        label={search ? "Search" : "Filter by name"}
+        label={search ? "Search" : history ? "Filter Games" : "Filter Matches"}
         name="q"
         defaultValue={query.q ?? ""}
-        placeholder={search ? "Team, player, match or game ID" : "Team, player or event"}
+        onChange={scheduleSubmit}
+        placeholder={search ? "Search..." : "Filter..."}
       />
       {!search && (
         <>
@@ -36,6 +75,7 @@ export function Filters({
             label="League"
             name="league"
             defaultValue={query.league ?? "all"}
+            onValueChange={scheduleSubmit}
             options={[
               { value: "all", label: "All leagues" },
               ...regions.map((r) => ({ value: r, label: r })),
@@ -51,15 +91,27 @@ export function Filters({
               defaultValue={
                 typeof query.year === "number" || typeof query.year === "string" ? query.year : ""
               }
+              onChange={scheduleSubmit}
               placeholder="All years"
             />
           ) : (
             <>
-              <Input label="Date" name="date" type="date" defaultValue={query.date ?? ""} />
+              <Input
+                label="Date"
+                name={dateIsFilter ? "date" : undefined}
+                type="date"
+                value={dateValue}
+                onChange={(event) => {
+                  setDateValue(event.currentTarget.value);
+                  setDateIsFilter(true);
+                  scheduleSubmit();
+                }}
+              />
               <Select
                 label="Status"
                 name="state"
                 defaultValue={query.state ?? "all"}
+                onValueChange={scheduleSubmit}
                 options={[
                   { value: "all", label: "All statuses" },
                   ...["scheduled", "live", "final", "postponed", "cancelled"].map((s) => ({
@@ -72,9 +124,6 @@ export function Filters({
           )}
         </>
       )}
-      <Button variant="primary" type="submit">
-        Apply
-      </Button>
     </form>
   );
 }

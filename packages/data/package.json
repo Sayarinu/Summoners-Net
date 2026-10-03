@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist",
+    "migrations"
+  ],
   "exports": {
     ".": "./dist/index.js",
     "./sync": "./dist/sync/index.js",
@@ -16,13 +20,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "csv-parse": "6.1.0",
     "pg": "8.22.0",
-    "zod": "4.4.3",
-    "csv-parse": "6.1.0"
+    "sharp": "0.34.5",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/pg": "8.20.0",
     "@types/node": "catalog:",
+    "@types/pg": "8.20.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

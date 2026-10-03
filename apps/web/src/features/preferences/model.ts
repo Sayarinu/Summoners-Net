@@ -7,9 +7,18 @@ export const preferencesSchema = z
   })
   .strict();
 export type Preferences = z.infer<typeof preferencesSchema>;
+export const preferencesChangedEvent = "esportsviewer-preferences-changed";
+export function browserTimezone() {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return timezoneSchema.safeParse(timezone).success ? timezone : "UTC";
+  } catch {
+    return "UTC";
+  }
+}
 export const defaultPreferences: Preferences = {
-  timezone: "UTC",
-  hideSpoilers: true,
+  timezone: browserTimezone(),
+  hideSpoilers: false,
 };
 export function parsePreferences(raw?: string): Preferences {
   try {

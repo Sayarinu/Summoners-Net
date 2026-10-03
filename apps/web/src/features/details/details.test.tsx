@@ -20,6 +20,15 @@ it("prioritizes match identity and consented watching while retaining game conte
     />,
   );
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(match.name);
+  view.rerender(
+    <MatchPage
+      match={{ ...match, state: "scheduled", games: [] }}
+      timezone="UTC"
+      hideSpoilers={false}
+      now={instant}
+    />,
+  );
+  expect(screen.queryByRole("heading", { name: "Watch" })).toBeNull();
 });
 it("shows played lineups with null statistics and explicit partial eligibility", () => {
   const view = render(<GamePage game={game} timezone="UTC" hideSpoilers />);
@@ -145,7 +154,7 @@ it("shows linked identity evidence, canonical destinations and portraits without
   expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
   expect(screen.getByRole("link", { name: new RegExp(profile.identity.name) })).toHaveAttribute(
     "href",
-    "/players/canonical-player",
+    "/players/player-blue-mid",
   );
   view.rerender(
     <MatchPage

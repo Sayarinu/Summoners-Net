@@ -1,4 +1,5 @@
-import type { LucideIcon } from "lucide-react";
+import { UserRound, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 export interface AnalyticsProps {
@@ -37,20 +38,52 @@ export function VisuallyHidden({ children }: { readonly children: ReactNode }) {
 
 export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
   readonly alt: string;
+  readonly entityKind?: "team" | "player" | undefined;
   readonly fallback: string;
   readonly size?: "large" | "medium" | "small";
   readonly src?: string | undefined;
 }
 
-export function Avatar({ alt, className, fallback, size = "medium", src, ...props }: AvatarProps) {
+export function Avatar({
+  alt,
+  className,
+  entityKind,
+  fallback,
+  size = "medium",
+  src,
+  ...props
+}: AvatarProps) {
+  const [failedSrc, setFailedSrc] = useState<string>();
   return (
     <span
       {...props}
       aria-label={alt}
       className={cx("np-avatar", `np-avatar--${size}`, className)}
+      data-entity-kind={entityKind}
       role="img"
     >
-      {src ? <img alt="" src={src} /> : <span aria-hidden="true">{fallback.slice(0, 3)}</span>}
+      {src && src !== failedSrc ? (
+        <img
+          alt=""
+          src={src}
+          ref={(image) => {
+            // Decode also observes failures that happened before hydration, including
+            // transport cancellation in browsers that do not replay the error event.
+            let current = true;
+            void image?.decode?.().catch(() => {
+              if (current) setFailedSrc(src);
+            });
+            return () => {
+              current = false;
+            };
+          }}
+          onError={() => setFailedSrc(src)}
+        />
+      ) : entityKind === "player" ? (
+        <Icon icon={UserRound} size="large" />
+      ) : (
+        <span aria-hidden="true">{fallback.slice(0, 3)}</span>
+      )}
     </span>
   );
 }

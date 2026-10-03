@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import {
   Button as AriaButton,
   Menu as AriaMenu,
@@ -246,15 +246,33 @@ export interface NavigationProps {
   readonly currentHref: string;
   readonly items: readonly NavigationItem[];
   readonly label?: string;
+  readonly onNavigate?: (href: string) => void;
 }
 
-export function Navigation({ currentHref, items, label = "Primary" }: NavigationProps) {
+export function Navigation({ currentHref, items, label = "Primary", onNavigate }: NavigationProps) {
   return (
     <nav aria-label={label} className="np-navigation">
       <ul>
         {items.map((item) => (
           <li key={item.href}>
-            <a aria-current={item.href === currentHref ? "page" : undefined} href={item.href}>
+            <a
+              aria-current={item.href === currentHref ? "page" : undefined}
+              href={item.href}
+              onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+                if (
+                  !onNavigate ||
+                  event.defaultPrevented ||
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                )
+                  return;
+                event.preventDefault();
+                onNavigate(item.href);
+              }}
+            >
               {item.icon}
               <span>{item.label}</span>
               {item.meta}

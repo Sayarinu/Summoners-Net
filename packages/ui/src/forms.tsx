@@ -274,6 +274,7 @@ export function Select({
 
 export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "value"> {
   readonly defaultValue?: string;
+  readonly onSelectionChange?: (value: string) => void;
   readonly value?: string;
 }
 
@@ -286,6 +287,7 @@ export function Combobox({
   label,
   name,
   onValueChange,
+  onSelectionChange,
   options,
   placeholder = "Search options",
   required,
@@ -306,6 +308,13 @@ export function Combobox({
       {...(name !== undefined ? { name } : {})}
       {...(required !== undefined ? { isRequired: required } : {})}
       {...(onValueChange ? { onInputChange: onValueChange } : {})}
+      {...(onSelectionChange
+        ? {
+            onSelectionChange: (key: React.Key | null) => {
+              if (key !== null) onSelectionChange(String(key));
+            },
+          }
+        : {})}
       className="np-combobox"
       isInvalid={Boolean(error)}
       allowsEmptyCollection

@@ -6,6 +6,7 @@ export const blue: Identity = {
   sourceId: "10",
   kind: "team",
   name: "Acceptance Blue",
+  publicSlug: "acceptance-blue",
   country: null,
   imageUrl: null,
   role: null,
@@ -15,6 +16,7 @@ export const red: Identity = {
   id: "oracle:team:11",
   sourceId: "11",
   name: "Acceptance Red",
+  publicSlug: "acceptance-red",
 };
 export const player: Identity = {
   ...blue,
@@ -22,6 +24,7 @@ export const player: Identity = {
   sourceId: "10-mid",
   kind: "player",
   name: "Player Blue mid",
+  publicSlug: "player-blue-mid",
   role: "mid",
 };
 export const match: Match = {

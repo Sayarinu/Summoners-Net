@@ -63,6 +63,7 @@ describe("forms", () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const onInput = vi.fn();
+    const onComboSelect = vi.fn();
     render(
       <div>
         <Select
@@ -73,7 +74,12 @@ describe("forms", () => {
           options={options}
         />
         <Select disabled error="Required" label="Disabled region" options={options} required />
-        <Combobox label="Search region" onValueChange={onInput} options={options} />
+        <Combobox
+          label="Search region"
+          onSelectionChange={onComboSelect}
+          onValueChange={onInput}
+          options={options}
+        />
       </div>,
     );
 
@@ -88,6 +94,8 @@ describe("forms", () => {
     const combo = screen.getByRole("combobox", { name: "Search region" });
     await user.type(combo, "LC");
     expect(onInput).toHaveBeenCalled();
+    await user.click(await screen.findByRole("option", { name: /^LCK/ }));
+    expect(onComboSelect).toHaveBeenCalledWith("lck");
     expect(screen.getByText("Required")).toBeVisible();
   });
 
@@ -181,6 +189,7 @@ describe("navigation", () => {
 
   it("renders navigation, breadcrumbs, header, footer, and pagination actions", async () => {
     const user = userEvent.setup();
+    const onNavigate = vi.fn();
     const onPage = vi.fn();
     const { rerender } = render(
       <div>
@@ -189,6 +198,7 @@ describe("navigation", () => {
         />
         <Navigation
           currentHref="/schedule"
+          onNavigate={onNavigate}
           items={[
             { href: "/schedule", icon: <Icon icon={Calendar} />, label: "Schedule" },
             { href: "/live", label: "Live", meta: "3" },
@@ -213,6 +223,8 @@ describe("navigation", () => {
       "aria-current",
       "page",
     );
+    await user.click(within(primaryNavigation).getByRole("link", { name: /^Live/ }));
+    expect(onNavigate).toHaveBeenCalledWith("/live");
     expect(screen.getByRole("link", { name: "Skip to main content" })).toBeVisible();
     expect(screen.getByRole("contentinfo")).toHaveTextContent("Operational");
     await user.click(screen.getByRole("button", { name: "Previous page" }));

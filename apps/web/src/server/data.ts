@@ -18,8 +18,15 @@ export function data() {
 export function synchronization() {
   return (globalData.viewerSync ??= createSync(connection()));
 }
+export async function preferencesState() {
+  const cookie = (await cookies()).get("viewer-preferences");
+  return {
+    hasSavedPreferences: Boolean(cookie),
+    value: parsePreferences(cookie?.value),
+  };
+}
 export async function preferences() {
-  return parsePreferences((await cookies()).get("viewer-preferences")?.value);
+  return (await preferencesState()).value;
 }
 export async function browseQuery(
   params: Promise<Record<string, string | string[] | undefined>>,

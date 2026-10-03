@@ -73,10 +73,32 @@ routes only read those saved bytes and return immutable cache headers, `nosniff`
 resource policy.
 
 The cache refreshes successful assets after seven days and retries unavailable assets after a day. A
-missing URL or failed replacement retains the last successful image. Missing images keep the
-reviewed component's initials treatment. Images are current source references and may show newer
-portraits, uniforms or branding than the historical game. Source images are not redistributed as
-committed application assets.
+missing URL or failed replacement retains the last successful image. Missing or failed player
+portraits show a person icon. Team/player avatars have transparent containers and contain the full
+image instead of cropping it. Images are current source references and may show newer portraits,
+uniforms or branding than the historical game. Source images are not redistributed as committed
+application assets.
+
+Original source bytes are retained separately from display renditions. Already transparent images
+keep their original bytes. The worker removes a uniform studio background only where it connects to
+the image edges, preserves enclosed light details, and creates a separately hashed PNG. It rejects
+opaque images whose foreground cannot be separated confidently. New rendition versions can reprocess
+saved originals without downloading them again. Failed replacements keep the last good image; no
+portrait, clothing, logo, or identity is generated.
+
+## Directory order
+
+Unfiltered directories put recent activity first and then sort by name and source ID, with counts
+and bounded pages calculated in SQL. Recent activity means a played game in the last 180 days or a
+team fixture between 180 days ago and 90 days ahead. Canceled, postponed, unknown, and undated
+fixtures do not establish activity. Players also qualify through the latest roster observation of an
+active team when that observation is at most 30 days old. Cross-source links share the same activity
+evidence. Importing an old archive or fetching a historical catalog does not make its participants
+active.
+
+These are browsing priorities based on observations, not claims about retirement or employment.
+Historical entries remain on subsequent pages. Directory search and global search include every
+retained historical name and alias; neither uses activity as an exclusion filter.
 
 API pagination, historical context and retries all reserve from the persisted **600 requests per
 rolling hour** ceiling. Requests within a worker are also spaced by one second to avoid bursts.

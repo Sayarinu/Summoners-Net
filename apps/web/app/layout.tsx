@@ -9,7 +9,7 @@ import "@esportsviewer/tokens/generated/tokens.css";
 import "@esportsviewer/ui/styles.css";
 import "./globals.css";
 import { ShellHeader, ShellFooter } from "../src/features/shell/shell";
-import { preferences } from "../src/server/data";
+import { preferencesState } from "../src/server/data";
 export const metadata: Metadata = {
   title: { default: "EsportsViewer", template: "%s · EsportsViewer" },
   description: "Your local League of Legends esports library.",
@@ -17,10 +17,14 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 export default async function Layout({ children }: { children: ReactNode }) {
+  const preferenceState = await preferencesState();
   return (
     <html lang="en">
       <body>
-        <ShellHeader preferences={await preferences()} />
+        <ShellHeader
+          autoDetectTimezone={!preferenceState.hasSavedPreferences}
+          preferences={preferenceState.value}
+        />
         <main id="main-content" className="ev-main" tabIndex={-1}>
           {children}
         </main>

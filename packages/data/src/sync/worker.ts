@@ -1,28 +1,30 @@
-import { readFile, stat } from "node:fs/promises";
 import { setTimeout as pauseFor } from "node:timers/promises";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { Source, SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
-import { digest, saveGames, saveMatches, saveRosters } from "../persistence/write.js";
+import { saveMatches, saveRosters } from "../persistence/write.js";
 import {
   parseMatches,
   parseTeams,
   parseCoveredLeagues,
   parseTournamentRosters,
 } from "../providers/pandascore.js";
-import { archiveDownload, parseHistory } from "../providers/oracle.js";
+import { archiveDownload, archiveFileId } from "../providers/oracle.js";
 import { parseMetadata, parseVersions } from "../providers/ddragon.js";
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { cacheImages } from "./images.js";
+import { stageOracleArtifact } from "./artifacts.js";
+import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
 
 export interface WorkerOptions {
   clock?: () => Date;
   fetch?: typeof fetch;
   token?: string;
   currentFile?: string;
+  importDirectory?: string;
   pause?: (milliseconds: number) => Promise<void>;
 }
 class ProviderError extends Error {
@@ -40,7 +42,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
   const fetcher = options.fetch ?? fetch;
   const pause = options.pause ?? pauseFor;
   let lastPandaAttempt = 0;
-  async function request(url: string, panda = false): Promise<Response> {
+  async function request(url: string, panda = false, timeoutMs = 60000): Promise<Response> {
     if (panda) {
       if (!options.token) throw new ProviderError("PANDASCORE_TOKEN is not configured.");
       // Space catalog/backfill requests as well as respecting the durable hourly ceiling.
@@ -53,7 +55,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
     try {
       response = await fetcher(url, {
         headers: panda ? { Authorization: `Bearer ${options.token}` } : {},
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(timeoutMs),
         redirect: panda ? "error" : "follow",
       });
     } catch {
@@ -66,6 +68,52 @@ export function worker(pool: Pool, options: WorkerOptions) {
         response.status === 429 || response.status >= 500,
       );
     return response;
+  }
+  async function archiveResponse(year: number): Promise<Response> {
+    const response = await request(archiveDownload(year), false, 300000);
+    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) return response;
+    const reader = response.body?.getReader();
+    if (!reader) throw new ProviderError("Archive returned an HTML/quota page.");
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 16384) throw new ProviderError("Archive returned an oversized HTML page.");
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const html = Buffer.concat(chunks).toString("utf8");
+    const form = html.match(
+      /<form\b[^>]*action="([^"]+)"[^>]*method="get"[^>]*>([\s\S]*?)<\/form>/i,
+    );
+    const fields = new Map<string, string>();
+    for (const input of form?.[2]?.matchAll(/<input\b[^>]*>/gi) ?? []) {
+      const name = input[0].match(/\bname="([^"]+)"/i)?.[1];
+      const value = input[0].match(/\bvalue="([^"]+)"/i)?.[1];
+      if (name && value) fields.set(name, value);
+    }
+    const uuid = fields.get("uuid");
+    if (
+      !html.includes("Google Drive - Virus scan warning") ||
+      form?.[1] !== "https://drive.usercontent.google.com/download" ||
+      fields.get("id") !== archiveFileId(year) ||
+      fields.get("export") !== "download" ||
+      fields.get("confirm") !== "t" ||
+      !uuid ||
+      !/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(uuid)
+    )
+      throw new ProviderError(
+        "Archive returned an HTML/quota page; official download unavailable.",
+      );
+    const url = new URL("https://drive.usercontent.google.com/download");
+    for (const name of ["id", "export", "confirm", "uuid"])
+      url.searchParams.set(name, fields.get(name)!);
+    return request(url.toString(), false, 300000);
   }
   async function pandaPages(path: string) {
     const all: unknown[] = [];
@@ -157,24 +205,30 @@ export function worker(pool: Pool, options: WorkerOptions) {
       return report.links;
     }
     if (r.kind === "history") {
-      let csv: string;
-      if (r.file) {
-        if ((await stat(r.file)).size > 256 * 1024 * 1024)
-          throw new ProviderError("CSV exceeds 256 MiB");
-        csv = await readFile(r.file, "utf8");
-      } else {
-        const response = await request(archiveDownload(r.year));
-        if (response.headers.get("content-type")?.includes("text/html"))
-          throw new ProviderError(
-            "Archive returned HTML (download quota or confirmation). Import a local annual CSV.",
-          );
-        if (Number(response.headers.get("content-length")) > 256 * 1024 * 1024)
-          throw new ProviderError("CSV exceeds 256 MiB");
-        csv = await response.text();
+      try {
+        const common = {
+          year: r.year,
+          ...(options.importDirectory ? { directory: options.importDirectory } : {}),
+        };
+        const artifact = r.file
+          ? await stageOracleArtifact({
+              ...common,
+              file: r.file,
+              acquisitionMethod: r.method ?? "manual",
+            })
+          : await stageOracleArtifact({
+              ...common,
+              response: await archiveResponse(r.year),
+            });
+        const result = await importOracleArchive(pool, artifact, r.year, clock());
+        await retainOracleArtifacts(pool, clock().getUTCFullYear());
+        return result.games;
+      } catch (error) {
+        if (error instanceof ProviderError) throw error;
+        throw new ProviderError(
+          error instanceof Error ? error.message : "Historical import failed validation.",
+        );
       }
-      const games = parseHistory(csv, r.year);
-      await saveGames(pool, games, digest(csv), r.year);
-      return games.length;
     }
     if (r.kind === "metadata") {
       const version = parseVersions(

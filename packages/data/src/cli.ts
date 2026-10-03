@@ -1,5 +1,8 @@
 import { createSync } from "./sync/index.js";
 import { createQueries } from "./index.js";
+import { readdir } from "node:fs/promises";
+import { resolve } from "node:path";
+import { archiveYears } from "./providers/oracle.js";
 const [command, ...args] = process.argv.slice(2);
 const connection = process.env.DATABASE_URL;
 if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
@@ -35,6 +38,30 @@ try {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       if (result.state === "idle" || result.state === "busy" || result.id === id) break;
     }
+  } else if (command === "backfill-all") {
+    for (const year of archiveYears) {
+      const id = await sync.request({ kind: "history", year });
+      process.stdout.write(`Queued history:${year} job ${id}.\n`);
+    }
+  } else if (command === "import-dir") {
+    const directory = resolve(args[0] ?? "");
+    if (!args[0]) throw new Error("Usage: pnpm history:import-dir /absolute/path");
+    let queued = 0;
+    for (const name of (await readdir(directory)).sort()) {
+      if (!name.toLowerCase().endsWith(".csv")) continue;
+      const match = name.match(/(?:^|\D)(20(?:1[4-9]|2\d))(?:\D|$)/);
+      if (!match || !archiveYears.includes(Number(match[1])))
+        throw new Error(`Could not identify a manifest year from ${name}.`);
+      const id = await sync.request({
+        kind: "history",
+        year: Number(match[1]),
+        file: resolve(directory, name),
+        method: "manual",
+      });
+      process.stdout.write(`Queued history:${match[1]} job ${id}.\n`);
+      queued++;
+    }
+    if (!queued) throw new Error("Directory contains no annual CSV files.");
   } else if (command === "import" || command === "backfill") {
     const year = Number(args[0]);
     const file = args[1];
@@ -68,7 +95,7 @@ try {
     }
   } else
     throw new Error(
-      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, backfill YEAR, status",
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, status",
     );
 } finally {
   await sync.close();

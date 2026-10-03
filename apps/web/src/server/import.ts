@@ -32,6 +32,7 @@ export async function importUpload(request: Request) {
       kind: "history",
       year,
       file: path,
+      method: "upload",
     });
     return NextResponse.json({ id, state: "queued" }, { status: 202 });
   } catch {
