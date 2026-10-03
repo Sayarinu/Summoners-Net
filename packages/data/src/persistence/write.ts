@@ -72,48 +72,54 @@ export async function saveGames(pool: Pool, games: Game[], fileHash: string, yea
   // The entire validated file commits atomically; a malformed file cannot erase good data.
   await transaction(pool, async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(9183272)");
-    const unique = new Map<string, Identity>();
-    for (const g of games)
-      for (const p of g.participants) {
-        unique.set(p.team.id, p.team);
-        if (p.player) unique.set(p.player.id, p.player);
-      }
-    const identities = [...unique.values()];
-    for (let i = 0; i < identities.length; i += 500) {
-      await client.query(
-        "INSERT INTO identities(id,kind,name,source,source_id,document) SELECT d->>'id',d->>'kind',d->>'name',d->>'source',d->>'sourceId',d FROM jsonb_array_elements($1) d ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document",
-        [JSON.stringify(identities.slice(i, i + 500))],
-      );
+    await upsertGames(client, games);
+    await client.query(
+      "INSERT INTO imports(source,file_hash,year,records) VALUES('oracle',$1,$2,$3) ON CONFLICT DO NOTHING",
+      [fileHash, year, games.length],
+    );
+  });
+}
+
+export async function upsertGames(client: PoolClient, games: Game[], finalizeIdentities = true) {
+  const unique = new Map<string, Identity>();
+  for (const g of games)
+    for (const p of g.participants) {
+      unique.set(p.team.id, p.team);
+      if (p.player) unique.set(p.player.id, p.player);
     }
+  const identities = [...unique.values()];
+  for (let i = 0; i < identities.length; i += 500) {
+    await client.query(
+      "INSERT INTO identities(id,kind,name,source,source_id,document) SELECT d->>'id',d->>'kind',d->>'name',d->>'source',d->>'sourceId',d FROM jsonb_array_elements($1) d ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document",
+      [JSON.stringify(identities.slice(i, i + 500))],
+    );
+  }
+  if (finalizeIdentities)
     await client.query(
       "INSERT INTO source_mappings SELECT source,kind,source_id,id FROM identities ON CONFLICT DO NOTHING",
     );
-    for (let i = 0; i < games.length; i += 100) {
-      const chunk = games
-        .slice(i, i + 100)
-        .map((game) => ({ game, hash: digest(JSON.stringify(game)) }));
-      const changed = await client.query<{ id: string }>(
-        `INSERT INTO games(id,source_id,match_id,league,year,occurred_at,complete,document,content_hash)
+  for (let i = 0; i < games.length; i += 100) {
+    const chunk = games
+      .slice(i, i + 100)
+      .map((game) => ({ game, hash: digest(JSON.stringify(game)) }));
+    const changed = await client.query<{ id: string }>(
+      `INSERT INTO games(id,source_id,match_id,league,year,occurred_at,complete,document,content_hash)
     SELECT g->>'id',g->>'sourceId',g->>'matchId',g->>'league',(g->>'year')::integer,(g->>'occurredAt')::timestamptz,(g->>'complete')::boolean,g,h
     FROM (SELECT d->'game' g,d->>'hash' h FROM jsonb_array_elements($1) d) staged
     ON CONFLICT(id) DO UPDATE SET league=EXCLUDED.league,year=EXCLUDED.year,occurred_at=EXCLUDED.occurred_at,complete=EXCLUDED.complete,document=EXCLUDED.document,content_hash=EXCLUDED.content_hash
     WHERE games.content_hash<>EXCLUDED.content_hash RETURNING id`,
-        [JSON.stringify(chunk)],
-      );
-      const ids = changed.rows.map((r) => r.id);
-      if (!ids.length) continue;
-      await client.query("DELETE FROM participants WHERE game_id=ANY($1)", [ids]);
-      await client.query(
-        `INSERT INTO participants SELECT g.id,p->>'slot',p->'team'->>'id',p->'player'->>'id',p->>'role',p->>'champion',(p->>'won')::boolean,(p->>'kills')::integer,(p->>'deaths')::integer,(p->>'assists')::integer FROM games g CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p WHERE g.id=ANY($1)`,
-        [ids],
-      );
-    }
+      [JSON.stringify(chunk)],
+    );
+    const ids = changed.rows.map((r) => r.id);
+    if (!ids.length) continue;
+    await client.query("DELETE FROM participants WHERE game_id=ANY($1)", [ids]);
+    await client.query(
+      `INSERT INTO participants SELECT g.id,p->>'slot',p->'team'->>'id',p->'player'->>'id',p->>'role',p->>'champion',(p->>'won')::boolean,(p->>'kills')::integer,(p->>'deaths')::integer,(p->>'assists')::integer FROM games g CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p WHERE g.id=ANY($1)`,
+      [ids],
+    );
+  }
+  if (finalizeIdentities)
     await client.query(
       `INSERT INTO identity_aliases SELECT DISTINCT value->'team'->>'id',value->'team'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') UNION SELECT DISTINCT value->'player'->>'id',value->'player'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') WHERE value->'player'->>'id' IS NOT NULL ON CONFLICT DO NOTHING`,
     );
-    await client.query(
-      "INSERT INTO imports(source,file_hash,year,records) VALUES('oracle',$1,$2,$3)",
-      [fileHash, year, games.length],
-    );
-  });
 }

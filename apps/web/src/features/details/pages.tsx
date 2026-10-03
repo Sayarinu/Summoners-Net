@@ -26,6 +26,9 @@ export function MatchPage({
   now: string;
 }) {
   const [hidden, setHidden] = useState(hideSpoilers);
+  const gamesWithStatistics = match.games.filter((game) => game.state === "finished");
+  const display = matchDisplay(match, timezone, now);
+  const canWatch = match.state === "live" || match.state === "final";
   return (
     <div className="np-stack">
       <Breadcrumb items={[{ label: "Matches", href: "/" }, { label: match.league }]} />
@@ -34,35 +37,30 @@ export function MatchPage({
           <span className="np-overline">
             {match.league} · Best of {match.bestOf}
           </span>
-          <h1>{match.teams.map((t) => t.name).join(" vs ") || match.name}</h1>
+          <h1>
+            {match.teams.length > 0
+              ? display.teams.map((team) => team.name).join(" vs ")
+              : match.name}
+          </h1>
           <p className="np-body-sm">
             {match.event} · {dateTime(match.startsAt, timezone)}
           </p>
         </div>
       </header>
       <MatchRow
-        match={matchDisplay(match, timezone, now)}
+        match={{ ...display, streamAvailable: false }}
         spoilerHidden={hidden}
         onSpoilerReveal={() => setHidden(false)}
       />
-      <div className="np-cluster">
-        {match.teams.map((t) => (
-          <TeamIdentity
-            key={t.id}
-            name={t.name}
-            shortName={t.name}
-            href={identityHref(t)}
-            {...(t.imageUrl ? { logo: t.imageUrl } : {})}
-          />
-        ))}
-      </div>
-      <WatchPlayer broadcasts={match.broadcasts} />
-      <section className="np-stack">
-        <h2>Game information</h2>
-        {match.games.length > 0 && (
+      {canWatch && match.broadcasts.length > 0 ? (
+        <WatchPlayer broadcasts={match.broadcasts} />
+      ) : null}
+      {gamesWithStatistics.length > 0 ? (
+        <section className="np-stack">
+          <h2>Game information</h2>
           <Table
             caption="Game context"
-            rows={match.games}
+            rows={gamesWithStatistics}
             getRowKey={(g) => g.sourceId}
             columns={[
               { id: "number", header: "Game", render: (g) => g.number },
@@ -82,15 +80,8 @@ export function MatchPage({
               },
             ]}
           />
-        )}
-        <EmptyState
-          title="Historical games remain independently accessible"
-          description="No verified series association is available. Browse the game archive for played lineups and statistics."
-        />
-        <TextLink href={`/history?league=${encodeURIComponent(match.league)}`}>
-          Browse {match.league} games
-        </TextLink>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

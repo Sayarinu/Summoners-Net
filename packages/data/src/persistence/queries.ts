@@ -12,6 +12,7 @@ import {
   type Summary,
   type SyncStatus,
 } from "../domain/models.js";
+import { historicalQueries } from "./historical-queries.js";
 
 const idSchema = z.string().min(1).max(300);
 const stamp = (d: Date | null) => d?.toISOString() ?? null;
@@ -57,6 +58,7 @@ export interface SearchHit {
   name: string;
   detail: string;
   imageUrl?: string | null;
+  publicSlug?: string;
 }
 export function queries(pool: Pool, clock: () => Date) {
   async function decorateGames(items: Game[]) {
@@ -107,6 +109,11 @@ export function queries(pool: Pool, clock: () => Date) {
     return { ...result, items: await decorateGames(result.items) };
   };
   return {
+    ...historicalQueries(pool),
+    async ready() {
+      // Verify both the connection and an initialized read model without scanning data.
+      await pool.query("SELECT id FROM entity_profiles LIMIT 0");
+    },
     games,
     async matches(input: BrowseQuery = {}) {
       const { q, values, clauses } = filters(input, "matches");
@@ -132,22 +139,50 @@ export function queries(pool: Pool, clock: () => Date) {
       return result.rows[0] ? (await decorateMatches([result.rows[0].document]))[0]! : null;
     },
     async game(id: string) {
+      const parsedId = idSchema.parse(id);
       const result = await pool.query<{ document: Game }>(
-        "SELECT document FROM games WHERE id=$1",
-        [idSchema.parse(id)],
+        "SELECT document FROM games WHERE id=$1 OR ($1 LIKE 'oracle:game:%' AND source_id=substring($1 from 13)) ORDER BY (id=$1) DESC,id LIMIT 1",
+        [parsedId],
       );
       return result.rows[0] ? (await decorateGames([result.rows[0].document]))[0]! : null;
     },
     async directory(kind: "team" | "player", input: BrowseQuery = {}) {
       z.enum(["team", "player"]).parse(kind);
       const q = querySchema.parse(input);
+      // Activity comes from game/fixture dates, never the date an old archive or catalog
+      // was imported. Current rosters only count for a recently active team, and expire.
+      // These windows include the off-season without treating old observations as current.
+      const table = q.q
+        ? "entity_profiles"
+        : `(WITH recent_games AS (
+            SELECT id FROM games WHERE occurred_at BETWEEN $3::timestamptz-interval '180 days' AND $3::timestamptz
+          ), recent_teams AS (
+            SELECT DISTINCT p.team_id AS id FROM participants p JOIN recent_games g ON g.id=p.game_id
+            UNION
+            SELECT team->>'id' FROM matches m CROSS JOIN LATERAL jsonb_array_elements(m.document->'teams') team
+            WHERE m.starts_at BETWEEN $3::timestamptz-interval '180 days' AND $3::timestamptz+interval '90 days'
+              AND m.state IN ('scheduled','live','final')
+          ), active_sources AS (
+            SELECT id FROM recent_teams WHERE $1='team'
+            UNION
+            SELECT p.player_id FROM participants p JOIN recent_games g ON g.id=p.game_id WHERE $1='player' AND p.player_id IS NOT NULL
+            UNION
+            SELECT r.player_id FROM roster_observations r
+              JOIN roster_snapshots s ON s.team_id=r.team_id AND s.observed_at=r.observed_at
+              JOIN entity_members tm ON tm.id=r.team_id
+            WHERE $1='player' AND s.observed_at BETWEEN $3::timestamptz-interval '30 days' AND $3::timestamptz
+              AND EXISTS(SELECT 1 FROM recent_teams t JOIN entity_members m ON m.id=t.id WHERE m.entity_id=tm.entity_id)
+          ), active_entities AS (
+            SELECT DISTINCT m.entity_id FROM active_sources a JOIN entity_members m ON m.id=a.id
+          ) SELECT p.*,EXISTS(SELECT 1 FROM active_entities a WHERE a.entity_id=p.id) AS recently_active
+            FROM entity_profiles p) entity_profiles`;
       return page<Identity>(
         pool,
-        "entity_profiles",
+        table,
         `kind=$1 AND ${aliasFilter("$2")}`,
-        [kind, `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`],
+        [kind, `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`, ...(q.q ? [] : [clock()])],
         q,
-        "lower(name),id",
+        q.q ? "lower(name),id" : "recently_active DESC,lower(name),id",
       );
     },
     async search(input: BrowseQuery = {}): Promise<Page<SearchHit>> {
@@ -156,18 +191,22 @@ export function queries(pool: Pool, clock: () => Date) {
       const pattern = `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
       return page<SearchHit>(
         pool,
-        `(SELECT id,name,jsonb_build_object('id',id,'kind',kind,'name',name,'detail',CASE WHEN document->>'sourceCount'='2' THEN 'Linked Oracle + PandaScore' ELSE document->>'source' END,'imageUrl',document->>'imageUrl') AS document FROM entity_profiles WHERE ${aliasFilter("$1")} UNION ALL SELECT id,document->>'name',jsonb_build_object('id',id,'kind','match','name',document->>'name','detail',league||' · '||coalesce(starts_at::text,'Unscheduled')) FROM matches WHERE lower(document->>'name') LIKE $1 UNION ALL SELECT id,source_id,jsonb_build_object('id',id,'kind','game','name',source_id,'detail',league||' · '||year) FROM games WHERE lower(source_id) LIKE $1) hits`,
+        `(SELECT id,name,jsonb_build_object('id',id,'kind',kind,'name',name,'detail',CASE WHEN document->>'sourceCount'='2' THEN 'Linked Oracle + PandaScore' ELSE document->>'source' END,'imageUrl',document->>'imageUrl','publicSlug',document->>'publicSlug') AS document FROM entity_profiles WHERE ${aliasFilter("$1")} UNION ALL SELECT id,document->>'name',jsonb_build_object('id',id,'kind','match','name',document->>'name','detail',league||' · '||coalesce(starts_at::text,'Unscheduled')) FROM matches WHERE lower(document->>'name') LIKE $1 UNION ALL SELECT id,source_id,jsonb_build_object('id',id,'kind','game','name',source_id,'detail',league||' · '||year) FROM games WHERE lower(source_id) LIKE $1) hits`,
         "true",
         [pattern],
         q,
         "lower(name),id",
       );
     },
-    async profile(id: string, input: BrowseQuery = {}): Promise<Profile | null> {
+    async profile(
+      id: string,
+      input: BrowseQuery = {},
+      routeKind?: "team" | "player",
+    ): Promise<Profile | null> {
       const identity = (
         await pool.query<{ document: Identity }>(
-          "SELECT document FROM entity_profiles WHERE id=(SELECT entity_id FROM entity_members WHERE id=$1)",
-          [idSchema.parse(id)],
+          "SELECT document FROM entity_profiles WHERE id=coalesce((SELECT entity_id FROM entity_members WHERE id=$1),(SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2))",
+          [idSchema.parse(id), routeKind ?? null],
         )
       ).rows[0]?.document;
       if (!identity) return null;

@@ -17,10 +17,11 @@ vi.mock("@esportsviewer/data", async (importOriginal) => ({
 }));
 vi.mock("@esportsviewer/data/sync", () => ({ createSync: mocks.createSync }));
 import { data, synchronization, preferences, browseQuery, sourceIdFromRoute } from "./data";
+import { defaultPreferences } from "../features/preferences/model";
 it("loads validated preferences and query filters without passing blank controls", async () => {
   expect(await preferences()).toMatchObject({
-    timezone: "UTC",
-    hideSpoilers: true,
+    timezone: defaultPreferences.timezone,
+    hideSpoilers: false,
   });
   mocks.cookie = '{"timezone":"America/Phoenix","hideSpoilers":false}';
   expect(await browseQuery(Promise.resolve({ league: "all", year: "", page: "2" }))).toMatchObject({

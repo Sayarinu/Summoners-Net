@@ -235,6 +235,7 @@ export function MatchHeader({
           >
             <Avatar
               alt={`${team.name} logo`}
+              entityKind="team"
               fallback={team.shortName}
               size="large"
               src={team.logo}
@@ -444,14 +445,21 @@ function ProfileHeader({
   affiliations,
   analyticsId,
   image,
+  entityKind,
   meta = [],
   name,
   shortName,
   status,
-}: ProfileHeaderBaseProps) {
+}: ProfileHeaderBaseProps & { readonly entityKind: "team" | "player" }) {
   return (
     <header {...analyticsData(analyticsId)} className="np-profile-header">
-      <Avatar alt={`${name} image`} fallback={shortName} size="large" src={image} />
+      <Avatar
+        alt={`${name} image`}
+        entityKind={entityKind}
+        fallback={shortName}
+        size="large"
+        src={image}
+      />
       <div className="np-profile-header__copy">
         <h1>{name}</h1>
         {meta.length ? <p>{meta.join(" · ")}</p> : null}
@@ -467,12 +475,12 @@ function ProfileHeader({
 
 export type TeamProfileHeaderProps = ProfileHeaderBaseProps;
 export function TeamProfileHeader(props: TeamProfileHeaderProps) {
-  return <ProfileHeader {...props} />;
+  return <ProfileHeader {...props} entityKind="team" />;
 }
 
 export type PlayerProfileHeaderProps = ProfileHeaderBaseProps;
 export function PlayerProfileHeader(props: PlayerProfileHeaderProps) {
-  return <ProfileHeader {...props} />;
+  return <ProfileHeader {...props} entityKind="player" />;
 }
 
 export interface TeamCardProps extends AnalyticsProps {
@@ -714,6 +722,7 @@ export function AffiliationTimeline({
             <>
               <Avatar
                 alt={`${affiliation.name} logo`}
+                entityKind="team"
                 fallback={affiliation.shortName}
                 size="small"
               />
@@ -776,7 +785,12 @@ export function HandleTimeline({
         {handles.map((item) => {
           const content = (
             <>
-              <Avatar alt={`${item.handle} identity`} fallback={item.shortName} size="small" />
+              <Avatar
+                alt={`${item.handle} identity`}
+                entityKind="player"
+                fallback={item.shortName}
+                size="small"
+              />
               <div>
                 <strong>{item.handle}</strong>
                 <span>{item.dates}</span>
@@ -1306,6 +1320,7 @@ function BracketMatchContent({
         >
           <Avatar
             alt={`${team.name} logo`}
+            entityKind="team"
             fallback={team.shortName}
             size="small"
             src={team.logo}

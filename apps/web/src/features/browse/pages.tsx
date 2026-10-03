@@ -1,10 +1,22 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MatchRow, EmptyState, SearchResult, TextLink } from "@esportsviewer/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@esportsviewer/data";
 import { Filters, Pages, GamesTable } from "./components";
+import { InlineMatchStream } from "./inline-stream";
 import { identityHref, localDate, matchDisplay } from "./presentation";
-import { RefreshButton } from "../sources/refresh";
+import { preferencesChangedEvent } from "../preferences/model";
+
+const matchSections = [
+  { id: "live", label: "Live", states: ["live"] },
+  {
+    id: "upcoming",
+    label: "Upcoming",
+    states: ["scheduled", "postponed", "cancelled", "unknown"],
+  },
+  { id: "past", label: "Past games", states: ["final"] },
+] as const;
+
 export function MatchesPage({
   data,
   query,
@@ -17,40 +29,83 @@ export function MatchesPage({
   now: string;
 }) {
   const [revealed, setRevealed] = useState<string[]>([]);
+  const [spoilersHidden, setSpoilersHidden] = useState(hideSpoilers);
+  const [openStreamId, setOpenStreamId] = useState<string | null>(null);
   const timezone = query.timezone ?? "UTC";
-  const groups = Object.groupBy(
-    data.items,
-    (m) => `${m.startsAt ? localDate(m.startsAt, timezone) : "Unscheduled"} · ${m.league}`,
-  );
+  useEffect(() => setSpoilersHidden(hideSpoilers), [hideSpoilers]);
+  useEffect(() => {
+    const onPreferencesChanged = (event: Event) => {
+      const next = (event as CustomEvent<{ hideSpoilers?: unknown }>).detail;
+      if (typeof next?.hideSpoilers === "boolean") setSpoilersHidden(next.hideSpoilers);
+    };
+    window.addEventListener(preferencesChangedEvent, onPreferencesChanged);
+    return () => window.removeEventListener(preferencesChangedEvent, onPreferencesChanged);
+  }, []);
   return (
-    <div className="np-stack">
+    <div className="ev-matches-page np-stack">
       <header className="ev-title">
-        <div>
-          <span className="np-overline">League of Legends</span>
-          <h1>Matches</h1>
-          <p className="np-body-sm">Schedules, live status and results · {timezone}</p>
-        </div>
-        <RefreshButton kind="matches" />
+        <h1>Matches</h1>
       </header>
       <Filters query={query} />
-      {Object.entries(groups).map(([name, items]) => (
-        <section key={name} className="ev-match-group">
-          <h2>{name}</h2>
-          {items?.map((match) => (
-            <div key={match.id}>
-              <MatchRow
-                match={matchDisplay(match, timezone, now)}
-                spoilerHidden={hideSpoilers && !revealed.includes(match.id)}
-                onSpoilerReveal={() => setRevealed([...revealed, match.id])}
-              />
-              {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
-                (match.state === "live" ? 300000 : 1200000) && (
-                <p className="ev-row-note">Saved observation · refresh overdue</p>
-              )}
-            </div>
-          ))}
-        </section>
-      ))}
+      {matchSections.map((section) => {
+        const sectionItems = data.items.filter((match) =>
+          (section.states as readonly string[]).includes(match.state),
+        );
+        if (!sectionItems.length) return null;
+        const groups = Object.groupBy(sectionItems, (match) =>
+          match.startsAt ? localDate(match.startsAt, timezone) : "Date to be confirmed",
+        );
+        return (
+          <section key={section.id} className="ev-match-section">
+            <h2>{section.label}</h2>
+            {Object.entries(groups).map(([date, items]) => (
+              <section key={date} className="ev-match-group">
+                <h3>{date}</h3>
+                {items?.map((match) => {
+                  const streamOpen = openStreamId === match.id;
+                  const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+                  return (
+                    <div key={match.id}>
+                      <MatchRow
+                        match={matchDisplay(match, timezone, now)}
+                        spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
+                        onSpoilerReveal={() => setRevealed([...revealed, match.id])}
+                        streamAction={
+                          match.broadcasts.length > 0 ? (
+                            <button
+                              aria-controls={streamOpen ? streamPanelId : undefined}
+                              aria-expanded={streamOpen}
+                              aria-label={streamOpen ? "Close Stream" : "Watch Live"}
+                              className="ev-watch-toggle"
+                              onClick={() =>
+                                setOpenStreamId((current) =>
+                                  current === match.id ? null : match.id,
+                                )
+                              }
+                              type="button"
+                            >
+                              Watch Live
+                            </button>
+                          ) : undefined
+                        }
+                        expandedContent={
+                          streamOpen ? (
+                            <InlineMatchStream broadcasts={match.broadcasts} id={streamPanelId} />
+                          ) : undefined
+                        }
+                      />
+                      {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
+                        (match.state === "live" ? 300000 : 1200000) && (
+                        <p className="ev-row-note">Saved observation · refresh overdue</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </section>
+            ))}
+          </section>
+        );
+      })}
       {!data.items.length && (
         <EmptyState
           title="No matches in this view"
@@ -102,7 +157,8 @@ export function DirectoryPage({
           <span className="np-overline">Your library</span>
           <h1>{kind === "team" ? "Teams" : "Players"}</h1>
           <p className="np-body-sm">
-            Current observations and historical appearances, linked where lineup evidence agrees.
+            Recently active {kind === "team" ? "teams" : "players"} appear first. Search includes
+            historical names and appearances.
           </p>
         </div>
       </header>

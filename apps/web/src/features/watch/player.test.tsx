@@ -20,7 +20,7 @@ it("loads exactly one player after consent, switches safely, unloads and offers 
   fireEvent.click(screen.getByRole("button", { name: "Unload player" }));
   expect(screen.getByRole("button", { name: "Load Stream" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /Broadcast/ }));
-  fireEvent.click(screen.getByRole("option", { name: /twitch/ }));
+  fireEvent.click(screen.getByRole("option", { name: /Twitch/ }));
   expect(document.querySelector("iframe")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
   expect(screen.getByTitle("Match broadcast")).toHaveAttribute(
@@ -31,6 +31,7 @@ it("loads exactly one player after consent, switches safely, unloads and offers 
   expect(screen.getByText("No broadcast supplied")).toBeVisible();
 });
 it("validates embed IDs and keeps unsupported provider links accessible", () => {
+  expect(embedUrl(match.broadcasts[0]!, "127.0.0.1")).toContain("origin=http%3A%2F%2F127.0.0.1");
   expect(embedUrl({ ...match.broadcasts[1]!, externalId: "v123" }, "127.0.0.1")).toContain(
     "video=v123",
   );
@@ -39,5 +40,5 @@ it("validates embed IDs and keeps unsupported provider links accessible", () => 
   render(<WatchPlayer broadcasts={[{ ...match.broadcasts[0]!, externalId: "" }]} />);
   fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
   expect(screen.getByText("Stream unavailable")).toBeVisible();
-  expect(screen.getAllByRole("link", { name: /Open on youtube/ }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("link", { name: /Open on YouTube/ }).length).toBeGreaterThan(0);
 });

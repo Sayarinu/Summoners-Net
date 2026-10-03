@@ -22,6 +22,10 @@ export const identitySchema = z.object({
   country: z.string().nullable(),
   role: z.string().nullable(),
   entityId: z.string().optional(),
+  publicSlug: z
+    .string()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .optional(),
   imageSource: z.string().nullable().optional(),
   sourceCount: z.number().int().positive().optional(),
   aliases: z.array(z.string()).optional(),
@@ -171,6 +175,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
       kind: z.literal("history"),
       year: z.number().int().min(2014).max(2100),
       file: z.string().min(1).optional(),
+      method: z.enum(["manual", "upload"]).optional(),
     })
     .strict(),
 ]);

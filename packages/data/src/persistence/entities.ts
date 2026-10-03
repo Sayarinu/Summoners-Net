@@ -141,16 +141,22 @@ export async function resolveStored(pool: Pool, at: Date) {
 export async function enrichIdentities(
   pool: Pool,
   identities: Identity[],
-): Promise<Map<string, Pick<Identity, "entityId" | "imageUrl" | "imageSource" | "sourceCount">>> {
+): Promise<
+  Map<
+    string,
+    Pick<Identity, "entityId" | "publicSlug" | "imageUrl" | "imageSource" | "sourceCount">
+  >
+> {
   const rows = (
     await pool.query<{
       id: string;
       entity_id: string;
+      public_slug: string | null;
       image_url: string | null;
       image_source: string | null;
       source_count: number;
     }>(
-      `SELECT m.id,m.entity_id,coalesce('/api/images/'||img.asset_hash,p.document->>'imageUrl') AS image_url,CASE WHEN img.asset_hash IS NOT NULL THEN 'PandaScore' ELSE p.document->>'imageSource' END AS image_source,(p.document->>'sourceCount')::integer AS source_count FROM entity_members m JOIN entity_profiles p ON p.id=m.entity_id LEFT JOIN identity_images img ON img.identity_id=m.id WHERE m.id=ANY($1)`,
+      `SELECT m.id,m.entity_id,p.document->>'publicSlug' AS public_slug,coalesce('/api/images/'||coalesce(r.asset_hash,img.asset_hash),p.document->>'imageUrl') AS image_url,CASE WHEN img.asset_hash IS NOT NULL THEN 'PandaScore' ELSE p.document->>'imageSource' END AS image_source,(p.document->>'sourceCount')::integer AS source_count FROM entity_members m JOIN entity_profiles p ON p.id=m.entity_id LEFT JOIN identity_images img ON img.identity_id=m.id LEFT JOIN image_renditions r ON r.source_hash=img.asset_hash WHERE m.id=ANY($1)`,
       [identities.map((i) => i.id)],
     )
   ).rows;
@@ -162,6 +168,7 @@ export async function enrichIdentities(
         i.id,
         {
           entityId: r?.entity_id ?? i.id,
+          publicSlug: r?.public_slug ?? undefined,
           imageUrl: r?.image_url ?? null,
           imageSource: r?.image_source ?? null,
           sourceCount: r?.source_count ?? 1,

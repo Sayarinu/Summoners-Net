@@ -1,5 +1,5 @@
 import { Bell, Check } from "lucide-react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -65,6 +65,24 @@ describe("internal foundations", () => {
 
     rerender(<Progress label="Empty" max={100} value={-20} />);
     expect(screen.getByText("0%")).toBeVisible();
+  });
+
+  it("shows a person for missing or failed portraits and can load a replacement image", () => {
+    const view = render(<Avatar alt="Faker portrait" entityKind="player" fallback="Faker" />);
+    const portrait = screen.getByRole("img", { name: "Faker portrait" });
+    expect(portrait).not.toHaveTextContent("Fak");
+    expect(portrait.querySelector("svg")).toBeInTheDocument();
+    view.rerender(
+      <Avatar alt="Faker portrait" entityKind="player" fallback="Faker" src="/portrait.png" />,
+    );
+    fireEvent.error(portrait.querySelector("img")!);
+    expect(portrait.querySelector("img")).toBeNull();
+    expect(portrait.querySelector("svg")).toBeInTheDocument();
+    view.rerender(
+      <Avatar alt="Faker portrait" entityKind="player" fallback="Faker" src="/replacement.png" />,
+    );
+    expect(portrait.querySelector("img")).toHaveAttribute("src", "/replacement.png");
+    expect(portrait.querySelector("svg")).toBeNull();
   });
 });
 

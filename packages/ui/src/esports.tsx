@@ -11,7 +11,7 @@ import {
   ShieldQuestion,
   Trophy,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { Table } from "./data-display.js";
 import type { TableColumn } from "./data-display.js";
@@ -79,6 +79,7 @@ export function TeamIdentity({
     <>
       <Avatar
         alt={`${name} logo`}
+        entityKind="team"
         fallback={shortName}
         size={size === "large" ? "large" : "small"}
         src={logo}
@@ -120,7 +121,13 @@ export function PlayerIdentity({
   const detail = [fullName, role, country].filter(Boolean).join(" · ");
   const content = (
     <>
-      <Avatar alt={`${handle} portrait`} fallback={handle} size="medium" src={portrait} />
+      <Avatar
+        alt={`${handle} portrait`}
+        entityKind="player"
+        fallback={handle}
+        size="medium"
+        src={portrait}
+      />
       <span className="np-identity__copy">
         <strong>{handle}</strong>
         {detail ? <small>{detail}</small> : null}
@@ -239,45 +246,72 @@ function MatchTeams({
 }) {
   return (
     <div className={cx("np-match-teams", compact && "np-match-teams--compact")}>
-      {match.teams.map((team, teamIndex) => (
-        <div
-          className={cx("np-match-team", team.winner && "np-match-team--winner")}
-          key={`${match.id}-team-${teamIndex}`}
-        >
-          <Avatar
-            alt={`${team.name} logo`}
-            fallback={team.shortName}
-            size="small"
-            src={team.logo}
-          />
-          <span>{compact ? team.shortName : team.name}</span>
-          {!hideScores && team.score !== undefined ? (
-            <strong className="np-score">{team.score}</strong>
-          ) : null}
-        </div>
-      ))}
+      {match.teams.map((team, teamIndex) => {
+        const tbd = team.name === "TBD";
+        return (
+          <Fragment key={`${match.id}-team-${teamIndex}`}>
+            <div
+              className={cx(
+                "np-match-team",
+                tbd && "np-match-team--tbd",
+                team.winner && "np-match-team--winner",
+              )}
+            >
+              {tbd ? (
+                <span aria-hidden="true" className="np-match-team__icon-placeholder" />
+              ) : (
+                <Avatar
+                  alt={`${team.name} logo`}
+                  entityKind="team"
+                  fallback={team.shortName}
+                  size="small"
+                  src={team.logo}
+                />
+              )}
+              <span className="np-match-team__name">{compact ? team.shortName : team.name}</span>
+              {!hideScores && team.score !== undefined ? (
+                <strong className="np-score">{team.score}</strong>
+              ) : null}
+            </div>
+            {teamIndex === 0 ? (
+              <span aria-hidden="true" className="np-match-vs">
+                vs
+              </span>
+            ) : null}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
 
 export interface MatchRowProps extends AnalyticsProps {
   readonly actions?: ReactNode;
+  readonly expandedContent?: ReactNode;
   readonly match: MatchDisplay;
   readonly onSpoilerReveal?: () => void;
   readonly spoilerHidden?: boolean;
+  readonly streamAction?: ReactNode;
 }
 
 export function MatchRow({
   analyticsId,
   actions,
+  expandedContent,
   match,
   onSpoilerReveal,
   spoilerHidden = false,
+  streamAction,
 }: MatchRowProps) {
+  const hasActions = Boolean(match.streamAvailable || actions || streamAction);
   return (
     <article
       {...analyticsData(analyticsId)}
-      className={cx("np-match-row", `np-match-row--${match.lifecycle}`)}
+      className={cx(
+        "np-match-row",
+        `np-match-row--${match.lifecycle}`,
+        !hasActions && "np-match-row--no-actions",
+      )}
     >
       <div className="np-match-row__time">
         <MatchLifecycleLabel lifecycle={match.lifecycle} />
@@ -303,24 +337,28 @@ export function MatchRow({
         </a>
       )}
       <div className="np-match-row__meta">
-        <span>{match.competition}</span>
+        <span>{match.region ?? match.competition}</span>
         <span>BO{match.bestOf}</span>
       </div>
-      <div className="np-row-actions">
-        {match.streamAvailable ? (
-          <a
-            aria-label={`Watch live: ${match.teams[0].name} versus ${match.teams[1].name}`}
-            className="np-button np-button--ghost np-control--compact"
-            href={match.streamHref ?? match.href}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <Icon icon={Play} size="small" />
-            <span>Watch Live</span>
-          </a>
-        ) : null}
-        {actions}
-      </div>
+      {hasActions ? (
+        <div className="np-row-actions">
+          {streamAction ??
+            (match.streamAvailable ? (
+              <a
+                aria-label={`Watch live: ${match.teams[0].name} versus ${match.teams[1].name}`}
+                className="np-button np-button--ghost np-control--compact"
+                href={match.streamHref ?? match.href}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Icon icon={Play} size="small" />
+                <span>Watch Live</span>
+              </a>
+            ) : null)}
+          {actions}
+        </div>
+      ) : null}
+      {expandedContent ? <div className="np-match-row__expanded">{expandedContent}</div> : null}
     </article>
   );
 }
@@ -683,6 +721,7 @@ export function BracketShell({
                       >
                         <Avatar
                           alt={`${team.name} logo`}
+                          entityKind="team"
                           fallback={team.shortName}
                           size="small"
                           src={team.logo}
@@ -863,7 +902,13 @@ export function SearchResult({
   return (
     <article className="np-search-result">
       <a href={href}>
-        <Avatar alt={`${name} image`} fallback={shortName} size="medium" src={image} />
+        <Avatar
+          alt={`${name} image`}
+          entityKind={type === "team" || type === "player" ? type : undefined}
+          fallback={shortName}
+          size="medium"
+          src={image}
+        />
         <span className="np-search-result__copy">
           <span className="np-eyebrow">{type}</span>
           <strong>{name}</strong>

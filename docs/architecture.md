@@ -75,6 +75,16 @@ intentional. Team/player images are fetched by the coordinated worker and cached
 browser receives content-addressed local image URLs; it does not fetch provider APIs or the
 PandaScore image CDN.
 
+## Production packaging
+
+The optional container setup packages the standalone web server and coordinated worker, runs
+migrations before startup, and shares durable uploads between them. Only the worker receives the
+provider token. Web and PostgreSQL remain bound to host loopback. `/api/health` checks database
+readiness without a provider request; idle connection errors are consumed so a PostgreSQL restart
+does not crash the process. Runtime connection attempts are bounded at five seconds. The
+[VPS preparation guide](vps-preparation.md) covers local rehearsal, backups, restore, and later SSH
+tunnel access. No remote deployment is performed by this setup.
+
 ## References
 
 - [PandaScore plan reference](https://developers.pandascore.co/docs/plan-reference): only free list

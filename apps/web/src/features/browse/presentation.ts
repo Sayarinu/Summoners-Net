@@ -1,7 +1,7 @@
 import type { Match, Game, Identity } from "@esportsviewer/data";
 import type { MatchDisplay, MatchTeam } from "@esportsviewer/ui";
 export function localDate(iso: string, timezone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
@@ -12,28 +12,31 @@ export function dateTime(iso: string | null, timezone: string) {
   return iso
     ? new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
-        month: "short",
-        day: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        timeZoneName: "short",
       }).format(new Date(iso))
     : "Time to be confirmed";
 }
-export function identityHref(identity: Pick<Identity, "id" | "kind" | "entityId">) {
-  return `/${identity.kind === "team" ? "teams" : "players"}/${encodeURIComponent(identity.entityId ?? identity.id)}`;
+export function identityHref(identity: Pick<Identity, "kind" | "name" | "publicSlug">) {
+  const section = identity.kind === "team" ? "teams" : "players";
+  // A missing route is a data-integrity issue; never expose provider IDs as a fallback.
+  return identity.publicSlug ? `/${section}/${identity.publicSlug}` : `/${section}`;
 }
 export function matchDisplay(match: Match, timezone: string, now: string): MatchDisplay {
+  const showScores = match.state === "live" || match.state === "final";
   const team = (i: number): MatchTeam => {
     const t = match.teams[i];
-    return t
-      ? {
-          name: t.name,
-          shortName: t.name,
-          ...(t.imageUrl ? { logo: t.imageUrl } : {}),
-          ...(t.score !== null ? { score: t.score } : {}),
-        }
-      : { name: "To be determined", shortName: "TBD" };
+    if (!t) return { name: "TBD", shortName: "TBD" };
+    const name = /^(tbd|to be determined)$/i.test(t.name.trim()) ? "TBD" : t.name;
+    return {
+      name,
+      shortName: name,
+      ...(name !== "TBD" && t.imageUrl ? { logo: t.imageUrl } : {}),
+      ...(showScores && t.score !== null ? { score: t.score } : {}),
+    };
   };
   return {
     id: match.id,
@@ -41,6 +44,7 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
     lifecycle: match.state,
     bestOf: match.bestOf,
     competition: match.league,
+    region: match.league,
     stage: match.event,
     scheduledLabel: dateTime(match.startsAt, timezone),
     teams: [team(0), team(1)],

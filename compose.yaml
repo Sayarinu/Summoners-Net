@@ -4,7 +4,8 @@ services:
     environment:
       POSTGRES_DB: esportsviewer
       POSTGRES_USER: esportsviewer
-      POSTGRES_PASSWORD: local-esportsviewer-only
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-esportsviewer-only}
+    restart: unless-stopped
     ports:
       - "127.0.0.1:55442:5432"
     volumes:

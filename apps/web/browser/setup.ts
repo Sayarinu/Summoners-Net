@@ -17,7 +17,7 @@ export default async function setup() {
         return Promise.resolve(
           new Response(
             Buffer.from(
-              "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomrgAK2IYWhIAdr5swVmNv80AAAAASUVORK5CYII=",
+              "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAE0lEQVR4nGOYsmjDTHyYYWQoAABhNp/B8kBP7wAAAABJRU5ErkJggg==",
               "base64",
             ),
             { headers: { "content-type": "image/png" } },
@@ -57,7 +57,7 @@ export default async function setup() {
   try {
     await sync.migrate();
     await pool.query(
-      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
     );
     await pool.query(
       "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",

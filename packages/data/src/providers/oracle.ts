@@ -3,12 +3,20 @@ import { z } from "zod";
 import { coveredLeague, sourceIdentity } from "../domain/coverage.js";
 import { gameSchema, type Game, type Identity, type Participant } from "../domain/models.js";
 import archiveFiles from "./archive-files.json" with { type: "json" };
+export const archiveYears = Object.freeze(
+  Object.keys(archiveFiles as Record<string, string>)
+    .map(Number)
+    .sort((a, b) => a - b),
+);
 export const archiveUrl =
   "https://drive.google.com/drive/folders/1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH";
-export function archiveDownload(year: number): string {
+export function archiveFileId(year: number): string {
   const id = (archiveFiles as Record<string, string>)[String(year)];
   if (!id) throw new Error("Archive year is not indexed; use a local annual CSV.");
-  return `https://drive.google.com/uc?export=download&id=${id}`;
+  return id;
+}
+export function archiveDownload(year: number): string {
+  return `https://drive.google.com/uc?export=download&id=${archiveFileId(year)}`;
 }
 function number(value: string | undefined): number | null {
   if (!value?.trim()) return null;

@@ -4,12 +4,17 @@ import { createHash } from "node:crypto";
 import { resolve, join } from "node:path";
 export type Executor = Pick<Pool, "query">;
 export function database(connectionString: string) {
-  return new Pool({
+  const pool = new Pool({
     connectionString,
     max: 8,
+    connectionTimeoutMillis: 5000,
     statement_timeout: 60000,
     application_name: "esportsviewer",
   });
+  // pg removes failed idle clients itself. Consume the event so a database restart
+  // does not become an unhandled exception; active queries still reject normally.
+  pool.on("error", () => {});
+  return pool;
 }
 export async function transaction<T>(
   pool: Pool,

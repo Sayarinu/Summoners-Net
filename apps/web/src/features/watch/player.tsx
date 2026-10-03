@@ -9,12 +9,15 @@ import {
   TextLink,
 } from "@esportsviewer/ui";
 import type { Broadcast } from "@esportsviewer/data";
-export function embedUrl(b: Broadcast, hostname: string) {
-  if (b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId))
-    return `https://www.youtube-nocookie.com/embed/${b.externalId}?autoplay=0`;
+export function embedUrl(b: Broadcast, siteOrigin: string) {
+  const origin = siteOrigin.includes("://") ? siteOrigin : `http://${siteOrigin}`;
+  if (b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId)) {
+    const query = new URLSearchParams({ autoplay: "0", enablejsapi: "1", origin });
+    return `https://www.youtube-nocookie.com/embed/${b.externalId}?${query}`;
+  }
   if (b.provider === "twitch" && /^(?:v\d+|[a-zA-Z0-9_]{3,25})$/.test(b.externalId)) {
     const query = new URLSearchParams({
-      parent: hostname,
+      parent: new URL(origin).hostname,
       autoplay: "false",
       [b.externalId.startsWith("v") && /^v\d+$/.test(b.externalId) ? "video" : "channel"]:
         b.externalId,
@@ -23,11 +26,34 @@ export function embedUrl(b: Broadcast, hostname: string) {
   }
   return null;
 }
-export function WatchPlayer({ broadcasts }: { broadcasts: Broadcast[] }) {
-  const [selected, setSelected] = useState("0");
+
+function providerLabel(provider: Broadcast["provider"]) {
+  return provider === "youtube" ? "YouTube" : "Twitch";
+}
+
+export function WatchPlayer({
+  broadcasts,
+  defaultProvider = "youtube",
+  showHeading = true,
+  showPlayerActions = true,
+  showPreConsentLink = true,
+}: {
+  broadcasts: Broadcast[];
+  defaultProvider?: Broadcast["provider"];
+  showHeading?: boolean;
+  showPlayerActions?: boolean;
+  showPreConsentLink?: boolean;
+}) {
+  const orderedBroadcasts = [...broadcasts].sort(
+    (a, b) => Number(b.provider === "youtube") - Number(a.provider === "youtube"),
+  );
+  const preferredBroadcast = orderedBroadcasts.findIndex(
+    (broadcast) => broadcast.provider === defaultProvider,
+  );
+  const [selected, setSelected] = useState(String(Math.max(0, preferredBroadcast)));
   const [consented, setConsented] = useState(false);
   const [failed, setFailed] = useState(false);
-  const b = broadcasts[Number(selected)];
+  const b = orderedBroadcasts[Number(selected)];
   if (!b)
     return (
       <EmptyState
@@ -35,11 +61,11 @@ export function WatchPlayer({ broadcasts }: { broadcasts: Broadcast[] }) {
         description="This match has no available Twitch or YouTube link."
       />
     );
-  const src = consented ? embedUrl(b, window.location.hostname) : null;
+  const src = consented ? embedUrl(b, window.location.origin) : null;
   return (
-    <section className="np-stack" aria-label="Watch match">
+    <section className="np-stack ev-watch-player" aria-label="Watch match">
       <div className="np-split">
-        <h2>Watch</h2>
+        {showHeading ? <h2>Watch</h2> : null}
         <Select
           label="Broadcast"
           value={selected}
@@ -48,18 +74,18 @@ export function WatchPlayer({ broadcasts }: { broadcasts: Broadcast[] }) {
             setConsented(false);
             setFailed(false);
           }}
-          options={broadcasts.map((b, i) => ({
+          options={orderedBroadcasts.map((b, i) => ({
             value: String(i),
-            label: `${b.provider} · ${b.language} · ${i + 1}`,
+            label: providerLabel(b.provider),
           }))}
         />
       </div>
       {!consented ? (
-        <StreamConsent provider={b.provider} onAccept={() => setConsented(true)} />
+        <StreamConsent provider={providerLabel(b.provider)} onAccept={() => setConsented(true)} />
       ) : (
         <>
           <StreamEmbedShell
-            provider={b.provider}
+            provider={providerLabel(b.provider)}
             title="Match player"
             state={failed || !src ? "failed" : "ready"}
             fallbackHref={b.url}
@@ -72,21 +98,25 @@ export function WatchPlayer({ broadcasts }: { broadcasts: Broadcast[] }) {
                 title="Match broadcast"
                 allow="fullscreen; picture-in-picture"
                 allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
+                referrerPolicy="no-referrer-when-downgrade"
               />
             )}
           </StreamEmbedShell>
-          <div className="np-cluster">
-            <Button onPress={() => setConsented(false)}>Unload player</Button>
-            <Button variant="ghost" onPress={() => setFailed(true)}>
-              Player not working
-            </Button>
-          </div>
+          {showPlayerActions ? (
+            <div className="np-cluster">
+              <Button onPress={() => setConsented(false)}>Unload player</Button>
+              <Button variant="ghost" onPress={() => setFailed(true)}>
+                Player not working
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
-      <TextLink href={b.url} target="_blank" rel="noreferrer" variant="accent">
-        Open on {b.provider}
-      </TextLink>
+      {!consented && showPreConsentLink ? (
+        <TextLink href={b.url} target="_blank" rel="noreferrer" variant="accent">
+          Open on {providerLabel(b.provider)} <span aria-hidden="true">↗</span>
+        </TextLink>
+      ) : null}
     </section>
   );
 }

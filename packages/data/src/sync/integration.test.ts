@@ -3,11 +3,14 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import sharp from "sharp";
 import { createSync } from "./index.js";
 import { createQueries } from "../index.js";
 import { database, transaction, migrate } from "../persistence/database.js";
 import { reserveRequest, observeQuota, DeferredRequest } from "./quota.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
+import { archiveFileId } from "../providers/oracle.js";
 const env = new URL("../../../../.env", import.meta.url);
 if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
@@ -48,7 +51,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -62,10 +65,106 @@ afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 describe("real PostgreSQL persistence through sync and query interfaces", () => {
+  it("recovers reads after an idle database connection is terminated", async () => {
+    const url = new URL(connection);
+    url.searchParams.set("application_name", "esportsviewer-recovery-test");
+    const recovering = createQueries(url.toString());
+    try {
+      await recovering.ready();
+      const terminated = await pool.query(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='esportsviewer-recovery-test'",
+      );
+      expect(terminated.rowCount).toBe(1);
+      await vi.waitFor(async () => {
+        await expect(recovering.ready()).resolves.toBeUndefined();
+      });
+    } finally {
+      await recovering.close();
+    }
+  });
+  it("prefers recent play and upcoming teams, while old imports stay searchable on bounded pages", async () => {
+    await importCsv(
+      historyCsv().replaceAll("Acceptance", "Zebra").replaceAll("Player", "Zebra Player"),
+    );
+    await importCsv(
+      historyCsv({ id: "archive", year: 2014 })
+        .replaceAll("Acceptance", "Archive")
+        .replaceAll("Player", "Archived Player")
+        .replaceAll(",10", ",old-10")
+        .replaceAll(",11", ",old-11"),
+      2014,
+    );
+    expect((await queries.directory("team", { pageSize: 2 })).items.map((i) => i.name)).toEqual([
+      "Zebra Blue",
+      "Zebra Red",
+    ]);
+    const older = await queries.directory("team", { pageSize: 2, page: 2 });
+    expect(older.total).toBe(4);
+    expect(older.items.map((i) => i.name)).toEqual(["Archive Blue", "Archive Red"]);
+    expect((await queries.directory("team", { pageSize: 2, page: 3 })).items).toEqual([]);
+    expect(
+      (await queries.directory("player", { pageSize: 10 })).items.every((i) =>
+        i.name.startsWith("Zebra"),
+      ),
+    ).toBe(true);
+    expect((await queries.directory("player", { q: "Archived" })).total).toBe(10);
+    expect((await queries.search({ q: "Archive" })).total).toBeGreaterThan(0);
+
+    fetcher.mockResolvedValue(
+      json([
+        rawMatch(90, {
+          begin_at: "2026-04-01T00:00:00Z",
+          status: "not_started",
+          opponents: [{ opponent: { id: 90, name: "Upcoming Team" } }],
+        }),
+      ]),
+    );
+    await run({ kind: "running" });
+    fetcher.mockResolvedValue(
+      json([
+        {
+          id: 90,
+          name: "Upcoming Team",
+          players: [{ id: 90, name: "Zzz Current Player", role: "mid" }],
+        },
+      ]),
+    );
+    await run({ kind: "rosters" });
+    expect((await queries.directory("team", { pageSize: 3 })).items.map((i) => i.name)).toEqual([
+      "Upcoming Team",
+      "Zebra Blue",
+      "Zebra Red",
+    ]);
+    expect((await queries.directory("player", { pageSize: 11 })).items[10]?.name).toBe(
+      "Zzz Current Player",
+    );
+
+    const later = createQueries(connection, () => new Date("2026-04-02T12:00:00Z"));
+    try {
+      // A saved roster ages out even though the team's fixture is still recent.
+      expect((await later.directory("player", { pageSize: 11 })).items[10]?.name).toMatch(
+        /^Archived/,
+      );
+    } finally {
+      await later.close();
+    }
+    const expired = createQueries(connection, () => new Date("2027-03-01T12:00:00Z"));
+    try {
+      expect((await expired.directory("team", { pageSize: 1 })).items[0]?.name).toBe(
+        "Archive Blue",
+      );
+    } finally {
+      await expired.close();
+    }
+  });
   it("opens with live matches, nearest scheduled matches, then recent results", async () => {
     fetcher.mockResolvedValue(
       json([
-        rawMatch(1, { status: "not_started", begin_at: "2026-04-01T12:00:00Z" }),
+        rawMatch(1, {
+          status: "not_started",
+          begin_at: "2026-04-01T12:00:00Z",
+          league: { id: 2, name: "LTA North" },
+        }),
         rawMatch(2, { status: "finished", begin_at: "2026-02-28T12:00:00Z" }),
         rawMatch(3, { status: "not_started", begin_at: "2026-03-02T12:00:00Z" }),
         rawMatch(4, { status: "running", begin_at: "2026-03-01T11:00:00Z" }),
@@ -77,9 +176,16 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       "3",
       "1",
     ]);
+    expect((await queries.matches({ league: "LCS" })).items.map((m) => m.sourceId)).toEqual(["1"]);
+    expect((await queries.matches({ league: "LCK" })).items.map((m) => m.sourceId)).toEqual([
+      "4",
+      "3",
+      "2",
+    ]);
   });
   it("migrates concurrently, rejects altered migration evidence and rolls back transactions", async () => {
     await Promise.all([sync.migrate(), migrate(pool)]);
+    await expect(queries.ready()).resolves.toBeUndefined();
     await expect(
       transaction(pool, async (c) => {
         await c.query("INSERT INTO metadata VALUES('test','item','{}')");
@@ -106,7 +212,24 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
   });
   it("imports idempotently, applies corrections atomically and retains data after malformed files", async () => {
     expect((await importCsv()).state).toBe("done");
+    await pool.query(
+      "UPDATE imports SET official_file_id=NULL,original_filename=NULL,byte_length=NULL,acquisition_method=NULL WHERE source='oracle' AND year=2026",
+    );
     expect((await importCsv()).state).toBe("done");
+    const provenance = await pool.query<{
+      official_file_id: string;
+      original_filename: string;
+      byte_length: string;
+      acquisition_method: string;
+    }>(
+      "SELECT official_file_id,original_filename,byte_length,acquisition_method FROM imports WHERE source='oracle' AND year=2026",
+    );
+    expect(provenance.rows[0]).toMatchObject({
+      official_file_id: archiveFileId(2026),
+      original_filename: "2026.csv",
+      acquisition_method: "manual",
+    });
+    expect(Number(provenance.rows[0]?.byte_length)).toBeGreaterThan(0);
     expect((await queries.games()).total).toBe(1);
     const original = await queries.game("oracle:game:acceptance-game");
     expect(original?.participants).toHaveLength(12);
@@ -133,6 +256,47 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
         latestGameAt: "2026-03-01T01:00:00.000Z",
       },
     ]);
+  });
+  it("archives every league, projects only curated coverage, and exposes provider-neutral history queries", async () => {
+    const curated = historyCsv();
+    const academy = historyCsv({ league: "LCKC" }).split("\n").slice(1).join("\n");
+    expect((await importCsv(curated + academy)).state).toBe("done");
+    expect((await queries.games()).total).toBe(1);
+    const archive = await queries.historicalGames({ year: 2026, pageSize: 1 });
+    expect(archive.total).toBe(2);
+    expect(archive.items).toHaveLength(1);
+    const crossLeague = await queries.historicalGames({ sourceLeague: "LCKC" });
+    expect(crossLeague.items[0]?.sourceGameId).toBe("acceptance-game");
+    expect((await queries.historicalGames({ sourceLeague: "LCKC" })).items[0]).toMatchObject({
+      sourceLeague: "LCKC",
+      competition: null,
+    });
+    const curatedArchive = (await queries.historicalGames({ competition: "LCK" })).items[0]!;
+    expect(crossLeague.items[0]?.id).not.toBe(curatedArchive.id);
+    const detail = await queries.historicalGame(curatedArchive.id);
+    expect(detail?.participants).toHaveLength(12);
+    expect(JSON.stringify(detail)).not.toContain("sourceRow");
+    expect(
+      (
+        await queries.historicalSummary(
+          { kind: "player", value: "Player Blue mid" },
+          { sourceLeague: "LCK" },
+        )
+      ).games,
+    ).toBe(1);
+    const coverage = await queries.historicalCoverage();
+    expect(coverage).toHaveLength(13);
+    expect(coverage.find((entry) => entry.year === 2026)).toMatchObject({
+      status: "complete",
+      sourceRows: 24,
+      games: 2,
+      eligibleGames: 2,
+      retainedFile: true,
+    });
+    expect(coverage.find((entry) => entry.year === 2014)).toMatchObject({
+      status: "incomplete",
+      artifactHash: null,
+    });
   });
   it("bounds and filters SQL pages, timezone days, search and full-sample profile aggregates", async () => {
     await importCsv();
@@ -176,6 +340,54 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect((await queries.search({ q: "Player Blue" })).total).toBe(5);
     expect((await queries.search({ q: "%" })).total).toBe(0);
     expect((await queries.search()).total).toBe(0);
+  });
+  it("publishes source-neutral, stable profile slugs and resolves legacy source IDs", async () => {
+    await importCsv();
+    const team = (await queries.directory("team", { q: "Acceptance Blue" })).items[0]!;
+    const player = (await queries.directory("player", { q: "Player Blue mid" })).items[0]!;
+    expect(team.publicSlug).toBe("acceptance-blue");
+    expect(player.publicSlug).toBe("player-blue-mid");
+    expect((await queries.search({ q: "Acceptance Blue" })).items[0]).toMatchObject({
+      publicSlug: "acceptance-blue",
+    });
+    expect((await queries.profile(team.publicSlug!, {}, "team"))?.identity.id).toBe(team.id);
+    expect((await queries.profile(team.id))?.identity.publicSlug).toBe(team.publicSlug);
+    expect((await queries.profile(player.publicSlug!, {}, "player"))?.identity.id).toBe(player.id);
+    expect(await queries.profile(team.publicSlug!, {}, "player")).toBeNull();
+    expect((await queries.games({ pageSize: 1 })).items[0]?.participants[0]?.team.publicSlug).toBe(
+      "acceptance-blue",
+    );
+  });
+  it("adds a short stable suffix only when two identities share a public name", async () => {
+    for (const sourceId of ["twin-1", "twin-2"]) {
+      const id = `oracle:team:${sourceId}`;
+      await pool.query(
+        "INSERT INTO identities(id,kind,name,source,source_id,document) VALUES($1,'team','Twin Club','oracle',$2,$3)",
+        [
+          id,
+          sourceId,
+          {
+            id,
+            source: "oracle",
+            sourceId,
+            kind: "team",
+            name: "Twin Club",
+            imageUrl: null,
+            country: null,
+            role: null,
+          },
+        ],
+      );
+    }
+    const suffix = createHash("md5").update("oracle:team:twin-2").digest("hex").slice(0, 12);
+    expect((await queries.profile("twin-club", {}, "team"))?.identity.id).toBe(
+      "oracle:team:twin-1",
+    );
+    expect((await queries.profile(`twin-club-${suffix}`, {}, "team"))?.identity.id).toBe(
+      "oracle:team:twin-2",
+    );
+    await pool.query("UPDATE identities SET name='Renamed Club' WHERE id='oracle:team:twin-1'");
+    expect((await queries.profile("twin-club", {}, "team"))?.identity.publicSlug).toBe("twin-club");
   });
   it("keeps source identities distinct, replaces observed rosters, and commits all match pages together", async () => {
     fetcher.mockImplementation((input) => {
@@ -403,6 +615,35 @@ describe("durable synchronization and request budgeting", () => {
     expect((await run({ kind: "history", year: 2024 })).state).toBe("done");
     expect((await run({ kind: "history", year: 2099 })).state).toBe("failed");
   });
+  it("follows only the manifest-matched official Drive virus-scan confirmation", async () => {
+    const id = archiveFileId(2026);
+    const warning = (fileId: string, action = "https://drive.usercontent.google.com/download") =>
+      `<!doctype html><title>Google Drive - Virus scan warning</title><form action="${action}" method="get"><input type="hidden" name="id" value="${fileId}"><input type="hidden" name="export" value="download"><input type="hidden" name="confirm" value="t"><input type="hidden" name="uuid" value="73d17514-beb7-46dc-81b1-b5420daa7356"></form>`;
+    fetcher.mockResolvedValueOnce(
+      new Response(warning(id), { headers: { "content-type": "text/html" } }),
+    );
+    fetcher.mockResolvedValueOnce(
+      new Response(historyCsv(), { headers: { "content-type": "text/csv" } }),
+    );
+    expect((await run({ kind: "history", year: 2026 })).state).toBe("done");
+    expect(endpoint(fetcher.mock.calls[1]?.[0])).toContain(`id=${id}`);
+    expect(endpoint(fetcher.mock.calls[1]?.[0])).toContain("drive.usercontent.google.com/download");
+    expect((await queries.historicalCoverage()).find((entry) => entry.year === 2026)?.games).toBe(
+      1,
+    );
+
+    fetcher.mockReset();
+    fetcher.mockResolvedValue(
+      new Response(warning("unexpected", "https://attacker.example/download"), {
+        headers: { "content-type": "text/html" },
+      }),
+    );
+    expect((await run({ kind: "history", year: 2026 })).state).toBe("failed");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await queries.historicalCoverage()).find((entry) => entry.year === 2026)?.games).toBe(
+      1,
+    );
+  });
 });
 
 describe("resolved profiles and local image persistence", () => {
@@ -445,7 +686,7 @@ describe("resolved profiles and local image persistence", () => {
     expect((await queries.profile("pandascore:team:10"))?.summary.eligibleGames).toBe(2);
   });
   const portrait = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomrgAK2IYWhIAdr5swVmNv80AAAAASUVORK5CYII=",
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAE0lEQVR4nGOYsmjDTHyYYWQoAABhNp/B8kBP7wAAAABJRU5ErkJggg==",
     "base64",
   );
   const imageUrl = "https://cdn-api.pandascore.co/images/test.png";
@@ -479,6 +720,84 @@ describe("resolved profiles and local image persistence", () => {
       return Promise.resolve(json([rawMatch()]));
     });
   }
+  it("gives a newly linked canonical profile the clean slug when its provider copy arrived first", async () => {
+    provider();
+    expect((await run({ kind: "matches" })).state).toBe("done");
+    expect((await run({ kind: "rosters" })).state).toBe("done");
+    expect((await queries.profile("pandascore:team:10"))?.identity.publicSlug).toBe(
+      "acceptance-blue",
+    );
+    await importCsv();
+    expect((await queries.profile("oracle:team:10"))?.identity.publicSlug).not.toBe(
+      "acceptance-blue",
+    );
+    expect((await run({ kind: "entities" })).state).toBe("done");
+    expect((await queries.profile("pandascore:team:10"))?.identity.publicSlug).toBe(
+      "acceptance-blue",
+    );
+    expect((await queries.profile("acceptance-blue", {}, "team"))?.identity.id).toBe(
+      "oracle:team:10",
+    );
+  });
+  it("reprocesses retained originals without network requests and shares transparent renditions across all queries", async () => {
+    await importCsv();
+    provider();
+    await run({ kind: "entities" });
+    const subject = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: "black" },
+    })
+      .png()
+      .toBuffer();
+    const original = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: "white" },
+    })
+      .composite([{ input: subject, left: 4, top: 4 }])
+      .png()
+      .toBuffer();
+    const sourceHash = createHash("sha256").update(original).digest("hex");
+    // Model a retained asset from before the rendition migration.
+    await pool.query("INSERT INTO image_assets VALUES($1,'image/png',$2)", [sourceHash, original]);
+    await pool.query(
+      "UPDATE identity_images SET asset_hash=$1 WHERE identity_id='pandascore:player:32'",
+      [sourceHash],
+    );
+    fetcher.mockClear();
+    expect((await run({ kind: "resolve" })).state).toBe("done");
+    expect(fetcher).not.toHaveBeenCalled();
+    const profile = (await queries.profile("pandascore:player:32"))!;
+    const image = profile.identity.imageUrl!;
+    expect(image).not.toContain(sourceHash);
+    const rendered = (await queries.image(image.split("/").at(-1)!))!;
+    const pixels = await sharp(rendered.bytes).raw().toBuffer();
+    expect(pixels[3]).toBe(0);
+    expect(pixels[(8 * 16 + 8) * 4 + 3]).toBe(255);
+    expect((await queries.image(sourceHash))?.bytes).toEqual(new Uint8Array(original));
+    expect((await queries.directory("player", { q: "Player Blue mid" })).items[0]?.imageUrl).toBe(
+      image,
+    );
+    expect((await queries.search({ q: "Player Blue mid" })).items[0]?.imageUrl).toBe(image);
+    expect(profile.roster[0]?.player.imageUrl).toBe(image);
+    expect(
+      (await queries.game("oracle:game:acceptance-game"))?.participants.find(
+        (p) => p.player?.sourceId === "10-mid",
+      )?.player?.imageUrl,
+    ).toBe(image);
+
+    const malformed = Buffer.from([255, 216, 255]);
+    const malformedHash = createHash("sha256").update(malformed).digest("hex");
+    await pool.query("INSERT INTO image_assets VALUES($1,'image/jpeg',$2)", [
+      malformedHash,
+      malformed,
+    ]);
+    await pool.query(
+      "UPDATE identity_images SET asset_hash=$1 WHERE identity_id='pandascore:player:30'",
+      [malformedHash],
+    );
+    await run({ kind: "resolve" });
+    expect((await queries.entityStatus()).images.failed).toBe(1);
+    expect((await queries.image(malformedHash))?.bytes).toEqual(new Uint8Array(malformed));
+    expect((await queries.profile("pandascore:player:32"))?.identity.imageUrl).toBe(image);
+  });
   it("links corroborated sources, combines samples and rosters, deduplicates paginated alias search, and serves cached images after restart", async () => {
     await importCsv();
     provider();
@@ -493,10 +812,8 @@ describe("resolved profiles and local image persistence", () => {
     expect(profile?.sources).toHaveLength(2);
     expect(profile?.summary.eligibleGames).toBe(1);
     expect(profile?.roster).toHaveLength(1);
-    expect(profile?.resolution?.[0]).toMatchObject({
-      gameId: "oracle:game:acceptance-game",
-      matchedPlayers: 5,
-    });
+    expect(profile?.resolution?.[0]?.gameId).toMatch(/^oracle:archive:[a-f0-9]{64}$/);
+    expect(profile?.resolution?.[0]?.matchedPlayers).toBe(5);
     expect((await queries.profile("oracle:team:10"))?.roster).toHaveLength(5);
     expect((await queries.directory("team")).total).toBe(2);
     expect((await queries.directory("team", { q: "Academy" })).total).toBe(0);
