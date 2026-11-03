@@ -615,6 +615,51 @@ describe("durable synchronization and request budgeting", () => {
     expect((await run({ kind: "history", year: 2024 })).state).toBe("done");
     expect((await run({ kind: "history", year: 2099 })).state).toBe("failed");
   });
+  it("downloads through the Drive API when configured and retries quota-blocked public downloads", async () => {
+    const quota = () =>
+      new Response(
+        "<!DOCTYPE html><html><head><title>Google Drive - Quota exceeded</title></head></html>",
+        { headers: { "content-type": "text/html; charset=utf-8" } },
+      );
+    fetcher.mockResolvedValue(quota());
+    const blocked = await run({ kind: "history", year: 2026 });
+    expect(blocked.state).toBe("queued");
+    expect(blocked.state === "queued" && blocked.error).toContain("quota");
+
+    const keyed = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      driveApiKey: "test-only-drive-key",
+    });
+    try {
+      fetcher.mockReset();
+      fetcher.mockResolvedValueOnce(
+        new Response(historyCsv(), { headers: { "content-type": "text/csv" } }),
+      );
+      instant = new Date(now.valueOf() + 3600000);
+      expect((await keyed.runNext()).state).toBe("done");
+      const api = new URL(endpoint(fetcher.mock.calls[0]?.[0]));
+      expect(`${api.origin}${api.pathname}`).toBe(
+        `https://www.googleapis.com/drive/v3/files/${archiveFileId(2026)}`,
+      );
+      expect(api.searchParams.get("alt")).toBe("media");
+
+      // An API refusal falls back to the public download; the key never reaches saved status.
+      fetcher.mockReset();
+      fetcher.mockResolvedValueOnce(new Response("{}", { status: 403 }));
+      fetcher.mockResolvedValueOnce(quota());
+      await keyed.request({ kind: "history", year: 2026 });
+      expect((await keyed.runNext()).state).toBe("queued");
+      expect(endpoint(fetcher.mock.calls[1]?.[0])).toContain("drive.google.com/uc");
+      expect(JSON.stringify(await queries.status())).not.toContain("test-only-drive-key");
+      expect((await queries.historicalCoverage()).find((entry) => entry.year === 2026)?.games).toBe(
+        1,
+      );
+    } finally {
+      await keyed.close();
+    }
+  });
   it("follows only the manifest-matched official Drive virus-scan confirmation", async () => {
     const id = archiveFileId(2026);
     const warning = (fileId: string, action = "https://drive.usercontent.google.com/download") =>

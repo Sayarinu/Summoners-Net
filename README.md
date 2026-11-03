@@ -32,9 +32,12 @@ Compose service exposes PostgreSQL only on `127.0.0.1:55442` and owns a dedicate
 other databases and containers alone. Never use `docker compose down -v` to stop a populated
 library.
 
-Set `PANDASCORE_TOKEN` in the ignored `.env`. Set `ORACLE_CURRENT_FILE` to the absolute path of a
-current annual Oracle’s Elixir game CSV if available. Neither value is sent to the browser. No
-`NEXT_PUBLIC` credentials are used. Data Dragon needs no key. The application is usable with
+Set `PANDASCORE_TOKEN` in the ignored `.env`. Anonymous Google Drive downloads of the popular
+current-year CSV are often quota-blocked; set `GOOGLE_DRIVE_API_KEY` to a Google Cloud API key with
+the Drive API enabled and the worker downloads the same official file through the Drive API first.
+Quota-blocked downloads are retried later. Set `ORACLE_CURRENT_FILE` to the absolute path of a
+current annual Oracle’s Elixir game CSV if available. None of these values is sent to the browser.
+No `NEXT_PUBLIC` credentials are used. Data Dragon needs no key. The application is usable with
 historical imports even without a PandaScore token; the source page explains missing refreshes.
 
 ## Imports and refreshes
