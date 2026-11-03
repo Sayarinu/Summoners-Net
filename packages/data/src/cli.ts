@@ -8,6 +8,7 @@ const connection = process.env.DATABASE_URL;
 if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
 const sync = createSync(connection, {
   ...(process.env.PANDASCORE_TOKEN ? { token: process.env.PANDASCORE_TOKEN } : {}),
+  ...(process.env.GOOGLE_DRIVE_API_KEY ? { driveApiKey: process.env.GOOGLE_DRIVE_API_KEY } : {}),
   ...(process.env.ORACLE_CURRENT_FILE ? { currentFile: process.env.ORACLE_CURRENT_FILE } : {}),
 });
 let stop = false;

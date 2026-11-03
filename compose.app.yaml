@@ -57,6 +57,7 @@ services:
     environment:
       DATABASE_URL: ${CONTAINER_DATABASE_URL:-postgresql://esportsviewer:local-esportsviewer-only@postgres:5432/esportsviewer}
       PANDASCORE_TOKEN: ${PANDASCORE_TOKEN:-}
+      GOOGLE_DRIVE_API_KEY: ${GOOGLE_DRIVE_API_KEY:-}
       ORACLE_CURRENT_FILE: ${CONTAINER_ORACLE_CURRENT_FILE:-}
     depends_on:
       migrate:

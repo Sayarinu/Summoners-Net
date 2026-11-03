@@ -10,7 +10,7 @@ import {
   parseCoveredLeagues,
   parseTournamentRosters,
 } from "../providers/pandascore.js";
-import { archiveDownload, archiveFileId } from "../providers/oracle.js";
+import { archiveApiDownload, archiveDownload, archiveFileId } from "../providers/oracle.js";
 import { parseMetadata, parseVersions } from "../providers/ddragon.js";
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
@@ -23,6 +23,8 @@ export interface WorkerOptions {
   clock?: () => Date;
   fetch?: typeof fetch;
   token?: string;
+  /** Optional Google Drive API key; downloads the same official file under the API's own quota. */
+  driveApiKey?: string;
   currentFile?: string;
   importDirectory?: string;
   pause?: (milliseconds: number) => Promise<void>;
@@ -70,6 +72,14 @@ export function worker(pool: Pool, options: WorkerOptions) {
     return response;
   }
   async function archiveResponse(year: number): Promise<Response> {
+    if (options.driveApiKey) {
+      try {
+        return await request(archiveApiDownload(year, options.driveApiKey), false, 300000);
+      } catch (error) {
+        // An API refusal (quota, disabled API, invalid key) falls back to the public download.
+        if (!(error instanceof ProviderError)) throw error;
+      }
+    }
     const response = await request(archiveDownload(year), false, 300000);
     if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) return response;
     const reader = response.body?.getReader();
@@ -98,6 +108,11 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (name && value) fields.set(name, value);
     }
     const uuid = fields.get("uuid");
+    if (/<title>[^<]*Quota exceeded/i.test(html))
+      throw new ProviderError(
+        "Archive download quota exceeded; the official download will be retried later.",
+        true,
+      );
     if (
       !html.includes("Google Drive - Virus scan warning") ||
       form?.[1] !== "https://drive.usercontent.google.com/download" ||

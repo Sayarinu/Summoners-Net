@@ -18,6 +18,12 @@ export function archiveFileId(year: number): string {
 export function archiveDownload(year: number): string {
   return `https://drive.google.com/uc?export=download&id=${archiveFileId(year)}`;
 }
+export function archiveApiDownload(year: number, key: string): string {
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${archiveFileId(year)}`);
+  url.searchParams.set("alt", "media");
+  url.searchParams.set("key", key);
+  return url.toString();
+}
 function number(value: string | undefined): number | null {
   if (!value?.trim()) return null;
   const n = Number(value);
