@@ -97,6 +97,17 @@ describe("browse presentation", () => {
       false,
     );
   });
+  it("labels the broadcast action Watch Live only while a match is live", () => {
+    render(
+      <MatchesPage
+        data={page([{ ...match, state: "live" }])}
+        query={{ timezone: "UTC" }}
+        hideSpoilers={false}
+        now={instant}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Watch Live" })).toHaveTextContent("Watch Live");
+  });
   it("mounts only one inline broadcast row and stops its player when collapsed", async () => {
     render(
       <MatchesPage
@@ -107,10 +118,10 @@ describe("browse presentation", () => {
       />,
     );
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
-    const watchButtons = screen.getAllByRole("button", { name: "Watch Live" });
+    const watchButtons = screen.getAllByRole("button", { name: "Watch" });
     fireEvent.click(watchButtons[0]!);
     await waitFor(() => expect(screen.getByRole("region", { name: "Watch match" })).toBeVisible());
-    expect(watchButtons[0]).toHaveTextContent("Watch Live");
+    expect(watchButtons[0]).toHaveTextContent("Watch");
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("Twitch");
     fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));

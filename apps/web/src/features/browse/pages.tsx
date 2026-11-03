@@ -44,7 +44,13 @@ export function MatchesPage({
   return (
     <div className="ev-matches-page np-stack">
       <header className="ev-title">
-        <h1>Matches</h1>
+        <div>
+          <span className="np-overline">Schedule</span>
+          <h1>Matches</h1>
+          <p className="np-body-sm">
+            Live, upcoming and recent series, refreshed by the local worker.
+          </p>
+        </div>
       </header>
       <Filters query={query} />
       {matchSections.map((section) => {
@@ -63,6 +69,7 @@ export function MatchesPage({
                 <h3>{date}</h3>
                 {items?.map((match) => {
                   const streamOpen = openStreamId === match.id;
+                  const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
                   const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
                   return (
                     <div key={match.id}>
@@ -75,7 +82,7 @@ export function MatchesPage({
                             <button
                               aria-controls={streamOpen ? streamPanelId : undefined}
                               aria-expanded={streamOpen}
-                              aria-label={streamOpen ? "Close Stream" : "Watch Live"}
+                              aria-label={streamOpen ? "Close Stream" : watchLabel}
                               className="ev-watch-toggle"
                               onClick={() =>
                                 setOpenStreamId((current) =>
@@ -84,7 +91,7 @@ export function MatchesPage({
                               }
                               type="button"
                             >
-                              Watch Live
+                              {watchLabel}
                             </button>
                           ) : undefined
                         }

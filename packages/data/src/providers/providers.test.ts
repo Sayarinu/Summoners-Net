@@ -151,6 +151,7 @@ describe("PandaScore free context", () => {
           ],
         },
         { id: 3, name: null, players: [] },
+        { id: 4, name: " Padded ", players: [{ id: 5, name: "   ", slug: "blank-name" }] },
       ]),
     ).toMatchObject([
       {
@@ -158,6 +159,7 @@ describe("PandaScore free context", () => {
         players: [{ id: "pandascore:player:2", role: "mid" }],
       },
       { team: { name: "Unknown team 3" }, players: [] },
+      { team: { name: "Padded" }, players: [{ name: "blank-name" }] },
     ]);
   });
 });

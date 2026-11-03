@@ -53,7 +53,7 @@ function toIdentity(value: z.infer<typeof identity>, kind: "team" | "player"): I
     source: "pandascore",
     sourceId: String(value.id),
     kind,
-    name: value.name ?? value.slug ?? `Unknown ${kind} ${value.id}`,
+    name: value.name?.trim() || value.slug || `Unknown ${kind} ${value.id}`,
     imageUrl: (kind === "team" ? value.dark_mode_image_url : null) ?? value.image_url ?? null,
     country: value.nationality ?? null,
     role: value.role ?? null,

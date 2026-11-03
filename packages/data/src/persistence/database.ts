@@ -10,6 +10,9 @@ export function database(connectionString: string) {
     connectionTimeoutMillis: 5000,
     statement_timeout: 60000,
     application_name: "esportsviewer",
+    // Browse queries are short; inflated view estimates otherwise trigger JIT compilation that
+    // costs far more than the query itself.
+    options: "-c jit=off",
   });
   // pg removes failed idle clients itself. Consume the event so a database restart
   // does not become an unhandled exception; active queries still reject normally.
