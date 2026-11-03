@@ -1,0 +1,32 @@
+name: Release size
+
+# Shows how merging this PR will bump the EsportsViewer version. Never blocks a merge.
+on:
+  pull_request:
+    types: [opened, edited, reopened, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  release-size:
+    name: Release size from labels
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report the version bump
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case ",$LABELS," in
+            *,"Major Release",*) size="major (X.0.0)" ;;
+            *,Feature,*) size="feature (0.X.0)" ;;
+            *) size="small change (0.0.X)" ;;
+          esac
+          echo "Merging this PR releases a **$size** update. Add the **Feature** or **Major Release** label for bigger bumps." >> "$GITHUB_STEP_SUMMARY"
+          summary="${TITLE#LUNE-* - }"
+          if [[ "$size" == small* ]] && grep -qiE '^(add|introduce|support|show|publish|build|create|redesign)\b' <<< "$summary"; then
+            echo "::warning title=Release size::This looks like a new feature but will release as a small change. Add the Feature label if it should bump the minor version."
+          fi

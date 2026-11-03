@@ -1,7 +1,8 @@
 name: Local acceptance
 on:
-  push:
   pull_request:
+  # Release pushes to main and experimental run these checks through release.yml.
+  workflow_call:
 permissions:
   contents: read
 jobs:
