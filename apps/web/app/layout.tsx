@@ -9,6 +9,7 @@ import "@esportsviewer/tokens/generated/tokens.css";
 import "@esportsviewer/ui/styles.css";
 import "./globals.css";
 import { ShellHeader, ShellFooter } from "../src/features/shell/shell";
+import { SoftNavigation } from "../src/features/shell/soft-navigation";
 import { preferencesState } from "../src/server/data";
 export const metadata: Metadata = {
   title: { default: "EsportsViewer", template: "%s · EsportsViewer" },
@@ -21,6 +22,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <SoftNavigation />
         <ShellHeader
           autoDetectTimezone={!preferenceState.hasSavedPreferences}
           preferences={preferenceState.value}

@@ -152,15 +152,24 @@ export function queries(pool: Pool, clock: () => Date) {
       // Activity comes from game/fixture dates, never the date an old archive or catalog
       // was imported. Current rosters only count for a recently active team, and expire.
       // These windows include the off-season without treating old observations as current.
-      const table = q.q
-        ? "entity_profiles"
-        : `(WITH recent_games AS (
-            SELECT id FROM games WHERE occurred_at BETWEEN $3::timestamptz-interval '180 days' AND $3::timestamptz
+      if (q.q)
+        return page<Identity>(
+          pool,
+          "entity_profiles",
+          `kind=$1 AND ${aliasFilter("$2")}`,
+          [kind, `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`],
+          q,
+          "lower(name),id",
+        );
+      // Without a search, every profile with any alias is listed. Joining the aliased set once
+      // avoids a per-row alias probe that the planner otherwise runs as a nested loop.
+      const table = `(WITH recent_games AS (
+            SELECT id FROM games WHERE occurred_at BETWEEN $2::timestamptz-interval '180 days' AND $2::timestamptz
           ), recent_teams AS (
             SELECT DISTINCT p.team_id AS id FROM participants p JOIN recent_games g ON g.id=p.game_id
             UNION
             SELECT team->>'id' FROM matches m CROSS JOIN LATERAL jsonb_array_elements(m.document->'teams') team
-            WHERE m.starts_at BETWEEN $3::timestamptz-interval '180 days' AND $3::timestamptz+interval '90 days'
+            WHERE m.starts_at BETWEEN $2::timestamptz-interval '180 days' AND $2::timestamptz+interval '90 days'
               AND m.state IN ('scheduled','live','final')
           ), active_sources AS (
             SELECT id FROM recent_teams WHERE $1='team'
@@ -170,19 +179,21 @@ export function queries(pool: Pool, clock: () => Date) {
             SELECT r.player_id FROM roster_observations r
               JOIN roster_snapshots s ON s.team_id=r.team_id AND s.observed_at=r.observed_at
               JOIN entity_members tm ON tm.id=r.team_id
-            WHERE $1='player' AND s.observed_at BETWEEN $3::timestamptz-interval '30 days' AND $3::timestamptz
+            WHERE $1='player' AND s.observed_at BETWEEN $2::timestamptz-interval '30 days' AND $2::timestamptz
               AND EXISTS(SELECT 1 FROM recent_teams t JOIN entity_members m ON m.id=t.id WHERE m.entity_id=tm.entity_id)
           ), active_entities AS (
             SELECT DISTINCT m.entity_id FROM active_sources a JOIN entity_members m ON m.id=a.id
+          ), aliased AS (
+            SELECT DISTINCT em.entity_id FROM identity_aliases a JOIN entity_members em ON em.id=a.identity_id
           ) SELECT p.*,EXISTS(SELECT 1 FROM active_entities a WHERE a.entity_id=p.id) AS recently_active
-            FROM entity_profiles p) entity_profiles`;
+            FROM entity_profiles p JOIN aliased ON aliased.entity_id=p.id) entity_profiles`;
       return page<Identity>(
         pool,
         table,
-        `kind=$1 AND ${aliasFilter("$2")}`,
-        [kind, `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`, ...(q.q ? [] : [clock()])],
+        "kind=$1",
+        [kind, clock()],
         q,
-        q.q ? "lower(name),id" : "recently_active DESC,lower(name),id",
+        "recently_active DESC,lower(name),id",
       );
     },
     async search(input: BrowseQuery = {}): Promise<Page<SearchHit>> {

@@ -542,3 +542,39 @@
   display: grid;
   gap: var(--space-2);
 }
+/* Page transitions: each page fades in; a thin bar shows while the next page renders. */
+.ev-main > * {
+  animation: ev-page-enter var(--motion-duration-standard) var(--motion-easing-enter) both;
+}
+@keyframes ev-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ev-navigation-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: 2px;
+  pointer-events: none;
+  background: var(--color-border-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+}
+.ev-navigation-progress--active {
+  opacity: 1;
+  transform: scaleX(0.8);
+  transition:
+    transform 2s var(--motion-easing-standard),
+    opacity var(--motion-duration-fast) linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev-main > * {
+    animation: none;
+  }
+  .ev-navigation-progress--active {
+    transition: none;
+  }
+}

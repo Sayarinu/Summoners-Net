@@ -54,7 +54,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   expect(
     Math.abs((await watchButtons.first().boundingBox())!.y - watchButtonTop),
   ).toBeLessThanOrEqual(1);
-  await expect(watchButtons.first()).toHaveText("Watch Live");
+  await expect(watchButtons.first()).toHaveText("Watch");
   await expect(page.locator(".np-match-row__expanded")).toHaveCount(1);
   await expect(page.locator(".ev-inline-stream")).toHaveCSS("position", "static");
   await expect(page.getByRole("button", { name: /Broadcast/ })).toContainText("Twitch");
@@ -122,6 +122,22 @@ test.describe("players navigation", () => {
     expect(playerRouteRequests).toBe(1);
     expect(preferenceWrites).toBeLessThanOrEqual(1);
   });
+});
+
+test("in-app links navigate without reloading the document and pages fade in", async ({ page }) => {
+  await page.goto("/teams");
+  await page.evaluate(() => ((window as Window & { softMarker?: number }).softMarker = 1));
+  await page.locator("main a[href^='/teams/']").first().click();
+  await expect(page).toHaveURL(/\/teams\/.+/);
+  await expect(page.locator("h1")).not.toHaveText("Teams");
+  expect(await page.evaluate(() => (window as Window & { softMarker?: number }).softMarker)).toBe(
+    1,
+  );
+  await expect(page.locator(".ev-main > *").first()).toHaveCSS("animation-name", "ev-page-enter");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/teams$/);
+  await expect(page.locator(".ev-main > *").first()).toHaveCSS("animation-name", "none");
 });
 
 test("team profile links use readable routes and legacy URLs settle without a request loop", async ({
