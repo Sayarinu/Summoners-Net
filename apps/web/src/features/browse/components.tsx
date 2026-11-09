@@ -41,6 +41,13 @@ export function Filters({
   const [dateIsFilter, setDateIsFilter] = useState(Boolean(query.date));
 
   useEffect(() => {
+    // Typing before hydration fires no change handler, so submit text the server did not render.
+    const form = formRef.current;
+    const typed = ["q", "year"].some((name) => {
+      const field = form?.elements.namedItem(name);
+      return field instanceof HTMLInputElement && field.value !== field.defaultValue;
+    });
+    if (typed) scheduleSubmit();
     return () => {
       if (timeoutRef.current !== undefined) window.clearTimeout(timeoutRef.current);
     };
