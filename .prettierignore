@@ -1,5 +1,4 @@
 .next
-.playwright-cli
 .turbo
 coverage
 dist
