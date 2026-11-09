@@ -13,6 +13,8 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:3100",
+    // Fixture matches start near midnight UTC; pin the zone so date filters match on any host.
+    timezoneId: "America/New_York",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
