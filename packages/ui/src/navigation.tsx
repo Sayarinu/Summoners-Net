@@ -1,137 +1,10 @@
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
-import {
-  Button as AriaButton,
-  Menu as AriaMenu,
-  MenuItem as AriaMenuItem,
-  MenuTrigger,
-  Popover as AriaPopover,
-  Tab as AriaTab,
-  TabList as AriaTabList,
-  TabPanel as AriaTabPanel,
-  Tabs as AriaTabs,
-  ToggleButton,
-  ToggleButtonGroup,
-} from "react-aria-components";
+import { Button as AriaButton } from "react-aria-components";
 
-import { analyticsData, cx, Icon } from "./internal.js";
+import { analyticsData, Icon } from "./internal.js";
 import type { AnalyticsProps } from "./internal.js";
 import { IconButton, TextLink } from "./primitives.js";
-
-export interface TabItem {
-  readonly meta?: ReactNode;
-  readonly content: ReactNode;
-  readonly disabled?: boolean;
-  readonly icon?: ReactNode;
-  readonly id: string;
-  readonly label: string;
-}
-
-export interface TabsProps extends AnalyticsProps {
-  readonly defaultSelectedKey?: string;
-  readonly items: readonly TabItem[];
-  readonly label: string;
-  readonly onSelectionChange?: (key: string) => void;
-  readonly orientation?: "horizontal" | "vertical";
-  readonly selectedKey?: string;
-}
-
-export function Tabs({
-  analyticsId,
-  defaultSelectedKey,
-  items,
-  label,
-  onSelectionChange,
-  orientation = "horizontal",
-  selectedKey,
-}: TabsProps) {
-  const selection =
-    selectedKey !== undefined
-      ? { selectedKey }
-      : defaultSelectedKey !== undefined
-        ? { defaultSelectedKey }
-        : {};
-
-  return (
-    <AriaTabs
-      {...selection}
-      {...analyticsData(analyticsId)}
-      className={cx("np-tabs", `np-tabs--${orientation}`)}
-      onSelectionChange={(key) => onSelectionChange?.(String(key))}
-      orientation={orientation}
-    >
-      <AriaTabList aria-label={label} className="np-tabs__list" items={items}>
-        {(item) => (
-          <AriaTab
-            {...(item.disabled !== undefined ? { isDisabled: item.disabled } : {})}
-            className="np-tabs__tab"
-            id={item.id}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-            {item.meta}
-          </AriaTab>
-        )}
-      </AriaTabList>
-      {items.map((item) => (
-        <AriaTabPanel className="np-tabs__panel" id={item.id} key={item.id}>
-          {item.content}
-        </AriaTabPanel>
-      ))}
-    </AriaTabs>
-  );
-}
-
-export interface SegmentOption {
-  readonly icon?: ReactNode;
-  readonly label: string;
-  readonly value: string;
-}
-
-export interface SegmentedControlProps extends AnalyticsProps {
-  readonly defaultValue?: string;
-  readonly label: string;
-  readonly onChange?: (value: string) => void;
-  readonly options: readonly SegmentOption[];
-  readonly value?: string;
-}
-
-export function SegmentedControl({
-  analyticsId,
-  defaultValue,
-  label,
-  onChange,
-  options,
-  value,
-}: SegmentedControlProps) {
-  const selection =
-    value !== undefined
-      ? { selectedKeys: new Set([value]) }
-      : defaultValue !== undefined
-        ? { defaultSelectedKeys: new Set([defaultValue]) }
-        : {};
-
-  return (
-    <ToggleButtonGroup
-      {...selection}
-      {...analyticsData(analyticsId)}
-      aria-label={label}
-      className="np-segmented"
-      onSelectionChange={(keys) => {
-        const selected = [...keys][0];
-        if (selected !== undefined) onChange?.(String(selected));
-      }}
-      selectionMode="single"
-    >
-      {options.map((option) => (
-        <ToggleButton className="np-segmented__item" id={option.value} key={option.value}>
-          {option.icon}
-          <span>{option.label}</span>
-        </ToggleButton>
-      ))}
-    </ToggleButtonGroup>
-  );
-}
 
 export interface BreadcrumbItem {
   readonly href?: string;
@@ -284,28 +157,6 @@ export function Navigation({ currentHref, items, label = "Primary", onNavigate }
   );
 }
 
-export interface HeaderProps {
-  readonly actions?: ReactNode;
-  readonly brand?: ReactNode;
-  readonly navigation?: ReactNode;
-  readonly status?: ReactNode;
-}
-
-export function Header({ actions, brand = "NEXUS PULSE", navigation, status }: HeaderProps) {
-  const hasBrand = brand !== null;
-  return (
-    <header className={cx("np-header", !hasBrand && "np-header--brandless")}>
-      <a className="np-skip-link" href="#main-content">
-        Skip to main content
-      </a>
-      {hasBrand ? <div className="np-header__brand">{brand}</div> : null}
-      {navigation ? <div className="np-header__navigation">{navigation}</div> : null}
-      <div className="np-header__context">{status}</div>
-      <div className="np-header__actions">{actions}</div>
-    </header>
-  );
-}
-
 export interface FooterProps {
   readonly copyright?: string;
   readonly links?: readonly BreadcrumbItem[];
@@ -331,56 +182,5 @@ export function Footer({
       ) : null}
       {status}
     </footer>
-  );
-}
-
-export interface MenuItem {
-  readonly description?: string;
-  readonly disabled?: boolean;
-  readonly icon?: ReactNode;
-  readonly id: string;
-  readonly label: string;
-}
-
-export interface MenuProps extends AnalyticsProps {
-  readonly items: readonly MenuItem[];
-  readonly label?: string;
-  readonly onAction: (id: string) => void;
-  readonly trigger?: ReactNode;
-}
-
-export function Menu({ analyticsId, items, label = "More actions", onAction, trigger }: MenuProps) {
-  return (
-    <MenuTrigger>
-      <AriaButton
-        {...analyticsData(analyticsId)}
-        aria-label={label}
-        className="np-button np-button--ghost np-icon-button np-control--compact"
-      >
-        {trigger ?? <Icon icon={MoreHorizontal} size="small" />}
-      </AriaButton>
-      <AriaPopover className="np-popover np-menu__popover" placement="bottom end">
-        <AriaMenu
-          aria-label={label}
-          className="np-menu"
-          items={items}
-          onAction={(key) => onAction(String(key))}
-        >
-          {(item) => (
-            <AriaMenuItem
-              {...(item.disabled !== undefined ? { isDisabled: item.disabled } : {})}
-              className={cx("np-menu__item", item.icon ? "np-menu__item--with-icon" : false)}
-              id={item.id}
-            >
-              {item.icon ? <span className="np-menu__icon">{item.icon}</span> : null}
-              <span>
-                <strong>{item.label}</strong>
-                {item.description ? <small>{item.description}</small> : null}
-              </span>
-            </AriaMenuItem>
-          )}
-        </AriaMenu>
-      </AriaPopover>
-    </MenuTrigger>
   );
 }

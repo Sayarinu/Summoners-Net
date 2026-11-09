@@ -1,17 +1,8 @@
 import { AtSign, Globe2, Hash } from "lucide-react";
-import { useState } from "react";
+
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import {
-  Checkbox,
-  Combobox,
-  Input,
-  RadioGroup,
-  SearchInput,
-  Select,
-  Switch,
-  Textarea,
-} from "./forms.js";
+import { Combobox, Input, Select, Switch } from "./forms.js";
 import { Icon } from "./internal.js";
 import "./review.stories.css";
 
@@ -23,8 +14,6 @@ const regions = [
 ] as const;
 
 function FormsGallery() {
-  const [search, setSearch] = useState("Gen.G");
-
   return (
     <main className="np-review">
       <div className="np-review__inner">
@@ -73,36 +62,6 @@ function FormsGallery() {
 
         <section className="np-review__section">
           <header className="np-review__section-header">
-            <span className="np-eyebrow">SearchInput</span>
-            <h2>Search and clear</h2>
-          </header>
-          <div className="np-review__stage">
-            <SearchInput
-              label="Search teams, players, events, and matches"
-              onChange={(event) => setSearch(event.currentTarget.value)}
-              onClear={() => setSearch("")}
-              value={search}
-            />
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">Textarea</span>
-            <h2>Long-form operations input</h2>
-          </header>
-          <div className="np-review__grid">
-            <Textarea
-              description="Visible only to operators."
-              label="Correction note"
-              placeholder="Explain the source discrepancy…"
-            />
-            <Textarea error="A reason is required for an override." label="Override reason" />
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
             <span className="np-eyebrow">Select + Combobox</span>
             <h2>Known and searchable options</h2>
           </header>
@@ -125,46 +84,6 @@ function FormsGallery() {
               required
             />
           </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">Checkbox</span>
-            <h2>Independent options</h2>
-          </header>
-          <div className="np-review__stack">
-            <Checkbox defaultSelected>Include showmatches</Checkbox>
-            <Checkbox>Notify when ingestion completes</Checkbox>
-            <Checkbox disabled>Provider-managed value</Checkbox>
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">RadioGroup</span>
-            <h2>One selection</h2>
-          </header>
-          <RadioGroup
-            defaultValue="canonical"
-            label="Conflict resolution"
-            options={[
-              {
-                description: "Use the highest-ranked configured provider.",
-                label: "Canonical provider",
-                value: "canonical",
-              },
-              {
-                description: "Preserve the current database value.",
-                label: "Keep current",
-                value: "current",
-              },
-              {
-                description: "Require an operator before publishing.",
-                label: "Manual review",
-                value: "manual",
-              },
-            ]}
-          />
         </section>
 
         <section className="np-review__section">

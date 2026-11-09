@@ -1,7 +1,8 @@
 {
-  "name": "@esportsviewer/tokens",
+  "name": "@summonersnet/tokens",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./generated/tokens.css": "./generated/tokens.css",

@@ -9,8 +9,8 @@ import {
   PlayerIdentity,
   EmptyState,
   MatchRow,
-} from "@esportsviewer/ui";
-import type { Match, Game, Profile, BrowseQuery } from "@esportsviewer/data";
+} from "@summonersnet/ui";
+import type { Match, Game, Profile, BrowseQuery } from "@summonersnet/data";
 import { dateTime, identityHref, matchDisplay, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { WatchPlayer } from "../watch/player";

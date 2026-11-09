@@ -68,13 +68,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@esportsviewer/data':
+      '@summonersnet/data':
         specifier: workspace:*
         version: link:../../packages/data
-      '@esportsviewer/tokens':
+      '@summonersnet/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
-      '@esportsviewer/ui':
+      '@summonersnet/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@fontsource/ibm-plex-mono':
@@ -182,7 +182,7 @@ importers:
         specifier: 1.19.0
         version: 1.19.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
-      '@esportsviewer/tokens':
+      '@summonersnet/tokens':
         specifier: workspace:*
         version: link:../tokens
       '@storybook/addon-a11y':

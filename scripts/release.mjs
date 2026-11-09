@@ -72,7 +72,7 @@ export function githubPulls(repository, token, fetchImpl = fetch) {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
           "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "esportsviewer-release",
+          "User-Agent": "summonersnet-release",
         },
       },
     );

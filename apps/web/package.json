@@ -1,7 +1,8 @@
 {
-  "name": "@esportsviewer/web",
+  "name": "@summonersnet/web",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
@@ -14,9 +15,9 @@
     "browser:test": "playwright test"
   },
   "dependencies": {
-    "@esportsviewer/data": "workspace:*",
-    "@esportsviewer/ui": "workspace:*",
-    "@esportsviewer/tokens": "workspace:*",
+    "@summonersnet/data": "workspace:*",
+    "@summonersnet/ui": "workspace:*",
+    "@summonersnet/tokens": "workspace:*",
     "@fontsource/ibm-plex-sans": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
     "next": "16.2.10",

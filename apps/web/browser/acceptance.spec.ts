@@ -178,6 +178,17 @@ test("search, history, observed rosters and independently accessible played line
   await page.goto("/history?year=2014");
   await expect(page.getByText("No games match these filters.")).toBeVisible();
 });
+test("search typed before hydration still runs once the page hydrates", async ({ page }) => {
+  // Hold back the client bundles so the text lands while the form is still server-rendered HTML.
+  await page.route("**/_next/static/**/*.js", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await route.continue();
+  });
+  await page.goto("/search", { waitUntil: "domcontentloaded" });
+  await page.getByRole("searchbox", { name: "Search" }).fill("Player Blue mid");
+  await expect(page).toHaveURL(/q=Player\+Blue\+mid/, { timeout: 15000 });
+  await expect(page.getByRole("link", { name: /Player Blue mid/ })).toHaveCount(1);
+});
 test("timezone boundaries and spoiler preferences persist across navigation", async ({ page }) => {
   await page.goto("/");
   await openSettings(page);
@@ -315,6 +326,7 @@ test("canonical profiles share local portraits across search, rosters and played
   await expect(teamLogo).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(teamLogo.locator("img")).toHaveCSS("object-fit", "contain");
   await player.click();
+  await expect(page).toHaveURL(/\/players\/player-blue-mid$/);
   await page.goto("/players/pandascore%3Aplayer%3A32");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
   await expect(page.getByRole("table", { name: "Latest roster observation" })).toBeVisible();

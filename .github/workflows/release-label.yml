@@ -1,6 +1,6 @@
 name: Release size
 
-# Shows how merging this PR will bump the EsportsViewer version. Never blocks a merge.
+# Shows how merging this PR will bump the SummonersNet version. Never blocks a merge.
 on:
   pull_request:
     types: [opened, edited, reopened, labeled, unlabeled, synchronize]
@@ -26,7 +26,7 @@ jobs:
             *) size="small change (0.0.X)" ;;
           esac
           echo "Merging this PR releases a **$size** update. Add the **Feature** or **Major Release** label for bigger bumps." >> "$GITHUB_STEP_SUMMARY"
-          summary="${TITLE#LUNE-* - }"
+          summary="$(sed -E 's/^[A-Z]+-[0-9]+ *[-–:] *//' <<< "$TITLE")"
           if [[ "$size" == small* ]] && grep -qiE '^(add|introduce|support|show|publish|build|create|redesign)\b' <<< "$summary"; then
             echo "::warning title=Release size::This looks like a new feature but will release as a small change. Add the Feature label if it should bump the minor version."
           fi

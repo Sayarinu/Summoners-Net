@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Combobox, SpoilerControl, commonTimezones } from "@esportsviewer/ui";
+import { Button, Combobox, SpoilerControl, commonTimezones } from "@summonersnet/ui";
 import { useRouter } from "next/navigation";
 import {
   browserTimezone,
@@ -19,8 +19,8 @@ function timezoneOptions(current: string) {
   return unique.map((value) => ({ label: value, value }));
 }
 
-const timezoneDetectionKey = "esportsviewer-timezone-detection";
-type DetectionWindow = Window & { __esportsViewerDetectedTimezone?: string };
+const timezoneDetectionKey = "summonersnet-timezone-detection";
+type DetectionWindow = Window & { __summonersNetDetectedTimezone?: string };
 
 export function PreferencesControl({
   autoDetectTimezone = false,
@@ -69,14 +69,14 @@ export function PreferencesControl({
     if (timezone === initial.timezone || autoDetectAttempted.current === timezone) return;
     autoDetectAttempted.current = timezone;
     const detectionWindow = window as DetectionWindow;
-    if (detectionWindow.__esportsViewerDetectedTimezone === timezone) return;
+    if (detectionWindow.__summonersNetDetectedTimezone === timezone) return;
     try {
       if (window.sessionStorage.getItem(timezoneDetectionKey) === timezone) return;
       window.sessionStorage.setItem(timezoneDetectionKey, timezone);
     } catch {
       // Session storage may be unavailable; the window marker still prevents route loops.
     }
-    detectionWindow.__esportsViewerDetectedTimezone = timezone;
+    detectionWindow.__summonersNetDetectedTimezone = timezone;
     void save({ ...initial, timezone }, false);
   }, [autoDetectTimezone, initial.hideSpoilers, initial.timezone, save]);
 

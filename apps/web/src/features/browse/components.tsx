@@ -8,9 +8,9 @@ import {
   TextLink,
   StatusIndicator,
   TeamIdentity,
-} from "@esportsviewer/ui";
-import type { BrowseQuery, Game, Page } from "@esportsviewer/data";
-import { regions } from "@esportsviewer/data/contracts";
+} from "@summonersnet/ui";
+import type { BrowseQuery, Game, Page } from "@summonersnet/data";
+import { regions } from "@summonersnet/data/contracts";
 import { dateTime, gameTeams, identityHref } from "./presentation";
 
 function todayInputValue(timezone: string) {
@@ -41,6 +41,13 @@ export function Filters({
   const [dateIsFilter, setDateIsFilter] = useState(Boolean(query.date));
 
   useEffect(() => {
+    // Typing before hydration fires no change handler, so submit text the server did not render.
+    const form = formRef.current;
+    const typed = ["q", "year"].some((name) => {
+      const field = form?.elements.namedItem(name);
+      return field instanceof HTMLInputElement && field.value !== field.defaultValue;
+    });
+    if (typed) scheduleSubmit();
     return () => {
       if (timeoutRef.current !== undefined) window.clearTimeout(timeoutRef.current);
     };

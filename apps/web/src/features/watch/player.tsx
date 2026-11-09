@@ -7,8 +7,8 @@ import {
   StreamConsent,
   StreamEmbedShell,
   TextLink,
-} from "@esportsviewer/ui";
-import type { Broadcast } from "@esportsviewer/data";
+} from "@summonersnet/ui";
+import type { Broadcast } from "@summonersnet/data";
 export function embedUrl(b: Broadcast, siteOrigin: string) {
   const origin = siteOrigin.includes("://") ? siteOrigin : `http://${siteOrigin}`;
   if (b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId)) {

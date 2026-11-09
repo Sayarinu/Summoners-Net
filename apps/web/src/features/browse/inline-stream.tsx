@@ -1,4 +1,4 @@
-import type { Broadcast } from "@esportsviewer/data";
+import type { Broadcast } from "@summonersnet/data";
 import { WatchPlayer } from "../watch/player";
 
 export function InlineMatchStream({ broadcasts, id }: { broadcasts: Broadcast[]; id: string }) {

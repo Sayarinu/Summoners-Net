@@ -9,7 +9,7 @@ export function database(connectionString: string) {
     max: 8,
     connectionTimeoutMillis: 5000,
     statement_timeout: 60000,
-    application_name: "esportsviewer",
+    application_name: "summonersnet",
     // Browse queries are short; inflated view estimates otherwise trigger JIT compilation that
     // costs far more than the query itself.
     options: "-c jit=off",
