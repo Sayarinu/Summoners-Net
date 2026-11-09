@@ -102,14 +102,14 @@ The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting
 
-The `Dockerfile` builds a production image (Next's standalone server plus the worker), and
-`compose.app.yaml` adds `migrate`, `web` and `worker` services to the root `compose.yaml`. On a
-fresh server, set a new `POSTGRES_PASSWORD` and matching `DATABASE_URL` and `CONTAINER_DATABASE_URL`
-in `.env` first. From the repository root:
+`deploy/Dockerfile` builds a production image (Next's standalone server plus the worker), and
+`deploy/compose.app.yaml` adds `migrate`, `web` and `worker` services to the root `compose.yaml`. On
+a fresh server, set a new `POSTGRES_PASSWORD` and matching `DATABASE_URL` and
+`CONTAINER_DATABASE_URL` in `.env` first. From the repository root:
 
 ```sh
-docker compose -f compose.yaml -f compose.app.yaml build
-docker compose -f compose.yaml -f compose.app.yaml up --no-build -d --wait
+docker compose -f compose.yaml -f deploy/compose.app.yaml build
+docker compose -f compose.yaml -f deploy/compose.app.yaml up --no-build -d --wait
 curl --fail http://127.0.0.1:3000/api/health
 ```
 
@@ -117,7 +117,8 @@ Migrations run before the web and worker start, and only the worker receives the
 Ports bind to loopback; from another machine, use an SSH tunnel
 (`ssh -N -L 3000:127.0.0.1:3000 user@server`). Back up with
 `docker compose exec -T postgres pg_dump -U esportsviewer -d esportsviewer --format=custom > library.dump`
-and keep your annual CSVs. To build the image alone, run `docker build .` from the repository root.
+and keep your annual CSVs. To build the image alone, run `docker build -f deploy/Dockerfile .` from
+the repository root.
 
 ## How it works
 

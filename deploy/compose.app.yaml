@@ -1,8 +1,11 @@
-# Optional production containers for self-hosting (see "Self-hosting" in README.md).
-# docker compose -f compose.yaml -f compose.app.yaml up --build -d
+# Optional production containers for self-hosting (see "Self-hosting" in README.md), layered on the
+# root compose.yaml. Run from the repository root; relative paths resolve against the first file:
+# docker compose -f compose.yaml -f deploy/compose.app.yaml up --build -d
 x-application: &application
   image: summonersnet:local
-  build: .
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
   init: true
   read_only: true
   tmpfs:
