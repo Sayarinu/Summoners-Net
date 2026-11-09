@@ -5,7 +5,15 @@ import { transaction } from "./database.js";
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 export async function saveIdentity(client: PoolClient, identity: Identity) {
   await client.query(
-    "INSERT INTO identities(id,kind,name,source,source_id,document) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document || jsonb_build_object('imageUrl',coalesce(EXCLUDED.document->>'imageUrl',identities.document->>'imageUrl'))",
+    `INSERT INTO identities(id,kind,name,source,source_id,document)
+      VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (id)
+      DO UPDATE SET
+        name=EXCLUDED.name,
+        document=EXCLUDED.document || jsonb_build_object(
+          'imageUrl',
+          coalesce(EXCLUDED.document->>'imageUrl',identities.document->>'imageUrl')
+        )`,
     [identity.id, identity.kind, identity.name, identity.source, identity.sourceId, identity],
   );
   await client.query("INSERT INTO identity_aliases VALUES($1,$2) ON CONFLICT DO NOTHING", [
@@ -18,7 +26,9 @@ export async function saveIdentity(client: PoolClient, identity: Identity) {
       alias,
     ]);
   await client.query(
-    "INSERT INTO source_mappings(source,kind,external_id,identity_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+    `INSERT INTO source_mappings(source,kind,external_id,identity_id)
+      VALUES ($1,$2,$3,$4)
+      ON CONFLICT DO NOTHING`,
     [identity.source, identity.kind, identity.sourceId, identity.id],
   );
 }
@@ -28,11 +38,22 @@ export async function saveMatches(pool: Pool, matches: Match[]) {
       for (const team of match.teams) await saveIdentity(client, team);
       const competition = `pandascore:${match.league}:${match.event}`;
       await client.query(
-        "INSERT INTO competitions(id,league,name,source,source_id) VALUES($1,$2,$3,'pandascore',$1) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name",
+        `INSERT INTO competitions(id,league,name,source,source_id)
+          VALUES ($1,$2,$3,'pandascore',$1)
+          ON CONFLICT (id)
+          DO UPDATE SET name=EXCLUDED.name`,
         [competition, match.league, match.event],
       );
       await client.query(
-        "INSERT INTO matches(id,source_id,competition_id,league,starts_at,state,document) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET competition_id=EXCLUDED.competition_id,league=EXCLUDED.league,starts_at=EXCLUDED.starts_at,state=EXCLUDED.state,document=EXCLUDED.document",
+        `INSERT INTO matches(id,source_id,competition_id,league,starts_at,state,document)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT (id)
+          DO UPDATE SET
+            competition_id=EXCLUDED.competition_id,
+            league=EXCLUDED.league,
+            starts_at=EXCLUDED.starts_at,
+            state=EXCLUDED.state,
+            document=EXCLUDED.document`,
         [match.id, match.sourceId, competition, match.league, match.startsAt, match.state, match],
       );
       await client.query("DELETE FROM broadcasts WHERE match_id=$1", [match.id]);
@@ -55,7 +76,10 @@ export async function saveRosters(
     for (const entry of teams) {
       await saveIdentity(client, entry.team);
       await client.query(
-        "INSERT INTO roster_snapshots VALUES($1,$2) ON CONFLICT(team_id) DO UPDATE SET observed_at=EXCLUDED.observed_at",
+        `INSERT INTO roster_snapshots
+          VALUES ($1,$2)
+          ON CONFLICT (team_id)
+          DO UPDATE SET observed_at=EXCLUDED.observed_at`,
         [entry.team.id, at],
       );
       for (const player of entry.players) {
@@ -74,7 +98,9 @@ export async function saveGames(pool: Pool, games: Game[], fileHash: string, yea
     await client.query("SELECT pg_advisory_xact_lock(9183272)");
     await upsertGames(client, games);
     await client.query(
-      "INSERT INTO imports(source,file_hash,year,records) VALUES('oracle',$1,$2,$3) ON CONFLICT DO NOTHING",
+      `INSERT INTO imports(source,file_hash,year,records)
+        VALUES ('oracle',$1,$2,$3)
+        ON CONFLICT DO NOTHING`,
       [fileHash, year, games.length],
     );
   });
@@ -90,13 +116,20 @@ export async function upsertGames(client: PoolClient, games: Game[], finalizeIde
   const identities = [...unique.values()];
   for (let i = 0; i < identities.length; i += 500) {
     await client.query(
-      "INSERT INTO identities(id,kind,name,source,source_id,document) SELECT d->>'id',d->>'kind',d->>'name',d->>'source',d->>'sourceId',d FROM jsonb_array_elements($1) d ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document",
+      `INSERT INTO identities(id,kind,name,source,source_id,document)
+        SELECT d->>'id',d->>'kind',d->>'name',d->>'source',d->>'sourceId',d
+        FROM jsonb_array_elements($1) d
+        ON CONFLICT (id)
+        DO UPDATE SET name=EXCLUDED.name,document=EXCLUDED.document`,
       [JSON.stringify(identities.slice(i, i + 500))],
     );
   }
   if (finalizeIdentities)
     await client.query(
-      "INSERT INTO source_mappings SELECT source,kind,source_id,id FROM identities ON CONFLICT DO NOTHING",
+      `INSERT INTO source_mappings
+        SELECT source,kind,source_id,id
+        FROM identities
+        ON CONFLICT DO NOTHING`,
     );
   for (let i = 0; i < games.length; i += 100) {
     const chunk = games
@@ -114,12 +147,35 @@ export async function upsertGames(client: PoolClient, games: Game[], finalizeIde
     if (!ids.length) continue;
     await client.query("DELETE FROM participants WHERE game_id=ANY($1)", [ids]);
     await client.query(
-      `INSERT INTO participants SELECT g.id,p->>'slot',p->'team'->>'id',p->'player'->>'id',p->>'role',p->>'champion',(p->>'won')::boolean,(p->>'kills')::integer,(p->>'deaths')::integer,(p->>'assists')::integer FROM games g CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p WHERE g.id=ANY($1)`,
+      `INSERT INTO participants
+        SELECT
+          g.id,
+          p->>'slot',
+          p->'team'->>'id',
+          p->'player'->>'id',
+          p->>'role',
+          p->>'champion',
+          (p->>'won')::boolean,
+          (p->>'kills')::integer,
+          (p->>'deaths')::integer,
+          (p->>'assists')::integer
+        FROM games g
+        CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p
+        WHERE g.id=ANY($1)`,
       [ids],
     );
   }
   if (finalizeIdentities)
     await client.query(
-      `INSERT INTO identity_aliases SELECT DISTINCT value->'team'->>'id',value->'team'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') UNION SELECT DISTINCT value->'player'->>'id',value->'player'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') WHERE value->'player'->>'id' IS NOT NULL ON CONFLICT DO NOTHING`,
+      `INSERT INTO identity_aliases
+        SELECT DISTINCT value->'team'->>'id',value->'team'->>'name'
+        FROM games
+        CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+        UNION
+        SELECT DISTINCT value->'player'->>'id',value->'player'->>'name'
+        FROM games
+        CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+        WHERE value->'player'->>'id' IS NOT NULL
+        ON CONFLICT DO NOTHING`,
     );
 }

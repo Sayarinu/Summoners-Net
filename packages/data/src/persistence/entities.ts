@@ -8,7 +8,10 @@ export async function saveCatalog(pool: Pool, teams: ContextTeam[]) {
   await transaction(pool, async (c) => {
     for (const team of teams)
       await c.query(
-        "INSERT INTO identity_catalog VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET document=EXCLUDED.document,observed_at=EXCLUDED.observed_at",
+        `INSERT INTO identity_catalog
+          VALUES ($1,$2,$3)
+          ON CONFLICT (id)
+          DO UPDATE SET document=EXCLUDED.document,observed_at=EXCLUDED.observed_at`,
         [team.team.id, team, team.observedAt],
       );
   });
@@ -17,7 +20,10 @@ export async function saveIdentityContext(pool: Pool, matches: Match[], year: nu
   await transaction(pool, async (c) => {
     for (const match of matches)
       await c.query(
-        "INSERT INTO identity_match_context VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET document=EXCLUDED.document,observed_at=EXCLUDED.observed_at",
+        `INSERT INTO identity_match_context
+          VALUES ($1,$2,$3,$4)
+          ON CONFLICT (id)
+          DO UPDATE SET document=EXCLUDED.document,observed_at=EXCLUDED.observed_at`,
         [match.id, year, match, at],
       );
   });
@@ -28,7 +34,16 @@ export async function resolveStored(pool: Pool, at: Date) {
     // Corrected imports replace their naming evidence; a removed name must not keep a link alive.
     await c.query("DELETE FROM identity_aliases WHERE identity_id LIKE 'oracle:%'");
     await c.query(
-      `INSERT INTO identity_aliases SELECT DISTINCT value->'team'->>'id',value->'team'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') UNION SELECT DISTINCT value->'player'->>'id',value->'player'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') WHERE value->'player'->>'id' IS NOT NULL ON CONFLICT DO NOTHING`,
+      `INSERT INTO identity_aliases
+        SELECT DISTINCT value->'team'->>'id',value->'team'->>'name'
+        FROM games
+        CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+        UNION
+        SELECT DISTINCT value->'player'->>'id',value->'player'->>'name'
+        FROM games
+        CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+        WHERE value->'player'->>'id' IS NOT NULL
+        ON CONFLICT DO NOTHING`,
     );
     const contexts = (
       await c.query<{ document: Match }>(
@@ -42,7 +57,15 @@ export async function resolveStored(pool: Pool, at: Date) {
         league: string;
         teams: { id: string; name: string }[];
       }>(
-        `SELECT g.id AS "gameId",g.document->>'occurredAt' AS "playedAt",g.league,jsonb_agg(DISTINCT jsonb_build_object('id',p->'team'->>'id','name',p->'team'->>'name')) AS teams FROM games g CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p WHERE g.document->>'number'='1' GROUP BY g.id`,
+        `SELECT
+            g.id AS "gameId",
+            g.document->>'occurredAt' AS "playedAt",
+            g.league,
+            jsonb_agg(DISTINCT jsonb_build_object('id',p->'team'->>'id','name',p->'team'->>'name')) AS teams
+          FROM games g
+          CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') p
+          WHERE g.document->>'number'='1'
+          GROUP BY g.id`,
       )
     ).rows;
     const aliases = (
@@ -52,7 +75,21 @@ export async function resolveStored(pool: Pool, at: Date) {
     ).rows;
     const squads = (
       await c.query<PlayedSquad>(
-        `SELECT g.id AS "gameId",p.team_id AS "teamId",to_char(g.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "playedAt",jsonb_agg(jsonb_build_object('id',p.player_id,'name',member->'player'->>'name','role',p.role) ORDER BY p.slot) AS players FROM games g JOIN participants p ON p.game_id=g.id CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') member WHERE g.complete AND p.player_id IS NOT NULL AND member->>'slot'=p.slot GROUP BY g.id,p.team_id ORDER BY g.occurred_at DESC,g.id`,
+        `SELECT
+            g.id AS "gameId",
+            p.team_id AS "teamId",
+            to_char(g.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "playedAt",
+            jsonb_agg(jsonb_build_object(
+              'id', p.player_id,
+              'name', member->'player'->>'name',
+              'role', p.role
+            ) ORDER BY p.slot) AS players
+          FROM games g
+          JOIN participants p ON p.game_id=g.id
+          CROSS JOIN LATERAL jsonb_array_elements(g.document->'participants') member
+          WHERE g.complete AND p.player_id IS NOT NULL AND member->>'slot'=p.slot
+          GROUP BY g.id,p.team_id
+          ORDER BY g.occurred_at DESC,g.id`,
       )
     ).rows;
     const catalog = (
@@ -60,7 +97,19 @@ export async function resolveStored(pool: Pool, at: Date) {
     ).rows.map((r) => r.document);
     const current = (
       await c.query<{ document: ContextTeam }>(
-        `SELECT jsonb_build_object('team',t.document,'observedAt',s.observed_at,'players',coalesce(jsonb_agg(p.document ORDER BY p.id) FILTER(WHERE p.id IS NOT NULL),'[]')) AS document FROM roster_snapshots s JOIN identities t ON t.id=s.team_id LEFT JOIN roster_observations r ON r.team_id=s.team_id AND r.observed_at=s.observed_at LEFT JOIN identities p ON p.id=r.player_id GROUP BY t.id,s.observed_at`,
+        `SELECT jsonb_build_object(
+            'team', t.document,
+            'observedAt', s.observed_at,
+            'players', coalesce(
+              jsonb_agg(p.document ORDER BY p.id) FILTER(WHERE p.id IS NOT NULL),
+              '[]'
+            )
+          ) AS document
+          FROM roster_snapshots s
+          JOIN identities t ON t.id=s.team_id
+          LEFT JOIN roster_observations r ON r.team_id=s.team_id AND r.observed_at=s.observed_at
+          LEFT JOIN identities p ON p.id=r.player_id
+          GROUP BY t.id,s.observed_at`,
       )
     ).rows.map((r) => r.document);
     const teams = new Map(catalog.map((t) => [t.team.id, t]));
@@ -96,7 +145,10 @@ export async function resolveStored(pool: Pool, at: Date) {
       if (linked.has(team.team.id)) {
         await saveIdentity(c, team.team);
         await c.query(
-          "INSERT INTO roster_snapshots VALUES($1,$2) ON CONFLICT(team_id) DO UPDATE SET observed_at=greatest(roster_snapshots.observed_at,EXCLUDED.observed_at)",
+          `INSERT INTO roster_snapshots
+            VALUES ($1,$2)
+            ON CONFLICT (team_id)
+            DO UPDATE SET observed_at=greatest(roster_snapshots.observed_at,EXCLUDED.observed_at)`,
           [team.team.id, team.observedAt],
         );
         for (const player of team.players) {
@@ -120,7 +172,14 @@ export async function resolveStored(pool: Pool, at: Date) {
       ]);
     const counts = (
       await c.query<{ kind: string; identities: number; linked: number; images: number }>(
-        `SELECT p.kind,count(*)::integer AS identities,(count(*) FILTER(WHERE document->>'sourceCount'='2'))::integer AS linked,(count(*) FILTER(WHERE document->>'imageUrl' IS NOT NULL))::integer AS images FROM entity_profiles p GROUP BY p.kind ORDER BY p.kind`,
+        `SELECT
+            p.kind,
+            count(*)::integer AS identities,
+            (count(*) FILTER(WHERE document->>'sourceCount'='2'))::integer AS linked,
+            (count(*) FILTER(WHERE document->>'imageUrl' IS NOT NULL))::integer AS images
+          FROM entity_profiles p
+          GROUP BY p.kind
+          ORDER BY p.kind`,
       )
     ).rows;
     const report = {
@@ -156,7 +215,18 @@ export async function enrichIdentities(
       image_source: string | null;
       source_count: number;
     }>(
-      `SELECT m.id,m.entity_id,p.document->>'publicSlug' AS public_slug,coalesce('/api/images/'||coalesce(r.asset_hash,img.asset_hash),p.document->>'imageUrl') AS image_url,CASE WHEN img.asset_hash IS NOT NULL THEN 'PandaScore' ELSE p.document->>'imageSource' END AS image_source,(p.document->>'sourceCount')::integer AS source_count FROM entity_members m JOIN entity_profiles p ON p.id=m.entity_id LEFT JOIN identity_images img ON img.identity_id=m.id LEFT JOIN image_renditions r ON r.source_hash=img.asset_hash WHERE m.id=ANY($1)`,
+      `SELECT
+          m.id,
+          m.entity_id,
+          p.document->>'publicSlug' AS public_slug,
+          coalesce('/api/images/'||coalesce(r.asset_hash,img.asset_hash),p.document->>'imageUrl') AS image_url,
+          CASE WHEN img.asset_hash IS NOT NULL THEN 'PandaScore' ELSE p.document->>'imageSource' END AS image_source,
+          (p.document->>'sourceCount')::integer AS source_count
+        FROM entity_members m
+        JOIN entity_profiles p ON p.id=m.entity_id
+        LEFT JOIN identity_images img ON img.identity_id=m.id
+        LEFT JOIN image_renditions r ON r.source_hash=img.asset_hash
+        WHERE m.id=ANY($1)`,
       [identities.map((i) => i.id)],
     )
   ).rows;

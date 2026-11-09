@@ -172,10 +172,22 @@ async function projectCurated(client: PoolClient): Promise<number> {
     projectedCount += projected.length;
   }
   await client.query(
-    "INSERT INTO source_mappings SELECT source,kind,source_id,id FROM identities ON CONFLICT DO NOTHING",
+    `INSERT INTO source_mappings
+      SELECT source,kind,source_id,id
+      FROM identities
+      ON CONFLICT DO NOTHING`,
   );
   await client.query(
-    `INSERT INTO identity_aliases SELECT DISTINCT value->'team'->>'id',value->'team'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') UNION SELECT DISTINCT value->'player'->>'id',value->'player'->>'name' FROM games CROSS JOIN LATERAL jsonb_array_elements(document->'participants') WHERE value->'player'->>'id' IS NOT NULL ON CONFLICT DO NOTHING`,
+    `INSERT INTO identity_aliases
+      SELECT DISTINCT value->'team'->>'id',value->'team'->>'name'
+      FROM games
+      CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+      UNION
+      SELECT DISTINCT value->'player'->>'id',value->'player'->>'name'
+      FROM games
+      CROSS JOIN LATERAL jsonb_array_elements(document->'participants')
+      WHERE value->'player'->>'id' IS NOT NULL
+      ON CONFLICT DO NOTHING`,
   );
   return projectedCount;
 }
@@ -236,7 +248,8 @@ export async function importOracleArchive(
     );
     for (let start = 0; start < parsed.uniqueRows; start += 5000)
       await client.query(
-        "DELETE FROM oracle_archive_participants WHERE game_id IN (SELECT DISTINCT game_id FROM staged_oracle_rows WHERE id>$1 AND id<=$2)",
+        `DELETE FROM oracle_archive_participants
+          WHERE game_id IN (SELECT DISTINCT game_id FROM staged_oracle_rows WHERE id>$1 AND id<=$2)`,
         [start, start + 5000],
       );
     for (let start = 0; start < parsed.uniqueRows; start += 5000)

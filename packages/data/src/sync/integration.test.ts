@@ -341,6 +341,44 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect((await queries.search({ q: "%" })).total).toBe(0);
     expect((await queries.search()).total).toBe(0);
   });
+  it("filters games and matches by their visible values through trigram indexes", async () => {
+    fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
+    const matchesRun = await run({ kind: "matches" });
+    expect(matchesRun.state, matchesRun.error ?? "").toBe("done");
+    await importCsv();
+    await importCsv(historyCsv({ id: "older", year: 2024, league: "LEC" }), 2024);
+    // Any value search finds exactly the rows the former whole-document search found.
+    const legacy = async (table: "games" | "matches", q: string) =>
+      (
+        await pool.query<{ count: number }>(
+          `SELECT count(*)::integer AS count FROM ${table} WHERE lower(document::text) LIKE $1`,
+          [`%${q.toLowerCase()}%`],
+        )
+      ).rows[0]!.count;
+    for (const q of ["Player Blue mid", "acceptance red", "LEC", "Ahri", "2024-", "Spring"]) {
+      const games = (await queries.games({ q })).total;
+      expect(games, q).toBe(await legacy("games", q));
+      expect((await queries.matches({ q })).total, q).toBe(await legacy("matches", q));
+      expect((await queries.profile("oracle:player:10-mid", { q }))?.games.total, q).toBe(games);
+    }
+    expect((await queries.games({ q: "Ahri" })).total).toBe(2);
+    expect((await queries.matches({ q: "acceptance red" })).total).toBe(1);
+    // JSON keys are not content: they no longer match every row.
+    expect(await legacy("games", "participants")).toBe(2);
+    expect((await queries.games({ q: "participants" })).total).toBe(0);
+    expect((await queries.matches({ q: "broadcasts" })).total).toBe(0);
+    await transaction(pool, async (client) => {
+      await client.query("SET LOCAL enable_seqscan=off");
+      for (const table of ["games", "matches"]) {
+        const plan = await client.query<{ "QUERY PLAN": string }>(
+          `EXPLAIN SELECT id FROM ${table} WHERE search_text LIKE '%acceptance%'`,
+        );
+        expect(plan.rows.map((row) => row["QUERY PLAN"]).join("\n")).toContain(
+          `${table}_search_text`,
+        );
+      }
+    });
+  });
   it("publishes source-neutral, stable profile slugs and resolves legacy source IDs", async () => {
     await importCsv();
     const team = (await queries.directory("team", { q: "Acceptance Blue" })).items[0]!;
