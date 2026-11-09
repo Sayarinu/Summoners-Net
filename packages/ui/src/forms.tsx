@@ -1,14 +1,8 @@
-import { Check, ChevronDown, Search, X } from "lucide-react";
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 import { useId } from "react";
 import {
   Button as AriaButton,
-  Checkbox as AriaCheckbox,
   ComboBox as AriaComboBox,
   FieldError as AriaFieldError,
   Input as AriaInput,
@@ -16,8 +10,6 @@ import {
   ListBox,
   ListBoxItem,
   Popover as AriaPopover,
-  Radio as AriaRadio,
-  RadioGroup as AriaRadioGroup,
   Select as AriaSelect,
   SelectValue,
   Switch as AriaSwitch,
@@ -112,69 +104,6 @@ export function Input({
           <span className="np-input-shell__affix np-input-shell__affix--end">{suffix}</span>
         ) : null}
       </div>
-    </Field>
-  );
-}
-
-export interface SearchInputProps extends Omit<InputProps, "prefix" | "suffix" | "type"> {
-  readonly onClear?: () => void;
-}
-
-export function SearchInput({ onClear, value, ...props }: SearchInputProps) {
-  const hasValue = typeof value === "string" && value.length > 0;
-
-  return (
-    <Input
-      {...props}
-      prefix={<Icon icon={Search} size="small" />}
-      suffix={
-        hasValue && onClear ? (
-          <button
-            aria-label="Clear search"
-            className="np-input-shell__clear"
-            onClick={onClear}
-            type="button"
-          >
-            <Icon icon={X} size="small" />
-          </button>
-        ) : null
-      }
-      type="search"
-      value={value}
-    />
-  );
-}
-
-export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, AnalyticsProps {
-  readonly description?: string;
-  readonly error?: string;
-  readonly label: string;
-}
-
-export function Textarea({
-  analyticsId,
-  className,
-  description,
-  error,
-  id: providedId,
-  label,
-  required,
-  ...props
-}: TextareaProps) {
-  const generatedId = useId();
-  const id = providedId ?? generatedId;
-
-  return (
-    <Field description={description} error={error} htmlFor={id} label={label} required={required}>
-      <textarea
-        {...props}
-        {...analyticsData(analyticsId)}
-        aria-describedby={description || error ? `${id}-message` : undefined}
-        aria-invalid={error ? true : undefined}
-        className={cx("np-textarea", error && "np-textarea--invalid", className)}
-        id={id}
-        required={required}
-      />
     </Field>
   );
 }
@@ -349,98 +278,6 @@ export function Combobox({
   );
 }
 
-export interface CheckboxProps extends AnalyticsProps {
-  readonly children: ReactNode;
-  readonly defaultSelected?: boolean;
-  readonly disabled?: boolean;
-  readonly name?: string;
-  readonly onChange?: (selected: boolean) => void;
-  readonly selected?: boolean;
-  readonly value?: string;
-}
-
-export function Checkbox({
-  analyticsId,
-  children,
-  defaultSelected,
-  disabled,
-  name,
-  onChange,
-  selected,
-  value,
-}: CheckboxProps) {
-  return (
-    <AriaCheckbox
-      {...analyticsData(analyticsId)}
-      {...(defaultSelected !== undefined ? { defaultSelected } : {})}
-      {...(disabled !== undefined ? { isDisabled: disabled } : {})}
-      {...(selected !== undefined ? { isSelected: selected } : {})}
-      {...(name !== undefined ? { name } : {})}
-      {...(onChange ? { onChange } : {})}
-      {...(value !== undefined ? { value } : {})}
-      className="np-checkbox"
-    >
-      <span aria-hidden="true" className="np-checkbox__box">
-        <Icon icon={Check} size="small" />
-      </span>
-      <span>{children}</span>
-    </AriaCheckbox>
-  );
-}
-
-export interface RadioOption {
-  readonly description?: string;
-  readonly label: string;
-  readonly value: string;
-}
-
-export interface RadioGroupProps extends AnalyticsProps {
-  readonly defaultValue?: string;
-  readonly disabled?: boolean;
-  readonly label: string;
-  readonly name?: string;
-  readonly onChange?: (value: string) => void;
-  readonly options: readonly RadioOption[];
-  readonly orientation?: "horizontal" | "vertical";
-  readonly value?: string;
-}
-
-export function RadioGroup({
-  analyticsId,
-  defaultValue,
-  disabled,
-  label,
-  name,
-  onChange,
-  options,
-  orientation = "vertical",
-  value,
-}: RadioGroupProps) {
-  return (
-    <AriaRadioGroup
-      {...analyticsData(analyticsId)}
-      {...(defaultValue !== undefined ? { defaultValue } : {})}
-      {...(disabled !== undefined ? { isDisabled: disabled } : {})}
-      {...(name !== undefined ? { name } : {})}
-      {...(onChange ? { onChange } : {})}
-      {...(value !== undefined ? { value } : {})}
-      className={cx("np-radio-group", `np-radio-group--${orientation}`)}
-      orientation={orientation}
-    >
-      <AriaLabel>{label}</AriaLabel>
-      {options.map((option) => (
-        <AriaRadio className="np-radio" key={option.value} value={option.value}>
-          <span aria-hidden="true" className="np-radio__control" />
-          <span>
-            <strong>{option.label}</strong>
-            {option.description ? <small>{option.description}</small> : null}
-          </span>
-        </AriaRadio>
-      ))}
-    </AriaRadioGroup>
-  );
-}
-
 export interface SwitchProps extends AnalyticsProps {
   readonly children: ReactNode;
   readonly defaultSelected?: boolean;
@@ -473,3 +310,17 @@ export function Switch({
     </AriaSwitch>
   );
 }
+
+export interface TimezoneOption {
+  readonly label: string;
+  readonly value: string;
+}
+
+export const commonTimezones: readonly TimezoneOption[] = [
+  { label: "UTC", value: "UTC" },
+  { label: "Eastern Time · New York", value: "America/New_York" },
+  { label: "Pacific Time · Los Angeles", value: "America/Los_Angeles" },
+  { label: "Central European Time · Berlin", value: "Europe/Berlin" },
+  { label: "Korea Standard Time · Seoul", value: "Asia/Seoul" },
+  { label: "China Standard Time · Shanghai", value: "Asia/Shanghai" },
+];

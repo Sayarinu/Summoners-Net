@@ -84,16 +84,6 @@ export function TextLink({
   );
 }
 
-export interface MetaTextProps {
-  readonly children: ReactNode;
-  readonly className?: string;
-  readonly tone?: Intent | "accent" | "live";
-}
-
-export function MetaText({ children, className, tone = "neutral" }: MetaTextProps) {
-  return <span className={cx("np-meta-text", `np-meta-text--${tone}`, className)}>{children}</span>;
-}
-
 export interface StatusIndicatorProps {
   readonly label: string;
   readonly tone?: Intent | "live";
@@ -105,42 +95,4 @@ export function StatusIndicator({ label, tone = "neutral" }: StatusIndicatorProp
 
 export function LiveIndicator({ label = "Live" }: { readonly label?: string }) {
   return <StatusIndicator label={label} tone="live" />;
-}
-
-export interface CalloutProps {
-  readonly actions?: ReactNode;
-  readonly children: ReactNode;
-  readonly title: string;
-  readonly tone?: Intent;
-}
-
-export function Callout({ actions, children, title, tone = "neutral" }: CalloutProps) {
-  return (
-    <section aria-label={title} className={cx("np-callout", `np-callout--${tone}`)}>
-      <div className="np-callout__body">
-        <strong className="np-callout__title">{title}</strong>
-        <div>{children}</div>
-      </div>
-      {actions ? <div className="np-callout__actions">{actions}</div> : null}
-    </section>
-  );
-}
-
-export interface ToastProps {
-  readonly action?: ReactNode;
-  readonly children: ReactNode;
-  readonly title: string;
-  readonly tone?: Intent;
-}
-
-export function Toast({ action, children, title, tone = "neutral" }: ToastProps) {
-  return (
-    <div aria-atomic="true" className={cx("np-toast", `np-toast--${tone}`)} role="status">
-      <div>
-        <strong>{title}</strong>
-        <p>{children}</p>
-      </div>
-      {action}
-    </div>
-  );
 }
