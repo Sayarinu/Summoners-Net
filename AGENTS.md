@@ -17,8 +17,8 @@ behalf. Read them before starting. Setup and commands are in
 
 ## Stack
 
-- Node **24.12.0** and pnpm **11.10.0**, pinned in `.nvmrc`, `.node-version`, `.tool-versions` and
-  package engines. Install with `pnpm install --frozen-lockfile`.
+- Node **24.12.0** and pnpm **11.10.0**, pinned in `.nvmrc` (read by CI) and in `package.json`
+  (`packageManager` and `engines`). Install with `pnpm install --frozen-lockfile`.
 - Exact, locked dependency versions (`save-exact`). Add a dependency only when the existing stack
   cannot reasonably do the job.
 - Turborepo workspace: Next.js 16 and React 19 in `apps/web`; PostgreSQL 18 with `pg_trgm`; strict
