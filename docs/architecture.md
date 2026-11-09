@@ -82,8 +82,8 @@ migrations before startup, and shares durable uploads between them. Only the wor
 provider token. Web and PostgreSQL remain bound to host loopback. `/api/health` checks database
 readiness without a provider request; idle connection errors are consumed so a PostgreSQL restart
 does not crash the process. Runtime connection attempts are bounded at five seconds. The
-[VPS preparation guide](vps-preparation.md) covers local rehearsal, backups, restore, and later SSH
-tunnel access. No remote deployment is performed by this setup.
+[self-hosting guide](self-hosting.md) covers running the containers, backups, restore and SSH tunnel
+access.
 
 ## References
 

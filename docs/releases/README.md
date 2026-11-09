@@ -1,7 +1,7 @@
 # Branches and releases
 
-This follows the same channel model as Tubify. EsportsViewer is still private and local-first: a
-release is a Git tag with GitHub release notes. Nothing is deployed, packaged or uploaded.
+SummonersNet is local-first: a release is a Git tag with GitHub release notes. Nothing is deployed,
+packaged or uploaded.
 
 ## Channels
 
