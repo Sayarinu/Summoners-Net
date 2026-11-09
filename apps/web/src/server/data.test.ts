@@ -11,11 +11,11 @@ vi.mock("next/headers", () => ({
       get: () => (mocks.cookie === undefined ? undefined : { value: mocks.cookie }),
     }),
 }));
-vi.mock("@esportsviewer/data", async (importOriginal) => ({
+vi.mock("@summonersnet/data", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createQueries: mocks.createQueries,
 }));
-vi.mock("@esportsviewer/data/sync", () => ({ createSync: mocks.createSync }));
+vi.mock("@summonersnet/data/sync", () => ({ createSync: mocks.createSync }));
 import { data, synchronization, preferences, browseQuery, sourceIdFromRoute } from "./data";
 import { defaultPreferences } from "../features/preferences/model";
 it("loads validated preferences and query filters without passing blank controls", async () => {

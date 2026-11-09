@@ -5,8 +5,8 @@ filters, state and mappings to the reviewed UI library. `src/server` owns Next c
 configuration, route-segment decoding and access to the data interfaces. ESLint enforces the import
 boundaries. Data has no React, Next or UI dependency.
 
-`@esportsviewer/data` exports bounded query DTOs and a query client; `@esportsviewer/data/contracts`
-exports browser-safe input validation; `@esportsviewer/data/sync` exports validated queue requests
+`@summonersnet/data` exports bounded query DTOs and a query client; `@summonersnet/data/contracts`
+exports browser-safe input validation; `@summonersnet/data/sync` exports validated queue requests
 and the server worker lifecycle. SQL, connections and raw upstream payloads stay internal. A browser
 refresh request only inserts a validated job in PostgreSQL. Read routes never invoke providers.
 
@@ -82,8 +82,8 @@ migrations before startup, and shares durable uploads between them. Only the wor
 provider token. Web and PostgreSQL remain bound to host loopback. `/api/health` checks database
 readiness without a provider request; idle connection errors are consumed so a PostgreSQL restart
 does not crash the process. Runtime connection attempts are bounded at five seconds. The
-[VPS preparation guide](vps-preparation.md) covers local rehearsal, backups, restore, and later SSH
-tunnel access. No remote deployment is performed by this setup.
+[self-hosting guide](self-hosting.md) covers running the containers, backups, restore and SSH tunnel
+access.
 
 ## References
 

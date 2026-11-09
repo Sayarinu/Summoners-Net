@@ -61,8 +61,8 @@ export default tseslint.config(
             "react-dom",
             "next",
             "next/**",
-            "@esportsviewer/ui",
-            "@esportsviewer/ui/**",
+            "@summonersnet/ui",
+            "@summonersnet/ui/**",
           ],
         },
       ],
@@ -76,8 +76,8 @@ export default tseslint.config(
         {
           patterns: [
             "pg",
-            "@esportsviewer/data/src/**",
-            "@esportsviewer/data/dist/**",
+            "@summonersnet/data/src/**",
+            "@summonersnet/data/dist/**",
             "**/packages/data/src/**",
           ],
         },
@@ -92,12 +92,12 @@ export default tseslint.config(
         {
           paths: [
             {
-              name: "@esportsviewer/data",
+              name: "@summonersnet/data",
               allowTypeImports: true,
               message: "Use DTO types in features; database clients belong in src/server.",
             },
           ],
-          patterns: ["@esportsviewer/data/sync", "**/server/**", "pg", "node:*"],
+          patterns: ["@summonersnet/data/sync", "**/server/**", "pg", "node:*"],
         },
       ],
     },

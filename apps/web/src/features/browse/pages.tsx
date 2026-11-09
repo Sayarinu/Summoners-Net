@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MatchRow, EmptyState, SearchResult, TextLink } from "@esportsviewer/ui";
-import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@esportsviewer/data";
+import { MatchRow, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
+import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
 import { InlineMatchStream } from "./inline-stream";
 import { identityHref, localDate, matchDisplay } from "./presentation";

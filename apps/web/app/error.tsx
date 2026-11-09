@@ -1,5 +1,5 @@
 "use client";
-import { ErrorState, TextLink } from "@esportsviewer/ui";
+import { ErrorState, TextLink } from "@summonersnet/ui";
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <ErrorState

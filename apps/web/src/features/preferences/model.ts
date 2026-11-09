@@ -1,4 +1,4 @@
-import { timezoneSchema } from "@esportsviewer/data/contracts";
+import { timezoneSchema } from "@summonersnet/data/contracts";
 import { z } from "zod";
 export const preferencesSchema = z
   .object({
@@ -7,7 +7,7 @@ export const preferencesSchema = z
   })
   .strict();
 export type Preferences = z.infer<typeof preferencesSchema>;
-export const preferencesChangedEvent = "esportsviewer-preferences-changed";
+export const preferencesChangedEvent = "summonersnet-preferences-changed";
 export function browserTimezone() {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

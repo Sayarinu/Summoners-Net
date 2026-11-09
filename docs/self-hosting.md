@@ -1,9 +1,9 @@
-# Private VPS preparation
+# Self-hosting
 
-The production container supports local rehearsal and later transfer to a VPS. Nothing has been
-deployed remotely. Web and PostgreSQL ports bind to loopback; a future remote browser can connect
-through an SSH tunnel. The existing localhost origin checks and absence of application accounts
-remain appropriate to this private setup.
+The production container runs the same application on your own machine or a server you control. Web
+and PostgreSQL ports bind to loopback; a remote browser connects through an SSH tunnel. The
+application has no accounts and its mutation endpoints accept only localhost origins, so it is meant
+for a single person on a trusted machine, not for exposure on the public internet.
 
 ## Build and run locally
 
@@ -14,7 +14,7 @@ in PostgreSQL; uploaded CSVs live in a separate shared imports volume. The web c
 receive the PandaScore token.
 
 Preserve an existing `.env`. For a new checkout, copy `.env.example` once and set mode 0600. On a
-fresh VPS, set a new `POSTGRES_PASSWORD` and matching `DATABASE_URL` and `CONTAINER_DATABASE_URL`
+fresh server, set a new `POSTGRES_PASSWORD` and matching `DATABASE_URL` and `CONTAINER_DATABASE_URL`
 values there; percent-encode special characters in URL passwords. The host URL uses loopback port
 55442, while the container URL uses `postgres:5432`. Changing environment values does not rotate the
 password on an already initialized PostgreSQL volume.
@@ -71,8 +71,8 @@ docker compose exec -T postgres pg_dump -U esportsviewer -d esportsviewer \
   --format=custom --no-owner --no-acl > .local/backups/library.dump
 ```
 
-Choose a new filename for each backup and keep a copy on storage separate from the VPS. Restore into
-a **fresh, empty application database** before starting migration/web/worker services:
+Choose a new filename for each backup and keep a copy on storage separate from the server. Restore
+into a **fresh, empty application database** before starting migration/web/worker services:
 
 ```sh
 docker compose up -d --wait postgres
@@ -86,11 +86,12 @@ before relying on a backup. Confirm history counts and readable images through t
 then check health and browsing. Restore the imports volume or requeue files whose old paths are no
 longer available.
 
-## Later VPS access and updates
+## Remote access and updates
 
-After deployment is authorized, use the same loopback-bound stack on the VPS. Connect from the
-user's machine with `ssh -N -L 3000:127.0.0.1:3000 user@vps`, then browse `http://127.0.0.1:3000`.
-Public domain access would require a separate access-control decision.
+On a remote server, use the same loopback-bound stack. Connect from your own machine with
+`ssh -N -L 3000:127.0.0.1:3000 user@server`, then browse `http://127.0.0.1:3000`. Serving the
+application on a public domain would need an access-control layer in front of it, which this project
+does not provide.
 
 For updates, run `pnpm verify` and `pnpm browser:test`, take a backup, build the replacement image,
 and run the Compose startup command again. Migrations are transactional and checksum-checked. Keep
@@ -98,5 +99,4 @@ the previous image and backup; check migration compatibility before reverting an
 
 Packaging references:
 [Next standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output) and
-[pnpm deploy](https://pnpm.io/11.x/cli/deploy). Verification results and open external checks are
-recorded in [acceptance.md](acceptance.md).
+[pnpm deploy](https://pnpm.io/11.x/cli/deploy).

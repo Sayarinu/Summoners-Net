@@ -8,8 +8,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   window.sessionStorage.clear();
-  delete (window as Window & { __esportsViewerDetectedTimezone?: string })
-    .__esportsViewerDetectedTimezone;
+  delete (window as Window & { __summonersNetDetectedTimezone?: string })
+    .__summonersNetDetectedTimezone;
 });
 it("validates saved preferences and defaults safely on malformed cookies", () => {
   expect(parsePreferences()).toEqual(defaultPreferences);

@@ -1,4 +1,4 @@
-import { EmptyState, TextLink } from "@esportsviewer/ui";
+import { EmptyState, TextLink } from "@summonersnet/ui";
 export default function NotFound() {
   return (
     <EmptyState

@@ -8,9 +8,9 @@ import {
   TextLink,
   StatusIndicator,
   TeamIdentity,
-} from "@esportsviewer/ui";
-import type { BrowseQuery, Game, Page } from "@esportsviewer/data";
-import { regions } from "@esportsviewer/data/contracts";
+} from "@summonersnet/ui";
+import type { BrowseQuery, Game, Page } from "@summonersnet/data";
+import { regions } from "@summonersnet/data/contracts";
 import { dateTime, gameTeams, identityHref } from "./presentation";
 
 function todayInputValue(timezone: string) {

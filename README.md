@@ -1,9 +1,9 @@
-# EsportsViewer
+# SummonersNet
 
-Private, localhost-first League of Legends schedules, results, historical games, team/player
-profiles, source observations and consented watching. PostgreSQL is the application’s read model;
-one coordinated worker fetches provider data. There are no accounts, operator console or synthetic
-fallback records. An optional production container supports local rehearsal for a later private VPS.
+Local-first League of Legends schedules, results, historical games, team/player profiles, source
+observations and consented watching. PostgreSQL is the application’s read model; one coordinated
+worker fetches provider data. There are no accounts, operator console or synthetic fallback records.
+Optional production containers support self-hosting on a machine you control.
 
 ## Local setup
 
@@ -55,13 +55,13 @@ pnpm sync:status
 currently available jobs. Deferred jobs stay queued until their retry time. `sync` runs
 continuously. Use `history:import`, or `pnpm run import`, because `pnpm import` is pnpm’s own
 lockfile conversion command. The Sources page accepts a local annual CSV upload and exposes queued
-manual refresh. Uploaded files are stored privately under ignored `.local/imports`; the worker
-validates and imports them.
+manual refresh. Uploaded files are stored with owner-only permissions under ignored
+`.local/imports`; the worker validates and imports them.
 
 `history:backfill-all` enqueues every reviewed official annual file ID from 2014–2026;
 `history:import-dir` enqueues year-named CSVs already downloaded from the official archive. The
 worker follows Google Drive's large-file confirmation only for the matching official file ID.
-Private, content-addressed source files and PostgreSQL import provenance retain the exact bytes,
+Content-addressed local source files and PostgreSQL import provenance retain the exact bytes,
 header, warnings and row counts. The archive stores all leagues; existing pages remain the curated
 nine-competition projection. Exported `historicalGames`, `historicalGame`, `historicalSummary` and
 `historicalCoverage` queries expose bounded, provider-neutral archive reads without raw source rows.
@@ -77,7 +77,7 @@ game date. Older-year backfills are explicit, never automatic.
 
 ```sh
 pnpm verify
-pnpm --filter @esportsviewer/web exec playwright install chromium firefox webkit
+pnpm --filter @summonersnet/web exec playwright install chromium firefox webkit
 pnpm browser:test
 ```
 
@@ -92,13 +92,11 @@ success does not by itself claim a remote CI run succeeded.
 
 - [Architecture and source boundaries](docs/architecture.md)
 - [Coverage policy](docs/coverage.md)
-- [Acceptance evidence and external blockers](docs/acceptance.md)
-- [Official 2014–2026 archive backfill evidence](docs/oracle-archive-2026-09-23.md)
 - [Reviewed library provenance](docs/provenance.md)
-- [Linear reconciliation](docs/linear-reconciliation.md)
-- [Local containers, backups and future VPS preparation](docs/vps-preparation.md)
+- [Self-hosting, backups and restore](docs/self-hosting.md)
+- [Branches and releases](docs/releases/README.md)
 
-Original copyright and licensing remain in [LICENSE](LICENSE).
+SummonersNet is released under the [MIT License](LICENSE).
 
 Entity linking and local portraits/logos are described in
 [Entity resolution and images](docs/entity-resolution.md), including bounded catalog refresh and

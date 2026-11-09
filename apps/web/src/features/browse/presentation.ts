@@ -1,5 +1,5 @@
-import type { Match, Game, Identity } from "@esportsviewer/data";
-import type { MatchDisplay, MatchTeam } from "@esportsviewer/ui";
+import type { Match, Game, Identity } from "@summonersnet/data";
+import type { MatchDisplay, MatchTeam } from "@summonersnet/ui";
 export function localDate(iso: string, timezone: string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,

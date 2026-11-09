@@ -1,7 +1,7 @@
-# Optional local rehearsal for the same private setup on a future VPS.
+# Optional production containers for self-hosting. See docs/self-hosting.md.
 # docker compose -f compose.yaml -f compose.app.yaml up --build -d
 x-application: &application
-  image: esportsviewer:local
+  image: summonersnet:local
   build: .
   init: true
   read_only: true
