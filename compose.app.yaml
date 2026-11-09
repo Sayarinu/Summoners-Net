@@ -1,4 +1,4 @@
-# Optional production containers for self-hosting. See docs/self-hosting.md.
+# Optional production containers for self-hosting (see "Self-hosting" in README.md).
 # docker compose -f compose.yaml -f compose.app.yaml up --build -d
 x-application: &application
   image: summonersnet:local

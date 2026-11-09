@@ -14,7 +14,6 @@
 **/test-results
 **/*.tsbuildinfo
 output
-docs
 *.csv
 *.csv.gz
 *.pem
