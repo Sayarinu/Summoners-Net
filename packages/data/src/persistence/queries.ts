@@ -34,7 +34,7 @@ function filters(input: BrowseQuery, kind: "matches" | "games") {
         AND ${time} < (($${values.length - 1}::date + 1)::timestamp AT TIME ZONE $${values.length})`,
     );
   }
-  if (q.q) add("lower(document::text) LIKE ?", `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
+  if (q.q) add("search_text LIKE ?", `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
   if (kind === "matches" && q.state) add("state=?", q.state);
   return { q, values, clauses };
 }

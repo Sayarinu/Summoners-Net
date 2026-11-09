@@ -19,10 +19,12 @@ transaction cannot replace good records. Missing games in a replacement file are
 absence is not a deletion signal.
 
 History filtering, counts, ordering and pagination run in SQL, with a 50-row maximum and indexed
-league/year/time, participant identity and trigram search paths. Count and page use the same
-statement snapshot, including empty pages. Profile aggregates use the entire eligible filtered
-sample in SQL, not the current displayed page. Missing statistics remain null and have explicit
-result/KDA sample counts. A zero-death sample has no finite KDA ratio and displays an em dash.
+league/year/time, participant identity and trigram search paths. Text filters on games and matches
+match a stored, lower-cased list of each document's string and number values (never its JSON keys)
+through a trigram index on `search_text`. Count and page use the same statement snapshot, including
+empty pages. Profile aggregates use the entire eligible filtered sample in SQL, not the current
+displayed page. Missing statistics remain null and have explicit result/KDA sample counts. A
+zero-death sample has no finite KDA ratio and displays an em dash.
 
 Source-prefixed identities never merge by name. A derived, evidence-backed crosswalk joins
 corroborated Oracle/PandaScore records for browsing, while preserving all original IDs and
