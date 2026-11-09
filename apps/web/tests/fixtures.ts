@@ -1,4 +1,4 @@
-import type { Game, Identity, Match, Profile, SyncStatus, Page } from "@esportsviewer/data";
+import type { Game, Identity, Match, Profile, SyncStatus, Page } from "@summonersnet/data";
 export const instant = "2026-03-01T12:00:00.000Z";
 export const blue: Identity = {
   id: "oracle:team:10",

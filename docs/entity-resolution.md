@@ -1,6 +1,6 @@
 # Entity resolution and images
 
-EsportsViewer retains every Oracle and PandaScore source identifier. A derived, reversible crosswalk
+SummonersNet retains every Oracle and PandaScore source identifier. A derived, reversible crosswalk
 connects corroborated records. Existing source URLs continue to work; directories, search, profile
 statistics and internal links use one canonical profile when a link is supported. Game documents
 keep the names, teams, roles and source IDs recorded for that particular appearance.
@@ -43,7 +43,7 @@ observations of the latest provider response, not employment claims.
 
 ## Commands
 
-Build the data package and apply migrations first (`pnpm --filter @esportsviewer/data build`, then
+Build the data package and apply migrations first (`pnpm --filter @summonersnet/data build`, then
 `pnpm db:migrate`). The following commands use the same coordinated worker and persisted request
 budget as normal refreshes, drain available work until their requested job finishes or defers, then
 exit. They do not launch a continuous service.

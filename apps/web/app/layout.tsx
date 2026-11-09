@@ -5,14 +5,14 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
-import "@esportsviewer/tokens/generated/tokens.css";
-import "@esportsviewer/ui/styles.css";
+import "@summonersnet/tokens/generated/tokens.css";
+import "@summonersnet/ui/styles.css";
 import "./globals.css";
 import { ShellHeader, ShellFooter } from "../src/features/shell/shell";
 import { SoftNavigation } from "../src/features/shell/soft-navigation";
 import { preferencesState } from "../src/server/data";
 export const metadata: Metadata = {
-  title: { default: "EsportsViewer", template: "%s · EsportsViewer" },
+  title: { default: "SummonersNet", template: "%s · SummonersNet" },
   description: "Your local League of Legends esports library.",
   robots: { index: false, follow: false },
 };

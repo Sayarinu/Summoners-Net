@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Button, Input, Table, TextLink, StatusIndicator } from "@esportsviewer/ui";
-import type { SyncStatus, Queries } from "@esportsviewer/data";
+import { Button, Input, Table, TextLink, StatusIndicator } from "@summonersnet/ui";
+import type { SyncStatus, Queries } from "@summonersnet/data";
 import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
 

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button } from "@esportsviewer/ui";
+import { Button } from "@summonersnet/ui";
 export function RefreshButton({
   kind,
   year,

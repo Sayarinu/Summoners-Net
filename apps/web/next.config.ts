@@ -4,8 +4,8 @@ const config: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   reactStrictMode: true,
-  serverExternalPackages: ["@esportsviewer/data"],
-  transpilePackages: ["@esportsviewer/ui"],
+  serverExternalPackages: ["@summonersnet/data"],
+  transpilePackages: ["@summonersnet/ui"],
   poweredByHeader: false,
   async headers() {
     return [

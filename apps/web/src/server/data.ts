@@ -1,6 +1,6 @@
 import "server-only";
-import { createQueries, querySchema, type BrowseQuery } from "@esportsviewer/data";
-import { createSync } from "@esportsviewer/data/sync";
+import { createQueries, querySchema, type BrowseQuery } from "@summonersnet/data";
+import { createSync } from "@summonersnet/data/sync";
 import { cookies } from "next/headers";
 import { parsePreferences } from "../features/preferences/model";
 const globalData = globalThis as typeof globalThis & {

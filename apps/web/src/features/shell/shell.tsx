@@ -1,5 +1,5 @@
 "use client";
-import { Footer, Navigation, SkipLink } from "@esportsviewer/ui";
+import { Footer, Navigation, SkipLink } from "@summonersnet/ui";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PreferencesControl } from "../preferences/controls";
@@ -47,7 +47,7 @@ export function ShellHeader({
       ) : null}
       <aside aria-label="Application navigation" className="ev-sidebar" id="app-navigation">
         <a className="ev-brand" href="/" onClick={() => setMobileOpen(false)}>
-          EsportsViewer
+          SummonersNet
         </a>
         <div className="ev-sidebar__nav" onClick={() => setMobileOpen(false)}>
           <Navigation
@@ -76,7 +76,7 @@ export function ShellHeader({
           <span aria-hidden="true">☰</span>
         </button>
         <a className="ev-mobile-brand" href="/">
-          EsportsViewer
+          SummonersNet
         </a>
       </header>
     </div>
@@ -85,7 +85,7 @@ export function ShellHeader({
 export function ShellFooter() {
   return (
     <div className="ev-shell-footer">
-      <Footer copyright="EsportsViewer · Local library" />
+      <Footer copyright="SummonersNet · Local library" />
     </div>
   );
 }

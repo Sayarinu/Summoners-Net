@@ -1,5 +1,5 @@
 {
-  "name": "@esportsviewer/ui",
+  "name": "@summonersnet/ui",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -37,7 +37,7 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
-    "@esportsviewer/tokens": "workspace:*",
+    "@summonersnet/tokens": "workspace:*",
     "@storybook/addon-a11y": "10.4.0",
     "@storybook/addon-docs": "10.4.0",
     "@storybook/react-vite": "10.4.0",

@@ -77,7 +77,7 @@ game date. Older-year backfills are explicit, never automatic.
 
 ```sh
 pnpm verify
-pnpm --filter @esportsviewer/web exec playwright install chromium firefox webkit
+pnpm --filter @summonersnet/web exec playwright install chromium firefox webkit
 pnpm browser:test
 ```
 

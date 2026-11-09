@@ -1,6 +1,6 @@
 name: Release size
 
-# Shows how merging this PR will bump the EsportsViewer version. Never blocks a merge.
+# Shows how merging this PR will bump the SummonersNet version. Never blocks a merge.
 on:
   pull_request:
     types: [opened, edited, reopened, labeled, unlabeled, synchronize]

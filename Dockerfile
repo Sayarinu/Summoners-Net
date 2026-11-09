@@ -9,7 +9,7 @@ COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/tokens/package.json ./packages/tokens/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build && pnpm --filter @esportsviewer/data deploy --prod --legacy /worker
+RUN pnpm build && pnpm --filter @summonersnet/data deploy --prod --legacy /worker
 
 FROM node:24.12.0-bookworm-slim@sha256:7326fb2dbdce998edd72140946851be64ef4a643e8715e138ca467e8e9d92c99 AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000

@@ -4,7 +4,7 @@ Copied from Sayarinu/Nexus-Pulse at `861cfb846108b3fb4eb3728faff228ac5364da0b`
 (M7-StreamsLiveExperience, 2026-09-17). Fresh Git history begins in this repository.
 
 `packages/ui`, `packages/tokens`, their tests, styles, Storybook configuration and generated tokens
-were copied in full. Only package import namespaces changed to `@esportsviewer`. Typography,
+were copied in full. Only package import namespaces changed to `@summonersnet`. Typography,
 interaction contracts, accessibility behavior and token values are retained. Selected local review
 captures are in `docs/reference`; the component implementation is authoritative. Copyright and the
 original LICENSE are preserved. Screenshots contain historical example data; they are design

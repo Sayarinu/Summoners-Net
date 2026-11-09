@@ -6,7 +6,7 @@ import "@fontsource/ibm-plex-mono/600.css";
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
-import "@esportsviewer/tokens/generated/tokens.css";
+import "@summonersnet/tokens/generated/tokens.css";
 import "../src/styles.css";
 
 const preview: Preview = {

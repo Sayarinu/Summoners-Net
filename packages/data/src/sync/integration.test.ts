@@ -43,7 +43,7 @@ async function importCsv(csv = historyCsv(), year = 2026) {
   return run({ kind: "history", year, file });
 }
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "esportsviewer-test-"));
+  directory = await mkdtemp(join(tmpdir(), "summonersnet-test-"));
   await sync.migrate();
 });
 beforeEach(async () => {
@@ -67,12 +67,12 @@ afterAll(async () => {
 describe("real PostgreSQL persistence through sync and query interfaces", () => {
   it("recovers reads after an idle database connection is terminated", async () => {
     const url = new URL(connection);
-    url.searchParams.set("application_name", "esportsviewer-recovery-test");
+    url.searchParams.set("application_name", "summonersnet-recovery-test");
     const recovering = createQueries(url.toString());
     try {
       await recovering.ready();
       const terminated = await pool.query(
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='esportsviewer-recovery-test'",
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='summonersnet-recovery-test'",
       );
       expect(terminated.rowCount).toBe(1);
       await vi.waitFor(async () => {

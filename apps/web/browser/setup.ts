@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createSync } from "@esportsviewer/data/sync";
+import { createSync } from "@summonersnet/data/sync";
 import { database } from "../../../packages/data/src/persistence/database";
 import { historyCsv, rawMatch, now } from "../../../packages/data/tests/fixtures";
 export default async function setup() {
