@@ -94,7 +94,6 @@
   }
 
   .np-display,
-  .np-heading-xl,
   .np-heading-lg,
   .np-heading-md,
   .np-heading-sm {
@@ -106,12 +105,6 @@
   .np-display {
     font-size: clamp(var(--font-size-2xl, 36px), 4.5vw, var(--font-size-display, 48px));
     letter-spacing: -0.045em;
-    line-height: var(--font-line-height-tight, 1.1);
-  }
-
-  .np-heading-xl {
-    font-size: var(--font-size-2xl, 36px);
-    letter-spacing: -0.035em;
     line-height: var(--font-line-height-tight, 1.1);
   }
 
@@ -196,14 +189,6 @@
     margin-inline: auto;
   }
 
-  .np-reading {
-    inline-size: min(100%, var(--size-reading, 720px));
-  }
-
-  .np-section {
-    padding-block: clamp(var(--space-10, 40px), 6vw, var(--space-16, 64px));
-  }
-
   .np-stack {
     display: flex;
     flex-direction: column;
@@ -217,30 +202,12 @@
     gap: var(--np-cluster-gap, var(--space-3, 12px));
   }
 
-  .np-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--np-grid-min, 240px)), 1fr));
-    gap: var(--np-grid-gap, var(--space-6, 24px));
-  }
-
   .np-split {
     display: flex;
     flex-wrap: wrap;
     align-items: var(--np-split-align, center);
     justify-content: space-between;
     gap: var(--np-split-gap, var(--space-4, 16px));
-  }
-
-  .np-surface {
-    background: var(--color-bg-surface, #0e1012);
-    border: 1px solid var(--color-border-subtle, #23272d);
-  }
-
-  .np-rule {
-    block-size: 1px;
-    inline-size: 100%;
-    background: var(--color-border-subtle, #23272d);
-    border: 0;
   }
 
   .np-density-compact {
@@ -257,33 +224,9 @@
     --np-control-height: var(--size-control-large, 52px);
     --np-row-height: 60px;
   }
-
-  .np-control-height {
-    min-block-size: var(--np-control-height);
-  }
-
-  .np-row-height {
-    min-block-size: var(--np-row-height);
-  }
 }
 
 @layer np-utilities {
-  .np-text-primary {
-    color: var(--color-text-primary, #f4f6f8);
-  }
-
-  .np-text-secondary {
-    color: var(--color-text-secondary, #c3c8ce);
-  }
-
-  .np-text-muted {
-    color: var(--color-text-muted, #aab0b8);
-  }
-
-  .np-text-accent {
-    color: var(--color-text-accent, #d8bf8c);
-  }
-
   .np-icon {
     inline-size: var(--size-icon, 20px);
     block-size: var(--size-icon, 20px);
@@ -345,18 +288,6 @@
 
   .np-chart-series-8 {
     --np-chart-series: var(--color-chart-8, #67b6a2);
-  }
-
-  .np-sr-only {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 }
 
@@ -423,9 +354,5 @@
   .np-focus-ring:focus-visible,
   .np-focus-ring[data-focus-visible="true"] {
     outline-color: Highlight;
-  }
-
-  .np-surface {
-    border-color: CanvasText;
   }
 }
