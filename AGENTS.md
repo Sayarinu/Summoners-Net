@@ -73,14 +73,13 @@ pnpm browser:test
 
 ## Issues, branches and commits
 
-- Every change starts from an issue. Maintainers use the Linear identifier, such as `LUNE-123`.
-  Contributors without Linear access open a GitHub issue first and use `GH-<number>`, such as
-  `GH-42`.
-- Name the branch exactly after the identifier (`LUNE-123` or `GH-42`), with no prefix or suffix.
-  Create it from `origin/experimental`, or from the branch below it when stacking dependent work.
+- Every change starts from an issue in your tracker. Its key, such as `ABC-123`, is the identifier.
+- Name the branch exactly after the identifier (`ABC-123`), with no prefix or suffix. Create it from
+  `origin/experimental`, or from the branch below it when stacking dependent work.
 - Commit subjects are `<ID> - <Change-specific message>`, for example
-  `GH-42 - Keep spoilers hidden after a refresh`. Describe the individual change in the imperative;
-  the message need not repeat the issue title. Several small commits per branch are fine.
+  `ABC-123 - Keep spoilers hidden after a refresh`. Describe the individual change in the
+  imperative; the message need not repeat the issue title. Several small commits per branch are
+  fine.
 - Commit with your GitHub noreply email address (`<id>+<username>@users.noreply.github.com`), never
   a personal one. Check `git config user.email` in each new clone.
 - Do not add AI or tool attribution anywhere: no `Co-Authored-By` trailers for tools, no "Generated

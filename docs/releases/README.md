@@ -10,15 +10,13 @@ packaged or uploaded.
 | `experimental` | a GitHub prerelease on every push, never marked Latest | `X.Y.Z-beta.N` | `vX.Y.Z-beta.N` |
 | `main`         | the stable release on every push                       | `X.Y.Z`        | `vX.Y.Z`        |
 
-Every change starts from an issue. Maintainers track work in Linear and use its identifier (for
-example `LUNE-286`). Contributors without Linear access open a GitHub issue first and use
-`GH-<number>` (for example `GH-42`). Ticket branches are named exactly after that identifier and
-created from `origin/experimental`, and commit subjects and PR titles start with it:
-`LUNE-286 - Add player search` or `GH-42 - Fix spoiler toggle`. Ticket PRs target `experimental` and
-are squash-merged; each merge publishes an experimental build. When experimental is ready, open a PR
-from `experimental` into `main` and merge it with a **merge commit** (not squash or rebase) so both
-branches keep the same commits. That push publishes the stable release. An urgent fix may target
-`main` directly; merge `main` back into `experimental` afterwards.
+Every change starts from an issue in your tracker, identified by its key (for example `ABC-123`).
+Ticket branches are named exactly after that identifier and created from `origin/experimental`, and
+commit subjects and PR titles start with it: `ABC-123 - Add player search`. Ticket PRs target
+`experimental` and are squash-merged; each merge publishes an experimental build. When experimental
+is ready, open a PR from `experimental` into `main` and merge it with a **merge commit** (not squash
+or rebase) so both branches keep the same commits. That push publishes the stable release. An urgent
+fix may target `main` directly; merge `main` back into `experimental` afterwards.
 
 `.github/workflows/ci.yml` (`pnpm verify` with PostgreSQL, then `pnpm browser:test`) runs on every
 PR. `.github/workflows/release.yml` runs the same checks on each push to `main` or `experimental`
