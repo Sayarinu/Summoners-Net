@@ -1,9 +1,8 @@
 # Contributing to SummonersNet
 
 These rules apply to everyone who changes this repository, and to any coding agent working on their
-behalf. Read them before starting. Setup and commands are in
-[docs/development.md](docs/development.md); the release flow is in
-[docs/releases/README.md](docs/releases/README.md).
+behalf. Read them before starting. Setup, configuration and self-hosting are in the
+[README](README.md#getting-started).
 
 ## Product rules
 
@@ -43,6 +42,12 @@ behalf. Read them before starting. Setup and commands are in
   shared code only when there are several real consumers.
 - Historical and directory queries filter and paginate in SQL, with bounded page sizes and indexes
   that support them. Schema changes are new, numbered migrations; never edit an applied migration.
+- The worker is the only process that calls providers. A PostgreSQL advisory lock allows one
+  synchronization at a time, and every PandaScore request, including retries and pagination,
+  reserves from a persisted ceiling of 600 requests per rolling hour. Do not bypass it.
+- Imports validate a whole file before one transaction applies it. Records absent from a newer file
+  are kept, and source identifiers are never merged by name alone: cross-source links need
+  corroborating lineups or fixtures.
 
 ## Checks
 
@@ -58,7 +63,9 @@ pnpm browser:test
   the Next.js and Storybook builds.
 - PostgreSQL tests need `TEST_DATABASE_URL` pointing at a separate database named
   `esportsviewer_test`. The suites reset that database, so never point it at a library you care
-  about, and run integration and browser suites one at a time.
+  about, and run integration and browser suites one at a time. With the repository's Compose
+  service, create it once with
+  `docker compose exec postgres createdb -U esportsviewer esportsviewer_test`.
 - `pnpm browser:test` needs Playwright browsers:
   `pnpm --filter @summonersnet/web exec playwright install chromium firefox webkit`.
 - Tests verify observable behavior through supported interfaces, not implementation details.
@@ -92,8 +99,15 @@ pnpm browser:test
   checks ran and passed.
 - Ticket pull requests target `experimental` and are squash-merged. A release is a pull request from
   `experimental` into `main`, merged with a merge commit (never squash or rebase) so both branches
-  keep the same history. Do not push directly to `experimental` or `main`.
+  keep the same history. An urgent fix may target `main`; merge `main` back into `experimental`
+  afterwards. Do not push directly to `experimental` or `main`.
+- Releases are Git tags with GitHub release notes; nothing is deployed. Every push to `experimental`
+  publishes a prerelease `vX.Y.Z-beta.N`, and every push to `main` a stable `vX.Y.Z`, after
+  `.github/workflows/release.yml` reruns the checks.
 - Label a pull request **Feature** for a minor version bump or **Major Release** for a major one;
-  unlabeled changes release as a patch. Every merge publishes a release automatically, so merge only
-  when the work is complete, review concerns are resolved and the required checks pass on the
-  current head. Agents stop at a green pull request and leave merging to a maintainer.
+  unlabeled changes release as a patch. `scripts/release.mjs` bumps the newest stable tag by the
+  largest label merged since, and a higher `version` in the root `package.json` wins. The "Release
+  size" check shows the bump on every pull request.
+- Every merge publishes a release, so merge only when the work is complete, review concerns are
+  resolved and the required checks pass on the current head. Agents stop at a green pull request and
+  leave merging to a maintainer.
