@@ -147,10 +147,10 @@ test("GitHub lookups keep only merged pull requests and report failures", async 
       ],
     };
   };
-  const pullsFor = githubPulls("Sayarinu/SummonersNet", "token", fetchImpl);
+  const pullsFor = githubPulls("Sayarinu/Summoners-Net", "token", fetchImpl);
   assert.deepEqual(await pullsFor("abc"), [{ number: 4, title: "Merged", labels: ["Feature"] }]);
   assert.deepEqual(calls[0], [
-    "https://api.github.com/repos/Sayarinu/SummonersNet/commits/abc/pulls",
+    "https://api.github.com/repos/Sayarinu/Summoners-Net/commits/abc/pulls",
     "Bearer token",
   ]);
   await assert.rejects(pullsFor("bad"), /GitHub returned 502 for bad/);

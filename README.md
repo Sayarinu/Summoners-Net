@@ -9,7 +9,7 @@ live watching for the major leagues, in a fast web app that runs on your own mac
 no telemetry, and no made-up data: everything you see comes from PostgreSQL, filled by one
 coordinated worker.
 
-[![Latest release](https://img.shields.io/github/v/release/Sayarinu/SummonersNet?label=release&sort=semver)](https://github.com/Sayarinu/SummonersNet/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/Sayarinu/Summoners-Net?label=release&sort=semver)](https://github.com/Sayarinu/Summoners-Net/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Node 24.12.0](https://img.shields.io/badge/node-24.12.0-339933)
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)
@@ -72,7 +72,7 @@ coordinated worker.
 ### Run from source
 
 ```sh
-git clone https://github.com/Sayarinu/SummonersNet.git
+git clone https://github.com/Sayarinu/Summoners-Net.git
 cd SummonersNet
 pnpm install --frozen-lockfile
 cp .env.example .env && chmod 600 .env   # once; keep an existing .env
@@ -161,7 +161,7 @@ of becoming zero, and partial games are excluded from summaries.
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome. Please open an
-[issue](https://github.com/Sayarinu/SummonersNet/issues) first for larger changes. Read
+[issue](https://github.com/Sayarinu/Summoners-Net/issues) first for larger changes. Read
 [AGENTS.md](AGENTS.md) for the architecture rules, checks, branch, commit and PR conventions and the
 release flow.
 
