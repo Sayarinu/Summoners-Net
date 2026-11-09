@@ -1,22 +1,8 @@
-import { Plus, RefreshCw } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import {
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  Sparkline,
-  StatBlock,
-  StatTable,
-  StaleState,
-  Table,
-  TrendChartShell,
-} from "./data-display.js";
-import { Icon } from "./internal.js";
-import { Button } from "./primitives.js";
-import "./review.stories.css";
+import { Skeleton, Table } from "./data-display.js";
 
-const noop = () => undefined;
+import "./review.stories.css";
 
 const sampleRows = [
   { event: "Worlds 2026", freshness: "Just now", matches: 36, status: "Verified" },
@@ -60,25 +46,6 @@ function DataDisplayGallery() {
 
         <section className="np-review__section">
           <header className="np-review__section-header">
-            <span className="np-eyebrow">State panels</span>
-            <h2>Empty, error, stale</h2>
-          </header>
-          <div className="np-review__stack">
-            <EmptyState
-              action={<Button startIcon={<Icon icon={Plus} size="small" />}>Add Provider</Button>}
-              description="Connect a canonical schedule provider to begin ingestion."
-              title="No providers configured"
-            />
-            <ErrorState
-              description="The schedule could not be loaded from the current provider."
-              onRetry={noop}
-            />
-            <StaleState description="Last successful update was 18 minutes ago." onRefresh={noop} />
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
             <span className="np-eyebrow">Table</span>
             <h2>Native dense data</h2>
           </header>
@@ -93,66 +60,6 @@ function DataDisplayGallery() {
             getRowKey={(row) => row.event}
             rows={sampleRows}
           />
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">StatBlock + StatTable</span>
-            <h2>Performance metrics</h2>
-          </header>
-          <div className="np-review__stack">
-            <div className="np-review__metric-grid">
-              <StatBlock
-                change="increase 4.2%"
-                changeTone="success"
-                label="Win rate"
-                value="67.4%"
-              />
-              <StatBlock detail="per minute" label="Gold diff @15" value="+412" />
-              <StatBlock change="decrease 0.3" changeTone="danger" label="KDA" value="4.8" />
-              <StatBlock detail="18 games" label="Sample" value="18" />
-            </div>
-            <StatTable
-              caption="Series metrics"
-              rows={[
-                { label: "First tower", value: "61%" },
-                { label: "First dragon", value: "72%" },
-                { label: "Average game time", value: "31:42" },
-              ]}
-            />
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">TrendChartShell</span>
-            <h2>Chart framing</h2>
-          </header>
-          <TrendChartShell
-            actions={
-              <Button
-                size="compact"
-                startIcon={<Icon icon={RefreshCw} size="small" />}
-                variant="ghost"
-              >
-                Refresh
-              </Button>
-            }
-            description="Gold difference across the last eight sampled games."
-            legend={
-              <>
-                <span>● Gen.G</span>
-                <span>● Opponent baseline</span>
-              </>
-            }
-            title="Early-game advantage"
-          >
-            <Sparkline
-              label="Gen.G gold difference trend"
-              tone={1}
-              values={[8, 12, 10, 18, 22, 19, 28, 32]}
-            />
-          </TrendChartShell>
         </section>
       </div>
     </main>

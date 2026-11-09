@@ -6,22 +6,14 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./core-advanced": "./dist/core-advanced.js",
     "./data-display": "./dist/data-display.js",
     "./esports": "./dist/esports.js",
-    "./esports-extended": "./dist/esports-extended.js",
     "./forms": "./dist/forms.js",
     "./internal": "./dist/internal.js",
     "./navigation": "./dist/navigation.js",
-    "./operations": "./dist/operations.js",
-    "./overlays": "./dist/overlays.js",
     "./primitives": "./dist/primitives.js",
-    "./reliability-operations": "./dist/reliability-operations.js",
-    "./statistics": "./dist/statistics.js",
     "./support": "./dist/support.js",
-    "./styles.css": "./src/styles.css",
-    "./v2": "./dist/v2.js",
-    "./v2.css": "./src/v2.css"
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

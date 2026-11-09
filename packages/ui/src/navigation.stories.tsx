@@ -1,23 +1,11 @@
-import { Calendar, LayoutList, Radio, Search, Settings, Shield, Users } from "lucide-react";
+import { Calendar, Radio, Search, Users } from "lucide-react";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Icon } from "./internal.js";
-import {
-  Breadcrumb,
-  Footer,
-  Header,
-  Menu,
-  Navigation,
-  Pagination,
-  SegmentedControl,
-  Tabs,
-} from "./navigation.js";
-import { Button, LiveIndicator, MetaText } from "./primitives.js";
-import "./review.stories.css";
-import { BrandMark } from "./support.js";
+import { Breadcrumb, Footer, Navigation, Pagination } from "./navigation.js";
 
-const noop = () => undefined;
+import "./review.stories.css";
 
 function NavigationGallery() {
   const [page, setPage] = useState(6);
@@ -35,27 +23,6 @@ function NavigationGallery() {
 
         <section className="np-review__section">
           <header className="np-review__section-header">
-            <span className="np-eyebrow">Header</span>
-            <h2>Public shell</h2>
-          </header>
-          <div className="np-review__frame">
-            <Header
-              actions={<Button size="compact">Methodology</Button>}
-              brand={<BrandMark />}
-              navigation={
-                <div className="np-review__row">
-                  <a href="#">Schedule</a>
-                  <a href="#">Teams</a>
-                  <a href="#">Players</a>
-                </div>
-              }
-              status={<LiveIndicator label="3 live" />}
-            />
-          </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
             <span className="np-eyebrow">Navigation</span>
             <h2>Sidebar list</h2>
           </header>
@@ -69,7 +36,7 @@ function NavigationGallery() {
                   label: "Schedule",
                 },
                 {
-                  meta: <MetaText tone="live">3</MetaText>,
+                  meta: "3",
                   href: "/live",
                   icon: <Icon icon={Radio} size="small" />,
                   label: "Live",
@@ -79,57 +46,6 @@ function NavigationGallery() {
               ]}
             />
           </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">Tabs</span>
-            <h2>Section switching</h2>
-          </header>
-          <Tabs
-            defaultSelectedKey="overview"
-            items={[
-              {
-                content: (
-                  <div className="np-review__stage">Event summary and current standing.</div>
-                ),
-                id: "overview",
-                label: "Overview",
-              },
-              {
-                meta: <MetaText>24</MetaText>,
-                content: <div className="np-review__stage">Complete event schedule.</div>,
-                id: "matches",
-                label: "Matches",
-              },
-              {
-                content: <div className="np-review__stage">Group and bracket standings.</div>,
-                id: "standings",
-                label: "Standings",
-              },
-              {
-                content: <div className="np-review__stage">Team and player performance.</div>,
-                id: "stats",
-                label: "Statistics",
-              },
-            ]}
-            label="Event sections"
-          />
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">SegmentedControl</span>
-            <h2>View mode</h2>
-          </header>
-          <SegmentedControl
-            defaultValue="list"
-            label="Schedule layout"
-            options={[
-              { icon: <Icon icon={LayoutList} size="small" />, label: "List", value: "list" },
-              { icon: <Icon icon={Calendar} size="small" />, label: "Calendar", value: "calendar" },
-            ]}
-          />
         </section>
 
         <section className="np-review__section">
@@ -147,31 +63,6 @@ function NavigationGallery() {
             />
             <Pagination currentPage={page} onPageChange={setPage} totalPages={18} />
           </div>
-        </section>
-
-        <section className="np-review__section">
-          <header className="np-review__section-header">
-            <span className="np-eyebrow">Menu</span>
-            <h2>Contextual actions</h2>
-          </header>
-          <Menu
-            items={[
-              {
-                description: "Open provider configuration.",
-                icon: <Icon icon={Settings} size="small" />,
-                id: "configure",
-                label: "Configure",
-              },
-              {
-                description: "Inspect the immutable audit history.",
-                icon: <Icon icon={Shield} size="small" />,
-                id: "audit",
-                label: "View audit log",
-              },
-              { disabled: true, id: "delete", label: "Delete protected provider" },
-            ]}
-            onAction={noop}
-          />
         </section>
 
         <section className="np-review__section">

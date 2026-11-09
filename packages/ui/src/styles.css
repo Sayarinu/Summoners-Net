@@ -1,10 +1,6 @@
 @layer np-reset, np-base, np-components, np-layout, np-utilities;
 
 @import "./components.css";
-@import "./core-advanced.css";
-@import "./esports-extended.css";
-@import "./statistics.css";
-@import "./reliability-operations.css";
 
 @layer np-reset {
   *,

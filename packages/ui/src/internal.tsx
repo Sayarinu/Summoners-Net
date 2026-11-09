@@ -1,6 +1,6 @@
 import { UserRound, type LucideIcon } from "lucide-react";
 import { useState } from "react";
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes } from "react";
 
 export interface AnalyticsProps {
   readonly analyticsId?: string;
@@ -30,10 +30,6 @@ export function Icon({ icon: Glyph, label, size = "medium" }: IconProps) {
       strokeWidth={1.75}
     />
   );
-}
-
-export function VisuallyHidden({ children }: { readonly children: ReactNode }) {
-  return <span className="np-visually-hidden">{children}</span>;
 }
 
 export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
@@ -88,10 +84,6 @@ export function Avatar({
   );
 }
 
-export function Separator({ className }: { readonly className?: string }) {
-  return <hr className={cx("np-separator", className)} />;
-}
-
 export interface SpinnerProps {
   /**
    * Hides the spinner from assistive technology when a parent control already
@@ -114,28 +106,5 @@ export function Spinner({ decorative = false, label = "Loading" }: SpinnerProps)
     <span aria-label={label} className="np-spinner" role="status">
       <span aria-hidden="true" />
     </span>
-  );
-}
-
-export interface ProgressProps {
-  readonly label: string;
-  readonly max?: number;
-  readonly value: number;
-}
-
-export function Progress({ label, max = 100, value }: ProgressProps) {
-  const safeMax = Number.isFinite(max) && max > 0 ? max : 100;
-  const safeValue = Number.isFinite(value) ? Math.min(safeMax, Math.max(0, value)) : 0;
-  const percentage = (safeValue / safeMax) * 100;
-  const style = { "--np-progress": `${percentage}%` } as CSSProperties;
-
-  return (
-    <div className="np-progress">
-      <div className="np-progress__meta">
-        <span>{label}</span>
-        <span className="np-mono">{Math.round(percentage)}%</span>
-      </div>
-      <progress aria-label={label} max={safeMax} style={style} value={safeValue} />
-    </div>
   );
 }
