@@ -30,7 +30,8 @@ function filters(input: BrowseQuery, kind: "matches" | "games") {
   if (q.date) {
     values.push(q.date, q.timezone);
     clauses.push(
-      `${time} >= ($${values.length - 1}::date::timestamp AT TIME ZONE $${values.length}) AND ${time} < (($${values.length - 1}::date + 1)::timestamp AT TIME ZONE $${values.length})`,
+      `${time} >= ($${values.length - 1}::date::timestamp AT TIME ZONE $${values.length})
+        AND ${time} < (($${values.length - 1}::date + 1)::timestamp AT TIME ZONE $${values.length})`,
     );
   }
   if (q.q) add("lower(document::text) LIKE ?", `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
@@ -47,7 +48,22 @@ async function page<T>(
 ): Promise<Page<T>> {
   // A single SQL statement gives count and page the same MVCC snapshot, even on empty pages.
   const result = await pool.query<{ total: number; items: T[] }>(
-    `SELECT (SELECT count(*)::integer FROM ${table} WHERE ${where}) AS total,COALESCE((SELECT jsonb_agg(document ORDER BY ordinal) FROM (SELECT document,row_number() OVER (ORDER BY ${order}) AS ordinal FROM ${table} WHERE ${where} ORDER BY ${order} LIMIT $${values.length + 1} OFFSET $${values.length + 2}) p),'[]') AS items`,
+    `SELECT
+        (SELECT count(*)::integer FROM ${table} WHERE ${where}) AS total,
+        COALESCE(
+          (
+            SELECT jsonb_agg(document ORDER BY ordinal)
+            FROM (
+              SELECT document,row_number() OVER (ORDER BY ${order}) AS ordinal
+              FROM ${table}
+              WHERE ${where}
+              ORDER BY ${order}
+              LIMIT $${values.length + 1}
+              OFFSET $${values.length + 2}
+            ) p
+          ),
+          '[]'
+        ) AS items`,
     [...values, q.pageSize, (q.page - 1) * q.pageSize],
   );
   return { page: q.page, pageSize: q.pageSize, ...result.rows[0]! };
@@ -88,14 +104,33 @@ export function queries(pool: Pool, clock: () => Date) {
     }));
   }
   const aliasFilter = (parameter: string) =>
-    `EXISTS(SELECT 1 FROM identity_aliases a JOIN entity_members em ON em.id=a.identity_id WHERE em.entity_id=entity_profiles.id AND lower(a.name) LIKE ${parameter})`;
+    `EXISTS(
+      SELECT 1
+      FROM identity_aliases a
+      JOIN entity_members em ON em.id=a.identity_id
+      WHERE em.entity_id=entity_profiles.id AND lower(a.name) LIKE ${parameter}
+    )`;
 
   const games = async (input: BrowseQuery = {}, identityId?: string) => {
     const { q, values, clauses } = filters(input, "games");
     if (identityId) {
       values.push(idSchema.parse(identityId));
       clauses.push(
-        `EXISTS(SELECT 1 FROM participants p WHERE p.game_id=games.id AND (p.team_id IN(SELECT id FROM entity_members WHERE entity_id=(SELECT entity_id FROM entity_members WHERE id=$${values.length})) OR p.player_id IN(SELECT id FROM entity_members WHERE entity_id=(SELECT entity_id FROM entity_members WHERE id=$${values.length}))))`,
+        `EXISTS(
+          SELECT 1
+          FROM participants p
+          WHERE p.game_id=games.id
+            AND (
+              p.team_id IN(
+                SELECT id FROM entity_members
+                WHERE entity_id=(SELECT entity_id FROM entity_members WHERE id=$${values.length})
+              )
+              OR p.player_id IN(
+                SELECT id FROM entity_members
+                WHERE entity_id=(SELECT entity_id FROM entity_members WHERE id=$${values.length})
+              )
+            )
+        )`,
       );
     }
     const result = await page<Game>(
@@ -127,7 +162,10 @@ export function queries(pool: Pool, clock: () => Date) {
           ? "starts_at ASC NULLS LAST,id"
           : q.state
             ? "starts_at DESC NULLS LAST,id"
-            : "CASE state WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,CASE WHEN state='scheduled' THEN starts_at END ASC NULLS LAST,starts_at DESC NULLS LAST,id",
+            : `CASE state WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
+              CASE WHEN state='scheduled' THEN starts_at END ASC NULLS LAST,
+              starts_at DESC NULLS LAST,
+              id`,
       );
       return { ...result, items: await decorateMatches(result.items) };
     },
@@ -141,7 +179,11 @@ export function queries(pool: Pool, clock: () => Date) {
     async game(id: string) {
       const parsedId = idSchema.parse(id);
       const result = await pool.query<{ document: Game }>(
-        "SELECT document FROM games WHERE id=$1 OR ($1 LIKE 'oracle:game:%' AND source_id=substring($1 from 13)) ORDER BY (id=$1) DESC,id LIMIT 1",
+        `SELECT document
+          FROM games
+          WHERE id=$1 OR ($1 LIKE 'oracle:game:%' AND source_id=substring($1 from 13))
+          ORDER BY (id=$1) DESC,id
+          LIMIT 1`,
         [parsedId],
       );
       return result.rows[0] ? (await decorateGames([result.rows[0].document]))[0]! : null;
@@ -202,7 +244,45 @@ export function queries(pool: Pool, clock: () => Date) {
       const pattern = `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
       return page<SearchHit>(
         pool,
-        `(SELECT id,name,jsonb_build_object('id',id,'kind',kind,'name',name,'detail',CASE WHEN document->>'sourceCount'='2' THEN 'Linked Oracle + PandaScore' ELSE document->>'source' END,'imageUrl',document->>'imageUrl','publicSlug',document->>'publicSlug') AS document FROM entity_profiles WHERE ${aliasFilter("$1")} UNION ALL SELECT id,document->>'name',jsonb_build_object('id',id,'kind','match','name',document->>'name','detail',league||' · '||coalesce(starts_at::text,'Unscheduled')) FROM matches WHERE lower(document->>'name') LIKE $1 UNION ALL SELECT id,source_id,jsonb_build_object('id',id,'kind','game','name',source_id,'detail',league||' · '||year) FROM games WHERE lower(source_id) LIKE $1) hits`,
+        `(
+            SELECT
+              id,
+              name,
+              jsonb_build_object(
+                'id', id,
+                'kind', kind,
+                'name', name,
+                'detail', CASE WHEN document->>'sourceCount'='2' THEN 'Linked Oracle + PandaScore' ELSE document->>'source' END,
+                'imageUrl', document->>'imageUrl',
+                'publicSlug', document->>'publicSlug'
+              ) AS document
+            FROM entity_profiles
+            WHERE ${aliasFilter("$1")}
+            UNION ALL
+            SELECT
+              id,
+              document->>'name',
+              jsonb_build_object(
+                'id', id,
+                'kind', 'match',
+                'name', document->>'name',
+                'detail', league||' · '||coalesce(starts_at::text,'Unscheduled')
+              )
+            FROM matches
+            WHERE lower(document->>'name') LIKE $1
+            UNION ALL
+            SELECT
+              id,
+              source_id,
+              jsonb_build_object(
+                'id', id,
+                'kind', 'game',
+                'name', source_id,
+                'detail', league||' · '||year
+              )
+            FROM games
+            WHERE lower(source_id) LIKE $1
+          ) hits`,
         "true",
         [pattern],
         q,
@@ -216,7 +296,12 @@ export function queries(pool: Pool, clock: () => Date) {
     ): Promise<Profile | null> {
       const identity = (
         await pool.query<{ document: Identity }>(
-          "SELECT document FROM entity_profiles WHERE id=coalesce((SELECT entity_id FROM entity_members WHERE id=$1),(SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2))",
+          `SELECT document
+            FROM entity_profiles
+            WHERE id=coalesce(
+              (SELECT entity_id FROM entity_members WHERE id=$1),
+              (SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2)
+            )`,
           [idSchema.parse(id), routeKind ?? null],
         )
       ).rows[0]?.document;
@@ -224,7 +309,11 @@ export function queries(pool: Pool, clock: () => Date) {
       const { values, clauses } = filters(input, "games");
       const members = (
         await pool.query<{ document: Identity }>(
-          "SELECT i.document FROM identities i JOIN entity_members m ON m.id=i.id WHERE m.entity_id=$1 ORDER BY i.source,i.id",
+          `SELECT i.document
+            FROM identities i
+            JOIN entity_members m ON m.id=i.id
+            WHERE m.entity_id=$1
+            ORDER BY i.source,i.id`,
           [identity.id],
         )
       ).rows.map((r) => r.document);
@@ -239,7 +328,19 @@ export function queries(pool: Pool, clock: () => Date) {
       const championFrom = `participants p JOIN games ON games.id=p.game_id WHERE ${filtered} AND p.${identity.kind === "team" ? "team_id" : "player_id"}=${entity} AND p.role<>'team'`;
       const summary = (
         await pool.query<{ summary: Summary }>(
-          `SELECT jsonb_build_object('eligibleGames',count(*),'resultGames',count(won),'wins',count(*) FILTER(WHERE won),'winRate',(count(*) FILTER(WHERE won))::float/nullif(count(won),0),'kda',sum(kills+assists) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL)::float/nullif(sum(deaths) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL),0),'kdaGames',count(*) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL),'champions','[]'::jsonb) AS summary FROM ${from}`,
+          `SELECT jsonb_build_object(
+              'eligibleGames', count(*),
+              'resultGames', count(won),
+              'wins', count(*) FILTER(WHERE won),
+              'winRate', (count(*) FILTER(WHERE won))::float/nullif(count(won),0),
+              'kda', sum(kills+assists) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL)::float/nullif(
+                sum(deaths) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL),
+                0
+              ),
+              'kdaGames', count(*) FILTER(WHERE kills IS NOT NULL AND deaths IS NOT NULL AND assists IS NOT NULL),
+              'champions', '[]'::jsonb
+            ) AS summary
+            FROM ${from}`,
           values,
         )
       ).rows[0]!.summary;
@@ -250,7 +351,14 @@ export function queries(pool: Pool, clock: () => Date) {
           wins: number;
           resultGames: number;
         }>(
-          `SELECT champion AS name,count(DISTINCT games.id)::integer AS games,(count(DISTINCT games.id) FILTER(WHERE won))::integer AS wins,(count(DISTINCT games.id) FILTER(WHERE won IS NOT NULL))::integer AS "resultGames" FROM ${championFrom} AND champion IS NOT NULL GROUP BY champion ORDER BY games DESC,champion`,
+          `SELECT
+              champion AS name,
+              count(DISTINCT games.id)::integer AS games,
+              (count(DISTINCT games.id) FILTER(WHERE won))::integer AS wins,
+              (count(DISTINCT games.id) FILTER(WHERE won IS NOT NULL))::integer AS "resultGames"
+            FROM ${championFrom} AND champion IS NOT NULL
+            GROUP BY champion
+            ORDER BY games DESC,champion`,
           values,
         )
       ).rows;
@@ -260,7 +368,13 @@ export function queries(pool: Pool, clock: () => Date) {
           team: Identity;
           observed_at: Date;
         }>(
-          "SELECT p.document AS player,t.document AS team,r.observed_at FROM roster_observations r JOIN roster_snapshots s ON s.team_id=r.team_id AND s.observed_at=r.observed_at JOIN identities p ON p.id=r.player_id JOIN identities t ON t.id=r.team_id WHERE r.team_id=ANY($1::text[]) OR r.player_id=ANY($1::text[]) ORDER BY p.name",
+          `SELECT p.document AS player,t.document AS team,r.observed_at
+            FROM roster_observations r
+            JOIN roster_snapshots s ON s.team_id=r.team_id AND s.observed_at=r.observed_at
+            JOIN identities p ON p.id=r.player_id
+            JOIN identities t ON t.id=r.team_id
+            WHERE r.team_id=ANY($1::text[]) OR r.player_id=ANY($1::text[])
+            ORDER BY p.name`,
           [members.map((m) => m.id)],
         )
       ).rows.map((r) => ({
@@ -274,7 +388,11 @@ export function queries(pool: Pool, clock: () => Date) {
       );
       const aliases = (
         await pool.query<{ name: string }>(
-          "SELECT DISTINCT a.name FROM identity_aliases a JOIN entity_members m ON m.id=a.identity_id WHERE m.entity_id=$1 ORDER BY a.name",
+          `SELECT DISTINCT a.name
+            FROM identity_aliases a
+            JOIN entity_members m ON m.id=a.identity_id
+            WHERE m.entity_id=$1
+            ORDER BY a.name`,
           [identity.id],
         )
       ).rows.map((r) => r.name);
@@ -287,7 +405,15 @@ export function queries(pool: Pool, clock: () => Date) {
           method: "lineup" | "fixtures";
           matchedFixtures: number;
         }>(
-          `SELECT evidence->>'gameId' AS "gameId",evidence->>'playedAt' AS "playedAt",evidence->>'observedAt' AS "observedAt",jsonb_array_length(evidence->'players') AS "matchedPlayers",evidence->>'method' AS method,coalesce(jsonb_array_length(evidence->'fixtures'),0) AS "matchedFixtures" FROM identity_links WHERE oracle_id=$1`,
+          `SELECT
+              evidence->>'gameId' AS "gameId",
+              evidence->>'playedAt' AS "playedAt",
+              evidence->>'observedAt' AS "observedAt",
+              jsonb_array_length(evidence->'players') AS "matchedPlayers",
+              evidence->>'method' AS method,
+              coalesce(jsonb_array_length(evidence->'fixtures'),0) AS "matchedFixtures"
+            FROM identity_links
+            WHERE oracle_id=$1`,
           [identity.id],
         )
       ).rows;
@@ -325,12 +451,22 @@ export function queries(pool: Pool, clock: () => Date) {
         ).rows[0]?.report ?? null;
       const counts = (
         await pool.query<{ kind: string; identities: number; linked: number; images: number }>(
-          `SELECT kind,count(*)::integer AS identities,(count(*) FILTER(WHERE document->>'sourceCount'='2'))::integer AS linked,(count(*) FILTER(WHERE document->>'imageUrl' IS NOT NULL))::integer AS images FROM entity_profiles GROUP BY kind ORDER BY kind`,
+          `SELECT
+              kind,
+              count(*)::integer AS identities,
+              (count(*) FILTER(WHERE document->>'sourceCount'='2'))::integer AS linked,
+              (count(*) FILTER(WHERE document->>'imageUrl' IS NOT NULL))::integer AS images
+            FROM entity_profiles
+            GROUP BY kind
+            ORDER BY kind`,
         )
       ).rows;
       const images = (
         await pool.query<{ failed: number; cached: number }>(
-          "SELECT (count(*) FILTER(WHERE error IS NOT NULL))::integer AS failed,(count(*) FILTER(WHERE asset_hash IS NOT NULL))::integer AS cached FROM identity_images",
+          `SELECT
+              (count(*) FILTER(WHERE error IS NOT NULL))::integer AS failed,
+              (count(*) FILTER(WHERE asset_hash IS NOT NULL))::integer AS cached
+            FROM identity_images`,
         )
       ).rows[0]!;
       return { last, counts, images };
@@ -345,7 +481,17 @@ export function queries(pool: Pool, clock: () => Date) {
         kind: string;
         document: Record<string, { name: string; image: string }>;
       }>(
-        "SELECT version,kind,document FROM metadata WHERE version=COALESCE($1,(SELECT version FROM metadata ORDER BY string_to_array(version,'.')::integer[] DESC LIMIT 1))",
+        `SELECT version,kind,document
+          FROM metadata
+          WHERE version=COALESCE(
+            $1,
+            (
+              SELECT version
+              FROM metadata
+              ORDER BY string_to_array(version,'.')::integer[] DESC
+              LIMIT 1
+            )
+          )`,
         [version ?? null],
       );
       return rows.rows;
@@ -365,10 +511,20 @@ export function queries(pool: Pool, clock: () => Date) {
         error: string | null;
         requested_at: Date;
       }>(
-        "SELECT id::text,CASE WHEN request->>'kind' IN ('history','entity-history','entity-rosters') THEN (request->>'kind')||':'||(request->>'year') ELSE request->>'kind' END AS kind,state,error,requested_at FROM sync_jobs ORDER BY sync_jobs.id DESC LIMIT 30",
+        `SELECT
+            id::text,
+            CASE WHEN request->>'kind' IN ('history','entity-history','entity-rosters') THEN (request->>'kind')||':'||(request->>'year') ELSE request->>'kind' END AS kind,
+            state,
+            error,
+            requested_at
+          FROM sync_jobs
+          ORDER BY sync_jobs.id DESC
+          LIMIT 30`,
       );
       const budget = await pool.query<{ count: number }>(
-        "SELECT count(*)::integer AS count FROM request_ledger WHERE requested_at>$1::timestamptz-interval '1 hour'",
+        `SELECT count(*)::integer AS count
+          FROM request_ledger
+          WHERE requested_at>$1::timestamptz-interval '1 hour'`,
         [clock()],
       );
       const cooldown = await pool.query<{ cooldown_until: Date | null }>(
@@ -380,7 +536,14 @@ export function queries(pool: Pool, clock: () => Date) {
         eligible: number;
         latest: Date;
       }>(
-        "SELECT year,count(*)::integer AS games,(count(*) FILTER(WHERE complete))::integer AS eligible,max(occurred_at) AS latest FROM games GROUP BY year ORDER BY year DESC",
+        `SELECT
+            year,
+            count(*)::integer AS games,
+            (count(*) FILTER(WHERE complete))::integer AS eligible,
+            max(occurred_at) AS latest
+          FROM games
+          GROUP BY year
+          ORDER BY year DESC`,
       );
       return {
         sources: sources.rows.map((s) => ({

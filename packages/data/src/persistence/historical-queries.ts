@@ -251,7 +251,11 @@ export function historicalQueries(pool: Pool) {
         statistics: Record<string, number | null>;
         draft: Record<string, string | null>;
       }>(
-        "SELECT slot,side,position,player_name,player_source_id,team_name,team_source_id,champion,result,statistics,draft FROM oracle_archive_participants WHERE game_id=$1 ORDER BY side,position",
+        `SELECT slot,side,position,player_name,player_source_id,team_name,team_source_id,champion,
+            result,statistics,draft
+          FROM oracle_archive_participants
+          WHERE game_id=$1
+          ORDER BY side,position`,
         [id],
       );
       const draft = (["blue", "red"] as const).map((side) => {
