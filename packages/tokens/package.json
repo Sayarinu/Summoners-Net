@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "style-dictionary": "5.2.0",
+    "style-dictionary": "5.8.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
