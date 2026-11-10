@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Updates land on experimental and reach main through a release PR.
+  - package-ecosystem: npm
+    directory: /
+    target-branch: experimental
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: experimental
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /deploy
+    target-branch: experimental
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /deploy
+    target-branch: experimental
+    schedule:
+      interval: weekly
