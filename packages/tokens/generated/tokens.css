@@ -86,11 +86,11 @@
   --font-tracking-tight: -0.5px;
   --font-tracking-normal: 0px;
   --font-tracking-wide: 1.2px;
-  --motion-duration-instant: 80ms;
-  --motion-duration-fast: 120ms;
-  --motion-duration-standard: 180ms;
-  --motion-duration-deliberate: 260ms;
-  --motion-duration-slow: 360ms;
+  --motion-duration-instant: 0.08s;
+  --motion-duration-fast: 0.12s;
+  --motion-duration-standard: 0.18s;
+  --motion-duration-deliberate: 0.26s;
+  --motion-duration-slow: 0.36s;
   --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --motion-easing-enter: cubic-bezier(0, 0, 0.2, 1);
   --motion-easing-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);

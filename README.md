@@ -73,7 +73,7 @@ coordinated worker.
 
 ```sh
 git clone https://github.com/Sayarinu/Summoners-Net.git
-cd SummonersNet
+cd Summoners-Net
 pnpm install --frozen-lockfile
 cp .env.example .env && chmod 600 .env   # once; keep an existing .env
 docker compose up -d                     # PostgreSQL on 127.0.0.1:55442
