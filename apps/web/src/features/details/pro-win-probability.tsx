@@ -1,5 +1,5 @@
 "use client";
-import { LineChart } from "@summonersnet/ui";
+import { LineChart, TextLink } from "@summonersnet/ui";
 import type { ProGameWinProbability } from "@summonersnet/data";
 
 /** Blue side's coarse win probability at the four Oracle's Elixir checkpoints. */
@@ -15,7 +15,8 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
             15, 20 and 25 minutes are known. Pro checkpoint model v{model.modelVersion} (#
             {model.id}), trained on {model.years.join("–")} games; Brier score{" "}
             {model.brier === null ? "unknown" : model.brier.toFixed(3)} on held-out games (0.25 is a
-            coin flip). Missing checkpoints are gaps.
+            coin flip). Missing checkpoints are gaps.{" "}
+            <TextLink href={`/models?model=${model.id}`}>Model diagnostics</TextLink>.
           </p>
           <LineChart
             title="Blue side win probability at checkpoints (coarse)"

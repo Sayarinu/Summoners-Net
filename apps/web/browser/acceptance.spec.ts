@@ -390,6 +390,23 @@ test("a pro game shows the coarse checkpoint win probability section with reveal
   // The fixture archive has no checkpoint columns, so no pro model can be trained from it.
   await expect(page.getByText("No pro win probability model is active yet.")).toBeVisible();
 });
+test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
+  await page.goto("/solo-games/EUW1_7000000001");
+  await page.getByRole("link", { name: "Model diagnostics" }).click();
+  await expect(page).toHaveURL(/\/models\?model=1/);
+  await expect(page.getByRole("heading", { name: "Model diagnostics", level: 1 })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Model versions" })).toContainText(
+    "Solo queue (timelines)",
+  );
+  await expect(
+    page.getByText("Reliability: predicted vs observed blue win rate (%)").first(),
+  ).toBeAttached();
+  await expect(page.getByRole("table", { name: "Feature weights" })).toContainText(
+    "Gold difference (per 5,000)",
+  );
+  await page.goto("/models?model=nope");
+  await expect(page.getByText("Choose a model from the list.")).toBeVisible();
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

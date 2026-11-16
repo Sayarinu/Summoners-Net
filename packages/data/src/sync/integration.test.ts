@@ -46,6 +46,7 @@ import { soloGame } from "../persistence/solo-games.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
+import { modelDiagnostics } from "../persistence/model-diagnostics.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -3153,6 +3154,69 @@ describe("Champion aggregates", () => {
     // Too few games: stored as rejected, the active checkpoint model stays.
     await trainCheckpointModel(pool, now, { minimumGames: 100, seed: 4 });
     expect((await activeWinProbabilityModel(pool, "pro-checkpoints"))!.id).toBe(model.id);
+  });
+  it("lists stored models of both kinds with calibration and named feature weights", async () => {
+    expect(await modelDiagnostics(pool)).toEqual({ models: [], selected: null });
+    const bins = Array.from({ length: 10 }, (_, i) => ({
+      lower: i / 10,
+      upper: (i + 1) / 10,
+      count: i === 7 ? 40 : 0,
+      predicted: i === 7 ? 0.74 : null,
+      observed: i === 7 ? 0.7 : null,
+    }));
+    const insert = (kind: string, status: string, window: string[], features: string[]) =>
+      pool.query(
+        `INSERT INTO wp_models(kind,model_version,feature_version,patch_window,seed,train_matches,train_rows,
+           eval_matches,eval_rows,coefficients,brier,bins,status,reason,trained_at)
+         VALUES($1,1,1,$2,7,800,24000,200,6000,$3,0.181,$4,$5,$6,$7)`,
+        [
+          kind,
+          window,
+          JSON.stringify({ intercept: 0.02, weights: features.map((_, i) => i / 10), features }),
+          JSON.stringify(bins),
+          status,
+          status === "rejected" ? "Only 12 training matches; at least 500 are needed." : null,
+          now,
+        ],
+      );
+    await insert("timeline", "retired", ["16.21"], ["minute", "goldDiff"]);
+    await insert("timeline", "active", ["16.22", "16.21"], ["minute", "goldDiff", "dragonDiff"]);
+    await insert("pro-checkpoints", "active", ["2025", "2026"], ["minute", "killDiff"]);
+    await insert("timeline", "rejected", ["16.22"], ["minute"]);
+    const diagnostics = await queries.modelDiagnostics();
+    expect(diagnostics.models.map((m) => [m.id, m.kind, m.status])).toEqual([
+      [4, "timeline", "rejected"],
+      [3, "pro-checkpoints", "active"],
+      [2, "timeline", "active"],
+      [1, "timeline", "retired"],
+    ]);
+    expect(diagnostics.models[0]!.reason).toMatch(/12 training matches/);
+    // The active timeline model is shown by default, with plain feature names and its bins.
+    expect(diagnostics.selected).toMatchObject({
+      id: 2,
+      window: ["16.22", "16.21"],
+      trainMatches: 800,
+      evalMatches: 200,
+      brier: 0.181,
+      intercept: 0.02,
+      weights: [
+        { feature: "minute", label: "Game time (per 30 minutes)", weight: 0 },
+        { feature: "goldDiff", label: "Gold difference (per 5,000)", weight: 0.1 },
+        { feature: "dragonDiff", label: "Dragon difference (per 4)", weight: 0.2 },
+      ],
+    });
+    expect(diagnostics.selected!.bins[7]).toEqual({
+      lower: 0.7,
+      upper: 0.8,
+      count: 40,
+      predicted: 0.74,
+      observed: 0.7,
+    });
+    expect((await modelDiagnostics(pool, 3)).selected).toMatchObject({
+      kind: "pro-checkpoints",
+      window: ["2025", "2026"],
+    });
+    expect((await modelDiagnostics(pool, 99)).selected).toBeNull();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

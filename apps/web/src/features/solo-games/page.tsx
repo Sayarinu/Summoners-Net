@@ -39,7 +39,8 @@ export function SoloGamePage({ game }: { game: SoloGame }) {
               {wp.model.modelVersion} (#{wp.model.id}, features v{wp.model.featureVersion}). Its
               Brier score on held-out games is{" "}
               {wp.model.brier === null ? "unknown" : wp.model.brier.toFixed(3)} (lower is better;
-              0.25 is a coin flip). Minutes without stored features are gaps.
+              0.25 is a coin flip). Minutes without stored features are gaps.{" "}
+              <TextLink href={`/models?model=${wp.model.id}`}>Model diagnostics</TextLink>.
             </p>
             <LineChart
               title="Blue side win probability by minute"
