@@ -1,18 +1,15 @@
 "use client";
 import {
-  Button,
   ChampionIcon,
   EmptyState,
   Pagination,
-  Select,
   StatusIndicator,
   Table,
   TextLink,
 } from "@summonersnet/ui";
-import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/contracts";
-import { interval, percent, roleLabels, sampleLabels, sortLabels } from "./presentation";
-
-const all = { label: "All", value: "all" };
+import type { TierList } from "@summonersnet/data/contracts";
+import { ChampionFilters } from "./filters";
+import { interval, percent, sampleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
   const q = list?.query;
   return (
@@ -24,60 +21,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
           <p>Win, pick and ban rates per patch, from stored aggregates.</p>
         </div>
       </header>
-      <form action="/tier-list" method="get" className="ev-filters" key={JSON.stringify(q)}>
-        <Select
-          label="Source"
-          name="source"
-          defaultValue={q?.source ?? "solo"}
-          options={[
-            { label: "Solo queue", value: "solo" },
-            { label: "Pro", value: "pro" },
-          ]}
-        />
-        <Select
-          label="Patch"
-          name="patch"
-          defaultValue={q?.patch ?? "all"}
-          options={[
-            { label: "Newest", value: "all" },
-            ...(list?.facets.patches ?? []).map((p) => ({ label: p, value: p })),
-          ]}
-        />
-        <Select
-          label="Role"
-          name="role"
-          defaultValue={q?.role ?? "ALL"}
-          options={championRoles.map((r) => ({ label: roleLabels[r], value: r }))}
-        />
-        <Select
-          label="Region"
-          name="region"
-          defaultValue={q?.region ?? "all"}
-          options={[all, ...(list?.facets.regions ?? []).map((r) => ({ label: r, value: r }))]}
-        />
-        <Select
-          label="Tier"
-          name="tier"
-          defaultValue={q?.tier ?? "all"}
-          options={[all, ...(list?.facets.tiers ?? []).map((t) => ({ label: t, value: t }))]}
-        />
-        <Select
-          label="Sort by"
-          name="sort"
-          defaultValue={q?.sort ?? "games"}
-          options={tierListSorts.map((s) => ({ label: sortLabels[s], value: s }))}
-        />
-        <Select
-          label="Order"
-          name="order"
-          defaultValue={q?.order ?? "desc"}
-          options={[
-            { label: "Highest first", value: "desc" },
-            { label: "Lowest first", value: "asc" },
-          ]}
-        />
-        <Button type="submit">Apply filters</Button>
-      </form>
+      <ChampionFilters action="/tier-list" query={q} facets={list?.facets} sortable />
       {error ? (
         <p role="alert">{error}</p>
       ) : !list?.patch ? (
@@ -115,7 +59,11 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
                         imageUrl={r.imageUrl}
                         size="small"
                       />
-                      {name}
+                      {r.championId ? (
+                        <TextLink href={`/champions/${r.championId}`}>{name}</TextLink>
+                      ) : (
+                        name
+                      )}
                     </span>
                   );
                 },

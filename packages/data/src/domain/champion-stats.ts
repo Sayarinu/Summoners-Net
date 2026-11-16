@@ -90,3 +90,47 @@ export interface TierList {
   page: { items: TierListRow[]; page: number; pageSize: number; total: number };
   facets: { patches: string[]; regions: string[]; tiers: string[] };
 }
+
+/** Champion overview filters: the tier list's filters, keyed by Data Dragon's champion id. */
+export const championOverviewQuerySchema = z
+  .object({
+    champion: z.string().regex(/^[A-Za-z0-9]{1,40}$/),
+    source: z.enum(["solo", "pro"]).default("solo"),
+    patch: z
+      .string()
+      .regex(/^\d{1,2}\.\d{1,2}$/)
+      .optional(),
+    role: z.enum(championRoles).default("ALL"),
+    region: z.string().trim().min(1).max(100).optional(),
+    tier: z.string().trim().min(1).max(20).optional(),
+  })
+  .strict();
+export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
+export type ParsedChampionOverviewQuery = z.output<typeof championOverviewQuerySchema>;
+export type ChampionTier = "S" | "A" | "B" | "C" | "D";
+/**
+ * Tier from the shrunk win rate's distance to the slice's baseline, in percentage points:
+ * S at +3 or more, A at +1.5, B within 1.5 either way, C down to -3, D below.
+ */
+export function tierFromDelta(delta: number | null): ChampionTier | null {
+  if (delta === null) return null;
+  const points = delta * 100;
+  return points >= 3 ? "S" : points >= 1.5 ? "A" : points > -1.5 ? "B" : points > -3 ? "C" : "D";
+}
+export interface ChampionOverview {
+  query: ParsedChampionOverviewQuery;
+  champion: { id: string; key: number; name: string; imageUrl: string | null };
+  patch: string | null;
+  sliceGames: number;
+  games: number;
+  winRate: SampledValue & { lower: number | null; upper: number | null };
+  pickRate: SampledValue;
+  banRate: SampledValue;
+  /** The win rate pulled toward the slice's baseline; its sample is the champion's results. */
+  shrunkWinRate: SampledValue;
+  baseline: number | null;
+  tier: ChampionTier | null;
+  /** Oldest to newest; a patch without data has a null win rate and zero games. */
+  trend: { patch: string; winRate: SampledValue; games: number }[];
+  facets: { patches: string[]; regions: string[]; tiers: string[] };
+}

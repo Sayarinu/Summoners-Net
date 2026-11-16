@@ -23,12 +23,17 @@ export {
   championRoles,
   tierListQuerySchema,
   tierListSorts,
+  championOverviewQuerySchema,
+  tierFromDelta,
 } from "./domain/champion-stats.js";
 export type {
   ChampionStats,
   ChampionStatsQuery,
   ChampionStatsRow,
   ParsedTierListQuery,
+  ChampionOverview,
+  ChampionOverviewQuery,
+  ChampionTier,
   TierList,
   TierListQuery,
   TierListRow,
