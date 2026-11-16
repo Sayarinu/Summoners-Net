@@ -161,3 +161,16 @@ describe("minimum-sample policy", () => {
     ).toThrow(RangeError);
   });
 });
+describe("pair expectations", () => {
+  it("adds each champion's distance from 50% and clamps", async () => {
+    const { expectedPairRate, shrinkDelta } = await import("./statistics.js");
+    expect(expectedPairRate(0.55, 0.52)).toBeCloseTo(0.57);
+    expect(expectedPairRate(0.9, 0.9)).toBe(1);
+    expect(expectedPairRate(0.1, 0.2)).toBe(0);
+    expect(expectedPairRate(null, 0.5)).toBeNull();
+    expect(shrinkDelta(0.1, 50)).toBeCloseTo(0.05);
+    expect(shrinkDelta(0.1, 0)).toBe(0);
+    expect(shrinkDelta(null, 10)).toBeNull();
+    expect(shrinkDelta(0.1, 0, 0)).toBeNull();
+  });
+});

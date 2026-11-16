@@ -22,6 +22,7 @@ import {
 import { transaction, type Executor } from "./database.js";
 import { championBuilds, rebuildBuilds } from "./builds.js";
 import { championBuckets, rebuildBuckets } from "./buckets.js";
+import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
 
 export type AggregateSource = "solo" | "pro";
 
@@ -163,7 +164,9 @@ export async function rebuildPatch(
     // Solo-queue builds come from timelines and are rebuilt with the patch.
     const builds =
       source === "solo"
-        ? (await rebuildBuilds(c, patchKey, now)) + (await rebuildBuckets(c, patchKey, now))
+        ? (await rebuildBuilds(c, patchKey, now)) +
+          (await rebuildBuckets(c, patchKey, now)) +
+          (await rebuildDuos(c, patchKey, now))
         : 0;
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
       source,
@@ -483,6 +486,22 @@ export async function championOverview(
             tier: q.tier,
             championGames: own?.games ?? 0,
           })
+        : null,
+    synergies:
+      q.source === "solo" && list.patch
+        ? await championSynergies(db, {
+            championKey: champion.champion_key,
+            patch: list.patch,
+            role: q.role,
+            region: q.region,
+            tier: q.tier,
+            sort: q.synergySort,
+            page: q.synergyPage,
+          })
+        : null,
+    botLane:
+      q.source === "solo" && list.patch
+        ? await botLaneMatrix(db, { patch: list.patch, region: q.region, tier: q.tier })
         : null,
     buckets:
       q.source === "solo" && list.patch

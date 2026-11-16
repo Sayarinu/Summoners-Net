@@ -171,3 +171,19 @@ export function applySamplePolicy<T extends SampledValue>(
     };
   return { ...sampled, status: sampled.sampleCount < policy.reliable ? "low-sample" : "shown" };
 }
+
+/**
+ * The win rate two teammates would have if they did not interact: each one's distance from 50%
+ * added together (a linear approximation of combining log-odds), clamped to [0, 1].
+ */
+export function expectedPairRate(a: number | null, b: number | null): number | null {
+  if (a === null || b === null) return null;
+  return Math.min(1, Math.max(0, a + b - 0.5));
+}
+/** Pseudo-games that pull a small sample's delta toward zero: delta × n / (n + k). */
+export const deltaShrinkGames = 50;
+export function shrinkDelta(delta: number | null, games: number, pseudoGames = deltaShrinkGames) {
+  return delta === null || games + pseudoGames <= 0
+    ? null
+    : (delta * games) / (games + pseudoGames);
+}

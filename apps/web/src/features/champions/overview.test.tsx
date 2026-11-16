@@ -4,7 +4,14 @@ import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { ChampionOverviewPage } from "./overview";
 
 const overview: ChampionOverview = {
-  query: { champion: "Ahri", source: "solo", role: "MIDDLE" },
+  query: {
+    champion: "Ahri",
+    source: "solo",
+    role: "MIDDLE",
+    tier: "CHALLENGER",
+    synergySort: "delta",
+    synergyPage: 1,
+  },
   champion: { id: "Ahri", key: 103, name: "Ahri", imageUrl: null },
   patch: "16.22",
   sliceGames: 200,
@@ -110,6 +117,32 @@ const overview: ChampionOverview = {
     level10: [],
     level15: [],
   },
+  synergies: {
+    sort: "delta",
+    page: {
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          allyKey: 412,
+          allyId: "Thresh",
+          allyName: "Thresh",
+          allyImageUrl: null,
+          allyRole: "UTILITY",
+          games: 80,
+          winRate: { value: 0.6, sampleCount: 80 },
+          expected: 0.55,
+          delta: { value: 0.031, sampleCount: 80 },
+        },
+      ],
+    },
+  },
+  botLane: {
+    carries: [{ key: 222, name: "Jinx" }],
+    supports: [{ key: 412, name: "Thresh" }],
+    cells: [{ carry: 222, support: 412, games: 80, winRate: { value: 0.6, sampleCount: 80 } }],
+  },
 };
 it("shows rates with samples, the interval, the tier and its basis, and the trend", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
@@ -185,4 +218,16 @@ it("charts win rate by game length with gaps and a data table", () => {
   expect(section).toHaveTextContent("Unknown");
   view.rerender(<ChampionOverviewPage overview={{ ...overview, buckets: null }} error={null} />);
   expect(screen.queryByRole("region", { name: "When it wins" })).toBeNull();
+});
+it("lists allies with expected rates and deltas, keeps filters when sorting, and maps bot lanes", () => {
+  const { container } = render(<ChampionOverviewPage overview={overview} error={null} />);
+  const allies = screen.getByRole("table", { name: "Allies" });
+  expect(allies).toHaveTextContent(/Thresh.*Support.*80.*60\.0%.*55\.0%.*\+3\.1 pts/);
+  expect(screen.getByRole("link", { name: "Thresh" })).toHaveAttribute("href", "/champions/Thresh");
+  const hidden = [...container.querySelectorAll<HTMLInputElement>("input[type=hidden]")].map(
+    (i) => `${i.name}=${i.value}`,
+  );
+  expect(hidden).toEqual(expect.arrayContaining(["source=solo", "role=MIDDLE", "tier=CHALLENGER"]));
+  expect(screen.getAllByText("Bot-lane pairs: win rate (%)")[0]).toBeInTheDocument();
+  expect(screen.getByText("1 allies · Page 1")).toBeVisible();
 });
