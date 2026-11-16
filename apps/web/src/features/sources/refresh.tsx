@@ -4,9 +4,19 @@ import { Button } from "@summonersnet/ui";
 export function RefreshButton({
   kind,
   year,
+  label,
 }: {
-  kind: "matches" | "running" | "rosters" | "metadata" | "history" | "entities" | "riot-key";
+  kind:
+    | "matches"
+    | "running"
+    | "rosters"
+    | "metadata"
+    | "history"
+    | "entities"
+    | "riot-key"
+    | "riot-match-ids";
   year?: number;
+  label?: string;
 }) {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
@@ -35,11 +45,12 @@ export function RefreshButton({
         loading={pending}
         disabled={pending}
       >
-        {kind === "history"
-          ? `Queue ${year} import`
-          : kind === "entities"
-            ? "Refresh identities & images"
-            : "Refresh"}
+        {label ??
+          (kind === "history"
+            ? `Queue ${year} import`
+            : kind === "entities"
+              ? "Refresh identities & images"
+              : "Refresh")}
       </Button>
       <span role="status" className="np-meta">
         {message}

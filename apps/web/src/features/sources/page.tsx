@@ -6,6 +6,7 @@ import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
 import { RiotKeySection } from "./riot-key";
 import { RiotStorageSection } from "./riot-storage";
+import { RiotCrawlerSection } from "./riot-crawler";
 
 function dataLabel(source: string) {
   switch (source) {
@@ -137,6 +138,7 @@ export function SourcesPage({
         <RefreshButton kind="entities" />
       </section>
       <RiotKeySection riotKey={status.riotKey} timezone={timezone} />
+      <RiotCrawlerSection crawl={status.riotCrawl} timezone={timezone} />
       <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
       <section className="np-stack">
         <h2>Import an annual game file</h2>

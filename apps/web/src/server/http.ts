@@ -5,7 +5,15 @@ import { preferencesSchema } from "../features/preferences/model";
 const refreshSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.enum(["matches", "running", "rosters", "metadata", "entities", "riot-key"]),
+      kind: z.enum([
+        "matches",
+        "running",
+        "rosters",
+        "metadata",
+        "entities",
+        "riot-key",
+        "riot-match-ids",
+      ]),
     })
     .strict(),
   z

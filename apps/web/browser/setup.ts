@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createSync } from "@summonersnet/data/sync";
 import { database } from "../../../packages/data/src/persistence/database";
+import { saveLadder, saveMatchIds } from "../../../packages/data/src/persistence/riot";
 import { draftCsv } from "../../../packages/data/tests/draft-fixtures";
 import { historyCsv, rawMatch, now } from "../../../packages/data/tests/fixtures";
 export default async function setup() {
@@ -70,7 +71,7 @@ export default async function setup() {
   try {
     await sync.migrate();
     await pool.query(
-      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_match_ids,riot_match_crawl,riot_job_status RESTART IDENTITY CASCADE",
     );
     await pool.query(
       "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -95,6 +96,30 @@ export default async function setup() {
     await sync.request({ kind: "history", year: 2026, file: draftFile });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser draft fixture import failed");
+    // Solo-queue crawl progress for the Riot crawler section, written through the data package.
+    const ladderEntry = (puuid: string) => ({
+      puuid,
+      summonerId: null,
+      tier: "CHALLENGER" as const,
+      rank: "I",
+      leaguePoints: 1500,
+      wins: 100,
+      losses: 80,
+      leagueId: "browser-fixture",
+    });
+    await saveLadder(
+      pool,
+      "euw1",
+      ["a", "b", "c"].map((c) => ladderEntry(c.repeat(78))),
+      now,
+    );
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.4" },
+      ["EUW1_7000000001", "EUW1_7000000002"],
+      10,
+      now,
+    );
     await sync.request({ kind: "entities" });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser fixture identity linking failed");

@@ -22,7 +22,12 @@ import { draftQueries } from "./draft-queries.js";
 import { historicalQueries } from "./historical-queries.js";
 
 const idSchema = z.string().min(1).max(300);
-import { developmentKeyLifetimeMs } from "../providers/riot.js";
+import {
+  defaultApplicationLimits,
+  developmentKeyLifetimeMs,
+  matchRoute,
+  type RiotPlatform,
+} from "../providers/riot.js";
 const stamp = (d: Date | null) => d?.toISOString() ?? null;
 function filters(input: BrowseQuery, kind: "matches" | "games") {
   const q = querySchema.parse(input);
@@ -634,7 +639,121 @@ export function queries(pool: Pool, clock: () => Date) {
       ).rows;
       const totalMatches = perPatch.reduce((n, p) => n + p.matches, 0);
       const totalTimelines = perPatch.reduce((n, p) => n + p.timelines, 0);
+      const quota = (
+        await pool.query<{
+          region: string;
+          method: string;
+          windows: { limit: number; windowSeconds: number; used: number }[];
+          paused_until: Date | null;
+        }>(
+          `WITH scopes AS (
+             SELECT region,method FROM riot_rate_limits
+             UNION SELECT region,method FROM riot_rate_pauses WHERE until>$1
+             UNION SELECT region,method FROM riot_request_ledger
+               WHERE requested_at>$1::timestamptz-interval '1 hour'
+             UNION SELECT region,'' FROM riot_request_ledger
+               WHERE requested_at>$1::timestamptz-interval '1 hour'
+           ), windows AS (
+             SELECT s.region,s.method,l.window_seconds,l.limit_count FROM scopes s
+             JOIN riot_rate_limits l ON l.region=s.region AND l.method=s.method
+             UNION ALL
+             -- Regions without reported application limits use the development key defaults.
+             SELECT s.region,s.method,d.window_seconds,d.limit_count FROM scopes s
+             CROSS JOIN (VALUES (1,$2::integer),(120,$3::integer)) d(window_seconds,limit_count)
+             WHERE s.method='' AND NOT EXISTS (SELECT 1 FROM riot_rate_limits r
+               WHERE r.region=s.region AND r.method='')
+           )
+           SELECT s.region,s.method,
+             coalesce(jsonb_agg(jsonb_build_object('limit',w.limit_count,
+               'windowSeconds',w.window_seconds,
+               'used',(SELECT count(*) FROM riot_request_ledger q WHERE q.region=s.region
+                 AND (s.method='' OR q.method=s.method)
+                 AND q.requested_at>$1::timestamptz-make_interval(secs=>w.window_seconds)))
+               ORDER BY w.window_seconds) FILTER(WHERE w.window_seconds IS NOT NULL),'[]') AS windows,
+             (SELECT p.until FROM riot_rate_pauses p WHERE p.region=s.region AND p.method=s.method
+               AND p.until>$1) AS paused_until
+           FROM scopes s LEFT JOIN windows w ON w.region=s.region AND w.method=s.method
+           GROUP BY s.region,s.method ORDER BY s.region,s.method`,
+          [clock(), defaultApplicationLimits[0]!.limit, defaultApplicationLimits[1]!.limit],
+        )
+      ).rows;
+      const riotJobs = (
+        await pool.query<{
+          kind: string;
+          last_success: Date | null;
+          last_error_at: Date | null;
+          error: string | null;
+          records: number;
+        }>("SELECT * FROM riot_job_status ORDER BY kind")
+      ).rows;
+      // Progress by the patch current when ids were crawled, the bound the crawl caps against.
+      const progress = (
+        await pool.query<{
+          region: string;
+          patch_key: string;
+          match_ids: number;
+          matches: number;
+          timelines: number;
+        }>(
+          `SELECT i.region,i.crawl_patch_key AS patch_key,count(*)::integer AS match_ids,
+             count(m.match_id)::integer AS matches,
+             (count(*) FILTER(WHERE m.timeline_state='fetched'))::integer AS timelines
+           FROM riot_match_ids i LEFT JOIN riot_matches m USING (match_id)
+           LEFT JOIN patches p ON p.patch_key=i.crawl_patch_key
+           GROUP BY i.region,i.crawl_patch_key,p.release_order
+           ORDER BY i.region,p.release_order DESC`,
+        )
+      ).rows;
+      const ladder = (
+        await pool.query<{ platform: RiotPlatform; players: number }>(
+          `SELECT e.platform,count(*)::integer AS players FROM riot_ladder_entries e
+           JOIN riot_ladder_status s ON s.platform=e.platform AND e.fetched_at=s.last_success
+           GROUP BY e.platform`,
+        )
+      ).rows;
+      const ladderPlayers = (region: string) =>
+        ladder.filter((l) => matchRoute(l.platform) === region).reduce((n, l) => n + l.players, 0);
+      // A region whose ladder is synced but has no match ids yet shows under the current patch.
+      const currentPatch = (
+        await pool.query<{ patch_key: string }>(
+          "SELECT patch_key FROM patches ORDER BY release_order DESC LIMIT 1",
+        )
+      ).rows[0]?.patch_key;
+      const crawled = new Set(progress.map((p) => p.region));
+      if (currentPatch)
+        for (const region of new Set(ladder.map((l) => matchRoute(l.platform))))
+          if (!crawled.has(region))
+            progress.push({
+              region,
+              patch_key: currentPatch,
+              match_ids: 0,
+              matches: 0,
+              timelines: 0,
+            });
       return {
+        riotCrawl: {
+          quota: quota.map((q) => ({
+            region: q.region,
+            method: q.method,
+            windows: q.windows,
+            pausedUntil: stamp(q.paused_until),
+          })),
+          jobs: riotJobs.map((j) => ({
+            kind: j.kind,
+            lastSuccess: stamp(j.last_success),
+            lastErrorAt: stamp(j.last_error_at),
+            error: j.error,
+            records: j.records,
+          })),
+          progress: progress.map((p) => ({
+            region: p.region,
+            patchKey: p.patch_key,
+            ladderPlayers: ladderPlayers(p.region),
+            matchIds: p.match_ids,
+            matches: p.matches,
+            timelines: p.timelines,
+          })),
+        },
         riotStorage: {
           previousPatches: retention.previous_patches,
           keptPatches: retention.kept_patches,

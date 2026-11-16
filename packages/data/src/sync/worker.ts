@@ -709,6 +709,13 @@ export function worker(pool: Pool, options: WorkerOptions) {
                 "UPDATE source_status SET last_success=$2,error=NULL,records=$3 WHERE source=$1",
                 [source, clock(), records],
               );
+            if (job.request.kind.startsWith("riot-"))
+              await c.query(
+                `INSERT INTO riot_job_status(kind,last_success,records) VALUES($1,$2,$3)
+                 ON CONFLICT(kind) DO UPDATE SET last_success=EXCLUDED.last_success,
+                   records=EXCLUDED.records`,
+                [job.request.kind, clock(), records],
+              );
             await c.query(
               "UPDATE sync_jobs SET state='done',lease_until=NULL,error=NULL WHERE id=$1",
               [job.id],
@@ -741,6 +748,13 @@ export function worker(pool: Pool, options: WorkerOptions) {
             );
             if (tracksSource(job.request))
               await c.query("UPDATE source_status SET error=$2 WHERE source=$1", [source, message]);
+            if (job.request.kind.startsWith("riot-"))
+              await c.query(
+                `INSERT INTO riot_job_status(kind,last_error_at,error) VALUES($1,$2,$3)
+                 ON CONFLICT(kind) DO UPDATE SET last_error_at=EXCLUDED.last_error_at,
+                   error=EXCLUDED.error`,
+                [job.request.kind, clock(), message],
+              );
           });
           return {
             state: retry ? ("queued" as const) : ("failed" as const),

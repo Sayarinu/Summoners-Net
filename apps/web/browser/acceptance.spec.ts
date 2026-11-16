@@ -256,6 +256,25 @@ test("manual refresh and CSV uploads join the durable queue", async ({ page }) =
   });
   expect(foreign.status()).toBe(403);
 });
+test("the Riot crawler shows progress per region and patch and queues a crawl", async ({
+  page,
+}) => {
+  await page.goto("/sources");
+  const section = page.getByRole("region", { name: "Riot crawler" });
+  const progress = section.getByRole("table", { name: "Crawl progress by region and patch" });
+  await expect(progress).toContainText("europe");
+  await expect(progress).toContainText("16.4");
+  await expect(progress.getByRole("cell", { name: "3", exact: true })).toBeVisible();
+  await section.getByRole("button", { name: "Queue crawl" }).click();
+  await expect(section.getByRole("status").filter({ hasText: "Queued." })).toBeVisible();
+  await page.goto("/sources");
+  await expect(page.getByText("riot-match-ids", { exact: true })).toBeVisible();
+  const invalid = await page.request.post("/api/refresh", {
+    data: { kind: "riot-match-ids", region: "euw1" },
+    headers: { origin: "http://127.0.0.1:3100" },
+  });
+  expect(invalid.status()).toBe(400);
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

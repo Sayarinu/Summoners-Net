@@ -47,6 +47,10 @@ describe("local HTTP entry points", () => {
     expect(mocks.request).toHaveBeenCalledWith({ kind: "running" });
     expect((await mutate(request({ kind: "riot-key" }), "refresh")).status).toBe(202);
     expect(mocks.request).toHaveBeenCalledWith({ kind: "riot-key" });
+    expect((await mutate(request({ kind: "riot-match-ids" }), "refresh")).status).toBe(202);
+    expect(
+      (await mutate(request({ kind: "riot-match-ids", region: "euw1" }), "refresh")).status,
+    ).toBe(400);
     expect((await mutate(request({ kind: "history", year: 2014 }), "refresh")).status).toBe(202);
     for (const body of [
       { kind: "paid" },

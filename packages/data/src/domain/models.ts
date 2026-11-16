@@ -229,10 +229,36 @@ export interface RiotStorageStatus {
     estimatedBytes: number;
   }[];
 }
+export interface RiotCrawlStatus {
+  /** Requests in each known rate-limit window, per routing value and method ("" = whole app). */
+  quota: {
+    region: string;
+    method: string;
+    windows: { limit: number; windowSeconds: number; used: number }[];
+    pausedUntil: string | null;
+  }[];
+  jobs: {
+    kind: string;
+    lastSuccess: string | null;
+    lastErrorAt: string | null;
+    error: string | null;
+    records: number;
+  }[];
+  /** Per match-v5 region and crawl patch. */
+  progress: {
+    region: string;
+    patchKey: string;
+    ladderPlayers: number;
+    matchIds: number;
+    matches: number;
+    timelines: number;
+  }[];
+}
 export interface SyncStatus {
   sources: SourceStatus[];
   riotKey: RiotKeyStatus;
   riotStorage: RiotStorageStatus;
+  riotCrawl: RiotCrawlStatus;
   jobs: {
     id: string;
     kind: string;
