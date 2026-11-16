@@ -625,5 +625,30 @@ test("pro account link uploads queue the whole evidence file for local validatio
     page.getByRole("status").filter({ hasText: "Pro account link import queued" }),
   ).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("cell", { name: "Pro account links", exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("row")
+      .filter({ hasText: "Pro account links" })
+      .filter({ hasText: "queued" })
+      .first(),
+  ).toBeVisible();
+});
+
+test("pro solo queue feed filters linked games, paginates and validates URLs", async ({ page }) => {
+  await page.goto("/leaderboards/pros?pageSize=1");
+  const table = page.getByRole("table", { name: "Recent pro solo queue games" });
+  await expect(table).toContainText("Player Blue mid");
+  await expect(table).toContainText("Ahri");
+  await expect(table).toContainText("Acceptance Blue");
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(table).toContainText("Player Red mid");
+  await page.getByRole("button", { name: "Team" }).click();
+  await page.getByRole("option", { name: "Acceptance Blue", exact: true }).click();
+  await expect(table).toContainText("Player Blue mid");
+  await expect(page).toHaveURL(/team=oracle%3Ateam%3A10/);
+  await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await page.goto("/leaderboards/pros?league=Missing");
+  await expect(page.getByText("No linked solo queue games")).toBeVisible();
+  await page.goto("/leaderboards/pros?pageSize=101");
+  await expect(page.getByRole("alert").filter({ hasText: "valid team and league" })).toBeVisible();
 });

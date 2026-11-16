@@ -110,3 +110,10 @@ export {
   type ProAccountLinksFile,
   type ProAccountLink,
 } from "./domain/pro-accounts.js";
+
+export {
+  proFeedQuerySchema,
+  type ProFeedQuery,
+  type ProFeed,
+  type ProFeedGame,
+} from "./domain/pro-feed.js";

@@ -1,3 +1,5 @@
+import { proFeed } from "./pro-feed.js";
+import type { ProFeedQuery } from "../domain/pro-feed.js";
 import { proAccountLink } from "./pro-accounts.js";
 import { summoner } from "./summoners.js";
 import type { SummonerQuery } from "../domain/summoners.js";
@@ -173,6 +175,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    proFeed: (input: ProFeedQuery) => proFeed(pool, input),
     proAccountLink: (puuid: string) => proAccountLink(pool, puuid),
     summoner: (input: SummonerQuery) => summoner(pool, input, clock()),
     leaderboard: (input: LeaderboardQuery) => leaderboard(pool, input),

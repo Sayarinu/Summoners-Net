@@ -1,3 +1,7 @@
+import {
+  proAccountFixture,
+  proAccountFixtureLink,
+} from "../../../packages/data/tests/pro-account-fixtures";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createSync } from "@summonersnet/data/sync";
@@ -156,6 +160,16 @@ export default async function setup() {
     await sync.request({ kind: "entities" });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser fixture identity linking failed");
+    const proFile = resolve(folder, "pro-links.json");
+    await writeFile(
+      proFile,
+      JSON.stringify(
+        proAccountFixture([proAccountFixtureLink(), proAccountFixtureLink("b", "11-mid")]),
+      ),
+    );
+    await sync.request({ kind: "pro-account-links", file: proFile });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser pro links fixture failed");
   } finally {
     await sync.close();
     await pool.end();
