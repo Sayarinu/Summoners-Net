@@ -35,6 +35,7 @@ import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
 import { proChampionStats } from "../persistence/pro-stats.js";
+import { matchFeatures } from "../persistence/wp-features.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -133,7 +134,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2731,6 +2732,85 @@ describe("Champion aggregates", () => {
     expect(await proChampionStats(pool, { championKey: 103, patch: "16.22" })).toMatchObject({
       games: 0,
       presence: { value: null, sampleCount: 0 },
+    });
+  });
+  it("stores versioned win probability features reproducible from frames and events", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: { frames: { participantFrames: Record<string, unknown> }[] };
+    };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    const stored = async () =>
+      (
+        await pool.query<Record<string, unknown>>(
+          `SELECT minute,version,gold_diff,xp_diff,cs_diff,blue_kills,red_kills,red_towers,
+             blue_dragons->>'FIRE_DRAGON' AS blue_fire,blue_soul,blue_win
+           FROM riot_wp_features WHERE match_id='EUW1_1' ORDER BY minute`,
+        )
+      ).rows;
+    expect(await stored()).toEqual([
+      {
+        minute: 0,
+        version: 1,
+        gold_diff: 0,
+        xp_diff: 0,
+        cs_diff: 0,
+        blue_kills: 0,
+        red_kills: 0,
+        red_towers: 0,
+        blue_fire: "0",
+        blue_soul: false,
+        blue_win: true,
+      },
+      {
+        minute: 1,
+        version: 1,
+        gold_diff: 0,
+        xp_diff: 0,
+        cs_diff: 0,
+        blue_kills: 0,
+        red_kills: 0,
+        red_towers: 0,
+        blue_fire: "0",
+        blue_soul: false,
+        blue_win: true,
+      },
+      {
+        minute: 2,
+        version: 1,
+        gold_diff: 0,
+        xp_diff: 0,
+        cs_diff: 0,
+        blue_kills: 1,
+        red_kills: 0,
+        red_towers: 0,
+        blue_fire: "1",
+        blue_soul: false,
+        blue_win: true,
+      },
+    ]);
+    // Reproducible from the stored facts; a full rerun computes nothing twice.
+    expect((await matchFeatures(pool, "EUW1_1"))[2]).toMatchObject({ blue: { kills: 1 } });
+    await runAggregate(true);
+    expect(await stored()).toHaveLength(3);
+
+    // A replaced timeline with a missing frame recomputes, leaving that minute's differences null.
+    delete timeline.info.frames[1]!.participantFrames["7"];
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    expect((await stored())[1]).toMatchObject({
+      minute: 1,
+      gold_diff: null,
+      xp_diff: null,
+      cs_diff: null,
     });
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {

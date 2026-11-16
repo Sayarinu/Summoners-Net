@@ -30,6 +30,8 @@ export async function saveTimeline(pool: Pool, timeline: RiotTimeline, now: Date
     const e = <K extends keyof TimelineEvent>(key: K) => timeline.events.map((r) => r[key]);
     await c.query("DELETE FROM riot_timeline_frames WHERE match_id=$1", [timeline.matchId]);
     await c.query("DELETE FROM riot_timeline_events WHERE match_id=$1", [timeline.matchId]);
+    // Features derive from the timeline; a replaced timeline recomputes them.
+    await c.query("DELETE FROM riot_wp_features WHERE match_id=$1", [timeline.matchId]);
     await c.query(
       `INSERT INTO riot_timeline_frames(match_id,participant_id,minute,timestamp_ms,x,y,current_gold,
          total_gold,xp,level,minions_killed,jungle_minions_killed)
