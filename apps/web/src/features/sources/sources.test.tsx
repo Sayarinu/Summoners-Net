@@ -109,3 +109,37 @@ it("shows the Riot key state, last check and development key expiry without cont
   expect(section()).toHaveTextContent("Riot rejected the key (HTTP 401).");
   expect(fetcher).not.toHaveBeenCalled();
 });
+it("shows solo-queue storage per patch and the retention setting", () => {
+  const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
+  const section = () => screen.getByRole("region", { name: "Solo-queue storage" });
+  expect(section()).toHaveTextContent("Retention has not run yet");
+  expect(section()).toHaveTextContent("No solo-queue matches stored yet.");
+  view.rerender(
+    <SourcesPage
+      status={{
+        ...status,
+        riotStorage: {
+          previousPatches: 1,
+          keptPatches: ["16.22", "16.21"],
+          lastRunAt: "2026-03-01T10:00:00.000Z",
+          prunedMatches: 120,
+          backfilledMatches: 0,
+          patches: [
+            { patchKey: null, matches: 2, timelines: 0, estimatedBytes: 800 },
+            { patchKey: "16.22", matches: 400, timelines: 380, estimatedBytes: 52428800 },
+            { patchKey: "16.21", matches: 90, timelines: 90, estimatedBytes: 3 * 1024 * 1024 },
+          ],
+        },
+      }}
+      timezone="UTC"
+      year={2026}
+    />,
+  );
+  expect(section()).toHaveTextContent("current patch and 1 previous patch (16.22, 16.21)");
+  const table = screen.getByRole("table", { name: "Solo-queue data per patch" });
+  expect(table).toHaveTextContent("Unknown version");
+  expect(table).toHaveTextContent("50 MiB");
+  expect(table).toHaveTextContent("3.0 MiB");
+  expect(table).toHaveTextContent("800 B");
+  expect(section()).toHaveTextContent("120 pruned, 0 queued to refetch");
+});

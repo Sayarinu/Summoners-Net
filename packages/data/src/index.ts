@@ -15,6 +15,7 @@ export type {
   SyncStatus,
   SourceStatus,
   RiotKeyStatus,
+  RiotStorageStatus,
   Broadcast,
 } from "./domain/models.js";
 export type {

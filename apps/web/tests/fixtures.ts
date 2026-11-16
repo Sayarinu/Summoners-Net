@@ -122,6 +122,14 @@ export const profile: Profile = {
   roster: [{ team: blue, player, observedAt: instant }],
 };
 export const status: SyncStatus = {
+  riotStorage: {
+    previousPatches: null,
+    keptPatches: [],
+    lastRunAt: null,
+    prunedMatches: 0,
+    backfilledMatches: 0,
+    patches: [],
+  },
   riotKey: {
     state: "missing",
     kind: null,

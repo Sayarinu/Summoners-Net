@@ -5,6 +5,7 @@ import type { SyncStatus, Queries } from "@summonersnet/data";
 import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
 import { RiotKeySection } from "./riot-key";
+import { RiotStorageSection } from "./riot-storage";
 
 function dataLabel(source: string) {
   switch (source) {
@@ -136,6 +137,7 @@ export function SourcesPage({
         <RefreshButton kind="entities" />
       </section>
       <RiotKeySection riotKey={status.riotKey} timezone={timezone} />
+      <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">

@@ -25,6 +25,9 @@ import {
 } from "../persistence/riot.js";
 import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
+import { pruneBatch } from "../persistence/riot-retention.js";
+import { saveTimeline } from "../persistence/riot-timelines.js";
+import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { draftCsv } from "../../tests/draft-fixtures.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
@@ -1605,6 +1608,150 @@ describe("Riot match timelines", () => {
     expect(
       (await pool.query("SELECT state FROM sync_jobs WHERE request->>'kind'='riot-timeline'")).rows,
     ).toEqual([{ state: "queued" }]);
+  });
+});
+describe("Solo-queue retention", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const matchPayload = JSON.parse(
+    readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+  ) as { metadata: { matchId: string }; info: { gameVersion: string } };
+  const timeline = JSON.parse(
+    readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+  ) as { metadata: { matchId: string } };
+  const versions: Record<string, string> = {
+    EUW1_22: "16.22.734.1",
+    EUW1_21: "16.21.700.1",
+    EUW1_20: "16.20.690.1",
+    EUW1_19: "16.19.680.1",
+    EUW1_99: "17.1.1.1",
+  };
+  const payload = (matchId: string) => {
+    const copy = structuredClone(matchPayload);
+    copy.metadata.matchId = matchId;
+    copy.info.gameVersion = versions[matchId]!;
+    return copy;
+  };
+  const sync = (retain: number) =>
+    createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+      riotRetainPatches: retain,
+    });
+  const drain = async (
+    worker: ReturnType<typeof createSync>,
+    kind: "riot-retention" | "riot-match",
+  ) => {
+    await worker.request({ kind });
+    while ((await worker.runNext()).state !== "idle");
+  };
+  const states = async () =>
+    (
+      await pool.query<{ match_id: string; fetch_state: string; pruned_patch_key: string | null }>(
+        "SELECT match_id,fetch_state,pruned_patch_key FROM riot_match_ids ORDER BY match_id",
+      )
+    ).rows;
+  it("prunes matches of older patches in batches, keeps pro data, and backfills when widened", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1", "16.20.1", "16.19.1"], now);
+    await importCsv();
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      Object.keys(versions),
+      10,
+      now,
+    );
+    // An id crawled while 16.19 was current, never fetched.
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.19" },
+      ["EUW1_5"],
+      10,
+      now,
+    );
+    for (const id of Object.keys(versions)) {
+      const body = payload(id);
+      await saveRiotMatch(pool, parseRiotMatch(body, id), body, now);
+    }
+    const timelineBody = structuredClone(timeline);
+    timelineBody.metadata.matchId = "EUW1_20";
+    await saveTimeline(pool, parseRiotTimeline(timelineBody, "EUW1_20"), now);
+    const oracleGames = async () =>
+      (await pool.query<{ n: number }>("SELECT count(*)::integer n FROM oracle_archive_games"))
+        .rows[0]!.n;
+    const proBefore = await oracleGames();
+
+    // Bounded batches: one at a time.
+    expect(await pruneBatch(pool, ["16.22", "16.21", "16.20"], 1)).toBe(1);
+    expect(await pruneBatch(pool, ["16.22", "16.21", "16.20"], 1)).toBe(0);
+
+    const narrow = sync(1);
+    try {
+      await drain(narrow, "riot-retention");
+    } finally {
+      await narrow.close();
+    }
+    expect(await states()).toEqual([
+      { match_id: "EUW1_19", fetch_state: "pruned", pruned_patch_key: "16.19" },
+      { match_id: "EUW1_20", fetch_state: "pruned", pruned_patch_key: "16.20" },
+      { match_id: "EUW1_21", fetch_state: "fetched", pruned_patch_key: null },
+      { match_id: "EUW1_22", fetch_state: "fetched", pruned_patch_key: null },
+      { match_id: "EUW1_5", fetch_state: "pruned", pruned_patch_key: null },
+      // An unknown version may be newer than the catalog, so it is kept.
+      { match_id: "EUW1_99", fetch_state: "fetched", pruned_patch_key: null },
+    ]);
+    const remaining = async (table: string) =>
+      (await pool.query<{ n: number }>(`SELECT count(DISTINCT match_id)::integer n FROM ${table}`))
+        .rows[0]!.n;
+    expect(await remaining("riot_matches")).toBe(3);
+    expect(await remaining("riot_match_participants")).toBe(3);
+    expect(await remaining("riot_match_payloads")).toBe(3);
+    expect(await remaining("riot_timeline_frames")).toBe(0);
+    expect(await remaining("riot_timeline_events")).toBe(0);
+    expect(await oracleGames()).toBe(proBefore);
+    const storage = (await queries.status()).riotStorage;
+    expect(storage).toMatchObject({
+      previousPatches: 1,
+      keptPatches: ["16.22", "16.21"],
+      lastRunAt: now.toISOString(),
+      prunedMatches: 1,
+      backfilledMatches: 0,
+    });
+    expect(storage.patches.map((p) => [p.patchKey, p.matches])).toEqual([
+      [null, 1],
+      ["16.22", 1],
+      ["16.21", 1],
+    ]);
+    expect(storage.patches.every((p) => p.estimatedBytes > 0)).toBe(true);
+
+    // Widening to two previous patches refetches 16.20 through the ledger; 16.19 stays pruned.
+    instant = new Date(now.valueOf() + 86400000);
+    fetcher.mockImplementation((input) => {
+      const matchId = decodeURIComponent(new URL(endpoint(input)).pathname.split("/").pop()!);
+      return Promise.resolve(versions[matchId] ? json(payload(matchId)) : json({}));
+    });
+    const wide = sync(2);
+    try {
+      await drain(wide, "riot-retention");
+      expect((await queries.status()).riotStorage.backfilledMatches).toBe(1);
+      await drain(wide, "riot-match");
+    } finally {
+      await wide.close();
+    }
+    expect((await states()).find((s) => s.match_id === "EUW1_20")).toEqual({
+      match_id: "EUW1_20",
+      fetch_state: "fetched",
+      pruned_patch_key: null,
+    });
+    expect((await states()).find((s) => s.match_id === "EUW1_19")?.fetch_state).toBe("pruned");
+    expect(
+      (
+        await pool.query<{ n: number }>(
+          "SELECT count(*)::integer n FROM riot_request_ledger WHERE method='match-v5.getMatch'",
+        )
+      ).rows[0]!.n,
+    ).toBe(1);
   });
 });
 describe("Riot API key", () => {

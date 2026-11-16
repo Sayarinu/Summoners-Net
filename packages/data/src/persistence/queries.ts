@@ -603,7 +603,54 @@ export function queries(pool: Pool, clock: () => Date) {
           GROUP BY year
           ORDER BY year DESC`,
       );
+      const retention = (
+        await pool.query<{
+          previous_patches: number | null;
+          kept_patches: string[];
+          last_run_at: Date | null;
+          pruned_matches: number;
+          backfilled_matches: number;
+        }>("SELECT * FROM riot_retention WHERE id=true")
+      ).rows[0]!;
+      // Storage per patch is estimated: each table's size is shared out by row-bearing matches.
+      const sizes = (
+        await pool.query<{ matches: string; timelines: string }>(
+          `SELECT
+             (SELECT coalesce(sum(pg_total_relation_size(t::regclass)),0) FROM unnest(ARRAY[
+               'riot_matches','riot_match_teams','riot_match_objectives','riot_match_bans',
+               'riot_match_participants','riot_match_items','riot_match_perks',
+               'riot_match_payloads']) t)::text AS matches,
+             (SELECT coalesce(sum(pg_total_relation_size(t::regclass)),0) FROM unnest(ARRAY[
+               'riot_timeline_frames','riot_timeline_events']) t)::text AS timelines`,
+        )
+      ).rows[0]!;
+      const perPatch = (
+        await pool.query<{ patch_key: string | null; matches: number; timelines: number }>(
+          `SELECT m.patch_key,count(*)::integer AS matches,
+             (count(*) FILTER(WHERE m.timeline_state='fetched'))::integer AS timelines
+           FROM riot_matches m LEFT JOIN patches p ON p.patch_key=m.patch_key
+           GROUP BY m.patch_key,p.release_order ORDER BY p.release_order DESC NULLS FIRST`,
+        )
+      ).rows;
+      const totalMatches = perPatch.reduce((n, p) => n + p.matches, 0);
+      const totalTimelines = perPatch.reduce((n, p) => n + p.timelines, 0);
       return {
+        riotStorage: {
+          previousPatches: retention.previous_patches,
+          keptPatches: retention.kept_patches,
+          lastRunAt: stamp(retention.last_run_at),
+          prunedMatches: retention.pruned_matches,
+          backfilledMatches: retention.backfilled_matches,
+          patches: perPatch.map((p) => ({
+            patchKey: p.patch_key,
+            matches: p.matches,
+            timelines: p.timelines,
+            estimatedBytes: Math.round(
+              (totalMatches ? (Number(sizes.matches) * p.matches) / totalMatches : 0) +
+                (totalTimelines ? (Number(sizes.timelines) * p.timelines) / totalTimelines : 0),
+            ),
+          })),
+        },
         riotKey: {
           state: riot.state,
           kind: riot.kind,
