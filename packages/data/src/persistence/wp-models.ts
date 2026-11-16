@@ -47,30 +47,53 @@ async function trainingWindow(db: Executor) {
   ).rows.map((r) => r.patch_key);
 }
 
+export interface FeatureDbRow {
+  match_id: string;
+  minute: number;
+  timestamp_ms: number;
+  gold_diff: number | null;
+  xp_diff: number | null;
+  cs_diff: number | null;
+  blue_kills: number;
+  red_kills: number;
+  blue_towers: number;
+  red_towers: number;
+  blue_inhibitors: number;
+  red_inhibitors: number;
+  blue_barons: number;
+  red_barons: number;
+  blue_elders: number;
+  red_elders: number;
+  blue_dragons: FeatureRow["blue"]["dragons"];
+  red_dragons: FeatureRow["red"]["dragons"];
+  blue_soul: boolean;
+  red_soul: boolean;
+  blue_win: boolean | null;
+}
+/** A stored feature row as the domain's FeatureRow, shared by training and scoring. */
+export function featureRowFromDb(r: FeatureDbRow): FeatureRow {
+  const team = (side: "blue" | "red") => ({
+    kills: r[`${side}_kills`],
+    towers: r[`${side}_towers`],
+    inhibitors: r[`${side}_inhibitors`],
+    barons: r[`${side}_barons`],
+    elders: r[`${side}_elders`],
+    dragons: r[`${side}_dragons`],
+    soul: r[`${side}_soul`],
+  });
+  return {
+    minute: r.minute,
+    timestampMs: r.timestamp_ms,
+    goldDiff: r.gold_diff,
+    xpDiff: r.xp_diff,
+    csDiff: r.cs_diff,
+    blue: team("blue"),
+    red: team("red"),
+    blueWin: r.blue_win,
+  };
+}
 async function examples(db: Executor, window: readonly string[]): Promise<Example[]> {
-  const rows = await db.query<{
-    match_id: string;
-    minute: number;
-    timestamp_ms: number;
-    gold_diff: number | null;
-    xp_diff: number | null;
-    cs_diff: number | null;
-    blue_kills: number;
-    red_kills: number;
-    blue_towers: number;
-    red_towers: number;
-    blue_inhibitors: number;
-    red_inhibitors: number;
-    blue_barons: number;
-    red_barons: number;
-    blue_elders: number;
-    red_elders: number;
-    blue_dragons: FeatureRow["blue"]["dragons"];
-    red_dragons: FeatureRow["red"]["dragons"];
-    blue_soul: boolean;
-    red_soul: boolean;
-    blue_win: boolean;
-  }>(
+  const rows = await db.query<FeatureDbRow & { blue_win: boolean }>(
     `SELECT f.* FROM riot_wp_features f JOIN riot_matches m USING (match_id)
      WHERE f.version=$1 AND m.patch_key=ANY($2::text[]) AND f.blue_win IS NOT NULL
        AND m.remake IS NOT TRUE
@@ -78,27 +101,8 @@ async function examples(db: Executor, window: readonly string[]): Promise<Exampl
     [featureVersion, window],
   );
   return rows.rows.flatMap((r): Example[] => {
-    const team = (side: "blue" | "red") => ({
-      kills: r[`${side}_kills`],
-      towers: r[`${side}_towers`],
-      inhibitors: r[`${side}_inhibitors`],
-      barons: r[`${side}_barons`],
-      elders: r[`${side}_elders`],
-      dragons: r[`${side}_dragons`],
-      soul: r[`${side}_soul`],
-    });
-    const x = vectorize({
-      minute: r.minute,
-      timestampMs: r.timestamp_ms,
-      goldDiff: r.gold_diff,
-      xpDiff: r.xp_diff,
-      csDiff: r.cs_diff,
-      blue: team("blue"),
-      red: team("red"),
-      blueWin: r.blue_win,
-    });
-    const example: Example | null = x ? { matchId: r.match_id, x, y: r.blue_win ? 1 : 0 } : null;
-    return example ? [example] : [];
+    const x = vectorize(featureRowFromDb(r));
+    return x ? [{ matchId: r.match_id, x, y: r.blue_win ? 1 : 0 }] : [];
   });
 }
 

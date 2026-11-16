@@ -40,6 +40,8 @@ export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
 export type { ProChampionStats } from "./domain/pro-stats.js";
+export type { SoloGame, SoloGameMarker } from "./domain/solo-games.js";
+export { soloMatchIdSchema } from "./domain/solo-games.js";
 export type { TierList, TierListQuery, TierListRow } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
