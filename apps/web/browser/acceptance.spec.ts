@@ -378,6 +378,18 @@ test("win probability added leaderboards rank champions and roles from the activ
   await page.goto("/leaderboards/wpa?kind=team");
   await expect(page.getByText(/Choose a board/)).toBeVisible();
 });
+test("a pro game shows the coarse checkpoint win probability section with revealed statistics", async ({
+  page,
+}) => {
+  await page.goto("/games/oracle%3Agame%3Aacceptance-game");
+  const reveal = page.getByRole("button", { name: "Reveal game statistics" });
+  if (await reveal.isVisible()) await reveal.click();
+  await expect(
+    page.getByRole("heading", { name: "Win probability (coarse, 4 checkpoints)" }),
+  ).toBeVisible();
+  // The fixture archive has no checkpoint columns, so no pro model can be trained from it.
+  await expect(page.getByText("No pro win probability model is active yet.")).toBeVisible();
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

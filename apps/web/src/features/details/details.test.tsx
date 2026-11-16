@@ -166,3 +166,40 @@ it("shows linked identity evidence, canonical destinations and portraits without
   );
   expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
 });
+
+it("shows a coarse checkpoint win probability only with revealed statistics", () => {
+  const winProbability = {
+    model: { id: 2, modelVersion: 1, brier: 0.2, years: ["2025", "2026"] },
+    reason: null,
+    points: [
+      { minute: 10, blueWinProbability: 0.55 },
+      { minute: 15, blueWinProbability: 0.6 },
+      { minute: 20, blueWinProbability: null },
+      { minute: 25, blueWinProbability: 0.8 },
+    ],
+  };
+  const view = render(
+    <GamePage game={game} timezone="UTC" hideSpoilers winProbability={winProbability} />,
+  );
+  expect(screen.queryByText("Win probability (coarse, 4 checkpoints)")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Reveal game statistics" }));
+  expect(
+    screen.getByRole("heading", { name: "Win probability (coarse, 4 checkpoints)" }),
+  ).toBeVisible();
+  expect(screen.getByText(/trained on 2025–2026 games; Brier score 0.200/)).toBeVisible();
+  view.rerender(
+    <GamePage
+      game={game}
+      timezone="UTC"
+      hideSpoilers={false}
+      winProbability={{
+        model: null,
+        reason: "No pro win probability model is active yet.",
+        points: [],
+      }}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "No pro win probability model is active yet.",
+  );
+});

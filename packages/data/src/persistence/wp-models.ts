@@ -13,8 +13,10 @@ import {
 } from "../domain/wp-model.js";
 import { transaction, type Executor } from "./database.js";
 
+export type ModelKind = "timeline" | "pro-checkpoints";
 export interface WinProbabilityModel {
   id: number;
+  kind: ModelKind;
   modelVersion: number;
   featureVersion: number;
   patchWindow: string[];
@@ -125,7 +127,10 @@ export async function trainWinProbabilityModel(
   const model = train(split.train);
   const result = evaluate(model, split.evaluate);
   return transaction(pool, async (c) => {
-    if (enough) await c.query("UPDATE wp_models SET status='retired' WHERE status='active'");
+    if (enough)
+      await c.query(
+        "UPDATE wp_models SET status='retired' WHERE status='active' AND kind='timeline'",
+      );
     const inserted = await c.query<{ id: string }>(
       `INSERT INTO wp_models(model_version,feature_version,patch_window,seed,train_matches,
          train_rows,eval_matches,eval_rows,coefficients,brier,bins,status,reason,trained_at)
@@ -155,6 +160,7 @@ export async function trainWinProbabilityModel(
 
 const fromRow = (r: Record<string, unknown>): WinProbabilityModel => ({
   id: Number(r.id),
+  kind: r.kind as ModelKind,
   modelVersion: r.model_version as number,
   featureVersion: r.feature_version as number,
   patchWindow: r.patch_window as string[],
@@ -170,16 +176,18 @@ const fromRow = (r: Record<string, unknown>): WinProbabilityModel => ({
   reason: r.reason as string | null,
   trainedAt: (r.trained_at as Date).toISOString(),
 });
-export async function activeWinProbabilityModel(db: Executor) {
-  const row = (await db.query("SELECT * FROM wp_models WHERE status='active'")).rows[0] as
-    Record<string, unknown> | undefined;
+export async function activeWinProbabilityModel(db: Executor, kind: ModelKind = "timeline") {
+  const row = (await db.query("SELECT * FROM wp_models WHERE status='active' AND kind=$1", [kind]))
+    .rows[0] as Record<string, unknown> | undefined;
   return row ? fromRow(row) : null;
 }
-export async function winProbabilityModels(db: Executor, limit = 20) {
+export async function winProbabilityModels(db: Executor, limit = 20, kind: ModelKind = "timeline") {
   return (
-    (await db.query("SELECT * FROM wp_models ORDER BY id DESC LIMIT $1", [limit])).rows as Record<
-      string,
-      unknown
-    >[]
+    (
+      await db.query("SELECT * FROM wp_models WHERE kind=$2 ORDER BY id DESC LIMIT $1", [
+        limit,
+        kind,
+      ])
+    ).rows as Record<string, unknown>[]
   ).map(fromRow);
 }
