@@ -117,3 +117,16 @@ export {
   type ProFeed,
   type ProFeedGame,
 } from "./domain/pro-feed.js";
+
+export {
+  trendingQuerySchema,
+  type TrendingQuery,
+  type TrendingChampions,
+  type TrendingChampion,
+} from "./domain/trending.js";
+export {
+  trendMinimumSample,
+  trendMinimumOutcomes,
+  trendCriticalZ,
+  type ProportionTrend,
+} from "./domain/statistics.js";

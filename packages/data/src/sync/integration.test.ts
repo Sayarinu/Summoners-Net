@@ -4702,3 +4702,154 @@ describe("pro solo queue feed", () => {
     });
   });
 });
+
+describe("champion trends", () => {
+  async function aggregate({
+    patch = "16.22",
+    source = "solo",
+    champion = 103,
+    role = "MIDDLE",
+    region = "europe",
+    queue = source === "solo" ? "420" : "pro",
+    picks = 100,
+    results = 100,
+    wins = 50,
+    slice = 1000,
+  }: {
+    patch?: string;
+    source?: string;
+    champion?: number;
+    role?: string;
+    region?: string;
+    queue?: string;
+    picks?: number;
+    results?: number;
+    wins?: number;
+    slice?: number;
+  } = {}) {
+    await pool.query(
+      `INSERT INTO champion_aggregates(source,patch_key,queue,region,tier,champion_key,role,games,result_games,wins,bans,slice_games,win_rate,pick_rate,ban_rate,built_at)
+  VALUES($1,$2,$3,$4,'TEST',$5,$6,$7,$8,$9,NULL,$10,NULL,NULL,NULL,$11)`,
+      [source, patch, queue, region, champion, role, picks, results, wins, slice, now],
+    );
+  }
+  it("compares aggregate-only counts with deduplicated sample pools, source and role isolation", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    await aggregate({ wins: 80 });
+    await aggregate({ patch: "16.21", wins: 20, results: 50, picks: 50 });
+    await aggregate({ region: "asia", picks: 50, results: 50, wins: 40, slice: 500 });
+    await aggregate({
+      patch: "16.21",
+      region: "asia",
+      picks: 25,
+      results: 25,
+      wins: 10,
+      slice: 500,
+    });
+    await aggregate({ role: "TOP", wins: 10 });
+    await aggregate({ patch: "16.21", role: "TOP", wins: 90 });
+    await aggregate({ champion: 157, wins: 50 });
+    await aggregate({ patch: "16.21", champion: 157, wins: 50 });
+    await aggregate({
+      queue: "450",
+      champion: 999,
+      picks: 999,
+      results: 999,
+      wins: 999,
+      slice: 999,
+    });
+    await aggregate({ source: "pro", wins: 10 });
+    await aggregate({ source: "pro", patch: "16.21", wins: 90 });
+    const calls = fetcher.mock.calls.length;
+    const data = await queries.trending({ role: "MIDDLE" });
+    expect(data.patch).toBe("16.22");
+    expect(data.previousPatch).toBe("16.21");
+    expect(data.currentGames).toBe(1500);
+    expect(data.previousGames).toBe(1500);
+    expect(data.page.total).toBe(2);
+    expect(data.page.items[0]!.pickRate).toMatchObject({
+      current: { value: 0.1, sampleCount: 1500 },
+      previous: { value: 0.05, sampleCount: 1500 },
+      direction: "rising",
+    });
+    expect(data.page.items[0]!.winRate).toMatchObject({
+      current: { value: 0.8, sampleCount: 150 },
+      previous: { value: 0.4, sampleCount: 75 },
+      direction: "rising",
+    });
+    expect(data.page.items[1]!.winRate).toMatchObject({ delta: 0, direction: null });
+    expect((await queries.trending({ role: "TOP" })).page.items[0]!.winRate.direction).toBe(
+      "falling",
+    );
+    expect(
+      (await queries.trending({ source: "pro", role: "MIDDLE" })).page.items[0]!.winRate.direction,
+    ).toBe("falling");
+    expect(fetcher.mock.calls.length).toBe(calls);
+    expect(
+      (
+        await pool.query(
+          "SELECT (SELECT count(*)::integer FROM riot_matches) AS solo,(SELECT count(*)::integer FROM oracle_archive_games) AS pro",
+        )
+      ).rows[0],
+    ).toEqual({ solo: 0, pro: 0 });
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const known = (await queries.trending({ role: "MIDDLE" })).page.items[0]!;
+    expect(known).toMatchObject({ championId: "Ahri", name: "Ahri" });
+    expect(known.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+  });
+  it("never substitutes older data for the preceding catalog patch and preserves missing champions", async () => {
+    expect((await queries.trending({})).patch).toBeNull();
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1", "16.20.1"], now);
+    await aggregate({});
+    await aggregate({ patch: "16.20", wins: 90 });
+    let data = await queries.trending({ role: "MIDDLE" });
+    expect(data.previousPatch).toBe("16.21");
+    expect(data.previousGames).toBe(0);
+    expect(data.page.items[0]!.pickRate.delta).toBeNull();
+    expect(data.page.items[0]!.winRate.delta).toBeNull();
+    await aggregate({ patch: "16.21", champion: 157 });
+    data = await queries.trending({ role: "MIDDLE" });
+    expect(data.page.total).toBe(2);
+    expect(data.page.items.map((r) => r.winRate.delta)).toEqual([null, null]);
+    expect(data.page.items.map((r) => r.pickRate.delta)).toEqual([null, null]);
+    expect((await queries.trending({ patch: "16.20", role: "MIDDLE" })).previousPatch).toBeNull();
+    expect((await queries.trending({ patch: "16.99" })).patch).toBeNull();
+    expect((await queries.trending({ source: "pro" })).page.total).toBe(0);
+  });
+  it("bounds SQL pages and keeps zero results and inconsistent aggregate proportions unknown", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    for (let champion = 1; champion <= 51; champion++) {
+      await aggregate({
+        champion,
+        role: "ALL",
+        wins: champion === 1 ? 0 : 80,
+        results: champion === 1 ? 0 : 100,
+        picks: champion === 1 ? 1001 : 100,
+      });
+      await aggregate({ patch: "16.21", champion, role: "ALL" });
+    }
+    const first = await queries.trending({});
+    expect(first.page.total).toBe(51);
+    expect(first.page.items).toHaveLength(50);
+    expect(first.page.items[0]).toMatchObject({
+      championId: null,
+      name: null,
+      imageUrl: null,
+      pickRate: { delta: null },
+      winRate: { delta: null },
+    });
+    const second = await queries.trending({ page: 2 });
+    expect(second.page.items.map((r) => r.championKey)).toEqual([51]);
+    expect((await queries.trending({ page: 100 })).page).toMatchObject({ total: 51, items: [] });
+    for (const input of [
+      { page: 0 },
+      { page: 10001 },
+      { source: "other" },
+      { patch: "16.22.1" },
+      { role: "SUPPORT" },
+      { source: ["solo", "pro"] },
+    ])
+      await expect(queries.trending(input as { page: number })).rejects.toThrow();
+  });
+});

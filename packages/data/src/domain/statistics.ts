@@ -187,3 +187,58 @@ export function shrinkDelta(delta: number | null, games: number, pseudoGames = d
     ? null
     : (delta * games) / (games + pseudoGames);
 }
+
+export const trendMinimumSample = 50;
+export const trendMinimumOutcomes = 5;
+export const trendCriticalZ = 1.96;
+export interface ProportionTrend {
+  current: SampledValue;
+  previous: SampledValue;
+  delta: number | null;
+  z: number | null;
+  direction: "rising" | "falling" | null;
+  reason: "missing" | "small-sample" | "sparse-outcomes" | "not-significant" | "significant";
+}
+/** Pooled two-proportion z test; policy and limitations are in docs/analytics/trending.md. */
+export function compareProportions(
+  currentSuccesses: Count,
+  currentTrials: Count,
+  previousSuccesses: Count,
+  previousTrials: Count,
+): ProportionTrend {
+  const a = counts(currentSuccesses, currentTrials),
+    b = counts(previousSuccesses, previousTrials);
+  const rate = (c: ReturnType<typeof counts>): SampledValue => ({
+    value: c && c.trials > 0 ? c.successes / c.trials : null,
+    sampleCount: c?.trials ?? 0,
+  });
+  const current = rate(a),
+    previous = rate(b);
+  const delta =
+    current.value === null || previous.value === null ? null : current.value - previous.value;
+  const result: ProportionTrend = {
+    current,
+    previous,
+    delta,
+    z: null,
+    direction: null,
+    reason: "missing",
+  };
+  if (!a || !b || delta === null) return result;
+  if (a.trials < trendMinimumSample || b.trials < trendMinimumSample)
+    return { ...result, reason: "small-sample" };
+  if (
+    Math.min(a.successes, a.trials - a.successes, b.successes, b.trials - b.successes) <
+    trendMinimumOutcomes
+  )
+    return { ...result, reason: "sparse-outcomes" };
+  const pooled = (a.successes + b.successes) / (a.trials + b.trials);
+  const z = delta / Math.sqrt(pooled * (1 - pooled) * (1 / a.trials + 1 / b.trials));
+  const significant = Math.abs(z) > trendCriticalZ;
+  return {
+    ...result,
+    z,
+    direction: significant ? (delta > 0 ? "rising" : "falling") : null,
+    reason: significant ? "significant" : "not-significant",
+  };
+}
