@@ -25,7 +25,13 @@ import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
-import { markLadderAttempt, recordLadderFailure, saveLadder } from "../persistence/riot.js";
+import {
+  accountsToResolve,
+  markLadderAttempt,
+  recordLadderFailure,
+  saveAccount,
+  saveLadder,
+} from "../persistence/riot.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { cacheCatalogImages } from "./catalog-images.js";
@@ -38,7 +44,9 @@ import {
   riotKeyFingerprint,
   type RiotKeyConfig,
   type RiotPlatform,
+  accountRoute,
   apexTiers,
+  parseAccount,
   parseLeagueList,
   soloQueue,
 } from "../providers/riot.js";
@@ -66,8 +74,8 @@ class ProviderError extends Error {
   }
 }
 // Riot key checks and identity resolution report through their own status, not source_status.
-const tracksSource = (r: SyncRequest) =>
-  r.kind !== "resolve" && r.kind !== "riot-key" && r.kind !== "riot-ladder";
+// Riot jobs report through their own status tables.
+const tracksSource = (r: SyncRequest) => r.kind !== "resolve" && !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -261,6 +269,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         failed.push(platform);
       }
     }
+    if (total) await enqueue(pool, { kind: "riot-accounts" }, clock());
     if (failed.length)
       throw new ProviderError(
         `Ladder refresh failed for ${failed.join(", ")}; their last ladders are kept.`,
@@ -268,9 +277,41 @@ export function worker(pool: Pool, options: WorkerOptions) {
       );
     return total;
   }
+  /**
+   * Resolves ladder players with no account or a check older than a week, a bounded batch per
+   * run. A failed lookup leaves the stored account and its timestamps untouched.
+   */
+  async function resolveAccounts(): Promise<number> {
+    if (!riot) return 0;
+    const due = await accountsToResolve(pool, new Date(clock().valueOf() - 7 * 86400000), 250);
+    let resolved = 0;
+    let failures = 0;
+    for (const { puuid, platform } of due) {
+      try {
+        const response = await riot(
+          accountRoute(platform),
+          "account-v1.getByPuuid",
+          `/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`,
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await saveAccount(pool, parseAccount(await response.json(), puuid), clock());
+        resolved++;
+      } catch (error) {
+        if (error instanceof DeferredRequest) throw error;
+        failures++;
+      }
+    }
+    if (failures && !resolved)
+      throw new ProviderError(
+        `Riot account lookups failed (${failures}); saved accounts are unchanged.`,
+        true,
+      );
+    return resolved;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "riot-ladder") return syncLadders();
+    if (r.kind === "riot-accounts") return resolveAccounts();
     if (r.kind === "entity-rosters") {
       const tournaments = (
         await pool.query<{ id: string; first: Date; last: Date }>(

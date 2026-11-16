@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { LadderEntry } from "../providers/riot.js";
+import type { LadderEntry, RiotAccount, RiotPlatform } from "../providers/riot.js";
 import { soloQueue } from "../providers/riot.js";
 import { transaction, type Executor } from "./database.js";
 
@@ -105,4 +105,74 @@ export async function currentLadder(db: Executor, platform: string) {
     losses: r.losses,
     fetchedAt: r.fetched_at.toISOString(),
   }));
+}
+
+/** Ladder players with no account yet first, then those checked longest ago before staleBefore. */
+export async function accountsToResolve(db: Executor, staleBefore: Date, limit: number) {
+  const rows = await db.query<{ puuid: string; platform: RiotPlatform }>(
+    `SELECT puuid,platform FROM (
+       SELECT DISTINCT ON (e.puuid) e.puuid,e.platform,a.checked_at
+       FROM riot_ladder_entries e LEFT JOIN riot_accounts a ON a.puuid=e.puuid
+       WHERE a.puuid IS NULL OR a.checked_at<$1
+       ORDER BY e.puuid,e.fetched_at DESC
+     ) due ORDER BY checked_at NULLS FIRST,puuid LIMIT $2`,
+    [staleBefore, limit],
+  );
+  return rows.rows;
+}
+/** Records a resolved account; a changed Riot ID is added to the history, never replacing the PUUID. */
+export async function saveAccount(pool: Pool, account: RiotAccount, now: Date) {
+  await transaction(pool, async (c) => {
+    await c.query(
+      `INSERT INTO riot_accounts(puuid,game_name,tag_line,first_seen_at,seen_at,checked_at)
+       VALUES($1,$2,$3,$4,$4,$4) ON CONFLICT(puuid) DO UPDATE SET game_name=EXCLUDED.game_name,
+         tag_line=EXCLUDED.tag_line,seen_at=EXCLUDED.seen_at,checked_at=EXCLUDED.checked_at`,
+      [account.puuid, account.gameName, account.tagLine, now],
+    );
+    if (account.gameName && account.tagLine)
+      await c.query(
+        `INSERT INTO riot_account_names(puuid,game_name,tag_line,first_seen_at,last_seen_at)
+         VALUES($1,$2,$3,$4,$4) ON CONFLICT(puuid,game_name,tag_line)
+         DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at`,
+        [account.puuid, account.gameName, account.tagLine, now],
+      );
+  });
+}
+export async function account(db: Executor, puuid: string) {
+  const row = (
+    await db.query<{
+      game_name: string | null;
+      tag_line: string | null;
+      first_seen_at: Date;
+      seen_at: Date;
+      checked_at: Date;
+    }>(
+      "SELECT game_name,tag_line,first_seen_at,seen_at,checked_at FROM riot_accounts WHERE puuid=$1",
+      [puuid],
+    )
+  ).rows[0];
+  if (!row) return null;
+  const names = await db.query<{
+    game_name: string;
+    tag_line: string;
+    first_seen_at: Date;
+    last_seen_at: Date;
+  }>(
+    "SELECT game_name,tag_line,first_seen_at,last_seen_at FROM riot_account_names WHERE puuid=$1 ORDER BY first_seen_at,game_name",
+    [puuid],
+  );
+  return {
+    puuid,
+    gameName: row.game_name,
+    tagLine: row.tag_line,
+    firstSeenAt: row.first_seen_at.toISOString(),
+    seenAt: row.seen_at.toISOString(),
+    checkedAt: row.checked_at.toISOString(),
+    names: names.rows.map((n) => ({
+      gameName: n.game_name,
+      tagLine: n.tag_line,
+      firstSeenAt: n.first_seen_at.toISOString(),
+      lastSeenAt: n.last_seen_at.toISOString(),
+    })),
+  };
 }

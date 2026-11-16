@@ -16,7 +16,7 @@ import {
   observeRiotLimits,
 } from "./quota.js";
 import { riotClient } from "./riot-client.js";
-import { currentLadder, ladderStatus } from "../persistence/riot.js";
+import { account, currentLadder, ladderStatus, saveLadder } from "../persistence/riot.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
 import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
@@ -105,7 +105,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -896,6 +896,105 @@ describe("Riot apex ladders", () => {
       await worker.request({ kind: "riot-ladder" });
       expect(await worker.runNext()).toMatchObject({ state: "done", records: 0 });
       expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await worker.close();
+    }
+  });
+});
+describe("Riot accounts", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const puuids = ["a".repeat(78), "b".repeat(78), "c".repeat(78)];
+  const entry = (puuid: string) => ({
+    puuid,
+    summonerId: null,
+    tier: "MASTER" as const,
+    rank: "I",
+    leaguePoints: 10,
+    wins: 1,
+    losses: 1,
+    leagueId: "league",
+  });
+  /** Answers account lookups from a name table; `fail` lists PUUIDs that get an HTTP 500. */
+  function serveAccounts(names: Record<string, string>, fail: string[] = []) {
+    fetcher.mockImplementation((input) => {
+      const url = new URL(endpoint(input));
+      const puuid = decodeURIComponent(url.pathname.split("/").pop()!);
+      if (fail.includes(puuid)) return Promise.resolve(new Response("", { status: 500 }));
+      return Promise.resolve(json({ puuid, gameName: names[puuid], tagLine: "EUW" }));
+    });
+  }
+  it("resolves missing and stale ladder accounts by PUUID and keeps Riot ID history", async () => {
+    await saveLadder(pool, "euw1", [entry(puuids[0]!), entry(puuids[1]!)], now);
+    await saveLadder(pool, "kr", [entry(puuids[2]!)], now);
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      serveAccounts({ [puuids[0]!]: "First", [puuids[1]!]: "Second", [puuids[2]!]: "Third" });
+      await worker.request({ kind: "riot-accounts" });
+      // The first run also checks the newly observed key; account lookups are a separate job.
+      while ((await worker.runNext()).state !== "idle");
+      const lookups = fetcher.mock.calls
+        .map(([input]) => new URL(endpoint(input)))
+        .filter((u) => u.pathname.startsWith("/riot/account"));
+      expect(lookups.map((u) => u.hostname.split(".")[0])).toEqual(["europe", "europe", "asia"]);
+      expect(await account(pool, puuids[0]!)).toEqual({
+        puuid: puuids[0],
+        gameName: "First",
+        tagLine: "EUW",
+        firstSeenAt: now.toISOString(),
+        seenAt: now.toISOString(),
+        checkedAt: now.toISOString(),
+        names: [
+          {
+            gameName: "First",
+            tagLine: "EUW",
+            firstSeenAt: now.toISOString(),
+            lastSeenAt: now.toISOString(),
+          },
+        ],
+      });
+      expect(
+        (
+          await pool.query<{ n: number }>(
+            "SELECT count(*)::integer n FROM riot_request_ledger WHERE method='account-v1.getByPuuid'",
+          )
+        ).rows[0]!.n,
+      ).toBe(3);
+
+      // Fresh accounts are not requested again.
+      fetcher.mockClear();
+      await worker.request({ kind: "riot-accounts" });
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(fetcher).not.toHaveBeenCalled();
+
+      // A week later: one renamed account, and one failed lookup that leaves its account untouched.
+      instant = new Date(now.valueOf() + 8 * 86400000);
+      serveAccounts({ [puuids[0]!]: "Renamed", [puuids[2]!]: "Third" }, [puuids[1]!]);
+      await worker.request({ kind: "riot-accounts" });
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 2 });
+      const renamed = await account(pool, puuids[0]!);
+      expect(renamed).toMatchObject({
+        gameName: "Renamed",
+        firstSeenAt: now.toISOString(),
+        seenAt: instant.toISOString(),
+      });
+      expect(renamed?.names.map((n) => n.gameName)).toEqual(["First", "Renamed"]);
+      expect(await account(pool, puuids[1]!)).toMatchObject({
+        gameName: "Second",
+        seenAt: now.toISOString(),
+        checkedAt: now.toISOString(),
+      });
+
+      // When every lookup fails, the job is retried and nothing changes.
+      instant = new Date(instant.valueOf() + 3600000);
+      serveAccounts({}, [puuids[1]!]);
+      await worker.request({ kind: "riot-accounts" });
+      expect((await worker.runNext()).state).toBe("queued");
+      expect(await account(pool, puuids[1]!)).toMatchObject({ checkedAt: now.toISOString() });
     } finally {
       await worker.close();
     }
