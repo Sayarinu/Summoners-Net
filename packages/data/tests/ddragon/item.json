@@ -1,0 +1,42 @@
+{
+  "type": "item",
+  "version": "16.22.1",
+  "data": {
+    "1001": {
+      "name": "Boots",
+      "image": {
+        "full": "1001.png",
+        "sprite": "item0.png",
+        "group": "item",
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 48
+      },
+      "gold": {
+        "base": 300,
+        "purchasable": true,
+        "total": 300,
+        "sell": 210
+      }
+    },
+    "3006": {
+      "name": "Berserker's Greaves",
+      "image": {
+        "full": "3006.png",
+        "sprite": "item3.png",
+        "group": "item",
+        "x": 0,
+        "y": 96,
+        "w": 48,
+        "h": 48
+      },
+      "gold": {
+        "base": 300,
+        "purchasable": true,
+        "total": 1100,
+        "sell": 770
+      }
+    }
+  }
+}
