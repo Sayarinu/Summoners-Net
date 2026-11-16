@@ -126,7 +126,12 @@ storage fails after cleanup, upload the original again to retry.
 
 Regional solo-queue ladders are available at `/leaderboards/euw1` (replace `euw1` with a configured
 Riot platform). They show the last successful apex-tier ladder, with champion counts from retained
-ranked games in that platform. These match samples are separate from season wins and losses.
+ranked games in that platform. These match samples are separate from season wins and losses. Open a
+player from the ladder to view their stable `/summoners/[puuid]` profile, current stored Riot ID,
+recent ranked games and champion pool. LP and rank history begins with successful ladder refreshes
+after snapshot recording is enabled. Charts show the last 30 UTC days, using each day's latest
+observed position per platform, with gaps for missing observations. Older current ladder rows are
+not backfilled into historical snapshots.
 
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 

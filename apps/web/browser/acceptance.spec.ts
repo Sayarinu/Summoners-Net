@@ -562,3 +562,33 @@ test("regional ladders show samples, paginate and reject invalid regions and pag
   const invalid = await page.goto("/leaderboards/europe");
   expect(invalid?.status()).toBe(404);
 });
+
+test("solo queue profiles use stable player IDs and show samples and ladder history", async ({
+  page,
+}) => {
+  const puuid = "a".repeat(78);
+  await page.goto("/leaderboards/euw1");
+  await page.getByRole("link", { name: "Ladder fixture#EUW", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp("/summoners/" + puuid + "$"));
+  await expect(
+    page.getByRole("heading", { name: "Ladder fixture#EUW", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("table", { name: "Recent ranked solo games" })).toContainText(
+    "EUW1_7000000001",
+  );
+  await expect(page.getByRole("table", { name: "Sampled champion pool" })).toContainText("Ahri");
+  await expect(page.getByRole("img", { name: "EUW1 LP history", exact: true })).toBeVisible();
+  await page.getByText("View data for EUW1 LP history", { exact: true }).click();
+  const data = page.getByRole("table", { name: "EUW1 LP history data" });
+  await expect(data).toContainText("1500");
+  await expect(data).toContainText("Unknown");
+  await page.getByRole("link", { name: "KR", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Recent ranked solo games" })).toContainText(
+    "No sampled games",
+  );
+  await expect(page.getByText("No ladder snapshots in this window")).toBeVisible();
+  await page.goto("/summoners/" + puuid + "?page=0");
+  await expect(page.getByRole("alert").filter({ hasText: "positive page numbers" })).toBeVisible();
+  const missing = await page.goto("/summoners/" + "x".repeat(78));
+  expect(missing?.status()).toBe(404);
+});

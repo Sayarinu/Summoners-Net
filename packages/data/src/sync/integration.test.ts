@@ -134,7 +134,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -4129,5 +4129,136 @@ describe("regional leaderboards", () => {
     expect(known.championId).toBe("Ahri");
     expect(known.name).toBe("Ahri");
     expect(known.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+  });
+});
+
+describe("solo queue profiles", () => {
+  const puuid = "a".repeat(78);
+  const entry = (lp: number, player = puuid) => ({
+    puuid: player,
+    summonerId: null,
+    tier: "CHALLENGER" as const,
+    rank: "I",
+    leaguePoints: lp,
+    wins: 1,
+    losses: 1,
+    leagueId: "fixture",
+  });
+  it("records atomic ladder snapshots, uses the current Riot ID and leaves missing days as gaps", async () => {
+    const day = (offset: number, hour = 10) => {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() + offset);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d;
+    };
+    await saveLadder(pool, "euw1", [entry(100), entry(200, "b".repeat(78))], day(-3));
+    await saveLadder(pool, "euw1", [entry(100), entry(200, "b".repeat(78))], day(-2));
+    await saveLadder(pool, "euw1", [entry(150)], day(-2, 11));
+    await recordLadderFailure(pool, "euw1", "fixture failure");
+    await saveLadder(pool, "euw1", [entry(300)], day(0));
+    await saveLadder(pool, "kr", [entry(50)], day(0));
+    await saveLadder(pool, "euw1", [entry(999)], day(1));
+    await saveAccount(pool, { puuid, gameName: "Old fixture", tagLine: "EUW" }, day(-2));
+    await saveAccount(pool, { puuid, gameName: "Current fixture", tagLine: "EUW" }, now);
+    const profile = (await queries.summoner({ puuid }))!;
+    expect(profile.gameName).toBe("Current fixture");
+    expect(profile.games.total).toBe(0);
+    expect(profile.champions.items).toEqual([]);
+    expect(profile.history.map((h) => h.platform)).toEqual(["euw1", "kr"]);
+    const points = profile.history[0]!.points;
+    expect(points).toHaveLength(30);
+    expect(points[26]).toMatchObject({ leaguePoints: 100, rank: 2, sampleCount: 1 });
+    expect(points[27]).toMatchObject({ leaguePoints: 150, rank: 1, sampleCount: 2 });
+    expect(points[28]).toMatchObject({
+      leaguePoints: null,
+      rank: null,
+      observedAt: null,
+      sampleCount: 0,
+    });
+    expect(points[29]).toMatchObject({ leaguePoints: 300, rank: 1, sampleCount: 1 });
+    expect((await queries.summoner({ puuid, region: "kr" }))!.history).toHaveLength(1);
+    expect((await queries.summoner({ puuid, region: "na1" }))!.history).toEqual([]);
+    expect(await queries.summoner({ puuid: "x".repeat(78) })).toBeNull();
+    await expect(queries.summoner({ puuid: "../bad" })).rejects.toThrow();
+    const count = async () =>
+      (await pool.query<{ n: number }>("SELECT count(*)::integer AS n FROM riot_ladder_snapshots"))
+        .rows[0]!.n;
+    const before = await count();
+    await pool.query(
+      "CREATE FUNCTION reject_snapshot_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture failure'; END $$",
+    );
+    await pool.query(
+      "CREATE TRIGGER reject_snapshot_fixture BEFORE INSERT ON riot_ladder_snapshot_entries FOR EACH ROW EXECUTE FUNCTION reject_snapshot_fixture()",
+    );
+    try {
+      await expect(saveLadder(pool, "euw1", [entry(500)], day(0))).rejects.toThrow();
+    } finally {
+      await pool.query("DROP TRIGGER reject_snapshot_fixture ON riot_ladder_snapshot_entries");
+      await pool.query("DROP FUNCTION reject_snapshot_fixture()");
+    }
+    expect(await count()).toBe(before);
+    expect((await currentLadder(pool, "euw1"))[0]!.leaguePoints).toBe(999);
+    // Match retention and a newer empty ladder cannot erase recorded observations.
+    await saveLadder(pool, "euw1", [], now);
+    expect((await queries.summoner({ puuid }))!.history[0]!.points[29]!.leaguePoints).toBe(300);
+  });
+  it("paginates games and champion pools in SQL, filters regions and preserves unknown results", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    const template = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: {
+        queueId: number;
+        platformId: string;
+        participants: { championId: number; win?: boolean; kills?: number }[];
+      };
+    };
+    for (let index = 0; index < 28; index++) {
+      const raw = structuredClone(template);
+      const platform = index === 27 ? "kr" : "euw1";
+      const matchId = platform.toUpperCase() + "_" + (9000000000 + index);
+      raw.metadata.matchId = matchId;
+      raw.info.platformId = platform.toUpperCase();
+      raw.info.queueId = index === 26 ? 450 : 420;
+      raw.info.participants[0]!.championId = index === 0 ? 103 : 1000 + index;
+      if (index === 1) {
+        delete raw.info.participants[0]!.win;
+        delete raw.info.participants[0]!.kills;
+      }
+      await saveMatchIds(
+        pool,
+        { puuid, platform, region: platform === "kr" ? "asia" : "europe", patchKey: "16.22" },
+        [matchId],
+        100,
+        now,
+      );
+      await saveRiotMatch(pool, parseRiotMatch(raw, matchId), raw, now);
+    }
+    const first = (await queries.summoner({ puuid, region: "euw1" }))!;
+    expect(first.games.total).toBe(26);
+    expect(first.games.items).toHaveLength(25);
+    expect(first.champions.total).toBe(26);
+    expect(first.champions.items).toHaveLength(25);
+    expect(first.champions.items[1]!.winRate).toEqual({ value: null, sampleCount: 0 });
+    expect(first.games.items[1]).toMatchObject({ win: null, kills: null });
+    expect(first.history).toEqual([]);
+    expect(first.gameName).toBeNull();
+    const second = (await queries.summoner({ puuid, region: "euw1", page: 2, championPage: 2 }))!;
+    expect(second.games.items).toHaveLength(1);
+    expect(second.champions.items).toHaveLength(1);
+    expect(first.games.items.map((g) => g.matchId)).not.toContain(second.games.items[0]!.matchId);
+    expect((await queries.summoner({ puuid }))!.games.total).toBe(27);
+    expect((await queries.summoner({ puuid, region: "kr" }))!.games.total).toBe(1);
+    const beyond = (await queries.summoner({ puuid, page: 100, championPage: 100 }))!;
+    expect(beyond.games.items).toEqual([]);
+    expect(beyond.games.total).toBe(27);
+    expect(beyond.champions.items).toEqual([]);
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const ahri = (await queries.summoner({ puuid }))!.champions.items[0]!;
+    expect(ahri.name).toBe("Ahri");
+    expect(ahri.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+    expect(ahri.winRate).toEqual({ value: 1, sampleCount: 1 });
   });
 });

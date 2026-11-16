@@ -43,6 +43,19 @@ export async function saveLadder(
         column("leagueId"),
       ],
     );
+    const snapshot = (
+      await c.query<{ snapshot_id: string }>(
+        `INSERT INTO riot_ladder_snapshots(platform,observed_at) VALUES($1,$2) RETURNING snapshot_id`,
+        [platform, now],
+      )
+    ).rows[0]!;
+    await c.query(
+      `INSERT INTO riot_ladder_snapshot_entries(snapshot_id,puuid,tier,league_points,position)
+      SELECT $1,e.*,row_number() OVER(ORDER BY CASE tier WHEN 'CHALLENGER' THEN 0
+        WHEN 'GRANDMASTER' THEN 1 ELSE 2 END,league_points DESC,puuid)::integer
+      FROM unnest($2::text[],$3::text[],$4::integer[]) AS e(puuid,tier,league_points)`,
+      [snapshot.snapshot_id, column("puuid"), column("tier"), column("leaguePoints")],
+    );
     await c.query(
       `INSERT INTO riot_ladder_status(platform,last_success,last_attempt,entries,error)
        VALUES($1,$2,$2,$3,NULL) ON CONFLICT(platform) DO UPDATE SET last_success=EXCLUDED.last_success,
