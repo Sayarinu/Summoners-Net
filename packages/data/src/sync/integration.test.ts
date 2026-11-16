@@ -19,7 +19,12 @@ import { riotClient } from "./riot-client.js";
 import { account, currentLadder, ladderStatus, saveLadder } from "../persistence/riot.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
-import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
+import {
+  listPatches,
+  patchFor,
+  savePatchCatalog,
+  unresolvedPatches,
+} from "../persistence/patches.js";
 import {
   championCatalog,
   championForOracleName,
@@ -105,7 +110,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -997,6 +1002,157 @@ describe("Riot accounts", () => {
       expect(await account(pool, puuids[1]!)).toMatchObject({ checkedAt: now.toISOString() });
     } finally {
       await worker.close();
+    }
+  });
+});
+describe("Riot match id crawl", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const [p1, p2, p3, p4] = ["1", "2", "3", "4"].map((c) => c.repeat(78)) as [
+    string,
+    string,
+    string,
+    string,
+  ];
+  const entry = (puuid: string) => ({
+    puuid,
+    summonerId: null,
+    tier: "CHALLENGER" as const,
+    rank: "I",
+    leaguePoints: 1000,
+    wins: 1,
+    losses: 1,
+    leagueId: "league",
+  });
+  const page = (prefix: string, from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => `${prefix}_${from + i}`);
+  /** Match id pages per PUUID; a function value answers with a Response instead. */
+  function serveIds(pages: Record<string, string[][] | (() => Response)>) {
+    fetcher.mockImplementation((input) => {
+      const url = new URL(endpoint(input));
+      if (!url.pathname.includes("/by-puuid/")) return Promise.resolve(json({}));
+      const puuid = decodeURIComponent(url.pathname.split("/")[6]!);
+      const answer = pages[puuid];
+      if (typeof answer === "function") return Promise.resolve(answer());
+      const index = Number(url.searchParams.get("start")) / 100;
+      return Promise.resolve(json(answer?.[index] ?? []));
+    });
+  }
+  const crawler = (cap: number) =>
+    createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+      riotMatchCap: cap,
+    });
+  const stored = async () =>
+    (
+      await pool.query<{ match_id: string; region: string; first_seen_puuid: string }>(
+        "SELECT match_id,region,first_seen_puuid FROM riot_match_ids ORDER BY match_id",
+      )
+    ).rows;
+  const idRequests = () =>
+    fetcher.mock.calls
+      .map(([input]) => new URL(endpoint(input)))
+      .filter((u) => u.pathname.includes("/ids"));
+  it("stores each ranked match once per region, stops at the cap and resumes", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [entry(p1), entry(p2), entry(p3)], now);
+    await saveLadder(pool, "kr", [entry(p4)], now);
+    const worker = crawler(4);
+    try {
+      serveIds({
+        [p1]: [["EUW1_1", "EUW1_2", "EUW1_3"]],
+        [p2]: [["EUW1_2", "EUW1_3", "EUW1_4", "EUW1_5"]],
+        [p3]: [["EUW1_6"]],
+        [p4]: [page("KR", 0, 100), page("KR", 100, 1)],
+      });
+      await worker.request({ kind: "riot-match-ids" });
+      while ((await worker.runNext()).state !== "idle");
+      // p2's shared games are kept once; the cap of 4 leaves room for one new id, then stops.
+      expect((await stored()).filter((m) => m.region === "europe")).toEqual([
+        { match_id: "EUW1_1", region: "europe", first_seen_puuid: p1 },
+        { match_id: "EUW1_2", region: "europe", first_seen_puuid: p1 },
+        { match_id: "EUW1_3", region: "europe", first_seen_puuid: p1 },
+        { match_id: "EUW1_4", region: "europe", first_seen_puuid: p2 },
+      ]);
+      // Asia has its own cap; the player's second page was requested and capped too.
+      expect((await stored()).filter((m) => m.region === "asia")).toHaveLength(4);
+      const requests = idRequests();
+      expect(requests.every((u) => u.searchParams.get("queue") === "420")).toBe(true);
+      expect(requests.every((u) => u.searchParams.get("type") === "ranked")).toBe(true);
+      expect(requests[0]!.searchParams.get("startTime")).toBe(
+        String(Math.floor((now.valueOf() - 14 * 86400000) / 1000)),
+      );
+      expect(requests.map((u) => u.hostname.split(".")[0])).not.toContain("euw1");
+      expect(
+        (
+          await pool.query<{ n: number }>(
+            "SELECT count(*)::integer n FROM riot_request_ledger WHERE method='match-v5.getMatchIdsByPUUID'",
+          )
+        ).rows[0]!.n,
+      ).toBe(requests.length);
+      // p3 was never reached, so it has no crawl record and goes first once there is room.
+      const crawled = await pool.query<{ puuid: string }>(
+        "SELECT puuid FROM riot_match_crawl ORDER BY puuid",
+      );
+      expect(crawled.rows.map((r) => r.puuid)).toEqual([p1, p2]);
+    } finally {
+      await worker.close();
+    }
+  });
+  it("keeps progress when a crawl fails and resumes with only newer matches", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [entry(p1), entry(p2)], now);
+    const worker = crawler(100);
+    try {
+      serveIds({ [p1]: [["EUW1_1"]], [p2]: () => new Response("", { status: 503 }) });
+      await worker.request({ kind: "riot-match-ids" });
+      let result = await worker.runNext();
+      while (result.state === "done" && !("records" in result && result.records === 1))
+        result = await worker.runNext();
+      expect(result.state).toBe("queued");
+      expect((await stored()).map((m) => m.match_id)).toEqual(["EUW1_1"]);
+
+      // The retry crawls only p2; p1 is not due again for six hours.
+      instant = new Date(now.valueOf() + 3600000);
+      fetcher.mockClear();
+      serveIds({ [p1]: [["EUW1_9"]], [p2]: [["EUW1_2"]] });
+      expect((await worker.runNext()).state).toBe("done");
+      expect(idRequests().map((u) => decodeURIComponent(u.pathname.split("/")[6]!))).toEqual([p2]);
+
+      // Seven hours later p1 is due again and asked only for matches since its last crawl.
+      instant = new Date(now.valueOf() + 7 * 3600000);
+      fetcher.mockClear();
+      await worker.request({ kind: "riot-match-ids" });
+      // The key check queued on the first run is still waiting; drain both jobs.
+      while ((await worker.runNext()).state !== "idle");
+      const again = idRequests().find((u) => u.pathname.includes(p1))!;
+      expect(again.searchParams.get("startTime")).toBe(String(Math.floor(now.valueOf() / 1000)));
+      expect((await stored()).map((m) => m.match_id)).toEqual(["EUW1_1", "EUW1_2", "EUW1_9"]);
+    } finally {
+      await worker.close();
+    }
+  });
+  it("waits for a patch catalog and skips without a key", async () => {
+    await saveLadder(pool, "euw1", [entry(p1)], now);
+    const worker = crawler(10);
+    try {
+      await worker.request({ kind: "riot-match-ids" });
+      let result = await worker.runNext();
+      while (result.state === "done") result = await worker.runNext();
+      expect("error" in result ? result.error : "").toContain("patch catalog");
+    } finally {
+      await worker.close();
+    }
+    const keyless = createSync(connection, { clock: () => instant, fetch: fetcher });
+    try {
+      fetcher.mockClear();
+      await keyless.request({ kind: "riot-match-ids" });
+      expect(await keyless.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await keyless.close();
     }
   });
 });

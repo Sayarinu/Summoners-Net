@@ -27,6 +27,11 @@ import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import {
   accountsToResolve,
+  currentPatchKey,
+  matchIdCount,
+  playersToCrawl,
+  recordCrawl,
+  saveMatchIds,
   markLadderAttempt,
   recordLadderFailure,
   saveAccount,
@@ -46,6 +51,9 @@ import {
   type RiotPlatform,
   accountRoute,
   apexTiers,
+  matchRoute,
+  parseMatchIds,
+  rankedSoloQueueId,
   parseAccount,
   parseLeagueList,
   soloQueue,
@@ -64,6 +72,8 @@ export interface WorkerOptions {
   riot?: RiotKeyConfig;
   /** Platforms selected with RIOT_PLATFORMS, validated at startup. */
   riotPlatforms?: readonly RiotPlatform[];
+  /** Most match ids kept per region and patch (RIOT_MATCH_CAP). */
+  riotMatchCap?: number;
 }
 class ProviderError extends Error {
   constructor(
@@ -308,8 +318,69 @@ export function worker(pool: Pool, options: WorkerOptions) {
       );
     return resolved;
   }
+  /**
+   * Pages ranked solo queue match ids for current ladder players, newest first, until each
+   * region reaches its cap for the current patch. Progress is recorded per player, so an
+   * interrupted crawl resumes, and a later crawl asks only for matches since the last one.
+   */
+  async function crawlMatchIds(): Promise<number> {
+    if (!riot) return 0;
+    const patchKey = await currentPatchKey(pool);
+    if (!patchKey)
+      throw new ProviderError("No patch catalog yet; refresh game metadata before crawling.");
+    const cap = options.riotMatchCap ?? 2000;
+    const now = clock();
+    const players = await playersToCrawl(pool, new Date(now.valueOf() - 6 * 3600000), 100);
+    const full = new Set<string>();
+    let added = 0;
+    for (const player of players) {
+      const region = matchRoute(player.platform);
+      if (full.has(region)) continue;
+      const since = Math.max(player.crawledAt?.valueOf() ?? 0, clock().valueOf() - 14 * 86400000);
+      let seen = 0;
+      for (let start = 0; start < 500; start += 100) {
+        const room = cap - (await matchIdCount(pool, region, patchKey));
+        if (room <= 0) {
+          full.add(region);
+          break;
+        }
+        const query = new URLSearchParams({
+          queue: String(rankedSoloQueueId),
+          type: "ranked",
+          startTime: String(Math.floor(since / 1000)),
+          start: String(start),
+          count: "100",
+        });
+        const response = await riot(
+          region,
+          "match-v5.getMatchIdsByPUUID",
+          `/lol/match/v5/matches/by-puuid/${encodeURIComponent(player.puuid)}/ids?${query}`,
+        );
+        if (response.status === 400 || response.status === 404) break;
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for match ids; crawl progress is kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        const ids = parseMatchIds(await response.json());
+        seen += ids.length;
+        added += await saveMatchIds(
+          pool,
+          { puuid: player.puuid, platform: player.platform, region, patchKey },
+          ids,
+          room,
+          clock(),
+        );
+        if (ids.length < 100) break;
+      }
+      // A player cut short by the cap is crawled first once there is room again.
+      if (!full.has(region)) await recordCrawl(pool, player, seen, clock());
+    }
+    return added;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-match-ids") return crawlMatchIds();
     if (r.kind === "riot-ladder") return syncLadders();
     if (r.kind === "riot-accounts") return resolveAccounts();
     if (r.kind === "entity-rosters") {
