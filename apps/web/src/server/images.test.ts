@@ -1,9 +1,10 @@
 // @vitest-environment node
 import { it, expect, vi } from "vitest";
-import { serveImage, serveMinimapImage } from "./images";
+import { serveImage, serveMinimapImage, serveCatalogImage } from "./images";
 const image = vi.hoisted(() => vi.fn());
 const mapImage = vi.hoisted(() => vi.fn());
-vi.mock("./data", () => ({ data: () => ({ image, mapImage }) }));
+const catalogIcons = vi.hoisted(() => vi.fn());
+vi.mock("./data", () => ({ data: () => ({ image, mapImage, catalogIcons }) }));
 it("serves only cached raster bytes with immutable same-origin headers", async () => {
   expect((await serveImage("invalid")).status).toBe(404);
   expect(image).not.toHaveBeenCalled();
@@ -26,4 +27,26 @@ it("redirects the minimap to its cached hash without fetching a provider", async
   expect(response.status).toBe(307);
   expect(response.headers.get("location")).toBe(`/api/images/${"a".repeat(64)}`);
   expect(response.headers.get("cache-control")).toBe("no-store");
+});
+
+it("validates catalog ids and redirects only cached icons", async () => {
+  expect(
+    (await serveCatalogImage({ patch: "bad", kind: "champion", id: "MonkeyKing" })).status,
+  ).toBe(400);
+  expect(catalogIcons).not.toHaveBeenCalled();
+  const input = { patch: "16.22", kind: "champion", id: "MonkeyKing" };
+  catalogIcons.mockResolvedValueOnce([]);
+  expect((await serveCatalogImage(input)).status).toBe(404);
+  catalogIcons.mockResolvedValueOnce([{ imageUrl: null }]);
+  expect((await serveCatalogImage(input)).status).toBe(404);
+  catalogIcons.mockResolvedValueOnce([{ imageUrl: `/api/images/${"b".repeat(64)}` }]);
+  const response = await serveCatalogImage(input);
+  expect(response.status).toBe(307);
+  expect(response.headers.get("location")).toBe(`/api/images/${"b".repeat(64)}`);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(catalogIcons).toHaveBeenLastCalledWith({
+    patch: "16.22",
+    kind: "champion",
+    ids: ["MonkeyKing"],
+  });
 });

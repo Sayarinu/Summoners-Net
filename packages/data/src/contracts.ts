@@ -13,3 +13,6 @@ export type {
 } from "./domain/historical.js";
 
 export type { MapImage } from "./domain/map.js";
+
+export { catalogIconQuerySchema } from "./domain/catalog-icons.js";
+export type { CatalogIconQuery, CatalogIcon } from "./domain/catalog-icons.js";

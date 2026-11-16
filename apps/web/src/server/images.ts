@@ -1,3 +1,4 @@
+import { catalogIconQuerySchema } from "@summonersnet/data/contracts";
 import { data } from "./data";
 
 export async function serveImage(hash: string) {
@@ -21,5 +22,17 @@ export async function serveMinimapImage() {
   return new Response(null, {
     status: 307,
     headers: { Location: map.imageUrl, "Cache-Control": "no-store" },
+  });
+}
+
+export async function serveCatalogImage(input: { patch: string; kind: string; id: string }) {
+  const parsed = catalogIconQuerySchema.safeParse({ ...input, ids: [input.id] });
+  if (!parsed.success) return new Response(null, { status: 400 });
+  const [icon] = await data().catalogIcons(parsed.data);
+  if (!icon?.imageUrl)
+    return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  return new Response(null, {
+    status: 307,
+    headers: { Location: icon.imageUrl, "Cache-Control": "no-store" },
   });
 }
