@@ -26,6 +26,7 @@ import {
 import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
+import { championStats } from "../persistence/aggregates.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
@@ -123,7 +124,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -1917,6 +1918,259 @@ describe("Riot crawl status", () => {
         timelines: 0,
       },
     ]);
+  });
+});
+describe("Champion aggregates", () => {
+  const match = JSON.parse(
+    readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+  ) as {
+    metadata: { matchId: string };
+    info: { participants: Record<string, unknown>[] };
+  };
+  const ladderEntry = (puuid: string, tier: "CHALLENGER" | "MASTER") => ({
+    puuid,
+    summonerId: null,
+    tier,
+    rank: "I",
+    leaguePoints: 1,
+    wins: 1,
+    losses: 1,
+    leagueId: "l",
+  });
+  const [challenger, master] = ["x".repeat(78), "y".repeat(78)];
+  async function ingest(
+    matchId: string,
+    seenBy: string,
+    change: (m: typeof match) => void = () => {},
+  ) {
+    await saveMatchIds(
+      pool,
+      { puuid: seenBy, platform: "euw1", region: "europe", patchKey: "16.22" },
+      [matchId],
+      10,
+      now,
+    );
+    const copy = structuredClone(match);
+    copy.metadata.matchId = matchId;
+    change(copy);
+    await saveRiotMatch(pool, parseRiotMatch(copy, matchId), copy, now);
+  }
+  const aggregates = async (where: string) =>
+    (
+      await pool.query<Record<string, unknown>>(
+        `SELECT tier,role,games,result_games,wins,bans,slice_games,win_rate,pick_rate,ban_rate
+         FROM champion_aggregates WHERE ${where} ORDER BY tier,role`,
+      )
+    ).rows;
+  const runAggregate = async (rebuild = false) => {
+    await sync.request(rebuild ? { kind: "aggregate", rebuild } : { kind: "aggregate" });
+    let result = await sync.runNext();
+    while (result.state !== "idle") result = await sync.runNext();
+  };
+  it("builds solo-queue aggregates that match hand counts, with null rates for empty samples", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    await saveLadder(
+      pool,
+      "euw1",
+      [ladderEntry(challenger, "CHALLENGER"), ladderEntry(master, "MASTER")],
+      now,
+    );
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+    });
+    await ingest("EUW1_3", master, (m) => {
+      delete m.info.participants[0]!.win;
+    });
+    // A remake does not count.
+    await ingest("EUW1_4", challenger, (m) => {
+      m.info.participants[3]!.gameEndedInEarlySurrender = true;
+    });
+    // An empty patch with nothing to count.
+    await pool.query("INSERT INTO aggregate_dirty VALUES('solo','16.21',$1)", [now]);
+    await runAggregate();
+    // Ahri (103), always mid for the winning blue side in the fixture.
+    expect(await aggregates("source='solo' AND champion_key=103")).toEqual([
+      {
+        tier: "CHALLENGER",
+        role: "ALL",
+        games: 2,
+        result_games: 2,
+        wins: 1,
+        bans: 0,
+        slice_games: 2,
+        win_rate: 0.5,
+        pick_rate: 1,
+        ban_rate: 0,
+      },
+      {
+        tier: "CHALLENGER",
+        role: "MIDDLE",
+        games: 2,
+        result_games: 2,
+        wins: 1,
+        bans: null,
+        slice_games: 2,
+        win_rate: 0.5,
+        pick_rate: 1,
+        ban_rate: null,
+      },
+      // One game whose result Riot omitted: no win rate rather than 0%.
+      {
+        tier: "MASTER",
+        role: "ALL",
+        games: 1,
+        result_games: 0,
+        wins: 0,
+        bans: 0,
+        slice_games: 1,
+        win_rate: null,
+        pick_rate: 1,
+        ban_rate: 0,
+      },
+      {
+        tier: "MASTER",
+        role: "MIDDLE",
+        games: 1,
+        result_games: 0,
+        wins: 0,
+        bans: null,
+        slice_games: 1,
+        win_rate: null,
+        pick_rate: 1,
+        ban_rate: null,
+      },
+    ]);
+    // Champion 238 is banned by both teams in every game but never picked; a ban counts once per game.
+    expect(await aggregates("source='solo' AND champion_key=238")).toEqual([
+      {
+        tier: "CHALLENGER",
+        role: "ALL",
+        games: 0,
+        result_games: 0,
+        wins: 0,
+        bans: 2,
+        slice_games: 2,
+        win_rate: null,
+        pick_rate: 0,
+        ban_rate: 1,
+      },
+      {
+        tier: "MASTER",
+        role: "ALL",
+        games: 0,
+        result_games: 0,
+        wins: 0,
+        bans: 1,
+        slice_games: 1,
+        win_rate: null,
+        pick_rate: 0,
+        ban_rate: 1,
+      },
+    ]);
+    expect((await aggregates("source='solo' AND patch_key='16.22'")).length).toBe(42);
+    expect(await aggregates("patch_key='16.21'")).toEqual([]);
+    expect((await pool.query("SELECT count(*)::integer n FROM aggregate_dirty")).rows[0]).toEqual({
+      n: 0,
+    });
+
+    // Reads sum over tiers in SQL and carry sample counts on every rate.
+    const all = await championStats(pool, { role: "MIDDLE" });
+    expect(all).toMatchObject({ source: "solo", patch: "16.22", sliceGames: 3 });
+    expect(all.rows.find((r) => r.championKey === 103)).toMatchObject({
+      games: 3,
+      wins: 1,
+      winRate: { value: 0.5, sampleCount: 2 },
+      pickRate: { value: 1, sampleCount: 3 },
+      banRate: { value: null, sampleCount: 0 },
+    });
+    const masters = await queries.championStats({ tier: "MASTER", champion: 238 });
+    expect(masters.rows).toEqual([
+      expect.objectContaining({
+        championKey: 238,
+        games: 0,
+        winRate: { value: null, sampleCount: 0, lower: null, upper: null },
+        banRate: { value: 1, sampleCount: 1 },
+      }),
+    ]);
+    expect(await championStats(pool, { patch: "16.21" })).toEqual({
+      source: "solo",
+      patch: "16.21",
+      sliceGames: 0,
+      rows: [],
+    });
+    expect(await championStats(pool, { source: "pro" })).toEqual({
+      source: "pro",
+      patch: null,
+      sliceGames: 0,
+      rows: [],
+    });
+    await expect(championStats(pool, { role: "SUPPORT" as "UTILITY" })).rejects.toThrow();
+  });
+  it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
+    serveDataDragon(["16.4.1", "16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await importCsv();
+    await runAggregate();
+    // The fixture game: Ahri in all ten positions, blue side wins.
+    expect(
+      await aggregates("source='pro' AND champion_key=103 AND role IN ('ALL','MIDDLE')"),
+    ).toEqual([
+      {
+        tier: "PRO",
+        role: "ALL",
+        games: 10,
+        result_games: 10,
+        wins: 5,
+        bans: 0,
+        slice_games: 1,
+        win_rate: 0.5,
+        pick_rate: 10,
+        ban_rate: 0,
+      },
+      {
+        tier: "PRO",
+        role: "MIDDLE",
+        games: 2,
+        result_games: 2,
+        wins: 1,
+        bans: null,
+        slice_games: 1,
+        win_rate: 0.5,
+        pick_rate: 2,
+        ban_rate: null,
+      },
+    ]);
+    const proBuilt = (
+      await pool.query("SELECT DISTINCT built_at FROM champion_aggregates WHERE source='pro'")
+    ).rows;
+
+    // A new solo match marks only its own patch.
+    instant = new Date(now.valueOf() + 3600000);
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    expect((await pool.query("SELECT source,patch_key FROM aggregate_dirty")).rows).toEqual([
+      { source: "solo", patch_key: "16.22" },
+    ]);
+    await runAggregate();
+    expect(
+      (await pool.query("SELECT DISTINCT built_at FROM champion_aggregates WHERE source='pro'"))
+        .rows,
+    ).toEqual(proBuilt);
+    const solo = await championStats(pool, { source: "solo" });
+    const pro = await championStats(pool, {
+      source: "pro",
+      region: "LCK",
+      tier: "PRO",
+      queue: "pro",
+    });
+    expect([solo.patch, pro.patch]).toEqual(["16.22", "16.4"]);
+
+    // A full rerun from stored facts reproduces the same numbers.
+    const before = await aggregates("true");
+    await pool.query("DELETE FROM champion_aggregates");
+    await runAggregate(true);
+    expect(await aggregates("true")).toEqual(before);
   });
 });
 describe("Riot API key", () => {

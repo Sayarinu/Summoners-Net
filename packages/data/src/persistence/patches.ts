@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { comparePatches, normalizePatch, type PatchKey } from "../domain/patches.js";
 import { transaction, type Executor } from "./database.js";
+import { markDirty } from "./aggregates.js";
 
 export type PatchSource = "ddragon" | "oracle" | "riot";
 export interface CatalogPatch {
@@ -26,7 +27,7 @@ async function recordSources(db: Executor, source: PatchSource, values: string[]
 }
 
 /** Links every recorded source string to a catalog patch, or leaves it NULL when there is none. */
-async function resolveSources(db: Executor) {
+async function resolveSources(db: Executor, now: Date) {
   const known = new Set(
     (await db.query<{ patch_key: string }>("SELECT patch_key FROM patches")).rows.map(
       (r) => r.patch_key,
@@ -44,6 +45,13 @@ async function resolveSources(db: Executor) {
     })
     .filter((r) => r.next !== r.patch_key);
   if (!changed.length) return;
+  // Oracle games whose patch string is newly linked count toward that patch's pro aggregates.
+  await markDirty(
+    db,
+    "pro",
+    changed.filter((r) => r.source === "oracle").map((r) => r.next),
+    now,
+  );
   await db.query(
     `UPDATE patch_sources s SET patch_key=c.patch_key
      FROM unnest($1::text[],$2::text[],$3::text[]) c(source,source_string,patch_key)
@@ -84,12 +92,18 @@ export async function savePatchCatalog(pool: Pool, versions: readonly string[], 
        WHERE p.patch_key=r.patch_key AND p.release_order<>r.n`,
     );
     await recordSources(c, "ddragon", [...new Set(versions)], now);
-    await resolveSources(c);
+    await resolveSources(c, now);
     // Riot matches ingested before their patch reached the catalog are linked now.
-    await c.query(
+    const linked = await c.query<{ patch_key: string }>(
       `UPDATE riot_matches m SET patch_key=s.patch_key FROM patch_sources s
        WHERE m.patch_key IS NULL AND s.source='riot' AND s.source_string=m.game_version
-         AND s.patch_key IS NOT NULL`,
+         AND s.patch_key IS NOT NULL RETURNING m.patch_key`,
+    );
+    await markDirty(
+      c,
+      "solo",
+      linked.rows.map((r) => r.patch_key),
+      now,
     );
   });
   return ordered.length;
@@ -105,7 +119,7 @@ export async function recordOraclePatches(pool: Pool, now: Date) {
       )
     ).rows.map((r) => r.patch);
     await recordSources(c, "oracle", values, now);
-    await resolveSources(c);
+    await resolveSources(c, now);
   });
 }
 

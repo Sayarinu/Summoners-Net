@@ -42,6 +42,12 @@ export { catalogIconQuerySchema } from "./domain/catalog-icons.js";
 export type { CatalogIconQuery, CatalogIcon } from "./domain/catalog-icons.js";
 
 export { draftQuerySchema } from "./domain/drafts.js";
+export { championStatsQuerySchema, championRoles } from "./domain/champion-stats.js";
+export type {
+  ChampionStats,
+  ChampionStatsQuery,
+  ChampionStatsRow,
+} from "./domain/champion-stats.js";
 export type {
   DraftQuery,
   ParsedDraftQuery,
