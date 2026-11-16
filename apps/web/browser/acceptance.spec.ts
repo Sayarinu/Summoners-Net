@@ -540,7 +540,9 @@ test("regional ladders show samples, paginate and reject invalid regions and pag
   await page.getByRole("link", { name: "KR", exact: true }).click();
   await expect(page.getByText("No ladder stored for this region")).toBeVisible();
   await page.goto("/leaderboards/euw1?pageSize=101");
-  await expect(page.getByRole("alert")).toContainText("page size from 1 to 100");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "page size from 1 to 100" }),
+  ).toBeVisible();
   const invalid = await page.goto("/leaderboards/europe");
   expect(invalid?.status()).toBe(404);
 });
