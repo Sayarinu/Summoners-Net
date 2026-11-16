@@ -86,10 +86,15 @@ export const buildKinds = [
   "keystone",
   "shards",
   "spells",
+  "skills",
+  "skillmax",
 ] as const;
 export interface BuildItem {
-  kind: "item" | "rune" | "shard" | "spell";
-  /** Data Dragon id: item id, rune or style id, stat shard id, or summoner spell key. */
+  kind: "item" | "rune" | "shard" | "spell" | "skill";
+  /**
+   * Data Dragon id: item id, rune or style id, stat shard id, summoner spell key, or ability slot
+   * (1 Q, 2 W, 3 E).
+   */
   id: number;
   /** Data Dragon's own id for a summoner spell ("SummonerFlash"), used for its icon. */
   catalogId: string;
@@ -109,4 +114,7 @@ export interface BuildRow {
   winRate: { value: number | null; sampleCount: number };
   sample: "shown" | "low-sample" | "hidden";
 }
-export type ChampionBuilds = Record<(typeof buildKinds)[number], BuildRow[]>;
+export type ChampionBuilds = Record<(typeof buildKinds)[number], BuildRow[]> & {
+  /** Games whose skill-ups did not decide the order, left out of skills and skillmax. */
+  excluded: { skills: number; skillmax: number };
+};
