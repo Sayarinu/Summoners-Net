@@ -1,3 +1,4 @@
+import { championPlayers } from "./champion-players.js";
 import type { Pool } from "pg";
 import {
   championOverviewQuerySchema,
@@ -496,6 +497,18 @@ export async function championOverview(
       patch: q.source === "pro" ? (list.patch ?? undefined) : q.patch,
       league: q.league,
     }),
+    players:
+      q.source === "solo" && list.patch
+        ? await championPlayers(db, {
+            championKey: champion.champion_key,
+            patch: list.patch,
+            role: q.role,
+            region: q.region,
+            tier: q.tier,
+            sort: q.playersSort,
+            page: q.playersPage,
+          })
+        : null,
     synergies:
       q.source === "solo" && list.patch
         ? await championSynergies(db, {

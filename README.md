@@ -149,7 +149,9 @@ Compare pick and win rates at `/trending`, using Solo queue or Pro aggregates an
 Each patch is compared with its immediate catalog predecessor; missing comparisons stay unknown.
 Trend labels require the [documented sample and significance policy](docs/analytics/trending.md).
 Patch summaries at `/patches/16.22` combine qualified trends, newly observed three-item builds and
-pro presence leaders. See the [patch overview sample rules](docs/analytics/patch-overview.md).
+pro presence leaders. See the [patch overview sample rules](docs/analytics/patch-overview.md). Solo
+champion pages also list [sampled ladder players](docs/analytics/champion-players.md), with current
+stored ranks, pro identity links and a visible minimum sample.
 
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 

@@ -1,3 +1,4 @@
+import { championPlayersOptionsSchema, type ChampionPlayers } from "./champion-players.js";
 import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
@@ -109,6 +110,7 @@ export const championOverviewQuerySchema = z
     tier: z.string().trim().min(1).max(20).optional(),
   })
   .extend(synergyQuerySchema.shape)
+  .extend(championPlayersOptionsSchema.shape)
   .extend({ league: z.string().trim().min(1).max(100).optional() })
   .strict();
 export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
@@ -147,6 +149,8 @@ export interface ChampionOverview {
   pro: ProChampionStats;
   /** Solo-queue allies, one page sorted in SQL; null for pro play. */
   synergies: Synergies | null;
+  /** Current ladder players with enough retained ranked games on this champion and patch. */
+  players: ChampionPlayers | null;
   /** The most played bot-lane carries and supports together; null for pro play. */
   botLane: BotLaneMatrix | null;
 }

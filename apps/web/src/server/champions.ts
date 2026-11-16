@@ -5,7 +5,7 @@ import { data } from "./data";
 // "all" (and an empty value) means no filter for that field.
 const filters = (params: Record<string, string | string[] | undefined>) =>
   Object.fromEntries(
-    Object.entries(params).filter(([, v]) => typeof v === "string" && v !== "" && v !== "all"),
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== "" && v !== "all"),
   );
 /** Validates the tier list query string; an invalid one shows an error instead of data. */
 export async function loadTierList(params: Record<string, string | string[] | undefined>) {
@@ -31,7 +31,10 @@ export async function loadChampionOverview(
 ) {
   const id = championOverviewQuerySchema.shape.champion.safeParse(championId);
   if (!id.success) return null;
-  const parsed = championOverviewQuerySchema.safeParse({ ...filters(params), champion: id.data });
+  const input = filters(params);
+  for (const name of ["playersSort", "playersPage"])
+    if (params[name] !== undefined) input[name] = params[name];
+  const parsed = championOverviewQuerySchema.safeParse({ ...input, champion: id.data });
   const overview = await data().championOverview(
     parsed.success ? parsed.data : { champion: id.data },
   );

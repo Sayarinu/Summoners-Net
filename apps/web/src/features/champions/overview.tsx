@@ -1,4 +1,5 @@
 "use client";
+import { PlayersSection } from "./players";
 import { ChampionIcon, EmptyState, Sparkline, TextLink } from "@summonersnet/ui";
 import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
@@ -105,6 +106,7 @@ export function ChampionOverviewPage({
           <SynergiesSection overview={overview} />
           <SkillsSection builds={overview.builds} />
           <BuildsSection builds={overview.builds} />
+          <PlayersSection overview={overview} />
         </section>
       )}
     </div>

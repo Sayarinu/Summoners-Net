@@ -5236,3 +5236,205 @@ describe("patch overviews", () => {
     expect((await queries.patchOverview("16.22"))?.builds).toHaveLength(1);
   });
 });
+
+describe("champion ladder players", () => {
+  const id = (n: number) => `player_${n.toString().padStart(71, "0")}`;
+  const entry = (puuid: string, tier: "CHALLENGER" | "MASTER" = "CHALLENGER") => ({
+    puuid,
+    summonerId: null,
+    tier,
+    rank: "I",
+    leaguePoints: 500,
+    wins: 50,
+    losses: 50,
+    leagueId: "players-fixture",
+  });
+  let sequence = 0;
+  async function samples(
+    puuid: string,
+    games: number,
+    wins: number,
+    options: {
+      results?: number;
+      platform?: string;
+      patch?: string;
+      role?: string;
+      queue?: number;
+      remake?: boolean;
+    } = {},
+  ) {
+    const {
+      platform = "euw1",
+      patch = "16.22",
+      role = "MIDDLE",
+      queue = 420,
+      remake = false,
+      results = games,
+    } = options;
+    const ids = Array.from(
+      { length: games },
+      () => `${platform.toUpperCase()}_${8800000000 + sequence++}`,
+    );
+    await saveMatchIds(
+      pool,
+      { puuid, platform, region: platform === "kr" ? "asia" : "europe", patchKey: patch },
+      ids,
+      1000,
+      now,
+    );
+    await pool.query(
+      `INSERT INTO riot_matches(match_id,game_version,platform_id,queue_id,patch_key,created_at,fetched_at,remake)
+      SELECT id,$2,$3,$4,$5,$6,$6,$7 FROM unnest($1::text[]) ids(id)`,
+      [ids, `${patch}.1`, platform.toUpperCase(), queue, patch, now, remake],
+    );
+    await pool.query(
+      `INSERT INTO riot_match_participants(match_id,participant_id,puuid,team_id,side,champion_id,team_position,win)
+      SELECT id,1,$2,100,'blue',103,$3,CASE WHEN ord<=$4 THEN ord<=$5 ELSE NULL END
+      FROM unnest($1::text[]) WITH ORDINALITY ids(id,ord)`,
+      [ids, puuid, role, results, wins],
+    );
+  }
+  async function catalog() {
+    serveDataDragon(["16.22.1", "16.21.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+  }
+  async function overview(
+    input: Parameters<typeof queries.championOverview>[0] = { champion: "Ahri" },
+  ) {
+    expect((await run({ kind: "aggregate" })).state).toBe("done");
+    return queries.championOverview({ patch: "16.22", ...input });
+  }
+  it("requires ten games, sorts sampled rates with unknowns last and decorates linked pro accounts", async () => {
+    await catalog();
+    await importCsv();
+    const a = "a".repeat(78),
+      b = id(2),
+      c = id(3),
+      d = id(4);
+    await saveLadder(pool, "euw1", [entry(a), entry(b), entry(c), entry(d)], now);
+    await saveAccount(pool, { puuid: a, gameName: "Fixture player", tagLine: "EUW" }, now);
+    await samples(a, 12, 6);
+    await samples(b, 10, 9);
+    await samples(c, 11, 1, { results: 1 });
+    await samples(d, 9, 9);
+    const file = join(directory, "champion-player-links.json");
+    await writeFile(file, JSON.stringify(proAccountFixture([proAccountFixtureLink()])));
+    expect((await run({ kind: "pro-account-links", file })).state).toBe("done");
+    const data = await overview();
+    expect(data?.players?.page).toMatchObject({ total: 3, pageSize: 20, page: 1 });
+    expect(data?.players?.page.items.map((r) => r.puuid)).toEqual([a, c, b]);
+    expect(data?.players?.page.items[0]).toMatchObject({
+      gameName: "Fixture player",
+      tagLine: "EUW",
+      tier: "CHALLENGER",
+      leaguePoints: 500,
+      games: 12,
+      winRate: { value: 0.5, sampleCount: 12 },
+      pro: { id: "oracle:player:10-mid", name: "Player Blue mid" },
+    });
+    expect(data?.players?.page.items[1]).toMatchObject({
+      gameName: null,
+      pro: null,
+      winRate: { value: null, sampleCount: 1 },
+    });
+    const sorted = await queries.championOverview({
+      champion: "Ahri",
+      patch: "16.22",
+      playersSort: "winRate",
+    });
+    expect(sorted?.players?.page.items.map((r) => r.puuid)).toEqual([b, a, c]);
+    expect(new Date(sorted!.players!.page.items[0]!.ladderObservedAt).toISOString()).toBe(
+      now.toISOString(),
+    );
+    for (const input of [{ playersSort: "rank" }, { playersPage: 0 }, { playersPage: 1001 }])
+      await expect(
+        queries.championOverview({ champion: "Ahri", ...input } as Parameters<
+          typeof queries.championOverview
+        >[0]),
+      ).rejects.toThrow();
+    expect(
+      (await queries.championOverview({ champion: "Ahri", source: "pro" }))?.players,
+    ).toBeNull();
+  });
+  it("scopes by patch role region queue and current ladder membership without mixing platforms", async () => {
+    await catalog();
+    const a = id(1),
+      removed = id(2);
+    await saveLadder(pool, "euw1", [entry(removed)], new Date(now.getTime() - 1000));
+    await saveLadder(pool, "euw1", [entry(a)], now);
+    await saveLadder(pool, "kr", [entry(a, "MASTER")], now);
+    await samples(a, 10, 7);
+    await samples(a, 10, 3, { platform: "kr" });
+    await samples(removed, 20, 20);
+    await samples(a, 15, 15, { patch: "16.21" });
+    await samples(a, 12, 12, { queue: 450 });
+    await samples(a, 11, 11, { remake: true });
+    await samples(a, 10, 4, { role: "TOP" });
+    const all = await overview();
+    expect(all?.players?.page.items.map((r) => [r.platform, r.games])).toEqual([
+      ["euw1", 20],
+      ["kr", 10],
+    ]);
+    const middle = await queries.championOverview({
+      champion: "Ahri",
+      patch: "16.22",
+      role: "MIDDLE",
+      region: "europe",
+    });
+    expect(middle?.players?.page.items).toHaveLength(1);
+    expect(middle?.players?.page.items[0]).toMatchObject({
+      platform: "euw1",
+      games: 10,
+      winRate: { value: 0.7, sampleCount: 10 },
+    });
+    const master = await queries.championOverview({
+      champion: "Ahri",
+      patch: "16.22",
+      tier: "MASTER",
+    });
+    expect(master?.players?.page.items.map((r) => r.platform)).toEqual(["kr"]);
+    await recordLadderFailure(pool, "euw1", "fixture failure");
+    expect(
+      (
+        await queries.championOverview({
+          champion: "Ahri",
+          patch: "16.22",
+          role: "MIDDLE",
+          region: "europe",
+        })
+      )?.players?.page,
+    ).toEqual(middle?.players?.page);
+    expect(
+      (await queries.championOverview({ champion: "Ahri", patch: "16.21" }))?.players?.page.items[0]
+        ?.games,
+    ).toBe(15);
+  });
+  it("bounds pages after eligibility, retains totals on empty pages and uses stable tie ordering", async () => {
+    await catalog();
+    const ids = Array.from({ length: 21 }, (_, n) => id(n));
+    await saveLadder(
+      pool,
+      "euw1",
+      ids.map((p) => entry(p)),
+      now,
+    );
+    for (const p of ids) await samples(p, 10, 5);
+    const first = await overview();
+    expect(first?.players?.page.total).toBe(21);
+    expect(first?.players?.page.items.map((r) => r.puuid)).toEqual(ids.slice(0, 20));
+    const second = await queries.championOverview({
+      champion: "Ahri",
+      patch: "16.22",
+      playersPage: 2,
+    });
+    expect(second?.players?.page.items.map((r) => r.puuid)).toEqual(ids.slice(20));
+    expect(
+      (await queries.championOverview({ champion: "Ahri", patch: "16.22", playersPage: 1000 }))
+        ?.players?.page,
+    ).toMatchObject({ items: [], total: 21 });
+    expect(
+      (await queries.championOverview({ champion: "Ahri", patch: "16.22", region: "missing" }))
+        ?.players?.page.total,
+    ).toBe(0);
+  });
+});

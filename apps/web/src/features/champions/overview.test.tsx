@@ -1,9 +1,12 @@
-import { it, expect } from "vitest";
+import { it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { ChampionOverviewPage } from "./overview";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 const overview: ChampionOverview = {
+  players: null,
   query: {
     champion: "Ahri",
     source: "solo",
@@ -11,6 +14,8 @@ const overview: ChampionOverview = {
     tier: "CHALLENGER",
     synergySort: "delta",
     synergyPage: 1,
+    playersSort: "games",
+    playersPage: 1,
   },
   champion: { id: "Ahri", key: 103, name: "Ahri", imageUrl: null },
   patch: "16.22",
