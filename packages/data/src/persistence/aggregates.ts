@@ -1,11 +1,15 @@
 import type { Pool } from "pg";
 import {
   championStatsQuerySchema,
+  tierListQuerySchema,
+  type TierList,
+  type TierListQuery,
+  type TierListRow,
   type ChampionStats,
   type ChampionStatsQuery,
   type ChampionStatsRow,
 } from "../domain/champion-stats.js";
-import { wilsonInterval } from "../domain/statistics.js";
+import { applySamplePolicy, wilsonInterval } from "../domain/statistics.js";
 import { transaction, type Executor } from "./database.js";
 
 export type AggregateSource = "solo" | "pro";
@@ -215,5 +219,117 @@ export async function championStats(
         sampleCount: r.bans === null ? 0 : sliceGames,
       },
     })),
+  };
+}
+
+export const tierListPageSize = 50;
+/**
+ * The tier list for one patch: champion rows summed over the filtered regions and tiers, sorted
+ * and paginated in SQL. Reads only aggregates and the champion catalog.
+ */
+export async function tierList(db: Executor, input: TierListQuery = {}): Promise<TierList> {
+  const q = tierListQuerySchema.parse(input);
+  const patches = (
+    await db.query<{ patch_key: string }>(
+      `SELECT DISTINCT a.patch_key,p.release_order FROM champion_aggregates a
+       JOIN patches p USING (patch_key) WHERE a.source=$1 ORDER BY p.release_order DESC LIMIT 50`,
+      [q.source],
+    )
+  ).rows.map((r) => r.patch_key);
+  const patch = q.patch ?? patches[0] ?? null;
+  const empty = { items: [], page: q.page, pageSize: tierListPageSize, total: 0 };
+  if (!patch)
+    return {
+      query: q,
+      patch: null,
+      sliceGames: 0,
+      page: empty,
+      facets: { patches, regions: [], tiers: [] },
+    };
+  const facets = (
+    await db.query<{ regions: string[]; tiers: string[] }>(
+      `SELECT coalesce(array_agg(DISTINCT region ORDER BY region),'{}') AS regions,
+         coalesce(array_agg(DISTINCT tier ORDER BY tier),'{}') AS tiers
+       FROM champion_aggregates WHERE source=$1 AND patch_key=$2`,
+      [q.source, patch],
+    )
+  ).rows[0]!;
+  const filters = [q.source, patch, q.region ?? null, q.tier ?? null];
+  const sliceGames = (
+    await db.query<{ n: number }>(
+      `SELECT coalesce(sum(n),0)::integer AS n FROM (
+         SELECT DISTINCT queue,region,tier,slice_games AS n FROM champion_aggregates
+         WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+           AND ($4::text IS NULL OR tier=$4)) s`,
+      filters,
+    )
+  ).rows[0]!.n;
+  // Sort keys are fixed column names, never user text.
+  const sortColumn = { winRate: "win_rate", pickRate: "games", banRate: "bans", games: "games" }[
+    q.sort
+  ];
+  const direction = q.order === "asc" ? "ASC" : "DESC";
+  const rows = await db.query<{
+    champion_key: number;
+    role: TierListRow["role"];
+    games: number;
+    result_games: number;
+    wins: number;
+    bans: number | null;
+    champion_id: string | null;
+    name: string | null;
+    asset_hash: string | null;
+    total: number;
+  }>(
+    `WITH summed AS (
+       SELECT champion_key,role,sum(games)::integer AS games,
+         sum(result_games)::integer AS result_games,sum(wins)::integer AS wins,
+         sum(bans)::integer AS bans,
+         sum(wins)::double precision/nullif(sum(result_games),0) AS win_rate
+       FROM champion_aggregates
+       WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+         AND ($4::text IS NULL OR tier=$4) AND role=$5
+       GROUP BY champion_key,role),
+     names AS (
+       SELECT DISTINCT ON (c.champion_key) c.champion_key,c.champion_id,c.name,c.patch_key
+       FROM catalog_champions c JOIN patches p USING (patch_key)
+       ORDER BY c.champion_key,(c.patch_key=$2) DESC,p.release_order DESC)
+     SELECT s.*,n.champion_id,n.name,i.asset_hash,count(*) OVER()::integer AS total
+     FROM summed s LEFT JOIN names n USING (champion_key)
+     LEFT JOIN catalog_images i ON i.patch_key=n.patch_key AND i.kind='champion'
+       AND i.catalog_id=n.champion_id
+     ORDER BY s.${sortColumn} ${direction} NULLS LAST,s.champion_key
+     LIMIT $6 OFFSET $7`,
+    [...filters, q.role, tierListPageSize, (q.page - 1) * tierListPageSize],
+  );
+  return {
+    query: q,
+    patch,
+    sliceGames,
+    facets: { patches, regions: facets.regions, tiers: facets.tiers },
+    page: {
+      items: rows.rows.map((r) => {
+        const winRate = wilsonInterval(r.wins, r.result_games);
+        return {
+          championKey: r.champion_key,
+          championId: r.champion_id,
+          name: r.name,
+          imageUrl: r.asset_hash ? `/api/images/${r.asset_hash}` : null,
+          role: r.role,
+          games: r.games,
+          wins: r.wins,
+          winRate,
+          pickRate: { value: sliceGames ? r.games / sliceGames : null, sampleCount: sliceGames },
+          banRate: {
+            value: sliceGames && r.bans !== null ? r.bans / sliceGames : null,
+            sampleCount: r.bans === null ? 0 : sliceGames,
+          },
+          sample: applySamplePolicy(winRate).status,
+        };
+      }),
+      page: q.page,
+      pageSize: tierListPageSize,
+      total: rows.rows[0]?.total ?? 0,
+    },
   };
 }

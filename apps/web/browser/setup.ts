@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { createSync } from "@summonersnet/data/sync";
 import { database } from "../../../packages/data/src/persistence/database";
 import { saveLadder, saveMatchIds } from "../../../packages/data/src/persistence/riot";
+import { saveRiotMatch } from "../../../packages/data/src/persistence/riot-matches";
+import { parseRiotMatch } from "../../../packages/data/src/providers/riot-match";
 import { draftCsv } from "../../../packages/data/tests/draft-fixtures";
 import { historyCsv, rawMatch, now } from "../../../packages/data/tests/fixtures";
 export default async function setup() {
@@ -71,7 +73,7 @@ export default async function setup() {
   try {
     await sync.migrate();
     await pool.query(
-      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_match_ids,riot_match_crawl,riot_job_status RESTART IDENTITY CASCADE",
+      "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,aggregate_dirty RESTART IDENTITY CASCADE",
     );
     await pool.query(
       "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -120,6 +122,19 @@ export default async function setup() {
       10,
       now,
     );
+    // One ingested solo-queue game on the fixture patch, then its champion aggregates.
+    const match = JSON.parse(
+      await readFile(
+        new URL("../../../packages/data/tests/riot/match-euw1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { metadata: { matchId: string }; info: { gameVersion: string } };
+    match.metadata.matchId = "EUW1_7000000001";
+    match.info.gameVersion = "16.4.736.1";
+    await saveRiotMatch(pool, parseRiotMatch(match, "EUW1_7000000001"), match, now);
+    await sync.request({ kind: "aggregate" });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser aggregate fixture failed");
     await sync.request({ kind: "entities" });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser fixture identity linking failed");

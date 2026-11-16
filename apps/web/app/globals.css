@@ -96,6 +96,11 @@
   min-width: 125px;
   max-width: 185px;
 }
+.ev-champion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .ev-row-note {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);

@@ -18,11 +18,20 @@ export { catalogIconQuerySchema } from "./domain/catalog-icons.js";
 export type { CatalogIconQuery, CatalogIcon } from "./domain/catalog-icons.js";
 
 export { draftQuerySchema } from "./domain/drafts.js";
-export { championStatsQuerySchema, championRoles } from "./domain/champion-stats.js";
+export {
+  championStatsQuerySchema,
+  championRoles,
+  tierListQuerySchema,
+  tierListSorts,
+} from "./domain/champion-stats.js";
 export type {
   ChampionStats,
   ChampionStatsQuery,
   ChampionStatsRow,
+  ParsedTierListQuery,
+  TierList,
+  TierListQuery,
+  TierListRow,
 } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
