@@ -48,12 +48,12 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   expect(teamLayout.rightLogoFollowsName).toBe(true);
   expect(teamLayout.rightNameClipped).toBe(false);
   const watchButtons = page.locator(".ev-watch-toggle");
-  const watchButtonTop = (await watchButtons.first().boundingBox())!.y;
+  const watchTop = () =>
+    watchButtons.first().evaluate((button) => button.getBoundingClientRect().top + window.scrollY);
+  const watchButtonTop = await watchTop();
   await watchButtons.first().click();
   await expect(page.getByRole("region", { name: "Watch match" })).toBeVisible();
-  expect(
-    Math.abs((await watchButtons.first().boundingBox())!.y - watchButtonTop),
-  ).toBeLessThanOrEqual(1);
+  expect(Math.abs((await watchTop()) - watchButtonTop)).toBeLessThanOrEqual(1);
   await expect(watchButtons.first()).toHaveText("Watch");
   await expect(page.locator(".np-match-row__expanded")).toHaveCount(1);
   await expect(page.locator(".ev-inline-stream")).toHaveCSS("position", "static");
