@@ -8,7 +8,14 @@ import sharp from "sharp";
 import { createSync } from "./index.js";
 import { createQueries } from "../index.js";
 import { database, transaction, migrate } from "../persistence/database.js";
-import { reserveRequest, observeQuota, DeferredRequest } from "./quota.js";
+import {
+  reserveRequest,
+  observeQuota,
+  DeferredRequest,
+  reserveRiotRequest,
+  observeRiotLimits,
+} from "./quota.js";
+import { riotClient } from "./riot-client.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
 import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
@@ -93,7 +100,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -649,6 +656,129 @@ it("stores the champion, item, rune and spell catalog per patch and maps Oracle 
   expect(await championCatalog(pool, "16.23")).toEqual([]);
   expect(await championForOracleName(pool, "Wukong")).toBe("MonkeyKing");
 });
+describe("Riot request ledger", () => {
+  const at = (ms: number) => new Date(now.valueOf() + ms);
+  const ledger = async () =>
+    (
+      await pool.query<{ region: string; method: string; n: number }>(
+        "SELECT region,method,count(*)::integer n FROM riot_request_ledger GROUP BY 1,2 ORDER BY 1,2",
+      )
+    ).rows;
+  const limits = (app: string | null, method: string | null, extra: Record<string, string> = {}) =>
+    new Headers({
+      ...(app ? { "X-App-Rate-Limit": app } : {}),
+      ...(method ? { "X-Method-Rate-Limit": method } : {}),
+      ...extra,
+    });
+  it("reserves within the development defaults until Riot reports limits, recording nothing when blocked", async () => {
+    for (let i = 0; i < 20; i++)
+      expect(await reserveRiotRequest(pool, "euw1", "league-v4", now)).toBeNull();
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", now)).toEqual(at(1000));
+    expect(await reserveRiotRequest(pool, "na1", "league-v4", now)).toBeNull();
+    expect(await ledger()).toEqual([
+      { region: "euw1", method: "league-v4", n: 20 },
+      { region: "na1", method: "league-v4", n: 1 },
+    ]);
+    // The two-minute window still allows 80 more once the one-second window has passed.
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", at(1000))).toBeNull();
+  });
+  it("honours application and method limits from response headers per window", async () => {
+    await observeRiotLimits(pool, "euw1", "match-v5", limits("2:1,3:10", "1:10"), 200, now);
+    expect(await reserveRiotRequest(pool, "euw1", "match-v5", now)).toBeNull();
+    // The method allows one per ten seconds; the application still has room for another.
+    expect(await reserveRiotRequest(pool, "euw1", "match-v5", now)).toEqual(at(10000));
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", now)).toBeNull();
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", now)).toEqual(at(1000));
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", at(1000))).toBeNull();
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", at(2000))).toEqual(at(10000));
+    // Later headers replace the reported limits; a malformed header keeps the last ones.
+    await observeRiotLimits(pool, "euw1", "match-v5", limits("50:10", "garbage"), 200, at(2000));
+    expect(
+      (
+        await pool.query(
+          "SELECT method,window_seconds,limit_count FROM riot_rate_limits ORDER BY method,window_seconds",
+        )
+      ).rows,
+    ).toEqual([
+      { method: "", window_seconds: 10, limit_count: 50 },
+      { method: "match-v5", window_seconds: 10, limit_count: 1 },
+    ]);
+    expect(await reserveRiotRequest(pool, "euw1", "league-v4", at(2000))).toBeNull();
+  });
+  it("pauses the method, or the whole region, for Retry-After on a 429", async () => {
+    expect(
+      await observeRiotLimits(
+        pool,
+        "kr",
+        "match-v5",
+        limits(null, null, { "Retry-After": "5", "X-Rate-Limit-Type": "method" }),
+        429,
+        now,
+      ),
+    ).toEqual(at(5000));
+    expect(await reserveRiotRequest(pool, "kr", "match-v5", now)).toEqual(at(5000));
+    expect(await reserveRiotRequest(pool, "kr", "league-v4", now)).toBeNull();
+    expect(await reserveRiotRequest(pool, "kr", "match-v5", at(5000))).toBeNull();
+    await observeRiotLimits(
+      pool,
+      "kr",
+      "league-v4",
+      limits(null, null, { "Retry-After": "30", "X-Rate-Limit-Type": "application" }),
+      429,
+      at(5000),
+    );
+    expect(await reserveRiotRequest(pool, "kr", "match-v5", at(6000))).toEqual(at(35000));
+    // A 429 without Retry-After backs off for ten seconds.
+    expect(await observeRiotLimits(pool, "jp1", "x", new Headers(), 429, now)).toEqual(at(10000));
+  });
+  it("lets only one of many concurrent reservations take the last slot", async () => {
+    await observeRiotLimits(pool, "br1", "league-v4", limits("1:10", null), 200, now);
+    const results = await Promise.all(
+      Array.from({ length: 12 }, () => reserveRiotRequest(pool, "br1", "league-v4", now)),
+    );
+    expect(results.filter((r) => r === null)).toHaveLength(1);
+    expect(await ledger()).toEqual([{ region: "br1", method: "league-v4", n: 1 }]);
+  });
+  it("sends through the client only after reserving, retrying a 429 and rescheduling long waits", async () => {
+    const waits: number[] = [];
+    const get = riotClient(pool, {
+      key: "RGAPI-01234567-89ab-cdef-0123-456789abcdef",
+      clock: () => instant,
+      fetch: fetcher,
+      pause: (ms) => {
+        waits.push(ms);
+        instant = new Date(instant.valueOf() + ms);
+        return Promise.resolve();
+      },
+    });
+    fetcher
+      .mockResolvedValueOnce(
+        new Response("", {
+          status: 429,
+          headers: { "Retry-After": "2", "X-Rate-Limit-Type": "method" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response("{}", { status: 200, headers: { "X-App-Rate-Limit": "1:120" } }),
+      );
+    expect((await get("euw1", "league-v4", "/lol/league/v4/challengerleagues")).status).toBe(200);
+    expect(waits).toEqual([2000]);
+    expect(endpoint(fetcher.mock.calls[0]![0])).toBe(
+      "https://euw1.api.riotgames.com/lol/league/v4/challengerleagues",
+    );
+    expect(await ledger()).toEqual([{ region: "euw1", method: "league-v4", n: 2 }]);
+    // The application now allows one request per two minutes: too long to wait in the worker.
+    await expect(get("euw1", "league-v4", "/lol/league/v4/challengerleagues")).rejects.toEqual(
+      new DeferredRequest(new Date(instant.valueOf() + 120000)),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await expect(get("xx1" as "na1", "league-v4", "/")).rejects.toThrow();
+    // Each retried attempt reserves again; the last 429 is returned to the caller.
+    fetcher.mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "1" } }));
+    expect((await get("kr", "league-v4", "/lol/x")).status).toBe(429);
+    expect((await ledger()).find((r) => r.region === "kr")?.n).toBe(3);
+  });
+});
 describe("Riot API key", () => {
   const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
   const riotSync = (riot?: { key: string; kind: "development" | "production" }) =>
@@ -684,6 +814,9 @@ describe("Riot API key", () => {
       const [url, init] = fetcher.mock.calls[0]!;
       expect(endpoint(url)).toBe("https://na1.api.riotgames.com/lol/status/v4/platform-data");
       expect(init?.headers).toEqual({ "X-Riot-Token": key });
+      expect((await pool.query("SELECT region,method FROM riot_request_ledger")).rows).toEqual([
+        { region: "na1", method: "lol-status-v4.getPlatformData" },
+      ]);
       expect(await riotKey()).toEqual({
         state: "valid",
         kind: "development",

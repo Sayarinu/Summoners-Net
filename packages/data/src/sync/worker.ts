@@ -24,6 +24,7 @@ import { normalizePatch } from "../domain/patches.js";
 import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js";
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, enqueue, schedule } from "./queue.js";
+import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { cacheImages, cacheMapImage } from "./images.js";
@@ -31,7 +32,7 @@ import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
 import {
   riotKeyCheckResult,
-  riotKeyCheckUrl,
+  riotKeyCheckPath,
   riotKeyFingerprint,
   type RiotKeyConfig,
 } from "../providers/riot.js";
@@ -189,17 +190,18 @@ export function worker(pool: Pool, options: WorkerOptions) {
     }
     riotObserved = true;
   }
+  const riot = options.riot
+    ? riotClient(pool, { key: options.riot.key, clock, fetch: fetcher, pause })
+    : null;
   async function checkRiotKey(): Promise<number> {
-    if (!options.riot) return 0;
+    if (!riot) return 0;
     let response: Response;
     try {
-      response = await fetcher(riotKeyCheckUrl, {
-        headers: { "X-Riot-Token": options.riot.key },
-        signal: AbortSignal.timeout(30000),
-        redirect: "error",
-      });
-    } catch {
-      throw new ProviderError("Riot connection failed; the key status is unchanged.", true);
+      response = await riot("na1", "lol-status-v4.getPlatformData", riotKeyCheckPath);
+    } catch (error) {
+      if (error instanceof RiotConnectionError)
+        throw new ProviderError("Riot connection failed; the key status is unchanged.", true);
+      throw error;
     }
     const result = riotKeyCheckResult(response.status);
     if (result === "retry")

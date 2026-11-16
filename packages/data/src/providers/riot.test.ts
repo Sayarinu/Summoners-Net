@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseRiotKeyConfig, riotKeyCheckResult, riotKeyFingerprint } from "./riot.js";
+import {
+  parseRateLimitHeader,
+  parseRiotKeyConfig,
+  riotKeyCheckResult,
+  riotKeyFingerprint,
+} from "./riot.js";
 
 const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
 describe("Riot key configuration", () => {
@@ -32,5 +37,16 @@ describe("Riot key configuration", () => {
     expect(riotKeyCheckResult(403)).toBe("rejected");
     expect(riotKeyCheckResult(429)).toBe("retry");
     expect(riotKeyCheckResult(503)).toBe("retry");
+  });
+});
+describe("Riot rate limit headers", () => {
+  it("parses each limit window and ignores malformed headers", () => {
+    expect(parseRateLimitHeader("20:1,100:120")).toEqual([
+      { limit: 20, windowSeconds: 1 },
+      { limit: 100, windowSeconds: 120 },
+    ]);
+    expect(parseRateLimitHeader(" 2000:10 ")).toEqual([{ limit: 2000, windowSeconds: 10 }]);
+    for (const value of [null, "", "20", "20:0", "0:1", "20:1,abc", "20:1;100:120"])
+      expect(parseRateLimitHeader(value)).toBeNull();
   });
 });
