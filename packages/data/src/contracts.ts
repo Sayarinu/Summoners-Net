@@ -25,3 +25,10 @@ export type {
   DraftRole,
   DraftAnalytics,
 } from "./domain/drafts.js";
+
+export {
+  replayTrackSchema,
+  parseReplayTrackFile,
+  replayTrackMaxBytes,
+} from "./domain/replay-tracks.js";
+export type { ReplayTrack, ReplayTrackSample } from "./domain/replay-tracks.js";
