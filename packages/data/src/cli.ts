@@ -3,7 +3,7 @@ import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { archiveYears } from "./providers/oracle.js";
-import { parseRiotKeyConfig, parseRiotPlatforms } from "./providers/riot.js";
+import { parseMatchCap, parseRiotKeyConfig, parseRiotPlatforms } from "./providers/riot.js";
 const [command, ...args] = process.argv.slice(2);
 const connection = process.env.DATABASE_URL;
 if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
@@ -13,6 +13,7 @@ const riotPlatforms = parseRiotPlatforms(process.env.RIOT_PLATFORMS);
 const sync = createSync(connection, {
   ...(riot ? { riot } : {}),
   riotPlatforms,
+  riotMatchCap: parseMatchCap(process.env.RIOT_MATCH_CAP),
   ...(process.env.PANDASCORE_TOKEN ? { token: process.env.PANDASCORE_TOKEN } : {}),
   ...(process.env.GOOGLE_DRIVE_API_KEY ? { driveApiKey: process.env.GOOGLE_DRIVE_API_KEY } : {}),
   ...(process.env.ORACLE_CURRENT_FILE ? { currentFile: process.env.ORACLE_CURRENT_FILE } : {}),

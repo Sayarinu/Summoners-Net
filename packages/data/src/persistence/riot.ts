@@ -176,3 +176,72 @@ export async function account(db: Executor, puuid: string) {
     })),
   };
 }
+
+export async function currentPatchKey(db: Executor) {
+  const row = await db.query<{ patch_key: string }>(
+    "SELECT patch_key FROM patches ORDER BY release_order DESC LIMIT 1",
+  );
+  return row.rows[0]?.patch_key ?? null;
+}
+/** Current ladder players not crawled since dueBefore, never crawled first. */
+export async function playersToCrawl(db: Executor, dueBefore: Date, limit: number) {
+  const rows = await db.query<{ puuid: string; platform: RiotPlatform; crawled_at: Date | null }>(
+    `SELECT e.puuid,e.platform,c.crawled_at
+     FROM riot_ladder_entries e
+     JOIN riot_ladder_status s ON s.platform=e.platform AND e.fetched_at=s.last_success
+     LEFT JOIN riot_match_crawl c ON c.puuid=e.puuid
+     WHERE c.crawled_at IS NULL OR c.crawled_at<$1
+     ORDER BY c.crawled_at NULLS FIRST,e.puuid LIMIT $2`,
+    [dueBefore, limit],
+  );
+  return rows.rows.map((r) => ({ puuid: r.puuid, platform: r.platform, crawledAt: r.crawled_at }));
+}
+export async function matchIdCount(db: Executor, region: string, patchKey: string) {
+  const row = await db.query<{ n: number }>(
+    "SELECT count(*)::integer n FROM riot_match_ids WHERE region=$1 AND crawl_patch_key=$2",
+    [region, patchKey],
+  );
+  return row.rows[0]!.n;
+}
+/**
+ * Stores new match ids, at most `room` of them, and records the player's crawl. Ids already
+ * stored are skipped, so each match is kept once. Returns how many ids were new.
+ */
+export async function saveMatchIds(
+  pool: Pool,
+  crawl: { puuid: string; platform: string; region: string; patchKey: string },
+  ids: readonly string[],
+  room: number,
+  now: Date,
+) {
+  return transaction(pool, async (c) => {
+    const fresh = (
+      await c.query<{ match_id: string }>(
+        `SELECT id AS match_id FROM unnest($1::text[]) WITH ORDINALITY AS t(id,n)
+         WHERE NOT EXISTS (SELECT 1 FROM riot_match_ids m WHERE m.match_id=t.id) ORDER BY n`,
+        [ids],
+      )
+    ).rows
+      .map((r) => r.match_id)
+      .slice(0, Math.max(0, room));
+    await c.query(
+      `INSERT INTO riot_match_ids(match_id,region,platform,crawl_patch_key,first_seen_at,first_seen_puuid)
+       SELECT id,$2,$3,$4,$5,$6 FROM unnest($1::text[]) id ON CONFLICT(match_id) DO NOTHING`,
+      [fresh, crawl.region, crawl.platform, crawl.patchKey, now, crawl.puuid],
+    );
+    return fresh.length;
+  });
+}
+export async function recordCrawl(
+  pool: Pool,
+  crawl: { puuid: string; platform: string },
+  seen: number,
+  now: Date,
+) {
+  await pool.query(
+    `INSERT INTO riot_match_crawl(puuid,platform,crawled_at,ids_seen) VALUES($1,$2,$3,$4)
+     ON CONFLICT(puuid) DO UPDATE SET platform=EXCLUDED.platform,crawled_at=EXCLUDED.crawled_at,
+       ids_seen=EXCLUDED.ids_seen`,
+    [crawl.puuid, crawl.platform, now, seen],
+  );
+}

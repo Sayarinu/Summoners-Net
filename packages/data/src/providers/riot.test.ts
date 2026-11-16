@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import challenger from "../../tests/riot/challenger-euw1.json" with { type: "json" };
 import account from "../../tests/riot/account.json" with { type: "json" };
+import matchIds from "../../tests/riot/match-ids-euw1.json" with { type: "json" };
 import {
   accountRoute,
+  matchRoute,
+  parseMatchCap,
+  parseMatchIds,
   parseAccount,
   parseLeagueList,
   parseRiotPlatforms,
@@ -110,5 +114,25 @@ describe("account-v1", () => {
     expect(accountRoute("euw1")).toBe("europe");
     expect(accountRoute("kr")).toBe("asia");
     expect(accountRoute("sg2")).toBe("asia");
+  });
+});
+describe("match-v5 ids", () => {
+  it("parses match ids and rejects anything else", () => {
+    expect(parseMatchIds(matchIds)).toEqual(matchIds);
+    expect(() => parseMatchIds(["EUW1-123"])).toThrow();
+    expect(() => parseMatchIds([1234])).toThrow();
+    expect(() => parseMatchIds(Array.from({ length: 101 }, (_, i) => `EUW1_${i}`))).toThrow();
+  });
+  it("routes platforms to match-v5 regions", () => {
+    expect(matchRoute("euw1")).toBe("europe");
+    expect(matchRoute("kr")).toBe("asia");
+    expect(matchRoute("br1")).toBe("americas");
+    expect(matchRoute("oc1")).toBe("sea");
+  });
+  it("validates the per-patch cap", () => {
+    expect(parseMatchCap(undefined)).toBe(2000);
+    expect(parseMatchCap(" 500 ")).toBe(500);
+    for (const bad of ["0", "-1", "1.5", "lots", "2000000"])
+      expect(() => parseMatchCap(bad)).toThrow("RIOT_MATCH_CAP");
   });
 });

@@ -173,3 +173,27 @@ export function parseAccount(input: unknown, puuid: string): RiotAccount {
     tagLine: account.tagLine ?? null,
   };
 }
+
+/** match-v5 regional route for a platform. */
+export function matchRoute(platform: RiotPlatform): (typeof riotRegions)[number] {
+  if (["na1", "br1", "la1", "la2"].includes(platform)) return "americas";
+  if (["euw1", "eun1", "tr1", "ru", "me1"].includes(platform)) return "europe";
+  if (["kr", "jp1"].includes(platform)) return "asia";
+  return "sea";
+}
+export const rankedSoloQueueId = 420;
+/** Parses a match-v5 list of match ids such as "EUW1_7612345678". */
+export function parseMatchIds(input: unknown): string[] {
+  return z
+    .array(z.string().regex(/^[A-Z0-9]{2,5}_\d{1,15}$/))
+    .max(100)
+    .parse(input);
+}
+/** Parses RIOT_MATCH_CAP: the most match ids kept per region and patch. */
+export function parseMatchCap(value: string | undefined): number {
+  if (!value?.trim()) return 2000;
+  const cap = Number(value.trim());
+  if (!Number.isInteger(cap) || cap < 1 || cap > 1000000)
+    throw new Error("RIOT_MATCH_CAP must be a whole number from 1 to 1000000.");
+  return cap;
+}
