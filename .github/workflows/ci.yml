@@ -69,5 +69,5 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @summonersnet/replay-capture build
+      - run: pnpm --filter @summonersnet/replay-capture... build
       - run: pnpm --filter @summonersnet/replay-capture test:coverage
