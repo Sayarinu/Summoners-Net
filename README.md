@@ -91,10 +91,11 @@ Everything binds to loopback. Stop PostgreSQL with `docker compose stop`; never 
 Settings live in the ignored `.env` (see `.env.example`): `DATABASE_URL`, `TEST_DATABASE_URL`,
 `PANDASCORE_TOKEN`, `GOOGLE_DRIVE_API_KEY` (used when anonymous Google Drive downloads are
 quota-blocked), `ORACLE_CURRENT_FILE` (a local current-year CSV that the daily refresh rereads), and
-`RIOT_API_KEY` with `RIOT_API_KEY_KIND` (`development`, `personal` or `production`) for solo-queue
-data. None of them reach the browser. Only the worker reads the Riot key: it checks the key with one
-request, and **Sources & imports** shows whether it is valid and, for a development key, when it
-expires (24 hours after the worker first sees it).
+`RIOT_API_KEY` with `RIOT_API_KEY_KIND` (`development`, `personal` or `production`) and
+`RIOT_PLATFORMS` (such as `euw1,kr`, the apex ladders to sample) for solo-queue data. None of them
+reach the browser. Only the worker reads the Riot key: it checks the key with one request, and
+**Sources & imports** shows whether it is valid and, for a development key, when it expires (24
+hours after the worker first sees it).
 
 To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/path/file.csv` or
 `pnpm history:import-dir /absolute/path/to/dir` (not `pnpm import`, which is a pnpm command), then

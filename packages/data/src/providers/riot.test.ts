@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import challenger from "../../tests/riot/challenger-euw1.json" with { type: "json" };
 import {
+  parseLeagueList,
+  parseRiotPlatforms,
   parseRateLimitHeader,
   parseRiotKeyConfig,
   riotKeyCheckResult,
@@ -48,5 +51,40 @@ describe("Riot rate limit headers", () => {
     expect(parseRateLimitHeader(" 2000:10 ")).toEqual([{ limit: 2000, windowSeconds: 10 }]);
     for (const value of [null, "", "20", "20:0", "0:1", "20:1,abc", "20:1;100:120"])
       expect(parseRateLimitHeader(value)).toBeNull();
+  });
+});
+describe("league-v4 ladders", () => {
+  it("keeps Riot identifiers, rank and record, with summoner id only where returned", () => {
+    const entries = parseLeagueList(challenger, "CHALLENGER");
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual({
+      puuid: challenger.entries[0]!.puuid,
+      summonerId: "bW9ja1N1bW1vbmVySWQtb25l",
+      tier: "CHALLENGER",
+      rank: "I",
+      leaguePoints: 1824,
+      wins: 412,
+      losses: 351,
+      leagueId: challenger.leagueId,
+    });
+    expect(entries[1]!.summonerId).toBeNull();
+  });
+  it("rejects a ladder for another tier or queue, or with malformed entries", () => {
+    expect(() => parseLeagueList(challenger, "MASTER")).toThrow();
+    expect(() =>
+      parseLeagueList({ ...challenger, queue: "RANKED_FLEX_SR" }, "CHALLENGER"),
+    ).toThrow();
+    expect(() =>
+      parseLeagueList(
+        { ...challenger, entries: [{ ...challenger.entries[0], wins: -1 }] },
+        "CHALLENGER",
+      ),
+    ).toThrow();
+  });
+  it("validates platform selection against the known list", () => {
+    expect(parseRiotPlatforms(undefined)).toEqual([]);
+    expect(parseRiotPlatforms(" EUW1, kr ,euw1")).toEqual(["euw1", "kr"]);
+    expect(() => parseRiotPlatforms("euw1,europe")).toThrow("RIOT_PLATFORMS");
+    expect(() => parseRiotPlatforms("na")).toThrow("RIOT_PLATFORMS");
   });
 });

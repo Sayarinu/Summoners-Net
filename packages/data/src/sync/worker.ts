@@ -25,6 +25,7 @@ import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
+import { markLadderAttempt, recordLadderFailure, saveLadder } from "../persistence/riot.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { cacheImages, cacheMapImage } from "./images.js";
@@ -35,6 +36,10 @@ import {
   riotKeyCheckPath,
   riotKeyFingerprint,
   type RiotKeyConfig,
+  type RiotPlatform,
+  apexTiers,
+  parseLeagueList,
+  soloQueue,
 } from "../providers/riot.js";
 
 export interface WorkerOptions {
@@ -48,6 +53,8 @@ export interface WorkerOptions {
   pause?: (milliseconds: number) => Promise<void>;
   /** Validated RIOT_API_KEY; absent when Riot is not configured. Never logged or stored. */
   riot?: RiotKeyConfig;
+  /** Platforms selected with RIOT_PLATFORMS, validated at startup. */
+  riotPlatforms?: readonly RiotPlatform[];
 }
 class ProviderError extends Error {
   constructor(
@@ -58,7 +65,8 @@ class ProviderError extends Error {
   }
 }
 // Riot key checks and identity resolution report through their own status, not source_status.
-const tracksSource = (r: SyncRequest) => r.kind !== "resolve" && r.kind !== "riot-key";
+const tracksSource = (r: SyncRequest) =>
+  r.kind !== "resolve" && r.kind !== "riot-key" && r.kind !== "riot-ladder";
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -220,8 +228,48 @@ export function worker(pool: Pool, options: WorkerOptions) {
     );
     return 1;
   }
+  /** Syncs each selected platform's apex tiers; a failed platform keeps its last ladder. */
+  async function syncLadders(): Promise<number> {
+    if (!riot) return 0;
+    const failed: string[] = [];
+    let total = 0;
+    for (const platform of options.riotPlatforms ?? []) {
+      await markLadderAttempt(pool, platform, clock());
+      try {
+        const entries = [];
+        for (const { tier, path } of apexTiers) {
+          const response = await riot(
+            platform,
+            `league-v4.${path}`,
+            `/lol/league/v4/${path}/by-queue/${soloQueue}`,
+          );
+          if (!response.ok) throw new Error(`Riot returned HTTP ${response.status}.`);
+          entries.push(...parseLeagueList(await response.json(), tier));
+        }
+        await saveLadder(pool, platform, entries, clock());
+        total += entries.length;
+      } catch (error) {
+        if (error instanceof DeferredRequest) throw error;
+        const detail =
+          error instanceof z.ZodError
+            ? "Riot returned an unexpected ladder."
+            : error instanceof Error
+              ? error.message
+              : "Ladder refresh failed.";
+        await recordLadderFailure(pool, platform, `${detail} The last ladder is kept.`);
+        failed.push(platform);
+      }
+    }
+    if (failed.length)
+      throw new ProviderError(
+        `Ladder refresh failed for ${failed.join(", ")}; their last ladders are kept.`,
+        true,
+      );
+    return total;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-ladder") return syncLadders();
     if (r.kind === "entity-rosters") {
       const tournaments = (
         await pool.query<{ id: string; first: Date; last: Date }>(
