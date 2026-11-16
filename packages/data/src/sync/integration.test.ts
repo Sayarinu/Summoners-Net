@@ -4484,3 +4484,161 @@ describe("pro account link imports", () => {
     expect(await queries.proAccountLink(b)).toBeNull();
   });
 });
+
+describe("pro solo queue feed", () => {
+  async function linkAccounts() {
+    const file = join(directory, "feed-links.json");
+    await writeFile(
+      file,
+      JSON.stringify(
+        proAccountFixture([
+          proAccountFixtureLink(),
+          proAccountFixtureLink("b", "11-mid"),
+          proAccountFixtureLink("c"),
+        ]),
+      ),
+    );
+    expect((await run({ kind: "pro-account-links", file })).state).toBe("done");
+  }
+  async function match(index = 0, queue = 420) {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    const raw = JSON.parse(
+      await readFile(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: { queueId: number; gameStartTimestamp: number; participants: { win?: boolean }[] };
+    };
+    const id = "EUW1_" + (9000000000 + index);
+    raw.metadata.matchId = id;
+    raw.info.queueId = queue;
+    raw.info.gameStartTimestamp = now.getTime() + index * 60000;
+    delete raw.info.participants[1]!.win;
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      [id],
+      100,
+      now,
+    );
+    await saveRiotMatch(pool, parseRiotMatch(raw, id), raw, now);
+  }
+  it("lists only linked ranked games in stable time order, with SQL filters and bounded pages", async () => {
+    expect((await queries.proFeed({})).page.total).toBe(0);
+    await importCsv();
+    await match(0);
+    await match(1);
+    await match(2, 450);
+    expect((await queries.proFeed({})).page.total).toBe(0);
+    await linkAccounts();
+    const calls = fetcher.mock.calls.length;
+    const first = await queries.proFeed({ pageSize: 2 });
+    expect(first.page.total).toBe(6);
+    expect(first.page.items.map((r) => [r.matchId, r.participantId])).toEqual([
+      ["EUW1_9000000001", 1],
+      ["EUW1_9000000001", 2],
+    ]);
+    expect(first.page.items[0]).toMatchObject({
+      player: { id: "oracle:player:10-mid", publicSlug: "player-blue-mid" },
+      team: { id: "oracle:team:10" },
+      league: "LCK",
+      sourceIdentityId: "oracle:player:10-mid",
+      championName: "Ahri",
+      imageUrl: null,
+    });
+    expect(first.page.items[1]!.win).toBeNull();
+    const second = await queries.proFeed({ pageSize: 2, page: 2 });
+    expect(second.page.items.map((r) => [r.matchId, r.participantId])).toEqual([
+      ["EUW1_9000000001", 3],
+      ["EUW1_9000000000", 1],
+    ]);
+    expect((await queries.proFeed({ team: "oracle:team:10", league: "LCK" })).page.total).toBe(4);
+    expect((await queries.proFeed({ team: "oracle:team:11" })).page.total).toBe(2);
+    expect((await queries.proFeed({ league: "LEC" })).page.total).toBe(0);
+    expect((await queries.proFeed({ team: "not-stored" })).page.total).toBe(0);
+    expect((await queries.proFeed({ page: 100 })).page).toMatchObject({ total: 6, items: [] });
+    expect(first.teams.map((t) => t.id)).toEqual(["oracle:team:10", "oracle:team:11"]);
+    expect(first.leagues).toEqual(["LCK"]);
+    expect(fetcher.mock.calls.length).toBe(calls);
+    for (const input of [
+      { page: 0 },
+      { pageSize: 101 },
+      { team: ["a", "b"] },
+      { league: "x".repeat(301) },
+      { team: "\0" },
+      { league: "\ud800" },
+      { extra: "x" },
+    ])
+      await expect(queries.proFeed(input as { page: number })).rejects.toThrow();
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const known = (await queries.proFeed({})).page.items[0]!;
+    expect(known.championId).toBe("Ahri");
+    expect(known.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+  });
+  it("keeps missing and conflicting latest pro affiliations unknown", async () => {
+    await importCsv(historyCsv({ completeness: "partial" }));
+    await linkAccounts();
+    await match();
+    expect((await queries.proFeed({})).page.items[0]).toMatchObject({
+      team: null,
+      league: null,
+      proObservedAt: null,
+    });
+    await importCsv();
+    await importCsv(
+      historyCsv({ id: "conflicting-appearance", league: "LEC" }).replaceAll(
+        ",10,Acceptance Blue,",
+        ",12,Other Blue,",
+      ),
+    );
+    const result = await queries.proFeed({});
+    expect(result.page.items[0]).toMatchObject({ team: null, league: null });
+    expect(result.page.items[0]!.proObservedAt).not.toBeNull();
+    expect((await queries.proFeed({ team: "oracle:team:10" })).page.total).toBe(0);
+    expect((await queries.proFeed({ league: "LCK" })).page.total).toBe(0);
+  });
+  it("uses the corroborated canonical player for a linked provider identity without duplicating games", async () => {
+    await importCsv();
+    fetcher.mockImplementation((input) =>
+      Promise.resolve(
+        json(
+          endpoint(input).includes("/teams")
+            ? [
+                {
+                  id: 10,
+                  name: "Acceptance Blue",
+                  players: ["top", "jng", "mid", "bot", "sup"].map((role, i) => ({
+                    id: 30 + i,
+                    name: `Player Blue ${role}`,
+                    role,
+                  })),
+                },
+              ]
+            : [rawMatch()],
+        ),
+      ),
+    );
+    expect((await run({ kind: "matches" })).state).toBe("done");
+    expect((await run({ kind: "rosters" })).state).toBe("done");
+    expect((await run({ kind: "entities" })).state).toBe("done");
+    const file = join(directory, "provider-link.json");
+    await writeFile(
+      file,
+      JSON.stringify(
+        proAccountFixture([
+          { ...proAccountFixtureLink(), player: { source: "pandascore", sourceId: "32" } },
+        ]),
+      ),
+    );
+    expect((await run({ kind: "pro-account-links", file })).state).toBe("done");
+    await match();
+    const result = await queries.proFeed({ team: "oracle:team:10" });
+    expect(result.page.total).toBe(1);
+    expect(result.page.items[0]).toMatchObject({
+      sourceIdentityId: "pandascore:player:32",
+      player: { id: "oracle:player:10-mid" },
+      team: { id: "oracle:team:10" },
+      league: "LCK",
+    });
+  });
+});

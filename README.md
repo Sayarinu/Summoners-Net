@@ -139,6 +139,12 @@ URLs. The worker validates the entire file before one transaction; unknown or co
 reject the file, and omitted links are kept. Evidence is supplied by the file author and is not
 independently verified by fetching its URLs.
 
+The `/leaderboards/pros` feed lists retained ranked solo games for these linked accounts, with team
+and league filters. Affiliations mean the latest stored complete pro appearance, not current roster
+membership or membership at the time of a solo game. Conflicting observations at that time remain
+unknown. Multiple linked accounts for one player remain separate account observations; unlinked
+accounts never appear.
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting
