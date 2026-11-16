@@ -1,9 +1,9 @@
 "use client";
-import { ItemIcon, StatusIndicator, Table } from "@summonersnet/ui";
-import type { BuildRow, ChampionBuilds } from "@summonersnet/data/contracts";
+import { ItemIcon, RuneIcon, StatusIndicator, SummonerSpellIcon, Table } from "@summonersnet/ui";
+import type { BuildItem, BuildRow, ChampionBuilds } from "@summonersnet/data/contracts";
 import { percent, sampleLabels } from "./presentation";
 
-const sections = [
+const itemSections = [
   { kind: "start", title: "Starting items" },
   { kind: "boots", title: "Boots" },
   { kind: "path", title: "Core paths" },
@@ -11,20 +11,83 @@ const sections = [
   { kind: "slot2", title: "Second completed item" },
   { kind: "slot3", title: "Third completed item" },
 ] as const;
-
+const loadoutSections = [
+  { kind: "keystone", title: "Keystones" },
+  { kind: "runes", title: "Rune pages" },
+  { kind: "shards", title: "Stat shards" },
+  { kind: "spells", title: "Summoner spells" },
+] as const;
+const fallbackNames: Record<BuildItem["kind"], string> = {
+  item: "Item",
+  rune: "Rune",
+  shard: "Stat shard",
+  spell: "Summoner spell",
+};
+function Entry({ entry }: { entry: BuildItem }) {
+  const name = entry.name ?? `${fallbackNames[entry.kind]} ${entry.id}`;
+  const icon = { id: entry.catalogId, name, imageUrl: entry.imageUrl, size: "small" as const };
+  return (
+    <span className="ev-champion">
+      {entry.kind === "item" ? (
+        <ItemIcon {...icon} />
+      ) : entry.kind === "rune" ? (
+        <RuneIcon {...icon} />
+      ) : entry.kind === "spell" ? (
+        <SummonerSpellIcon {...icon} />
+      ) : null}
+      {name}
+    </span>
+  );
+}
 function Items({ row }: { row: BuildRow }) {
   return (
     <span className="ev-build">
-      {row.items.map((item, i) => {
-        const name = item.name ?? `Item ${item.id}`;
-        return (
-          <span className="ev-champion" key={`${item.id}:${i}`}>
-            <ItemIcon id={String(item.id)} name={name} imageUrl={item.imageUrl} size="small" />
-            {name}
-          </span>
-        );
-      })}
+      {row.items.map((entry, i) => (
+        <Entry entry={entry} key={`${entry.kind}:${entry.id}:${i}`} />
+      ))}
     </span>
+  );
+}
+const winRate = (r: BuildRow) =>
+  r.sample === "hidden" ? (
+    <StatusIndicator label={`${sampleLabels.hidden} (${r.winRate.sampleCount})`} tone="warning" />
+  ) : (
+    `${percent(r.winRate)} · ${r.winRate.sampleCount} results`
+  );
+function BuildTable({
+  title,
+  rows,
+  pickRate = false,
+  emptyMessage,
+}: {
+  title: string;
+  rows: BuildRow[];
+  pickRate?: boolean;
+  emptyMessage: string;
+}) {
+  return (
+    <Table
+      caption={title}
+      compact
+      rows={rows}
+      getRowKey={(r) => r.items.map((i) => i.id).join(",")}
+      emptyMessage={emptyMessage}
+      columns={[
+        { id: "items", header: title, render: (r) => <Items row={r} /> },
+        { id: "games", header: "Games", align: "end", render: (r) => r.games },
+        ...(pickRate
+          ? [
+              {
+                id: "pick",
+                header: "Pick rate",
+                align: "end" as const,
+                render: (r: BuildRow) => percent(r.pickRate),
+              },
+            ]
+          : []),
+        { id: "win", header: "Win rate", align: "end", render: winRate },
+      ]}
+    />
   );
 }
 export function BuildsSection({ builds }: { builds: ChampionBuilds | null }) {
@@ -41,32 +104,39 @@ export function BuildsSection({ builds }: { builds: ChampionBuilds | null }) {
             From timeline purchases: undone purchases and sales are not purchases. Starting items
             are bought in the first 90 seconds; a path is the first three completed items.
           </p>
-          {sections.map(({ kind, title }) => (
-            <Table
+          {itemSections.map(({ kind, title }) => (
+            <BuildTable
               key={kind}
-              caption={title}
-              compact
+              title={title}
               rows={builds[kind]}
-              getRowKey={(r) => r.items.map((i) => i.id).join(",")}
               emptyMessage="No games with timelines yet."
-              columns={[
-                { id: "items", header: title, render: (r) => <Items row={r} /> },
-                { id: "games", header: "Games", align: "end", render: (r) => r.games },
-                {
-                  id: "win",
-                  header: "Win rate",
-                  align: "end",
-                  render: (r) =>
-                    r.sample === "hidden" ? (
-                      <StatusIndicator
-                        label={`${sampleLabels.hidden} (${r.winRate.sampleCount})`}
-                        tone="warning"
-                      />
-                    ) : (
-                      `${percent(r.winRate)} · ${r.winRate.sampleCount} results`
-                    ),
-                },
-              ]}
+            />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+export function LoadoutsSection({ builds }: { builds: ChampionBuilds | null }) {
+  return (
+    <section className="np-stack" aria-labelledby="loadouts-heading">
+      <h2 id="loadouts-heading">Runes and summoner spells</h2>
+      {!builds ? (
+        <p className="np-body-sm">Rune pages and spells come from solo-queue match details.</p>
+      ) : (
+        <>
+          <p className="np-body-sm">
+            Pick rate is the share of this champion&apos;s games in the selection. Stat shards show
+            their ids because Data Dragon does not describe them.
+          </p>
+          {loadoutSections.map(({ kind, title }) => (
+            <BuildTable
+              key={kind}
+              title={title}
+              rows={builds[kind]}
+              pickRate
+              emptyMessage="No games yet."
             />
           ))}
         </>

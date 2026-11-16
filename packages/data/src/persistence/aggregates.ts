@@ -477,6 +477,7 @@ export async function championOverview(
             role: q.role,
             region: q.region,
             tier: q.tier,
+            championGames: own?.games ?? 0,
           })
         : null,
   };
