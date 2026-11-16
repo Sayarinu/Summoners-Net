@@ -280,3 +280,41 @@ it("queues replay metadata without parsing bytes and shows controlled worker err
   fireEvent.submit(button.closest("form")!);
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
 });
+
+it("queues pro account links and shows whole-file validation reports", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <SourcesPage
+      status={{
+        ...status,
+        jobs: [
+          {
+            id: "100",
+            kind: "pro-account-links",
+            state: "failed",
+            error: "Link 2: no stored player matches this source ID. Saved links are unchanged.",
+            requestedAt: instant,
+          },
+        ],
+      }}
+      timezone="UTC"
+      year={2026}
+    />,
+  );
+  expect(screen.getByText(/Link 2: no stored player/)).toBeVisible();
+  const button = screen.getByRole("button", { name: "Queue pro account links" });
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Pro account link import queued/);
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/import?kind=pro-account-links",
+    expect.objectContaining({ method: "POST" }),
+  );
+  expect((fetcher.mock.calls[0]![1]!.body as FormData).get("kind")).toBe("pro-account-links");
+  fetcher.mockResolvedValue(new Response("{}", { status: 400 }));
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Pro account links could not be queued/);
+  fetcher.mockRejectedValue(new Error("offline"));
+  fireEvent.submit(button.closest("form")!);
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+});

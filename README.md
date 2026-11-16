@@ -133,6 +133,12 @@ after snapshot recording is enabled. Charts show the last 30 UTC days, using eac
 observed position per platform, with gaps for missing observations. Older current ladder rows are
 not backfilled into historical snapshots.
 
+Import [version 1 pro account links](docs/formats/pro-account-links-v1.md) from **Sources &
+imports** to connect Riot PUUIDs to exact stored pro player source IDs with supporting evidence
+URLs. The worker validates the entire file before one transaction; unknown or conflicting targets
+reject the file, and omitted links are kept. Evidence is supplied by the file author and is not
+independently verified by fetching its URLs.
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting

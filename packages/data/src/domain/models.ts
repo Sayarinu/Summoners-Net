@@ -163,6 +163,14 @@ export type BrowseQuery = z.input<typeof querySchema>;
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("pro-account-links"),
+    file: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((v) => !v.includes(String.fromCharCode(0)), "Invalid file path."),
+  }),
+  z.strictObject({
     kind: z.literal("replay-metadata"),
     file: z
       .string()

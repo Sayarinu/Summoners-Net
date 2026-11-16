@@ -1,3 +1,5 @@
+import { importProAccountLinks } from "../persistence/pro-accounts.js";
+import { ProAccountImportError } from "../domain/pro-accounts.js";
 import { resolve } from "node:path";
 import { importReplayMetadata, ReplayImportError } from "../persistence/replays.js";
 import { importReplayTrack, ReplayTrackImportError } from "../persistence/replay-tracks.js";
@@ -124,6 +126,7 @@ class ProviderError extends Error {
 const tracksSource = (r: SyncRequest) =>
   r.kind !== "resolve" &&
   r.kind !== "drafts" &&
+  r.kind !== "pro-account-links" &&
   r.kind !== "replay-track" &&
   r.kind !== "replay-metadata" &&
   r.kind !== "aggregate" &&
@@ -615,6 +618,17 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const report = await resolveStored(pool, clock());
       await cacheImages(pool, fetcher, clock);
       return report.links;
+    }
+    if (r.kind === "pro-account-links") {
+      try {
+        return await importProAccountLinks(pool, r.file, clock());
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ProAccountImportError
+            ? error.message
+            : "Pro account links could not be read or stored; saved links are unchanged.",
+        );
+      }
     }
     if (r.kind === "replay-metadata") {
       try {
