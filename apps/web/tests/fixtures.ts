@@ -122,6 +122,7 @@ export const profile: Profile = {
   roster: [{ team: blue, player, observedAt: instant }],
 };
 export const status: SyncStatus = {
+  riotCrawl: { quota: [], jobs: [], progress: [] },
   riotStorage: {
     previousPatches: null,
     keptPatches: [],

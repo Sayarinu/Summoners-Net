@@ -123,7 +123,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -1752,6 +1752,171 @@ describe("Solo-queue retention", () => {
         )
       ).rows[0]!.n,
     ).toBe(1);
+  });
+});
+describe("Riot crawl status", () => {
+  it("reports quota per region and method, including pauses, and Riot job outcomes", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    const entry = (puuid: string) => ({
+      puuid,
+      summonerId: null,
+      tier: "MASTER" as const,
+      rank: "I",
+      leaguePoints: 1,
+      wins: 1,
+      losses: 1,
+      leagueId: "l",
+    });
+    await saveLadder(pool, "euw1", [entry("a".repeat(78)), entry("b".repeat(78))], now);
+    await saveLadder(pool, "kr", [entry("c".repeat(78))], now);
+    const crawl = { puuid: "a".repeat(78), platform: "euw1", region: "europe" };
+    await saveMatchIds(
+      pool,
+      { ...crawl, patchKey: "16.22" },
+      ["EUW1_1", "EUW1_2", "EUW1_3"],
+      10,
+      now,
+    );
+    await saveMatchIds(pool, { ...crawl, patchKey: "16.21" }, ["EUW1_9"], 10, now);
+    const match = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    match.metadata.matchId = "EUW1_1";
+    await saveRiotMatch(pool, parseRiotMatch(match, "EUW1_1"), match, now);
+    await pool.query("UPDATE riot_matches SET timeline_state='fetched' WHERE match_id='EUW1_1'");
+    await observeRiotLimits(
+      pool,
+      "europe",
+      "match-v5.getMatch",
+      new Headers({ "X-Method-Rate-Limit": "2000:10" }),
+      200,
+      now,
+    );
+    await reserveRiotRequest(pool, "europe", "match-v5.getMatch", now);
+    await reserveRiotRequest(pool, "europe", "match-v5.getMatch", now);
+    await observeRiotLimits(
+      pool,
+      "kr",
+      "league-v4.masterleagues",
+      new Headers({ "Retry-After": "30", "X-Rate-Limit-Type": "method" }),
+      429,
+      now,
+    );
+    // A keyless retention run succeeds; a crawl without a catalog would fail. Record both.
+    await sync.request({ kind: "riot-retention" });
+    expect((await sync.runNext()).state).toBe("done");
+    await pool.query("TRUNCATE patches CASCADE");
+    const failing = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      riot: { key: "RGAPI-01234567-89ab-cdef-0123-456789abcdef", kind: "development" },
+    });
+    try {
+      await failing.request({ kind: "riot-match-ids" });
+      while ((await failing.runNext()).state !== "idle");
+    } finally {
+      await failing.close();
+    }
+    const { riotCrawl } = await queries.status();
+    expect(riotCrawl.quota).toEqual([
+      {
+        region: "europe",
+        method: "",
+        windows: [
+          { limit: 20, windowSeconds: 1, used: 2 },
+          { limit: 100, windowSeconds: 120, used: 2 },
+        ],
+        pausedUntil: null,
+      },
+      {
+        region: "europe",
+        method: "match-v5.getMatch",
+        windows: [{ limit: 2000, windowSeconds: 10, used: 2 }],
+        pausedUntil: null,
+      },
+      // A 429 pause shows even before any limit for the method is known.
+      {
+        region: "kr",
+        method: "league-v4.masterleagues",
+        windows: [],
+        pausedUntil: new Date(now.valueOf() + 30000).toISOString(),
+      },
+      // The key check the crawl worker made when it started.
+      {
+        region: "na1",
+        method: "",
+        windows: [
+          { limit: 20, windowSeconds: 1, used: 1 },
+          { limit: 100, windowSeconds: 120, used: 1 },
+        ],
+        pausedUntil: null,
+      },
+      { region: "na1", method: "lol-status-v4.getPlatformData", windows: [], pausedUntil: null },
+    ]);
+    expect(
+      riotCrawl.jobs.map((j) => [j.kind, Boolean(j.lastSuccess), Boolean(j.lastErrorAt)]),
+    ).toEqual([
+      ["riot-key", true, false],
+      ["riot-match-ids", false, true],
+      ["riot-retention", true, false],
+    ]);
+    expect(riotCrawl.jobs[1]!.error).toContain("patch catalog");
+  });
+  it("shows crawl progress per region and patch, including a ladder region not yet crawled", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    const entry = (puuid: string) => ({
+      puuid,
+      summonerId: null,
+      tier: "MASTER" as const,
+      rank: "I",
+      leaguePoints: 1,
+      wins: 1,
+      losses: 1,
+      leagueId: "l",
+    });
+    await saveLadder(pool, "euw1", [entry("a".repeat(78)), entry("b".repeat(78))], now);
+    await saveLadder(pool, "kr", [entry("c".repeat(78))], now);
+    const crawl = { puuid: "a".repeat(78), platform: "euw1", region: "europe" };
+    await saveMatchIds(
+      pool,
+      { ...crawl, patchKey: "16.22" },
+      ["EUW1_1", "EUW1_2", "EUW1_3"],
+      10,
+      now,
+    );
+    await saveMatchIds(pool, { ...crawl, patchKey: "16.21" }, ["EUW1_9"], 10, now);
+    const match = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    match.metadata.matchId = "EUW1_1";
+    await saveRiotMatch(pool, parseRiotMatch(match, "EUW1_1"), match, now);
+    await pool.query("UPDATE riot_matches SET timeline_state='fetched' WHERE match_id='EUW1_1'");
+    expect((await queries.status()).riotCrawl.progress).toEqual([
+      {
+        region: "europe",
+        patchKey: "16.22",
+        ladderPlayers: 2,
+        matchIds: 3,
+        matches: 1,
+        timelines: 1,
+      },
+      {
+        region: "europe",
+        patchKey: "16.21",
+        ladderPlayers: 2,
+        matchIds: 1,
+        matches: 0,
+        timelines: 0,
+      },
+      {
+        region: "asia",
+        patchKey: "16.22",
+        ladderPlayers: 1,
+        matchIds: 0,
+        matches: 0,
+        timelines: 0,
+      },
+    ]);
   });
 });
 describe("Riot API key", () => {

@@ -143,3 +143,80 @@ it("shows solo-queue storage per patch and the retention setting", () => {
   expect(table).toHaveTextContent("800 B");
   expect(section()).toHaveTextContent("120 pruned, 0 queued to refetch");
 });
+it("shows Riot quota, job outcomes and crawl progress, and queues a crawl", async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
+  const section = () => screen.getByRole("region", { name: "Riot crawler" });
+  expect(section()).toHaveTextContent("No ladder or match data yet.");
+  expect(section()).toHaveTextContent("No Riot requests in the last hour.");
+  view.rerender(
+    <SourcesPage
+      status={{
+        ...status,
+        riotCrawl: {
+          quota: [
+            {
+              region: "europe",
+              method: "",
+              windows: [
+                { limit: 20, windowSeconds: 1, used: 3 },
+                { limit: 100, windowSeconds: 120, used: 42 },
+              ],
+              pausedUntil: null,
+            },
+            {
+              region: "kr",
+              method: "league-v4.masterleagues",
+              windows: [],
+              pausedUntil: "2026-03-01T10:00:30.000Z",
+            },
+          ],
+          jobs: [
+            {
+              kind: "riot-match",
+              lastSuccess: "2026-03-01T09:00:00.000Z",
+              lastErrorAt: null,
+              error: null,
+              records: 50,
+            },
+            {
+              kind: "riot-match-ids",
+              lastSuccess: null,
+              lastErrorAt: "2026-03-01T09:30:00.000Z",
+              error: "No patch catalog yet",
+              records: 0,
+            },
+          ],
+          progress: [
+            {
+              region: "europe",
+              patchKey: "16.22",
+              ladderPlayers: 300,
+              matchIds: 2000,
+              matches: 1500,
+              timelines: 1400,
+            },
+          ],
+        },
+      }}
+      timezone="UTC"
+      year={2026}
+    />,
+  );
+  const progress = screen.getByRole("table", { name: "Crawl progress by region and patch" });
+  expect(progress).toHaveTextContent("europe16.22300200015001400");
+  const jobs = screen.getByRole("table", { name: "Riot jobs" });
+  expect(jobs).toHaveTextContent("Match details");
+  expect(jobs).toHaveTextContent("No patch catalog yet");
+  const quota = screen.getByRole("table", { name: "Riot request quota" });
+  expect(quota).toHaveTextContent("3 / 20 per 1 s, 42 / 100 per 2 min");
+  expect(quota).toHaveTextContent("All methods (application limit)");
+  expect(quota).toHaveTextContent("Limit not reported yet");
+  fireEvent.click(screen.getByRole("button", { name: "Queue crawl" }));
+  await screen.findByText(/Queued\. The local worker/);
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/refresh",
+    expect.objectContaining({ body: JSON.stringify({ kind: "riot-match-ids" }) }),
+  );
+});
