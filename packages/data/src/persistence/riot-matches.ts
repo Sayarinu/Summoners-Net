@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { RiotMatch } from "../providers/riot-match.js";
 import { transaction, type Executor } from "./database.js";
 import { linkPatchString } from "./patches.js";
+import { markDirty } from "./aggregates.js";
 
 /** Queued match ids not yet fetched, oldest first. */
 export async function pendingMatches(db: Executor, limit: number) {
@@ -32,6 +33,7 @@ export async function markMatchUnavailable(
 export async function saveRiotMatch(pool: Pool, match: RiotMatch, payload: unknown, now: Date) {
   await transaction(pool, async (c) => {
     const patchKey = await linkPatchString(c, "riot", match.gameVersion, now);
+    await markDirty(c, "solo", [patchKey], now);
     await c.query("DELETE FROM riot_matches WHERE match_id=$1", [match.matchId]);
     await c.query(
       `INSERT INTO riot_matches(match_id,data_version,platform_id,queue_id,map_id,game_version,

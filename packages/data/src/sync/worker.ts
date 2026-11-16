@@ -28,6 +28,12 @@ import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import {
+  dirtyPatches,
+  markAllDirty,
+  markOracleYearDirty,
+  rebuildPatch,
+} from "../persistence/aggregates.js";
+import {
   keptPatches,
   pruneBatch,
   pruneUnfetched,
@@ -109,7 +115,10 @@ class ProviderError extends Error {
 // Riot key checks and identity resolution report through their own status, not source_status.
 // Riot jobs report through their own status tables; draft aggregation has no provider request.
 const tracksSource = (r: SyncRequest) =>
-  r.kind !== "resolve" && r.kind !== "drafts" && !r.kind.startsWith("riot-");
+  r.kind !== "resolve" &&
+  r.kind !== "drafts" &&
+  r.kind !== "aggregate" &&
+  !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -436,6 +445,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
       await saveRiotMatch(pool, match, payload, clock());
       ingested++;
     }
+    // Refresh the affected patches' aggregates right after ingestion.
+    if (ingested) await aggregate(false);
     return ingested;
   }
   /**
@@ -498,7 +509,16 @@ export function worker(pool: Pool, options: WorkerOptions) {
     await recordRetention(pool, { previous, kept, pruned, backfilled }, clock());
     return pruned + backfilled;
   }
+  /** Rebuilds the aggregates of patches whose facts changed, one transaction per patch. */
+  async function aggregate(rebuild: boolean): Promise<number> {
+    if (rebuild) await markAllDirty(pool, clock());
+    let rows = 0;
+    for (const { source, patchKey } of await dirtyPatches(pool, 200))
+      rows += await rebuildPatch(pool, source, patchKey, clock());
+    return rows;
+  }
   async function perform(r: SyncRequest): Promise<number> {
+    if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
     if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "riot-retention") return applyRetention();
     if (r.kind === "riot-timeline") return ingestTimelines();
@@ -596,6 +616,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
             });
         const result = await importOracleArchive(pool, artifact, r.year, clock());
         await recordOraclePatches(pool, clock());
+        await markOracleYearDirty(pool, r.year, clock());
+        await aggregate(false);
         await refreshDrafts(pool, clock, r.year);
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;

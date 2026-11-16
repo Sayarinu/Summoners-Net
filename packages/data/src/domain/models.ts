@@ -189,6 +189,13 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
     .strict(),
   z
     .object({
+      kind: z.literal("aggregate"),
+      /** Mark every patch with stored facts for rebuilding. */
+      rebuild: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("history"),
       year: z.number().int().min(2014).max(2100),
       file: z.string().min(1).optional(),

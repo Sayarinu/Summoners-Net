@@ -4,6 +4,7 @@ import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 export function jobKey(r: SyncRequest) {
   if (r.kind === "entity-history" || r.kind === "entity-rosters") return `${r.kind}:${r.year}`;
+  if (r.kind === "aggregate") return r.rebuild ? "aggregate:rebuild" : "aggregate";
   return r.kind === "history"
     ? `history:${r.year}${r.file ? ":" + createHash("sha256").update(r.file).digest("hex").slice(0, 16) : ""}`
     : r.kind;
@@ -41,6 +42,7 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
     { request: { kind: "riot-match" }, interval: 900 },
     { request: { kind: "riot-timeline" }, interval: 900 },
     { request: { kind: "riot-retention" }, interval: 86400 },
+    { request: { kind: "aggregate" }, interval: 3600 },
   ];
   await transaction(pool, async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(9183274)");
