@@ -36,6 +36,7 @@ import { championOverview, championStats, tierList } from "../persistence/aggreg
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
 import { proChampionStats } from "../persistence/pro-stats.js";
 import { matchFeatures } from "../persistence/wp-features.js";
+import { activeWinProbabilityModel, winProbabilityModels } from "../persistence/wp-models.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -134,7 +135,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2812,6 +2813,73 @@ describe("Champion aggregates", () => {
       xp_diff: null,
       cs_diff: null,
     });
+  });
+  it("trains, stores and activates win probability models, keeping the active one on a small sample", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    const ids = Array.from({ length: 20 }, (_, i) => `EUW1_${100 + i}`);
+    for (const id of ids) await ingest(id, challenger);
+    // Synthetic stored features: blue wins exactly the games where it leads in gold.
+    await pool.query(
+      `INSERT INTO riot_wp_features(match_id,version,minute,timestamp_ms,gold_diff,xp_diff,cs_diff,
+         blue_kills,red_kills,blue_towers,red_towers,blue_inhibitors,red_inhibitors,blue_barons,
+         red_barons,blue_elders,red_elders,blue_dragons,red_dragons,blue_soul,red_soul,blue_win,
+         computed_at)
+       SELECT m.id,1,minute,minute*60000,lead*minute,0,0,0,0,0,0,0,0,0,0,0,0,'{}','{}',false,false,
+         lead>0,$2
+       FROM unnest($1::text[]) WITH ORDINALITY AS m(id,n)
+       CROSS JOIN LATERAL (SELECT CASE WHEN n%2=0 THEN 400 ELSE -400 END AS lead) l
+       CROSS JOIN generate_series(1,10) minute`,
+      [ids, now],
+    );
+    const trainer = (minimumMatches: number) =>
+      createSync(connection, {
+        clock: () => instant,
+        fetch: fetcher,
+        winProbability: { minimumMatches, seed: 11 },
+      });
+    const first = trainer(10);
+    try {
+      await first.request({ kind: "wp-train" });
+      expect(await first.runNext()).toMatchObject({ state: "done", records: 1 });
+    } finally {
+      await first.close();
+    }
+    const active = (await activeWinProbabilityModel(pool))!;
+    expect(active).toMatchObject({
+      modelVersion: 1,
+      featureVersion: 1,
+      patchWindow: ["16.22"],
+      seed: 11,
+      trainMatches: 16,
+      trainRows: 160,
+      evalMatches: 4,
+      evalRows: 40,
+      status: "active",
+    });
+    expect(active.coefficients.features[1]).toBe("goldDiff");
+    expect(active.coefficients.weights[1]).toBeGreaterThan(0);
+    expect(active.brier).toBeLessThan(0.25);
+    expect(active.bins).toHaveLength(10);
+
+    // Too small a sample: stored as rejected; the previous model stays active.
+    instant = new Date(now.valueOf() + 86400000);
+    const strict = trainer(100);
+    try {
+      await strict.request({ kind: "wp-train" });
+      expect(await strict.runNext()).toMatchObject({ state: "done", records: 0 });
+    } finally {
+      await strict.close();
+    }
+    const [rejected, kept] = await winProbabilityModels(pool);
+    expect(rejected).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("16 training matches") as string,
+    });
+    expect(kept!.id).toBe(active.id);
+    expect((await activeWinProbabilityModel(pool))!.id).toBe(active.id);
+    // The same seed and data reproduce the same coefficients.
+    expect(rejected!.coefficients).toEqual(active.coefficients);
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

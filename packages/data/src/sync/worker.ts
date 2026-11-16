@@ -30,6 +30,7 @@ import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
+import { trainWinProbabilityModel } from "../persistence/wp-models.js";
 import {
   dirtyPatches,
   markAllDirty,
@@ -107,6 +108,8 @@ export interface WorkerOptions {
   riotMatchCap?: number;
   /** Patches before the current one whose solo-queue data is kept (RIOT_RETAIN_PATCHES). */
   riotRetainPatches?: number;
+  /** Win probability training: the fewest training matches to publish a model, and the seed. */
+  winProbability?: { minimumMatches?: number; seed?: number };
 }
 class ProviderError extends Error {
   constructor(
@@ -124,6 +127,7 @@ const tracksSource = (r: SyncRequest) =>
   r.kind !== "replay-track" &&
   r.kind !== "replay-metadata" &&
   r.kind !== "aggregate" &&
+  r.kind !== "wp-train" &&
   !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
@@ -526,6 +530,13 @@ export function worker(pool: Pool, options: WorkerOptions) {
   }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
+    if (r.kind === "wp-train") {
+      const trained = await trainWinProbabilityModel(pool, clock(), {
+        minimumMatches: options.winProbability?.minimumMatches ?? 500,
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      return trained.active ? 1 : 0;
+    }
     if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "riot-retention") return applyRetention();
     if (r.kind === "riot-timeline") return ingestTimelines();
