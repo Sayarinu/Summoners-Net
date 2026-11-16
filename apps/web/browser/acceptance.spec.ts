@@ -372,3 +372,40 @@ test("missing and failed portraits show a person across search and profiles", as
     fullPage: true,
   });
 });
+
+test("pro drafts filter and paginate source observations with samples and explicit missing states", async ({
+  page,
+}, info) => {
+  await page.goto("/drafts?patch=16.4&league=Draft+acceptance");
+  await expect(page.getByRole("heading", { name: "Pro drafts", exact: true })).toBeVisible();
+  await expect(
+    page.getByText("First-pick win rate: 100.0% · 1 game", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/1 included · 0 excluded/)).toBeVisible();
+  await expect(page.getByRole("table", { name: "Pick and ban priority" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("table", { name: "Blind and counter picks by role" })
+      .getByText("Jinx", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `../../output/playwright/${info.project.name}-drafts.png`,
+    fullPage: true,
+  });
+  await page
+    .getByRole("navigation", { name: "Priority pages" })
+    .getByRole("button", { name: "Next page" })
+    .click();
+  await expect(page).toHaveURL(/priorityPage=2/);
+  expect(new URL(page.url()).searchParams.get("league")).toBe("Draft acceptance");
+  expect(new URL(page.url()).searchParams.get("patch")).toBe("16.4");
+  await page.getByLabel("Patch", { exact: true }).fill("99.99");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(
+    page.getByText("First-pick win rate: Unknown · 0 games", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("No draft priority observations match these filters.")).toBeVisible();
+  await page.getByLabel("Patch", { exact: true }).fill("bad");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Enter a patch");
+});

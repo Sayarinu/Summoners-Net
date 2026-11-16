@@ -17,6 +17,7 @@ import {
 } from "./quota.js";
 import { riotClient } from "./riot-client.js";
 import { account, currentLadder, ladderStatus, saveLadder } from "../persistence/riot.js";
+import { draftCsv } from "../../tests/draft-fixtures.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
 import {
@@ -1896,4 +1897,87 @@ it("caches all catalog icon kinds, bounds queries and retains successful images 
   expect(ledger.rows[0]?.attempts).toBe(3);
   expect(ledger.rows[0]?.error).toContain("retained");
   expect(ledger.rows[0]?.source_url).toContain("16.22.1/img/champion/MonkeyKing.png");
+});
+
+it("derives draft rates with patch/league SQL filters, role order, missing counts and result samples", async () => {
+  const q = { patch: "16.4", league: "LCK" };
+  expect(await queries.latestDraftPatch()).toBeNull();
+  const empty = await queries.draftAnalytics(q);
+  expect(empty.firstPickWinRate).toEqual({ value: null, sampleCount: 0 });
+  expect(
+    empty.firstPickSides.every((s) => s.winRate.value === null && s.winRate.sampleCount === 0),
+  ).toBe(true);
+  await expect(queries.draftAnalytics({ ...q, patch: "bad" })).rejects.toThrow();
+  await expect(queries.draftAnalytics({ ...q, league: "x".repeat(101) })).rejects.toThrow();
+  await expect(queries.draftAnalytics({ ...q, priorityPage: 0 })).rejects.toThrow();
+  serveDataDragon(["16.5.1", "16.4.1"]);
+  await run({ kind: "metadata" });
+  for (const options of [
+    { id: "draft-a" },
+    { id: "draft-b", firstSide: "red" as const },
+    { id: "draft-missing", missingBan: true },
+    { id: "draft-unknown", patch: "16.04", unknownResult: true },
+    { id: "draft-other-league", league: "LPL" },
+    { id: "draft-other-patch", patch: "16.5" },
+  ])
+    expect((await importCsv(draftCsv(options))).state).toBe("done");
+  expect(await queries.latestDraftPatch()).toBe("16.5");
+  const result = await queries.draftAnalytics(q);
+  expect(result).toMatchObject({
+    games: 4,
+    includedGames: 3,
+    excludedGames: 1,
+    pendingGames: 0,
+    firstPickWinRate: { value: 0.5, sampleCount: 2 },
+  });
+  expect(result.exclusions).toEqual([
+    { reason: "Missing or conflicting pick/ban columns", games: 1 },
+  ]);
+  expect(result.firstPickSides).toEqual([
+    { side: "blue", winRate: { value: 1, sampleCount: 1 } },
+    { side: "red", winRate: { value: 0, sampleCount: 1 } },
+  ]);
+  expect(result.priorities.items).toHaveLength(25);
+  expect(result.priorities.total).toBe(60);
+  expect(result.priorities.items.every((r) => r.rate.sampleCount === 3)).toBe(true);
+  expect(result.priorities.items.find((r) => r.slot === null)?.rate.value).toBe(1);
+  expect(
+    result.priorities.items.find((r) => r.champion === "Kalista" && r.slot === 1)?.rate.value,
+  ).toBeCloseTo(2 / 3);
+  expect(result.roles.items.find((r) => r.champion === "Jinx")).toMatchObject({
+    role: "bottom",
+    games: 3,
+    blindRate: { value: 2 / 3, sampleCount: 3 },
+    counterRate: { value: 1 / 3, sampleCount: 3 },
+  });
+  expect(await queries.draftAnalytics({ ...q, league: "lck" })).toEqual(result);
+  expect((await queries.draftAnalytics({ patch: "16.4" })).firstPickWinRate.value).toBeCloseTo(
+    2 / 3,
+  );
+  expect((await queries.draftAnalytics({ ...q, patch: "16.5" })).includedGames).toBe(1);
+  expect(
+    (await queries.draftAnalytics({ ...q, priorityPage: 999, rolePage: 999 })).priorities,
+  ).toMatchObject({ total: 60, items: [] });
+  expect((await queries.draftAnalytics({ ...q, priorityPage: 2 })).priorities.items).not.toEqual(
+    result.priorities.items,
+  );
+  const providerCalls = fetcher.mock.calls.length;
+  expect(await run({ kind: "drafts" })).toMatchObject({ state: "done", records: 0 });
+  expect(fetcher.mock.calls).toHaveLength(providerCalls);
+  // Simulate an existing archive on upgrade, before its first scheduled draft aggregation.
+  await pool.query("DELETE FROM oracle_draft_games");
+  expect(await queries.draftAnalytics(q)).toMatchObject({
+    pendingGames: 4,
+    includedGames: 0,
+    firstPickWinRate: { value: null, sampleCount: 0 },
+  });
+  expect(await run({ kind: "drafts" })).toMatchObject({ state: "done", records: 6 });
+  expect(await queries.draftAnalytics(q)).toEqual(result);
+  await importCsv(draftCsv({ id: "draft-missing" }));
+  const corrected = await queries.draftAnalytics(q);
+  expect(corrected).toMatchObject({ games: 4, includedGames: 4, excludedGames: 0 });
+  expect(
+    (await importCsv(draftCsv({ id: "draft-missing" }).replaceAll("2026-03-01", "bad-date"))).state,
+  ).toBe("failed");
+  expect(await queries.draftAnalytics(q)).toEqual(corrected);
 });

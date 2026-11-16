@@ -39,6 +39,7 @@ import {
 } from "../persistence/riot.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
+import { refreshDrafts } from "./drafts.js";
 import { cacheCatalogImages } from "./catalog-images.js";
 import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
@@ -84,8 +85,9 @@ class ProviderError extends Error {
   }
 }
 // Riot key checks and identity resolution report through their own status, not source_status.
-// Riot jobs report through their own status tables.
-const tracksSource = (r: SyncRequest) => r.kind !== "resolve" && !r.kind.startsWith("riot-");
+// Riot jobs report through their own status tables; draft aggregation has no provider request.
+const tracksSource = (r: SyncRequest) =>
+  r.kind !== "resolve" && r.kind !== "drafts" && !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -473,6 +475,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
             });
         const result = await importOracleArchive(pool, artifact, r.year, clock());
         await recordOraclePatches(pool, clock());
+        await refreshDrafts(pool, clock, r.year);
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;
       } catch (error) {
@@ -482,6 +485,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         );
       }
     }
+    if (r.kind === "drafts") return refreshDrafts(pool, clock);
     if (r.kind === "metadata") {
       const versions = parseVersionCatalog(
         await (await request("https://ddragon.leagueoflegends.com/api/versions.json")).json(),

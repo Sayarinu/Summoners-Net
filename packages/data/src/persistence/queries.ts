@@ -18,6 +18,7 @@ import {
   type Summary,
   type SyncStatus,
 } from "../domain/models.js";
+import { draftQueries } from "./draft-queries.js";
 import { historicalQueries } from "./historical-queries.js";
 
 const idSchema = z.string().min(1).max(300);
@@ -152,6 +153,7 @@ export function queries(pool: Pool, clock: () => Date) {
   };
   return {
     ...historicalQueries(pool),
+    ...draftQueries(pool),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");
