@@ -12,12 +12,21 @@ export interface ChartPoint {
   readonly sampleCount: number | null;
 }
 
+/** An event at an x value, drawn as a labelled tick along the x-axis of line charts. */
+export interface ChartMarker {
+  readonly id: string;
+  readonly x: number;
+  readonly label: string;
+  readonly color?: ChartColor;
+}
+
 export interface ChartProps {
   readonly title: string;
   readonly points: readonly ChartPoint[];
   readonly color?: ChartColor;
   readonly xLabel?: string;
   readonly yLabel?: string;
+  readonly markers?: readonly ChartMarker[];
 }
 
 export interface HeatGridCell {
@@ -93,6 +102,7 @@ function CartesianChart({
   color = 1,
   xLabel = "X",
   yLabel = "Value",
+  markers = [],
   kind,
 }: ChartProps & { readonly kind: "line" | "bar" | "scatter" | "sparkline" }) {
   const compact = kind === "sparkline";
@@ -168,6 +178,25 @@ function CartesianChart({
           ) : (
             <path d={`M ${left} ${y(0)} H ${right}`} />
           )}
+        </g>
+      ) : null}
+      {kind === "line" && valid.length > 0 ? (
+        <g className="np-chart__markers">
+          {markers
+            .filter((marker) => known(marker.x))
+            .map((marker) => {
+              const markerX = scale(marker.x, xDomain, left, right);
+              return (
+                <path
+                  key={marker.id}
+                  d={`M ${markerX} ${bottom} v -10`}
+                  stroke={colorValue(marker.color ?? color)}
+                  strokeWidth={3}
+                >
+                  <title>{`${marker.label} (${xLabel} ${marker.x})`}</title>
+                </path>
+              );
+            })}
         </g>
       ) : null}
       <g style={{ color: colorValue(color) }}>

@@ -37,7 +37,12 @@ import { championOverview, championStats, tierList } from "../persistence/aggreg
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
 import { proChampionStats } from "../persistence/pro-stats.js";
 import { matchFeatures } from "../persistence/wp-features.js";
-import { activeWinProbabilityModel, winProbabilityModels } from "../persistence/wp-models.js";
+import {
+  activeWinProbabilityModel,
+  trainWinProbabilityModel,
+  winProbabilityModels,
+} from "../persistence/wp-models.js";
+import { soloGame } from "../persistence/solo-games.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -2881,6 +2886,49 @@ describe("Champion aggregates", () => {
     expect((await activeWinProbabilityModel(pool))!.id).toBe(active.id);
     // The same seed and data reproduce the same coefficients.
     expect(rejected!.coefficients).toEqual(active.coefficients);
+  });
+  it("scores a solo game's win probability per minute with the active model, with gaps and markers", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    const before = (await queries.soloGame("EUW1_1"))!;
+    expect(before.winProbability).toMatchObject({ model: null, points: [] });
+    expect(before.winProbability.reason).toMatch(/No win probability model is active/);
+    expect(before.participants[0]).toMatchObject({
+      championKey: 103,
+      championId: "Ahri",
+      championName: "Ahri",
+      side: "blue",
+    });
+
+    await trainWinProbabilityModel(pool, now, { minimumMatches: 1, seed: 3 });
+    const game = (await soloGame(pool, "EUW1_1"))!;
+    expect(game.winProbability.model).toMatchObject({ modelVersion: 1, featureVersion: 1 });
+    expect(game.winProbability.reason).toBeNull();
+    // The 30-minute game has stored features for minutes 0-2 only: the rest are gaps.
+    expect(game.winProbability.points).toHaveLength(31);
+    const scored = game.winProbability.points.filter((p) => p.blueWinProbability !== null);
+    expect(scored.map((p) => p.minute)).toEqual([0, 1, 2]);
+    expect(scored.every((p) => p.blueWinProbability! > 0 && p.blueWinProbability! < 1)).toBe(true);
+    expect(game.winProbability.markers.map((m) => [m.minute, m.team, m.kind, m.label])).toEqual([
+      [1, "blue", "kill", "Blue kill"],
+      [1, "blue", "dragon", "Blue: Fire Dragon"],
+      [2, "blue", "tower", "Blue takes a tower"],
+    ]);
+    // Without a timeline there is nothing to score, and the page is told why.
+    expect((await soloGame(pool, "EUW1_2"))!.winProbability.reason).toMatch(
+      /timeline has not been stored/,
+    );
+    expect(await soloGame(pool, "EUW1_999")).toBeNull();
+    await expect(soloGame(pool, "not a match")).rejects.toThrow();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

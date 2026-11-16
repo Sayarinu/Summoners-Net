@@ -350,6 +350,19 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   const missing = await page.goto("/champions/NotAChampion");
   expect(missing?.status()).toBe(404);
 });
+test("a solo game charts win probability with the model's calibration and event markers", async ({
+  page,
+}) => {
+  await page.goto("/solo-games/EUW1_7000000001");
+  await expect(page.getByRole("heading", { name: "Blue side won" })).toBeVisible();
+  await expect(page.getByText(/model v1 \(#1, features v1\)/)).toBeVisible();
+  await expect(page.getByText("Blue side win probability by minute").first()).toBeAttached();
+  const events = page.getByRole("table", { name: "Kills and objectives" });
+  await expect(events).toContainText("Blue: Fire Dragon");
+  await expect(page.getByRole("table", { name: "Players" })).toContainText("Ahri");
+  const missing = await page.goto("/solo-games/EUW1_1");
+  expect(missing?.status()).toBe(404);
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

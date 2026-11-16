@@ -27,6 +27,7 @@ import {
 } from "../domain/models.js";
 import { draftQueries } from "./draft-queries.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
+import { soloGame } from "./solo-games.js";
 import type {
   ChampionOverviewQuery,
   ChampionStatsQuery,
@@ -180,6 +181,7 @@ export function queries(pool: Pool, clock: () => Date) {
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
     tierList: (input?: TierListQuery) => tierList(pool, input),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
+    soloGame: (matchId: string) => soloGame(pool, matchId),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");

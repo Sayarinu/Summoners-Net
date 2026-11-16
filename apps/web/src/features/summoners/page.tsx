@@ -68,7 +68,11 @@ export function SummonerPage({
               emptyMessage="No sampled games in this selection."
               columns={[
                 { id: "date", header: "Played", render: (r) => dateTime(r.occurredAt, timezone) },
-                { id: "match", header: "Match", render: (r) => r.matchId },
+                {
+                  id: "match",
+                  header: "Match",
+                  render: (r) => <TextLink href={`/solo-games/${r.matchId}`}>{r.matchId}</TextLink>,
+                },
                 {
                   id: "region",
                   header: "Region",

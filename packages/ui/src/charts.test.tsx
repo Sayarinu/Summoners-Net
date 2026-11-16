@@ -145,3 +145,23 @@ describe("SVG charts", () => {
     ).toEqual([]);
   });
 });
+
+it("draws event markers along the x-axis of line charts, with their labels", () => {
+  const { container } = render(
+    <LineChart
+      title="Win probability"
+      xLabel="Minute"
+      points={[
+        { id: "0", label: "0", x: 0, y: 0.5, sampleCount: 1 },
+        { id: "10", label: "10", x: 10, y: 0.7, sampleCount: 1 },
+      ]}
+      markers={[
+        { id: "k", x: 4, label: "Blue kill", color: "blue" },
+        { id: "bad", x: Number.NaN, label: "Ignored" },
+      ]}
+    />,
+  );
+  const ticks = container.querySelectorAll(".np-chart__markers path");
+  expect(ticks).toHaveLength(1);
+  expect(ticks[0]?.querySelector("title")?.textContent).toBe("Blue kill (Minute 4)");
+});
