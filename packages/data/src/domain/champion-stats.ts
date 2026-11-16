@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SampledValue } from "./historical.js";
+import type { ChampionBuilds } from "./builds.js";
 
 export const championRoles = [
   "TOP",
@@ -133,4 +134,6 @@ export interface ChampionOverview {
   /** Oldest to newest; a patch without data has a null win rate and zero games. */
   trend: { patch: string; winRate: SampledValue; games: number }[];
   facets: { patches: string[]; regions: string[]; tiers: string[] };
+  /** Solo-queue builds from timelines; null for pro play, which has no item events. */
+  builds: ChampionBuilds | null;
 }

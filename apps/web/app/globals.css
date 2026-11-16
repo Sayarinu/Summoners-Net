@@ -96,6 +96,11 @@
   min-width: 125px;
   max-width: 185px;
 }
+.ev-build {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
 .ev-champion {
   display: inline-flex;
   align-items: center;

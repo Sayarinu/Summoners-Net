@@ -67,8 +67,28 @@ export function parseChampionCatalog(input: unknown, version: string): CatalogEn
     return { id: c.id, key: c.key, name: c.name, image: c.image.full, treeId: null, slot: null };
   });
 }
-export function parseItemCatalog(input: unknown, version: string): CatalogEntry[] {
-  const parsed = versioned(z.object({ name: z.string(), image })).parse(input);
+/** Data Dragon's item attributes, as received: tags, components, upgrades and total cost. */
+export interface ItemAttributes {
+  tags: string[];
+  from: number[];
+  into: number[];
+  totalGold: number | null;
+}
+export function parseItemCatalog(
+  input: unknown,
+  version: string,
+): (CatalogEntry & { item: ItemAttributes })[] {
+  const ids = z.array(numericKey.transform(Number)).max(100).optional();
+  const parsed = versioned(
+    z.object({
+      name: z.string(),
+      image,
+      tags: z.array(z.string().max(40)).max(40).optional(),
+      from: ids,
+      into: ids,
+      gold: z.object({ total: z.number().int().min(0) }).optional(),
+    }),
+  ).parse(input);
   checkVersion(parsed, version);
   return Object.entries(parsed.data).map(([id, item]) => ({
     id: numericKey.parse(id),
@@ -77,6 +97,12 @@ export function parseItemCatalog(input: unknown, version: string): CatalogEntry[
     image: item.image.full,
     treeId: null,
     slot: null,
+    item: {
+      tags: item.tags ?? [],
+      from: item.from ?? [],
+      into: item.into ?? [],
+      totalGold: item.gold?.total ?? null,
+    },
   }));
 }
 export function parseSpellCatalog(input: unknown, version: string): CatalogEntry[] {

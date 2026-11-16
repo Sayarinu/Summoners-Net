@@ -20,6 +20,7 @@ import {
   wilsonInterval,
 } from "../domain/statistics.js";
 import { transaction, type Executor } from "./database.js";
+import { championBuilds, rebuildBuilds } from "./builds.js";
 
 export type AggregateSource = "solo" | "pro";
 
@@ -158,11 +159,13 @@ export async function rebuildPatch(
        JOIN slices s ON s.queue=r.queue AND s.region=r.region AND s.tier=r.tier`,
       [patchKey, source, now],
     );
+    // Solo-queue builds come from timelines and are rebuilt with the patch.
+    const builds = source === "solo" ? await rebuildBuilds(c, patchKey, now) : 0;
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
       source,
       patchKey,
     ]);
-    return inserted.rowCount ?? 0;
+    return (inserted.rowCount ?? 0) + builds;
   });
 }
 
@@ -466,5 +469,15 @@ export async function championOverview(
       };
     }),
     facets: list.facets,
+    builds:
+      q.source === "solo" && list.patch
+        ? await championBuilds(db, {
+            championKey: champion.champion_key,
+            patch: list.patch,
+            role: q.role,
+            region: q.region,
+            tier: q.tier,
+          })
+        : null,
   };
 }

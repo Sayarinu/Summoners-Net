@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { RiotTimeline, TimelineEvent, TimelineFrame } from "../providers/riot-timeline.js";
 import { transaction, type Executor } from "./database.js";
+import { markDirty } from "./aggregates.js";
 
 /** Ingested matches whose timeline has not been fetched, oldest first, with their route. */
 export async function pendingTimelines(db: Executor, limit: number) {
@@ -87,9 +88,11 @@ export async function saveTimeline(pool: Pool, timeline: RiotTimeline, now: Date
         ),
       ],
     );
-    await c.query(
-      "UPDATE riot_matches SET timeline_state='fetched',timeline_fetched_at=$2 WHERE match_id=$1",
+    const patch = await c.query<{ patch_key: string | null }>(
+      "UPDATE riot_matches SET timeline_state='fetched',timeline_fetched_at=$2 WHERE match_id=$1 RETURNING patch_key",
       [timeline.matchId, now],
     );
+    // Builds come from timelines, so the match's patch is rebuilt.
+    await markDirty(c, "solo", [patch.rows[0]?.patch_key ?? null], now);
   });
 }

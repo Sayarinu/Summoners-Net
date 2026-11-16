@@ -316,6 +316,10 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(stats).toContainText("Win rate · 1 results");
   await expect(stats).toContainText("Tier");
   await expect(page.getByText("Ahri win rate by patch").first()).toBeAttached();
+  // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.
+  const start = page.getByRole("table", { name: "Starting items" });
+  await expect(start).toContainText("Doran's Ring");
+  await expect(start).toContainText("Too few games (1)");
   await page.goto("/champions/Ahri?source=pro");
   await expect(page.getByText("Pro play · All roles")).toBeVisible();
   const missing = await page.goto("/champions/NotAChampion");

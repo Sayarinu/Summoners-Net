@@ -1,6 +1,7 @@
 "use client";
 import { ChampionIcon, EmptyState, Sparkline, TextLink } from "@summonersnet/ui";
 import type { ChampionOverview } from "@summonersnet/data/contracts";
+import { BuildsSection } from "./builds";
 import { ChampionFilters } from "./filters";
 import { interval, percent, roleLabels } from "./presentation";
 
@@ -95,6 +96,7 @@ export function ChampionOverviewPage({
               sampleCount: t.winRate.sampleCount,
             }))}
           />
+          <BuildsSection builds={overview.builds} />
         </section>
       )}
     </div>

@@ -125,7 +125,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -623,7 +623,19 @@ it("stores the champion, item, rune and spell catalog per patch and maps Oracle 
         `SELECT count(*)::integer n FROM ${table} WHERE patch_key='16.22'`,
       )
     ).rows[0]!.n;
-  expect(await count("catalog_items")).toBe(2);
+  expect(await count("catalog_items")).toBe(10);
+  expect(
+    (
+      await pool.query(
+        "SELECT tags,builds_from,builds_into,total_gold FROM catalog_items WHERE patch_key='16.22' AND item_id=3006",
+      )
+    ).rows[0],
+  ).toEqual({
+    tags: ["AttackSpeed", "Boots"],
+    builds_from: [1001, 1042, 1042],
+    builds_into: [3172],
+    total_gold: 1100,
+  });
   expect(await count("catalog_summoner_spells")).toBe(2);
   expect(
     (
@@ -2261,6 +2273,102 @@ describe("Champion aggregates", () => {
       tier: null,
     });
     expect(await championOverview(pool, { champion: "NotAChampion" })).toBeNull();
+  });
+  it("derives builds from timeline purchases, ignoring undone purchases and sales", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+    });
+    await ingest("EUW1_3", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: { frames: { events: Record<string, unknown>[] }[] };
+    };
+    const buy = (seconds: number, itemId: number) => ({
+      type: "ITEM_PURCHASED",
+      timestamp: seconds * 1000,
+      participantId: 1,
+      itemId,
+    });
+    const withEvents = (matchId: string, events: Record<string, unknown>[]) => {
+      const copy = structuredClone(timeline);
+      copy.metadata.matchId = matchId;
+      copy.info.frames[2]!.events.push(...events);
+      return copy;
+    };
+    // The fixture opens with Doran's Ring and a potion whose purchase is undone.
+    await saveTimeline(
+      pool,
+      parseRiotTimeline(
+        withEvents("EUW1_1", [buy(600, 3020), buy(900, 4645), buy(1200, 3089), buy(1500, 3157)]),
+        "EUW1_1",
+      ),
+      now,
+    );
+    await saveTimeline(
+      pool,
+      parseRiotTimeline(
+        withEvents("EUW1_2", [
+          buy(600, 3020),
+          buy(900, 4645),
+          buy(1000, 3089),
+          { type: "ITEM_UNDO", timestamp: 1005000, participantId: 1, beforeId: 3089, afterId: 0 },
+          buy(1010, 3135),
+          { type: "ITEM_SOLD", timestamp: 1100000, participantId: 1, itemId: 1056 },
+          buy(1500, 3157),
+        ]),
+        "EUW1_2",
+      ),
+      now,
+    );
+    // EUW1_3 has no timeline, so it contributes no builds.
+    await runAggregate();
+    expect(
+      (
+        await pool.query(
+          "SELECT kind,build,games,result_games,wins FROM champion_builds WHERE champion_key=103 ORDER BY kind,build",
+        )
+      ).rows,
+    ).toEqual([
+      { kind: "boots", build: "3020", games: 2, result_games: 2, wins: 1 },
+      { kind: "path", build: "4645,3089,3157", games: 1, result_games: 1, wins: 1 },
+      { kind: "path", build: "4645,3135,3157", games: 1, result_games: 1, wins: 0 },
+      { kind: "slot1", build: "4645", games: 2, result_games: 2, wins: 1 },
+      { kind: "slot2", build: "3089", games: 1, result_games: 1, wins: 1 },
+      { kind: "slot2", build: "3135", games: 1, result_games: 1, wins: 0 },
+      { kind: "slot3", build: "3157", games: 2, result_games: 2, wins: 1 },
+      { kind: "start", build: "1056", games: 2, result_games: 2, wins: 1 },
+    ]);
+    const overview = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!;
+    expect(overview.builds!.slot1).toEqual([
+      {
+        items: [
+          {
+            id: 4645,
+            name: "Shadowflame",
+            imageUrl: expect.stringMatching(/^\/api\/images\/[a-f0-9]{64}$/) as string,
+          },
+        ],
+        games: 2,
+        // Two results are below the minimum sample, so the win rate is not shown.
+        winRate: { value: null, sampleCount: 2 },
+        sample: "hidden",
+      },
+    ]);
+    expect(overview.builds!.boots[0]!.items[0]).toMatchObject({
+      id: 3020,
+      name: "Sorcerer's Shoes",
+    });
+    expect(overview.builds!.path.map((p) => p.items.map((i) => i.id))).toEqual([
+      [4645, 3089, 3157],
+      [4645, 3135, 3157],
+    ]);
+    expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.builds).toBeNull();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);
