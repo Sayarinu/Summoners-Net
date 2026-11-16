@@ -80,7 +80,7 @@ export default async function setup() {
   try {
     await sync.migrate();
     await pool.query(
-      "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,aggregate_dirty,riot_wp_features,wp_models RESTART IDENTITY CASCADE",
+      "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,aggregate_dirty,riot_wp_features,wp_models,riot_wpa_participants,riot_wpa_events,wpa_aggregates RESTART IDENTITY CASCADE",
     );
     await pool.query(
       "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -157,6 +157,9 @@ export default async function setup() {
       throw new Error("Browser aggregate fixture failed");
     // A model from the one seeded game, so the solo game page can chart win probability.
     await trainWinProbabilityModel(pool, now, { minimumMatches: 1, seed: 1 });
+    // Score the game with the new model and build its win probability added leaderboards.
+    await sync.request({ kind: "aggregate" });
+    if ((await sync.runNext()).state !== "done") throw new Error("Browser WPA fixture failed");
     await sync.request({ kind: "entities" });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser fixture identity linking failed");

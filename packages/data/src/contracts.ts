@@ -42,6 +42,12 @@ export { synergySorts } from "./domain/synergies.js";
 export type { ProChampionStats } from "./domain/pro-stats.js";
 export type { SoloGame, SoloGameMarker } from "./domain/solo-games.js";
 export { soloMatchIdSchema } from "./domain/solo-games.js";
+export { wpaKinds, wpaLeaderboardQuerySchema, wpaSorts } from "./domain/wpa-leaderboards.js";
+export type {
+  WpaLeaderboard,
+  WpaLeaderboardQuery,
+  WpaLeaderboardRow,
+} from "./domain/wpa-leaderboards.js";
 export type { TierList, TierListQuery, TierListRow } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
