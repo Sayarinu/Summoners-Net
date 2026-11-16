@@ -254,8 +254,10 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
   const q = tierListQuerySchema.parse(input);
   const patches = (
     await db.query<{ patch_key: string }>(
-      `SELECT DISTINCT a.patch_key,p.release_order FROM champion_aggregates a
-       JOIN patches p USING (patch_key) WHERE a.source=$1 ORDER BY p.release_order DESC LIMIT 50`,
+      // Probe each patch through the primary key rather than scanning every aggregate row.
+      `SELECT p.patch_key FROM patches p
+       WHERE EXISTS (SELECT 1 FROM champion_aggregates a WHERE a.source=$1 AND a.patch_key=p.patch_key)
+       ORDER BY p.release_order DESC LIMIT 50`,
       [q.source],
     )
   ).rows.map((r) => r.patch_key);

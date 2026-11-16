@@ -51,8 +51,9 @@ export async function wpaLeaderboard(
   if (!model) return { query: q, model: null, patch: null, patches: [], page: empty };
   const patches = (
     await db.query<{ patch_key: string }>(
-      `SELECT DISTINCT a.patch_key,p.release_order FROM wpa_aggregates a JOIN patches p USING (patch_key)
-       WHERE a.model_id=$1 ORDER BY p.release_order DESC`,
+      `SELECT p.patch_key FROM patches p
+       WHERE EXISTS (SELECT 1 FROM wpa_aggregates a WHERE a.model_id=$1 AND a.patch_key=p.patch_key)
+       ORDER BY p.release_order DESC`,
       [model.id],
     )
   ).rows.map((r) => r.patch_key);
@@ -68,18 +69,22 @@ export async function wpaLeaderboard(
     name: string | null;
     count: number;
   }>(
-    `SELECT a.subject,a.games,a.total,c.champion_id,
+    // Page first, then look up names for that page only.
+    `WITH ranked AS (
+       SELECT a.subject,a.games,a.total,a.kind,a.patch_key,count(*) OVER()::integer AS count
+       FROM wpa_aggregates a WHERE a.model_id=$1 AND a.kind=$2 AND a.patch_key=$3
+       ORDER BY ${order} DESC,a.games DESC,a.subject LIMIT $4 OFFSET $5)
+     SELECT a.subject,a.games,a.total,c.champion_id,
        CASE a.kind WHEN 'champion' THEN c.name
          WHEN 'player' THEN (SELECT r.game_name||'#'||r.tag_line FROM riot_accounts r
            WHERE r.puuid=a.subject AND r.game_name IS NOT NULL)
          ELSE a.subject END AS name,
-       count(*) OVER()::integer AS count
-     FROM wpa_aggregates a
+       a.count
+     FROM ranked a
      LEFT JOIN LATERAL (SELECT c.champion_id,c.name FROM catalog_champions c JOIN patches p USING (patch_key)
-       WHERE a.kind='champion' AND c.champion_key::text=a.subject
-       ORDER BY (c.patch_key=$3) DESC,p.release_order DESC LIMIT 1) c ON true
-     WHERE a.model_id=$1 AND a.kind=$2 AND a.patch_key=$3
-     ORDER BY ${order} DESC,a.games DESC,a.subject LIMIT $4 OFFSET $5`,
+       WHERE c.champion_key=(CASE WHEN a.kind='champion' THEN a.subject::integer END)
+       ORDER BY (c.patch_key=a.patch_key) DESC,p.release_order DESC LIMIT 1) c ON true
+     ORDER BY ${order} DESC,a.games DESC,a.subject`,
     [model.id, q.kind, patch, wpaPageSize, (q.page - 1) * wpaPageSize],
   );
   return {
