@@ -4,7 +4,8 @@ import { querySchema, syncRequestSchema } from "../domain/models.js";
 import { summarize } from "../domain/statistics.js";
 import { parseBroadcast, parseMatches, parseTeams } from "./pandascore.js";
 import { parseHistory, archiveDownload } from "./oracle.js";
-import { parseVersions, parseMetadata } from "./ddragon.js";
+import { parseVersions, parseMetadata, parseVersionCatalog } from "./ddragon.js";
+import versions from "../../tests/ddragon-versions.json" with { type: "json" };
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 describe("coverage and validated public inputs", () => {
   it("covers predecessors without admitting academy or post-merger tier two", () => {
@@ -251,6 +252,9 @@ describe("annual Oracle game records", () => {
 it("validates Data Dragon but tolerates its historical non-version archive labels", () => {
   expect(parseVersions(["16.4.1", "lolpatch_7.20"])).toEqual(["16.4.1"]);
   expect(() => parseVersions([])).toThrow();
+  expect(parseVersionCatalog(versions)).toEqual(versions);
+  expect(() => parseVersionCatalog([])).toThrow();
+  expect(() => parseVersionCatalog([16.4])).toThrow();
   expect(
     parseMetadata(
       {

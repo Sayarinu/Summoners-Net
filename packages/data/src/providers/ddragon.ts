@@ -6,6 +6,10 @@ export function parseVersions(input: unknown) {
     .filter((v) => /^\d+\.\d+\.\d+$/.test(v));
   return z.array(z.string()).min(1).parse(versions);
 }
+/** Every version string as received, newest first, including legacy entries such as "lolpatch_7.20". */
+export function parseVersionCatalog(input: unknown) {
+  return z.array(z.string().max(64)).min(1).max(5000).parse(input);
+}
 export function parseMetadata(input: unknown, version: string, kind: "champion" | "item") {
   const schema = z.object({
     version: z.string().optional(),

@@ -11,7 +11,8 @@ import {
   parseTournamentRosters,
 } from "../providers/pandascore.js";
 import { archiveApiDownload, archiveDownload, archiveFileId } from "../providers/oracle.js";
-import { parseMetadata, parseVersions } from "../providers/ddragon.js";
+import { parseMetadata, parseVersionCatalog, parseVersions } from "../providers/ddragon.js";
+import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
@@ -236,6 +237,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
               response: await archiveResponse(r.year),
             });
         const result = await importOracleArchive(pool, artifact, r.year, clock());
+        await recordOraclePatches(pool, clock());
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;
       } catch (error) {
@@ -246,9 +248,12 @@ export function worker(pool: Pool, options: WorkerOptions) {
       }
     }
     if (r.kind === "metadata") {
-      const version = parseVersions(
+      const versions = parseVersionCatalog(
         await (await request("https://ddragon.leagueoflegends.com/api/versions.json")).json(),
-      )[0]!;
+      );
+      const version = parseVersions(versions)[0]!;
+      // The patch catalog is complete once versions.json validates; later metadata failures keep it.
+      await savePatchCatalog(pool, versions, clock());
       const records: {
         kind: "champion" | "item";
         document: ReturnType<typeof parseMetadata>;
