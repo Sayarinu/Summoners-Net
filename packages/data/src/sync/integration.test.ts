@@ -31,6 +31,7 @@ import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
+import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -129,7 +130,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2570,6 +2571,87 @@ describe("Champion aggregates", () => {
       winRate: { value: null, sampleCount: 1 },
     });
     expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.buckets).toBeNull();
+  });
+  it("counts teammate pairs, scores synergies against expectations and builds the bot-lane matrix", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    // Blue side: Ahri, Lee Sin, Garen, Jinx, Thresh; red side: Yasuo, Kha'Zix, Darius, Jhin, Leona.
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+    });
+    await ingest("EUW1_3", challenger, (m) => {
+      m.info.participants[2]!.win = false;
+    });
+    await runAggregate();
+    const pair = async (a: number, b: number) =>
+      (
+        await pool.query<Record<string, unknown>>(
+          "SELECT role,ally_role,games,result_games,wins FROM champion_duos WHERE champion_key=$1 AND ally_key=$2",
+          [a, b],
+        )
+      ).rows;
+    // Each pair is stored from both sides, with each side's own result.
+    expect(await pair(103, 412)).toEqual([
+      { role: "MIDDLE", ally_role: "UTILITY", games: 3, result_games: 3, wins: 2 },
+    ]);
+    expect(await pair(412, 103)).toEqual([
+      { role: "UTILITY", ally_role: "MIDDLE", games: 3, result_games: 3, wins: 3 },
+    ]);
+    expect(await pair(103, 157)).toEqual([]);
+    expect((await pool.query("SELECT count(*)::integer n FROM champion_duos")).rows[0]).toEqual({
+      n: 40,
+    });
+
+    // Garen lost one of his games, so the Ahri and Garen pair is expected to win less: the
+    // highest (least negative) delta. Small samples keep the shown values unknown.
+    const byDelta = await championSynergies(pool, {
+      championKey: 103,
+      patch: "16.22",
+      role: "MIDDLE",
+      sort: "delta",
+      page: 1,
+    });
+    expect(byDelta.page.total).toBe(4);
+    expect(byDelta.page.items[0]).toMatchObject({
+      allyKey: 86,
+      allyRole: "TOP",
+      games: 3,
+      winRate: { value: null, sampleCount: 3 },
+      delta: { value: null, sampleCount: 3 },
+    });
+    expect(byDelta.page.items[0]!.expected).toBeCloseTo(2 / 3 + 2 / 3 - 0.5);
+    expect(byDelta.page.items.find((r) => r.allyKey === 222)!.expected).toBe(1);
+    expect(
+      (
+        await championSynergies(pool, {
+          championKey: 103,
+          patch: "16.22",
+          role: "MIDDLE",
+          sort: "games",
+          page: 2,
+        })
+      ).page,
+    ).toMatchObject({ items: [], total: 0, page: 2 });
+
+    const matrix = await botLaneMatrix(pool, { patch: "16.22" });
+    expect(matrix.carries.map((c) => c.key)).toEqual([202, 222]);
+    expect(matrix.supports.map((c) => c.key)).toEqual([89, 412]);
+    expect(matrix.cells).toEqual([
+      { carry: 202, support: 89, games: 3, winRate: { value: null, sampleCount: 3 } },
+      { carry: 222, support: 412, games: 3, winRate: { value: null, sampleCount: 3 } },
+    ]);
+    const overview = (await championOverview(pool, {
+      champion: "Ahri",
+      role: "MIDDLE",
+      synergySort: "winRate",
+    }))!;
+    expect(overview.synergies!.sort).toBe("winRate");
+    expect(overview.botLane!.cells).toHaveLength(2);
+    expect(
+      (await championOverview(pool, { champion: "Ahri", source: "pro" }))!.synergies,
+    ).toBeNull();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

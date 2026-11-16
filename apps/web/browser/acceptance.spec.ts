@@ -328,6 +328,15 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page.getByRole("region", { name: "When it wins" })).toContainText(
     "30–35 min · 1 game",
   );
+  // Ahri's four teammates from the seeded game; the catalog fixture names only a few champions.
+  await expect(page.getByRole("table", { name: "Allies" })).toContainText("Champion 412");
+  await expect(page.getByText("4 allies · Page 1")).toBeVisible();
+  await page.locator(".np-select", { hasText: "Sort allies by" }).getByRole("button").click();
+  await page.getByRole("option", { name: "Delta", exact: true }).click();
+  await page.getByRole("button", { name: "Sort", exact: true }).click();
+  await expect(page).toHaveURL(/synergySort=delta/);
+  await expect(page).toHaveURL(/source=solo/);
+  await expect(page.getByText("Bot-lane pairs: win rate (%)").first()).toBeAttached();
   await page.goto("/champions/Ahri?source=pro");
   await expect(page.getByText("Pro play · All roles")).toBeVisible();
   const missing = await page.goto("/champions/NotAChampion");
