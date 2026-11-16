@@ -21,6 +21,7 @@ import {
 } from "../domain/statistics.js";
 import { transaction, type Executor } from "./database.js";
 import { championBuilds, rebuildBuilds } from "./builds.js";
+import { championBuckets, rebuildBuckets } from "./buckets.js";
 
 export type AggregateSource = "solo" | "pro";
 
@@ -160,7 +161,10 @@ export async function rebuildPatch(
       [patchKey, source, now],
     );
     // Solo-queue builds come from timelines and are rebuilt with the patch.
-    const builds = source === "solo" ? await rebuildBuilds(c, patchKey, now) : 0;
+    const builds =
+      source === "solo"
+        ? (await rebuildBuilds(c, patchKey, now)) + (await rebuildBuckets(c, patchKey, now))
+        : 0;
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
       source,
       patchKey,
@@ -478,6 +482,16 @@ export async function championOverview(
             region: q.region,
             tier: q.tier,
             championGames: own?.games ?? 0,
+          })
+        : null,
+    buckets:
+      q.source === "solo" && list.patch
+        ? await championBuckets(db, {
+            championKey: champion.champion_key,
+            patch: list.patch,
+            role: q.role,
+            region: q.region,
+            tier: q.tier,
           })
         : null,
   };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
+import type { ChampionBuckets } from "./buckets.js";
 
 export const championRoles = [
   "TOP",
@@ -136,4 +137,6 @@ export interface ChampionOverview {
   facets: { patches: string[]; regions: string[]; tiers: string[] };
   /** Solo-queue builds from timelines; null for pro play, which has no item events. */
   builds: ChampionBuilds | null;
+  /** Solo-queue win rate by game length and by lead at 10 and 15 minutes; null for pro play. */
+  buckets: ChampionBuckets | null;
 }

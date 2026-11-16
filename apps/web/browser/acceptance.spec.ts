@@ -324,6 +324,9 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page.getByRole("table", { name: "Summoner spells" })).toContainText("Flash");
   // The seeded timeline levels Ahri's Q once: too few skill-ups to decide an order.
   await expect(page.getByText(/1 for the first levels, 1 for the max order/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "When it wins" })).toContainText(
+    "30–35 min · 1 game",
+  );
   await page.goto("/champions/Ahri?source=pro");
   await expect(page.getByText("Pro play · All roles")).toBeVisible();
   const missing = await page.goto("/champions/NotAChampion");

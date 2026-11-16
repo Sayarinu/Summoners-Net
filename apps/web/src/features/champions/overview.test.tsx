@@ -100,6 +100,16 @@ const overview: ChampionOverview = {
       },
     ],
   },
+  buckets: {
+    length: [
+      { index: 0, label: "Under 20 min", games: 30, winRate: { value: 0.6, sampleCount: 30 } },
+      { index: 1, label: "20–25 min", games: 0, winRate: { value: null, sampleCount: 0 } },
+    ],
+    gold10: [],
+    gold15: [],
+    level10: [],
+    level15: [],
+  },
 };
 it("shows rates with samples, the interval, the tier and its basis, and the trend", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
@@ -165,4 +175,14 @@ it("shows skill orders and how many games were left out", () => {
     "No games with a decided max order yet.",
   );
   expect(screen.getByText(/2 for the first levels, 7 for the max order/)).toBeVisible();
+});
+it("charts win rate by game length with gaps and a data table", () => {
+  const view = render(<ChampionOverviewPage overview={overview} error={null} />);
+  const section = screen.getByRole("region", { name: "When it wins" });
+  expect(section).toHaveTextContent("Win rate by game length");
+  expect(section).toHaveTextContent("Under 20 min · 30 games");
+  expect(section).toHaveTextContent("20–25 min · 0 games");
+  expect(section).toHaveTextContent("Unknown");
+  view.rerender(<ChampionOverviewPage overview={{ ...overview, buckets: null }} error={null} />);
+  expect(screen.queryByRole("region", { name: "When it wins" })).toBeNull();
 });
