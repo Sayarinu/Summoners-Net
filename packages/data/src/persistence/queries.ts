@@ -33,6 +33,7 @@ import { draftQueries } from "./draft-queries.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { soloGame } from "./solo-games.js";
 import { proGameWinProbability } from "./pro-wp.js";
+import { modelDiagnostics } from "./model-diagnostics.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
 import type { WpaLeaderboardQuery } from "../domain/wpa-leaderboards.js";
 import type {
@@ -192,6 +193,7 @@ export function queries(pool: Pool, clock: () => Date) {
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
     proGameWinProbability: (gameId: string) => proGameWinProbability(pool, idSchema.parse(gameId)),
+    modelDiagnostics: (selectedId?: number) => modelDiagnostics(pool, selectedId),
     wpaLeaderboard: (input?: WpaLeaderboardQuery) => wpaLeaderboard(pool, input),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
