@@ -39,6 +39,7 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
     { request: { kind: "riot-accounts" }, interval: 3600 },
     { request: { kind: "riot-match-ids" }, interval: 3600 },
     { request: { kind: "riot-match" }, interval: 900 },
+    { request: { kind: "riot-timeline" }, interval: 900 },
   ];
   await transaction(pool, async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(9183274)");
