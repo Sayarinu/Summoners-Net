@@ -23,6 +23,7 @@ import { transaction, type Executor } from "./database.js";
 import { championBuilds, rebuildBuilds } from "./builds.js";
 import { championBuckets, rebuildBuckets } from "./buckets.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
+import { proChampionStats, rebuildProStats } from "./pro-stats.js";
 
 export type AggregateSource = "solo" | "pro";
 
@@ -53,13 +54,13 @@ export async function markAllDirty(db: Executor, now: Date) {
     [now],
   );
 }
-/** Marks the pro patches of one archive year after an Oracle's Elixir import. */
-export async function markOracleYearDirty(db: Executor, year: number, now: Date) {
+/** Marks the pro patches of one archive year, or of every year, after Oracle data changes. */
+export async function markOracleYearDirty(db: Executor, year: number | null, now: Date) {
   await db.query(
     `INSERT INTO aggregate_dirty(source,patch_key,marked_at)
      SELECT DISTINCT 'pro',s.patch_key,$2::timestamptz FROM oracle_archive_games g
        JOIN patch_sources s ON s.source='oracle' AND s.source_string=g.patch
-       WHERE g.archive_year=$1 AND s.patch_key IS NOT NULL
+       WHERE ($1::integer IS NULL OR g.archive_year=$1) AND s.patch_key IS NOT NULL
      ON CONFLICT(source,patch_key) DO UPDATE SET marked_at=EXCLUDED.marked_at`,
     [year, now],
   );
@@ -167,7 +168,7 @@ export async function rebuildPatch(
         ? (await rebuildBuilds(c, patchKey, now)) +
           (await rebuildBuckets(c, patchKey, now)) +
           (await rebuildDuos(c, patchKey, now))
-        : 0;
+        : await rebuildProStats(c, patchKey, now);
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
       source,
       patchKey,
@@ -487,6 +488,12 @@ export async function championOverview(
             championGames: own?.games ?? 0,
           })
         : null,
+    // Pro play shows with either source: the same patch for pro, otherwise the newest pro patch.
+    pro: await proChampionStats(db, {
+      championKey: champion.champion_key,
+      patch: q.source === "pro" ? (list.patch ?? undefined) : q.patch,
+      league: q.league,
+    }),
     synergies:
       q.source === "solo" && list.patch
         ? await championSynergies(db, {

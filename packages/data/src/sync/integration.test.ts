@@ -32,6 +32,7 @@ import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
+import { proChampionStats } from "../persistence/pro-stats.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -130,7 +131,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2652,6 +2653,83 @@ describe("Champion aggregates", () => {
     expect(
       (await championOverview(pool, { champion: "Ahri", source: "pro" }))!.synergies,
     ).toBeNull();
+  });
+  it("aggregates pro draft use per champion and league, reporting unmapped names", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    // Ahri is red's mid in every fixture draft, picked before blue's mid; red loses.
+    await importCsv(draftCsv({ id: "draft-1", league: "LCK" }));
+    await importCsv(draftCsv({ id: "draft-2", league: "LCK", unknownResult: true }), 2026);
+    await importCsv(draftCsv({ id: "draft-3", league: "LEC", firstSide: "red" }), 2026);
+    const rows = (
+      await pool.query(
+        `SELECT league,league_games,picks,bans,result_picks,wins,red_picks,blue_picks,blind_picks,
+           counter_picks FROM pro_champion_stats WHERE champion_key=103 ORDER BY league`,
+      )
+    ).rows;
+    expect(rows).toEqual([
+      {
+        league: "LCK",
+        league_games: 2,
+        picks: 2,
+        bans: 0,
+        result_picks: 1,
+        wins: 0,
+        red_picks: 2,
+        blue_picks: 0,
+        blind_picks: 2,
+        counter_picks: 0,
+      },
+      {
+        league: "LEC",
+        league_games: 1,
+        picks: 1,
+        bans: 0,
+        result_picks: 1,
+        wins: 0,
+        red_picks: 1,
+        blue_picks: 0,
+        blind_picks: 1,
+        counter_picks: 0,
+      },
+    ]);
+    const all = await proChampionStats(pool, { championKey: 103 });
+    expect(all).toMatchObject({
+      patch: "16.4",
+      leagues: ["LCK", "LEC"],
+      games: 3,
+      picks: 3,
+      presence: { value: 1, sampleCount: 3 },
+      banRate: { value: 0, sampleCount: 3 },
+      winRate: { value: 0, sampleCount: 2 },
+      sides: [
+        { side: "blue", picks: 0, winRate: { value: null, sampleCount: 0 } },
+        { side: "red", picks: 3, winRate: { value: 0, sampleCount: 2 } },
+      ],
+      blindRate: { value: 1, sampleCount: 3 },
+      counterRate: { value: 0, sampleCount: 3 },
+    });
+    // Names the catalog does not map are reported with their counts, never matched loosely.
+    expect(all.unmapped).toContainEqual({ name: "Nautilus", picks: 3, bans: 0 });
+    expect(all.unmapped).toContainEqual({ name: "Kalista", picks: 0, bans: 3 });
+    expect(all.unmapped.map((u) => u.name)).not.toContain("Ahri");
+    expect((await proChampionStats(pool, { championKey: 103, league: "LEC" })).games).toBe(1);
+    // A champion with no pro games has counts of zero and unknown rates.
+    expect(await proChampionStats(pool, { championKey: 62 })).toMatchObject({
+      games: 3,
+      picks: 0,
+      presence: { value: 0, sampleCount: 3 },
+      winRate: { value: null, sampleCount: 0 },
+      blindRate: { value: null, sampleCount: 0 },
+    });
+    expect((await championOverview(pool, { champion: "Ahri", league: "LCK" }))!.pro).toMatchObject({
+      league: "LCK",
+      games: 2,
+    });
+    expect(await proChampionStats(pool, { championKey: 103, patch: "16.22" })).toMatchObject({
+      games: 0,
+      presence: { value: null, sampleCount: 0 },
+    });
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

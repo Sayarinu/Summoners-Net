@@ -39,6 +39,7 @@ export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
 export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
+export type { ProChampionStats } from "./domain/pro-stats.js";
 export type { TierList, TierListQuery, TierListRow } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
