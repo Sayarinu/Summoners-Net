@@ -32,6 +32,8 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
       interval: 86400,
     },
     { request: { kind: "entities" }, interval: 86400 },
+    // Development keys expire after 24 hours; a 6-hour check notices a rejected key promptly.
+    { request: { kind: "riot-key" }, interval: 21600 },
   ];
   await transaction(pool, async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(9183274)");

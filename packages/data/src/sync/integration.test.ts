@@ -90,6 +90,9 @@ beforeEach(async () => {
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
   );
   await pool.query("UPDATE quota_state SET cooldown_until=NULL");
+  await pool.query(
+    "UPDATE riot_key_status SET configured=false,kind=NULL,fingerprint=NULL,set_at=NULL,state='missing',checked_at=NULL,detail=NULL",
+  );
 });
 afterAll(async () => {
   await sync.close();
@@ -636,6 +639,94 @@ it("stores the champion, item, rune and spell catalog per patch and maps Oracle 
   expect("error" in failed ? failed.error : "").toContain("Wukong");
   expect(await championCatalog(pool, "16.23")).toEqual([]);
   expect(await championForOracleName(pool, "Wukong")).toBe("MonkeyKing");
+});
+describe("Riot API key", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const riotSync = (riot?: { key: string; kind: "development" | "production" }) =>
+    createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      ...(riot ? { riot } : {}),
+    });
+  const riotKey = async () => (await queries.status()).riotKey;
+  it("skips Riot jobs with a clear status when no key is configured, leaving other sources alone", async () => {
+    const worker = riotSync();
+    try {
+      await worker.request({ kind: "riot-key" });
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(await riotKey()).toMatchObject({
+        state: "missing",
+        detail: "RIOT_API_KEY is not configured; Riot jobs are skipped.",
+        expiresAt: null,
+      });
+      expect((await queries.status()).sources.every((s) => s.lastAttempt === null)).toBe(true);
+    } finally {
+      await worker.close();
+    }
+  });
+  it("checks a new key once, records the result and dates the development key reminder", async () => {
+    const worker = riotSync({ key, kind: "development" });
+    try {
+      fetcher.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 1 });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      const [url, init] = fetcher.mock.calls[0]!;
+      expect(endpoint(url)).toBe("https://na1.api.riotgames.com/lol/status/v4/platform-data");
+      expect(init?.headers).toEqual({ "X-Riot-Token": key });
+      expect(await riotKey()).toEqual({
+        state: "valid",
+        kind: "development",
+        setAt: now.toISOString(),
+        checkedAt: now.toISOString(),
+        detail: null,
+        expiresAt: new Date(now.valueOf() + 86400000).toISOString(),
+      });
+      const stored = await pool.query<{ row: string }>(
+        "SELECT row_to_json(r)::text AS row FROM riot_key_status r",
+      );
+      expect(stored.rows[0]!.row).not.toContain(key);
+
+      // A transient failure keeps the last result; a rejection is recorded with its time.
+      instant = new Date(now.valueOf() + 3600000);
+      fetcher.mockResolvedValueOnce(new Response("busy", { status: 503 }));
+      await worker.request({ kind: "riot-key" });
+      expect((await worker.runNext()).state).toBe("queued");
+      expect(await riotKey()).toMatchObject({ state: "valid", checkedAt: now.toISOString() });
+      instant = new Date(now.valueOf() + 30 * 3600000);
+      fetcher.mockResolvedValueOnce(new Response("{}", { status: 401 }));
+      expect((await worker.runNext()).state).toBe("done");
+      expect(await riotKey()).toMatchObject({
+        state: "rejected",
+        checkedAt: instant.toISOString(),
+        detail: "Riot rejected the key (HTTP 401).",
+      });
+    } finally {
+      await worker.close();
+    }
+    // Restarting with the same key keeps its set time; a new key restarts the reminder.
+    const same = riotSync({ key, kind: "development" });
+    try {
+      expect((await same.runNext()).state).toBe("idle");
+      expect(await riotKey()).toMatchObject({ state: "rejected", setAt: now.toISOString() });
+    } finally {
+      await same.close();
+    }
+    const replaced = riotSync({ key: key.replace("0123-4567", "0123-9999"), kind: "production" });
+    try {
+      fetcher.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+      expect((await replaced.runNext()).state).toBe("done");
+      expect(await riotKey()).toMatchObject({
+        state: "valid",
+        kind: "production",
+        setAt: instant.toISOString(),
+        expiresAt: null,
+      });
+    } finally {
+      await replaced.close();
+    }
+  });
 });
 it("counts eligible team games even when team summary rows are missing, and counts champion games once", async () => {
   const csv = historyCsv()

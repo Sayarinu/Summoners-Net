@@ -45,6 +45,8 @@ describe("local HTTP entry points", () => {
   it("validates refresh payloads, bounds bodies and never accepts arbitrary server paths", async () => {
     expect((await mutate(request({ kind: "running" }), "refresh")).status).toBe(202);
     expect(mocks.request).toHaveBeenCalledWith({ kind: "running" });
+    expect((await mutate(request({ kind: "riot-key" }), "refresh")).status).toBe(202);
+    expect(mocks.request).toHaveBeenCalledWith({ kind: "riot-key" });
     expect((await mutate(request({ kind: "history", year: 2014 }), "refresh")).status).toBe(202);
     for (const body of [
       { kind: "paid" },

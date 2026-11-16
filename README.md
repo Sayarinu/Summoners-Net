@@ -90,8 +90,11 @@ Everything binds to loopback. Stop PostgreSQL with `docker compose stop`; never 
 
 Settings live in the ignored `.env` (see `.env.example`): `DATABASE_URL`, `TEST_DATABASE_URL`,
 `PANDASCORE_TOKEN`, `GOOGLE_DRIVE_API_KEY` (used when anonymous Google Drive downloads are
-quota-blocked) and `ORACLE_CURRENT_FILE` (a local current-year CSV that the daily refresh rereads).
-None of them reach the browser.
+quota-blocked), `ORACLE_CURRENT_FILE` (a local current-year CSV that the daily refresh rereads), and
+`RIOT_API_KEY` with `RIOT_API_KEY_KIND` (`development`, `personal` or `production`) for solo-queue
+data. None of them reach the browser. Only the worker reads the Riot key: it checks the key with one
+request, and **Sources & imports** shows whether it is valid and, for a development key, when it
+expires (24 hours after the worker first sees it).
 
 To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/path/file.csv` or
 `pnpm history:import-dir /absolute/path/to/dir` (not `pnpm import`, which is a pnpm command), then
@@ -147,9 +150,9 @@ files. A free PandaScore token adds schedules, results, rosters and broadcasts; 
 endpoints are used.
 
 **What does SummonersNet send over the network?** Only the worker goes online, to PandaScore,
-Oracle's Elixir's Google Drive archive, Riot's Data Dragon and the hosts of team and player images.
-Twitch and YouTube players load only after you choose to load them. There are no accounts and no
-telemetry.
+Oracle's Elixir's Google Drive archive, Riot's Data Dragon, the Riot API (only when you set
+`RIOT_API_KEY`) and the hosts of team and player images. Twitch and YouTube players load only after
+you choose to load them. There are no accounts and no telemetry.
 
 **Can I run it on a server?** Yes, see [Self-hosting](#self-hosting). Everything binds to loopback
 and is reached over an SSH tunnel. SummonersNet has no login, so don't expose it on the public

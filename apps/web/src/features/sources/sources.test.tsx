@@ -71,3 +71,41 @@ it("reports linked profiles, cached images and failed image refreshes", () => {
   expect(screen.getByText(/1 image downloads unavailable/)).toBeVisible();
   expect(screen.getByRole("button", { name: "Refresh identities & images" })).toBeVisible();
 });
+it("shows the Riot key state, last check and development key expiry without contacting Riot", () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
+  const section = () => screen.getByRole("region", { name: "Riot API key" });
+  expect(section()).toHaveTextContent("Not configured");
+  expect(section()).toHaveTextContent("Riot jobs are skipped until a key is set");
+  const riot = (riotKey: Partial<typeof status.riotKey>) =>
+    view.rerender(
+      <SourcesPage
+        status={{ ...status, riotKey: { ...status.riotKey, detail: null, ...riotKey } }}
+        timezone="UTC"
+        year={2026}
+      />,
+    );
+  riot({
+    state: "untested",
+    kind: "development",
+    setAt: "2026-03-01T10:00:00.000Z",
+    expiresAt: "2026-03-02T10:00:00.000Z",
+  });
+  expect(section()).toHaveTextContent("Untested");
+  expect(section()).toHaveTextContent("Not checked yet");
+  expect(section()).toHaveTextContent(/expire after 24 hours.*by/);
+  riot({ state: "valid", kind: "production", checkedAt: "2026-03-01T11:00:00.000Z" });
+  expect(section()).toHaveTextContent("Valid");
+  expect(section()).toHaveTextContent("Last checked");
+  expect(section()).not.toHaveTextContent("expire");
+  riot({
+    state: "rejected",
+    kind: "development",
+    checkedAt: "2026-03-02T11:00:00.000Z",
+    detail: "Riot rejected the key (HTTP 401).",
+  });
+  expect(section()).toHaveTextContent("Rejected");
+  expect(section()).toHaveTextContent("Riot rejected the key (HTTP 401).");
+  expect(fetcher).not.toHaveBeenCalled();
+});

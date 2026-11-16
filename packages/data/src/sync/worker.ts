@@ -23,12 +23,18 @@ import {
 import { normalizePatch } from "../domain/patches.js";
 import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js";
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
-import { claim, schedule } from "./queue.js";
+import { claim, enqueue, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { cacheImages } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
+import {
+  riotKeyCheckResult,
+  riotKeyCheckUrl,
+  riotKeyFingerprint,
+  type RiotKeyConfig,
+} from "../providers/riot.js";
 
 export interface WorkerOptions {
   clock?: () => Date;
@@ -39,6 +45,8 @@ export interface WorkerOptions {
   currentFile?: string;
   importDirectory?: string;
   pause?: (milliseconds: number) => Promise<void>;
+  /** Validated RIOT_API_KEY; absent when Riot is not configured. Never logged or stored. */
+  riot?: RiotKeyConfig;
 }
 class ProviderError extends Error {
   constructor(
@@ -48,6 +56,8 @@ class ProviderError extends Error {
     super(message);
   }
 }
+// Riot key checks and identity resolution report through their own status, not source_status.
+const tracksSource = (r: SyncRequest) => r.kind !== "resolve" && r.kind !== "riot-key";
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -157,7 +167,59 @@ export function worker(pool: Pool, options: WorkerOptions) {
       "Pagination exceeded the bounded 100-page import; saved data is unchanged.",
     );
   }
+  const riotFingerprint = options.riot ? riotKeyFingerprint(options.riot.key) : null;
+  let riotObserved = false;
+  /** Records whether a key is configured; a new key restarts its expiry clock and is checked. */
+  async function observeRiotKey() {
+    if (riotObserved) return;
+    if (!options.riot)
+      await pool.query(
+        `UPDATE riot_key_status SET configured=false,kind=NULL,fingerprint=NULL,set_at=NULL,
+           state='missing',checked_at=NULL,
+           detail='RIOT_API_KEY is not configured; Riot jobs are skipped.' WHERE id=true`,
+      );
+    else {
+      const changed = await pool.query(
+        `UPDATE riot_key_status SET configured=true,fingerprint=$1,set_at=$2,state='untested',
+           checked_at=NULL,detail=NULL WHERE id=true AND fingerprint IS DISTINCT FROM $1`,
+        [riotFingerprint, clock()],
+      );
+      await pool.query("UPDATE riot_key_status SET kind=$1 WHERE id=true", [options.riot.kind]);
+      if (changed.rowCount) await enqueue(pool, { kind: "riot-key" }, clock());
+    }
+    riotObserved = true;
+  }
+  async function checkRiotKey(): Promise<number> {
+    if (!options.riot) return 0;
+    let response: Response;
+    try {
+      response = await fetcher(riotKeyCheckUrl, {
+        headers: { "X-Riot-Token": options.riot.key },
+        signal: AbortSignal.timeout(30000),
+        redirect: "error",
+      });
+    } catch {
+      throw new ProviderError("Riot connection failed; the key status is unchanged.", true);
+    }
+    const result = riotKeyCheckResult(response.status);
+    if (result === "retry")
+      throw new ProviderError(
+        `Riot returned HTTP ${response.status}; the key status is unchanged.`,
+        true,
+      );
+    await pool.query(
+      "UPDATE riot_key_status SET state=$1,checked_at=$2,detail=$3 WHERE id=true AND fingerprint=$4",
+      [
+        result,
+        clock(),
+        result === "rejected" ? `Riot rejected the key (HTTP ${response.status}).` : null,
+        riotFingerprint,
+      ],
+    );
+    return 1;
+  }
   async function perform(r: SyncRequest): Promise<number> {
+    if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "entity-rosters") {
       const tournaments = (
         await pool.query<{ id: string; first: Date; last: Date }>(
@@ -339,11 +401,12 @@ export function worker(pool: Pool, options: WorkerOptions) {
       );
       if (!acquired.rows[0]!.locked) return { state: "busy" as const };
       try {
+        await observeRiotKey();
         if (scheduleDue) await schedule(pool, clock(), options.currentFile);
         const job = await claim(pool, clock());
         if (!job) return { state: "idle" as const };
         const source = sourceOf(job.request);
-        if (job.request.kind !== "resolve")
+        if (tracksSource(job.request))
           await pool.query("UPDATE source_status SET last_attempt=$2 WHERE source=$1", [
             source,
             clock(),
@@ -351,7 +414,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         try {
           const records = await perform(job.request);
           await transaction(pool, async (c) => {
-            if (job.request.kind !== "resolve")
+            if (tracksSource(job.request))
               await c.query(
                 "UPDATE source_status SET last_success=$2,error=NULL,records=$3 WHERE source=$1",
                 [source, clock(), records],
@@ -386,7 +449,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
               "UPDATE sync_jobs SET state=$2,available_at=$3,lease_until=NULL,error=$4,attempts=attempts-$5 WHERE id=$1",
               [job.id, retry ? "queued" : "failed", available, message, deferred ? 1 : 0],
             );
-            if (job.request.kind !== "resolve")
+            if (tracksSource(job.request))
               await c.query("UPDATE source_status SET error=$2 WHERE source=$1", [source, message]);
           });
           return {

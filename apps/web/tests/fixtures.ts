@@ -122,6 +122,14 @@ export const profile: Profile = {
   roster: [{ team: blue, player, observedAt: instant }],
 };
 export const status: SyncStatus = {
+  riotKey: {
+    state: "missing",
+    kind: null,
+    setAt: null,
+    checkedAt: null,
+    detail: "RIOT_API_KEY is not configured; Riot jobs are skipped.",
+    expiresAt: null,
+  },
   sources: [
     {
       source: "pandascore",

@@ -15,6 +15,7 @@ import {
 import { historicalQueries } from "./historical-queries.js";
 
 const idSchema = z.string().min(1).max(300);
+import { developmentKeyLifetimeMs } from "../providers/riot.js";
 const stamp = (d: Date | null) => d?.toISOString() ?? null;
 function filters(input: BrowseQuery, kind: "matches" | "games") {
   const q = querySchema.parse(input);
@@ -530,6 +531,15 @@ export function queries(pool: Pool, clock: () => Date) {
       const cooldown = await pool.query<{ cooldown_until: Date | null }>(
         "SELECT cooldown_until FROM quota_state WHERE id=true",
       );
+      const riot = (
+        await pool.query<{
+          state: SyncStatus["riotKey"]["state"];
+          kind: SyncStatus["riotKey"]["kind"];
+          set_at: Date | null;
+          checked_at: Date | null;
+          detail: string | null;
+        }>("SELECT state,kind,set_at,checked_at,detail FROM riot_key_status WHERE id=true")
+      ).rows[0]!;
       const history = await pool.query<{
         year: number;
         games: number;
@@ -546,6 +556,17 @@ export function queries(pool: Pool, clock: () => Date) {
           ORDER BY year DESC`,
       );
       return {
+        riotKey: {
+          state: riot.state,
+          kind: riot.kind,
+          setAt: stamp(riot.set_at),
+          checkedAt: stamp(riot.checked_at),
+          detail: riot.detail,
+          expiresAt:
+            riot.kind === "development" && riot.set_at
+              ? new Date(riot.set_at.valueOf() + developmentKeyLifetimeMs).toISOString()
+              : null,
+        },
         sources: sources.rows.map((s) => ({
           source: s.source,
           lastSuccess: stamp(s.last_success),
