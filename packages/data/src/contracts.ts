@@ -58,3 +58,11 @@ export type { ReplayTrack, ReplayTrackSample } from "./domain/replay-tracks.js";
 export { replayFileMaxBytes, replayPlatformSchema } from "./domain/replays.js";
 export { riotPlatforms } from "./domain/riot-platforms.js";
 export type { ReplayMetadataSummary } from "./domain/replays.js";
+
+export {
+  leaderboardQuerySchema,
+  type LeaderboardQuery,
+  type Leaderboard,
+  type LeaderboardRow,
+  type LeaderboardChampion,
+} from "./domain/leaderboards.js";

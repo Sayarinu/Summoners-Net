@@ -531,3 +531,27 @@ test("replay metadata uploads stay local and queue worker validation", async ({ 
   await page.getByRole("button", { name: "Reload status" }).click();
   await expect(page.getByText("Replay metadata", { exact: true }).first()).toBeVisible();
 });
+
+test("regional ladders show samples, paginate and reject invalid regions and pages", async ({
+  page,
+}) => {
+  await page.goto("/leaderboards/euw1?pageSize=1");
+  await expect(page.getByRole("heading", { name: "EUW1 leaderboard" })).toBeVisible();
+  const table = page.getByRole("table", { name: "EUW1 solo queue ladder" });
+  await expect(table).toContainText("Ladder fixture#EUW");
+  await expect(table).toContainText("Ahri · 1 game");
+  await expect(table).toContainText("55.6% · 180 games");
+  await expect(page.getByText(/Last refreshed/)).toBeVisible();
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page).toHaveURL(/page=2&pageSize=1/);
+  await expect(table).toContainText("Riot ID not resolved");
+  await expect(table).not.toContainText("Ladder fixture#EUW");
+  await page.getByRole("link", { name: "KR", exact: true }).click();
+  await expect(page.getByText("No ladder stored for this region")).toBeVisible();
+  await page.goto("/leaderboards/euw1?pageSize=101");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "page size from 1 to 100" }),
+  ).toBeVisible();
+  const invalid = await page.goto("/leaderboards/europe");
+  expect(invalid?.status()).toBe(404);
+});

@@ -1,3 +1,5 @@
+import { leaderboard } from "./leaderboards.js";
+import type { LeaderboardQuery } from "../domain/leaderboards.js";
 import { replayMetadata } from "./replays.js";
 import { replayTrack } from "./replay-tracks.js";
 import { z } from "zod";
@@ -167,6 +169,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    leaderboard: (input: LeaderboardQuery) => leaderboard(pool, input),
     replayMetadata: (sha256: string) => replayMetadata(pool, sha256),
     replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),

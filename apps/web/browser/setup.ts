@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createSync } from "@summonersnet/data/sync";
 import { database } from "../../../packages/data/src/persistence/database";
-import { saveLadder, saveMatchIds } from "../../../packages/data/src/persistence/riot";
+import { saveAccount, saveLadder, saveMatchIds } from "../../../packages/data/src/persistence/riot";
 import { saveRiotMatch } from "../../../packages/data/src/persistence/riot-matches";
 import { parseRiotMatch } from "../../../packages/data/src/providers/riot-match";
 import { saveTimeline } from "../../../packages/data/src/persistence/riot-timelines";
@@ -115,6 +115,11 @@ export default async function setup() {
       pool,
       "euw1",
       ["a", "b", "c"].map((c) => ladderEntry(c.repeat(78))),
+      now,
+    );
+    await saveAccount(
+      pool,
+      { puuid: "a".repeat(78), gameName: "Ladder fixture", tagLine: "EUW" },
       now,
     );
     await saveMatchIds(
