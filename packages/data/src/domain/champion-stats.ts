@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
+import type { ProChampionStats } from "./pro-stats.js";
 import { synergyQuerySchema, type BotLaneMatrix, type Synergies } from "./synergies.js";
 
 export const championRoles = [
@@ -108,6 +109,7 @@ export const championOverviewQuerySchema = z
     tier: z.string().trim().min(1).max(20).optional(),
   })
   .extend(synergyQuerySchema.shape)
+  .extend({ league: z.string().trim().min(1).max(100).optional() })
   .strict();
 export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
 export type ParsedChampionOverviewQuery = z.output<typeof championOverviewQuerySchema>;
@@ -141,6 +143,8 @@ export interface ChampionOverview {
   builds: ChampionBuilds | null;
   /** Solo-queue win rate by game length and by lead at 10 and 15 minutes; null for pro play. */
   buckets: ChampionBuckets | null;
+  /** Pro-play draft statistics, shown with either source. */
+  pro: ProChampionStats;
   /** Solo-queue allies, one page sorted in SQL; null for pro play. */
   synergies: Synergies | null;
   /** The most played bot-lane carries and supports together; null for pro play. */

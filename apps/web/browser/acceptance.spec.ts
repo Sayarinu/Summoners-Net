@@ -337,6 +337,13 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/synergySort=delta/);
   await expect(page).toHaveURL(/source=solo/);
   await expect(page.getByText("Bot-lane pairs: win rate (%)").first()).toBeAttached();
+  // The seeded pro draft picks Ahri once.
+  await expect(page.getByLabel("Pro-play statistics")).toContainText("Presence · 1 games100.0%");
+  await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
+  await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
+  await page.getByRole("button", { name: "Apply league" }).click();
+  await expect(page).toHaveURL(/league=Draft\+acceptance/);
+  await expect(page.getByLabel("Pro-play statistics")).toContainText("Picks / bans1 / 0");
   await page.goto("/champions/Ahri?source=pro");
   await expect(page.getByText("Pro play · All roles")).toBeVisible();
   const missing = await page.goto("/champions/NotAChampion");

@@ -117,6 +117,25 @@ const overview: ChampionOverview = {
     level10: [],
     level15: [],
   },
+  pro: {
+    patch: "16.22",
+    league: null,
+    leagues: ["LCK", "LEC"],
+    games: 40,
+    picks: 12,
+    bans: 8,
+    presence: { value: 0.5, sampleCount: 40 },
+    pickRate: { value: 0.3, sampleCount: 40 },
+    banRate: { value: 0.2, sampleCount: 40 },
+    winRate: { value: 0.5, sampleCount: 12 },
+    sides: [
+      { side: "blue", picks: 5, winRate: { value: 0.6, sampleCount: 5 } },
+      { side: "red", picks: 7, winRate: { value: null, sampleCount: 0 } },
+    ],
+    blindRate: { value: 0.25, sampleCount: 12 },
+    counterRate: { value: 0.75, sampleCount: 12 },
+    unmapped: [{ name: "Mel", picks: 2, bans: 1 }],
+  },
   synergies: {
     sort: "delta",
     page: {
@@ -230,4 +249,21 @@ it("lists allies with expected rates and deltas, keeps filters when sorting, and
   expect(hidden).toEqual(expect.arrayContaining(["source=solo", "role=MIDDLE", "tier=CHALLENGER"]));
   expect(screen.getAllByText("Bot-lane pairs: win rate (%)")[0]).toBeInTheDocument();
   expect(screen.getByText("1 allies · Page 1")).toBeVisible();
+});
+it("shows pro presence, sides and draft order with samples, and reports unmapped names", () => {
+  const view = render(<ChampionOverviewPage overview={overview} error={null} />);
+  const stats = screen.getByLabelText("Pro-play statistics");
+  expect(stats).toHaveTextContent("Presence · 40 games50.0%");
+  expect(stats).toHaveTextContent("Picks / bans12 / 8");
+  expect(stats).toHaveTextContent("Blue side · 5 picks60.0% · 5 results");
+  expect(stats).toHaveTextContent("Red side · 7 picksUnknown · 0 results");
+  expect(stats).toHaveTextContent("25.0% / 75.0% · 12 picks");
+  expect(screen.getByText(/no champion mapping: Mel/)).toBeVisible();
+  view.rerender(
+    <ChampionOverviewPage
+      overview={{ ...overview, pro: { ...overview.pro, patch: null, leagues: [] } }}
+      error={null}
+    />,
+  );
+  expect(screen.getByText("No pro drafts imported yet.")).toBeVisible();
 });

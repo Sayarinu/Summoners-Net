@@ -4,6 +4,7 @@ import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
+import { ProSection } from "./pro";
 import { ChampionFilters } from "./filters";
 import { interval, percent, roleLabels } from "./presentation";
 
@@ -99,6 +100,7 @@ export function ChampionOverviewPage({
             }))}
           />
           <LoadoutsSection builds={overview.builds} />
+          <ProSection overview={overview} />
           <BucketsSection buckets={overview.buckets} />
           <SynergiesSection overview={overview} />
           <SkillsSection builds={overview.builds} />

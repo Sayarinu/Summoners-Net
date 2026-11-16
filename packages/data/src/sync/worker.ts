@@ -654,9 +654,10 @@ export function worker(pool: Pool, options: WorkerOptions) {
             });
         const result = await importOracleArchive(pool, artifact, r.year, clock());
         await recordOraclePatches(pool, clock());
+        await refreshDrafts(pool, clock, r.year);
+        // Pro statistics read the derived drafts, so aggregate after deriving them.
         await markOracleYearDirty(pool, r.year, clock());
         await aggregate(false);
-        await refreshDrafts(pool, clock, r.year);
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;
       } catch (error) {
@@ -666,7 +667,12 @@ export function worker(pool: Pool, options: WorkerOptions) {
         );
       }
     }
-    if (r.kind === "drafts") return refreshDrafts(pool, clock);
+    if (r.kind === "drafts") {
+      const drafts = await refreshDrafts(pool, clock);
+      await markOracleYearDirty(pool, null, clock());
+      await aggregate(false);
+      return drafts;
+    }
     if (r.kind === "metadata") {
       const versions = parseVersionCatalog(
         await (await request("https://ddragon.leagueoflegends.com/api/versions.json")).json(),
