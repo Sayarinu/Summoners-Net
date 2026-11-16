@@ -182,3 +182,12 @@ export function parseMatchCap(value: string | undefined): number {
     throw new Error("RIOT_MATCH_CAP must be a whole number from 1 to 1000000.");
   return cap;
 }
+
+/** Parses RIOT_RETAIN_PATCHES: how many patches before the current one keep solo-queue data. */
+export function parseRetainPatches(value: string | undefined): number {
+  if (!value?.trim()) return 2;
+  const patches = Number(value.trim());
+  if (!Number.isInteger(patches) || patches < 0 || patches > 50)
+    throw new Error("RIOT_RETAIN_PATCHES must be a whole number from 0 to 50.");
+  return patches;
+}

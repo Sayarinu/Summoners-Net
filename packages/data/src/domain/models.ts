@@ -177,6 +177,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "drafts",
         "riot-match",
         "riot-timeline",
+        "riot-retention",
       ]),
     })
     .strict(),
@@ -212,9 +213,26 @@ export interface RiotKeyStatus {
   /** For development keys: 24 hours after the current key was first seen. */
   expiresAt: string | null;
 }
+export interface RiotStorageStatus {
+  /** Patches kept before the current one, as the worker last applied it; null before a run. */
+  previousPatches: number | null;
+  keptPatches: string[];
+  lastRunAt: string | null;
+  prunedMatches: number;
+  backfilledMatches: number;
+  /** Per patch, newest first; a null patch is a game version the catalog does not know. */
+  patches: {
+    patchKey: string | null;
+    matches: number;
+    timelines: number;
+    /** Each match table's size shared out by matches, each timeline table's by timelines. */
+    estimatedBytes: number;
+  }[];
+}
 export interface SyncStatus {
   sources: SourceStatus[];
   riotKey: RiotKeyStatus;
+  riotStorage: RiotStorageStatus;
   jobs: {
     id: string;
     kind: string;

@@ -28,6 +28,13 @@ import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import {
+  keptPatches,
+  pruneBatch,
+  pruneUnfetched,
+  recordRetention,
+  requeuePruned,
+} from "../persistence/riot-retention.js";
+import {
   markTimelineUnavailable,
   pendingTimelines,
   saveTimeline,
@@ -88,6 +95,8 @@ export interface WorkerOptions {
   riotPlatforms?: readonly RiotPlatform[];
   /** Most match ids kept per region and patch (RIOT_MATCH_CAP). */
   riotMatchCap?: number;
+  /** Patches before the current one whose solo-queue data is kept (RIOT_RETAIN_PATCHES). */
+  riotRetainPatches?: number;
 }
 class ProviderError extends Error {
   constructor(
@@ -469,8 +478,29 @@ export function worker(pool: Pool, options: WorkerOptions) {
     }
     return ingested;
   }
+  /**
+   * Keeps solo-queue data for the current patch and the configured previous patches. Prunes in
+   * bounded batches, and requeues pruned matches of kept patches so the match job backfills them.
+   * Only riot_* match tables are touched; pro data is not.
+   */
+  async function applyRetention(): Promise<number> {
+    const previous = options.riotRetainPatches ?? 2;
+    const kept = await keptPatches(pool, previous);
+    if (!kept.length) return 0;
+    let pruned = 0;
+    for (let batch = 0; batch < 50; batch++) {
+      const count = await pruneBatch(pool, kept, 200);
+      pruned += count;
+      if (count < 200) break;
+    }
+    await pruneUnfetched(pool, kept, 10000);
+    const backfilled = await requeuePruned(pool, kept, 1000);
+    await recordRetention(pool, { previous, kept, pruned, backfilled }, clock());
+    return pruned + backfilled;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-retention") return applyRetention();
     if (r.kind === "riot-timeline") return ingestTimelines();
     if (r.kind === "riot-match") return ingestMatches();
     if (r.kind === "riot-match-ids") return crawlMatchIds();
