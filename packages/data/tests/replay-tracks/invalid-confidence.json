@@ -1,0 +1,194 @@
+{
+  "formatVersion": 1,
+  "gameId": "EUW1_1234567890",
+  "platform": "euw1",
+  "patch": "16.22",
+  "mapId": 11,
+  "sampleRateHz": 5,
+  "roster": [
+    {
+      "participantId": 1,
+      "championId": 1,
+      "teamId": 100
+    },
+    {
+      "participantId": 2,
+      "championId": 2,
+      "teamId": 100
+    },
+    {
+      "participantId": 3,
+      "championId": 3,
+      "teamId": 100
+    },
+    {
+      "participantId": 4,
+      "championId": 4,
+      "teamId": 100
+    },
+    {
+      "participantId": 5,
+      "championId": 5,
+      "teamId": 100
+    },
+    {
+      "participantId": 6,
+      "championId": 6,
+      "teamId": 200
+    },
+    {
+      "participantId": 7,
+      "championId": 7,
+      "teamId": 200
+    },
+    {
+      "participantId": 8,
+      "championId": 8,
+      "teamId": 200
+    },
+    {
+      "participantId": 9,
+      "championId": 9,
+      "teamId": 200
+    },
+    {
+      "participantId": 10,
+      "championId": 10,
+      "teamId": 200
+    }
+  ],
+  "capture": {
+    "method": "replay-api-png",
+    "toolVersion": "fixture-1",
+    "clientVersion": "16.22.1",
+    "capturedAt": "2026-11-16T12:00:00Z",
+    "replaySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sourceWidth": 1920,
+    "sourceHeight": 1080,
+    "minimap": {
+      "left": 1408,
+      "top": 568,
+      "width": 512,
+      "height": 512
+    }
+  },
+  "samples": [
+    {
+      "timeMs": 60000,
+      "positions": [
+        {
+          "participantId": 1,
+          "position": {
+            "x": 7375,
+            "y": 7430,
+            "pixel": {
+              "x": 256,
+              "y": 256
+            }
+          },
+          "confidence": 1.1
+        },
+        {
+          "participantId": 2,
+          "position": null,
+          "confidence": 0.3
+        },
+        {
+          "participantId": 3,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 4,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 5,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 6,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 7,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 8,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 9,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 10,
+          "position": null,
+          "confidence": null
+        }
+      ]
+    },
+    {
+      "timeMs": 60200,
+      "positions": [
+        {
+          "participantId": 1,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 2,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 3,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 4,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 5,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 6,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 7,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 8,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 9,
+          "position": null,
+          "confidence": null
+        },
+        {
+          "participantId": 10,
+          "position": null,
+          "confidence": null
+        }
+      ]
+    }
+  ]
+}

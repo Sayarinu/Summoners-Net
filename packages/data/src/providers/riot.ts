@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { riotPlatforms, type RiotPlatform } from "../domain/riot-platforms.js";
+export { riotPlatforms, type RiotPlatform } from "../domain/riot-platforms.js";
 
 export const riotKeyKinds = ["development", "personal", "production"] as const;
 export type RiotKeyKind = (typeof riotKeyKinds)[number];
@@ -40,25 +42,8 @@ export function riotKeyCheckResult(status: number): "valid" | "rejected" | "retr
 }
 
 // Routing values accepted by the Riot API: platforms and regional routes.
-export const riotPlatforms = [
-  "br1",
-  "eun1",
-  "euw1",
-  "jp1",
-  "kr",
-  "la1",
-  "la2",
-  "me1",
-  "na1",
-  "oc1",
-  "ru",
-  "sg2",
-  "tr1",
-  "tw2",
-  "vn2",
-] as const;
+
 export const riotRegions = ["americas", "asia", "europe", "sea"] as const;
-export type RiotPlatform = (typeof riotPlatforms)[number];
 export type RiotRouting = RiotPlatform | (typeof riotRegions)[number];
 export const riotRoutingSchema = z.enum([...riotPlatforms, ...riotRegions]);
 
