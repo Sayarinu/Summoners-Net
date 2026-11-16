@@ -2331,7 +2331,7 @@ describe("Champion aggregates", () => {
     expect(
       (
         await pool.query(
-          "SELECT kind,build,games,result_games,wins FROM champion_builds WHERE champion_key=103 ORDER BY kind,build",
+          "SELECT kind,build,games,result_games,wins FROM champion_builds WHERE champion_key=103 AND kind NOT IN ('runes','keystone','shards','spells') ORDER BY kind,build",
         )
       ).rows,
     ).toEqual([
@@ -2349,12 +2349,15 @@ describe("Champion aggregates", () => {
       {
         items: [
           {
+            kind: "item",
             id: 4645,
+            catalogId: "4645",
             name: "Shadowflame",
             imageUrl: expect.stringMatching(/^\/api\/images\/[a-f0-9]{64}$/) as string,
           },
         ],
         games: 2,
+        pickRate: { value: null, sampleCount: 0 },
         // Two results are below the minimum sample, so the win rate is not shown.
         winRate: { value: null, sampleCount: 2 },
         sample: "hidden",
@@ -2369,6 +2372,64 @@ describe("Champion aggregates", () => {
       [4645, 3135, 3157],
     ]);
     expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.builds).toBeNull();
+  });
+  it("counts rune pages, keystones, stat shards and spell pairs from every game", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    // No rune data at all: no page, keystone or shards, but the spells still count.
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+      delete m.info.participants[0]!.perks;
+    });
+    await ingest("EUW1_3", challenger, (m) => {
+      m.info.participants[0]!.summoner2Id = 12;
+    });
+    await ingest("EUW1_4", challenger, (m) => {
+      m.info.participants[3]!.gameEndedInEarlySurrender = true;
+    });
+    await runAggregate();
+    expect(
+      (
+        await pool.query(
+          `SELECT kind,build,games,result_games,wins FROM champion_builds
+           WHERE champion_key=103 AND kind IN ('runes','keystone','shards','spells') ORDER BY kind,build`,
+        )
+      ).rows,
+    ).toEqual([
+      { kind: "keystone", build: "8112", games: 2, result_games: 2, wins: 2 },
+      {
+        kind: "runes",
+        build: "8100,8112,8139,8138,8135,8200,8226,8210",
+        games: 2,
+        result_games: 2,
+        wins: 2,
+      },
+      { kind: "shards", build: "5005,5008,5001", games: 2, result_games: 2, wins: 2 },
+      { kind: "spells", build: "4,12", games: 1, result_games: 1, wins: 1 },
+      { kind: "spells", build: "4,14", games: 2, result_games: 2, wins: 1 },
+    ]);
+    const builds = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!.builds!;
+    expect(builds.keystone[0]!.items).toEqual([
+      expect.objectContaining({ kind: "rune", id: 8112, name: "Electrocute" }),
+    ]);
+    expect(builds.spells[0]).toMatchObject({
+      items: [
+        { kind: "spell", id: 4, catalogId: "SummonerFlash", name: "Flash" },
+        { kind: "spell", id: 14, catalogId: "SummonerDot", name: "Ignite" },
+      ],
+      games: 2,
+      // Three Ahri games are below the minimum sample: both rates stay unknown.
+      pickRate: { value: null, sampleCount: 3 },
+      winRate: { value: null, sampleCount: 2 },
+    });
+    // Data Dragon has no stat shard entries, so they keep their ids without names.
+    expect(builds.shards[0]!.items.map((i) => [i.kind, i.id, i.name])).toEqual([
+      ["shard", 5005, null],
+      ["shard", 5008, null],
+      ["shard", 5001, null],
+    ]);
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

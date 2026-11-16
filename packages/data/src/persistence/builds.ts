@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import {
   buildKinds,
   deriveBuild,
+  type BuildItem,
   type BuildRow,
   type ChampionBuilds,
   type ItemEvent,
@@ -127,7 +128,8 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
     ];
     return { queue, region, tier, championKey: Number(championKey), role, kind, build, ...n };
   });
-  if (!rows.length) return 0;
+  const loadouts = await rebuildLoadouts(c, patchKey, now);
+  if (!rows.length) return loadouts;
   const column = <K extends keyof (typeof rows)[number]>(name: K) => rows.map((r) => r[name]);
   await c.query(
     `INSERT INTO champion_builds(patch_key,queue,region,tier,champion_key,role,kind,build,games,
@@ -151,12 +153,71 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
       now,
     ],
   );
-  return rows.length;
+  return rows.length + loadouts;
 }
 
+/** Rune pages, keystones, stat shards and spell pairs, counted in SQL from match details. */
+async function rebuildLoadouts(c: PoolClient, patchKey: string, now: Date) {
+  const inserted = await c.query(
+    `WITH players AS (
+       SELECT m.match_id,p.participant_id,p.champion_id AS champion_key,
+         CASE WHEN p.team_position IN ('TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY')
+           THEN p.team_position ELSE 'UNKNOWN' END AS role,p.win,
+         coalesce(m.queue_id::text,'unknown') AS queue,i.region,
+         coalesce((SELECT e.tier FROM riot_ladder_entries e WHERE e.puuid=i.first_seen_puuid
+           ORDER BY e.fetched_at DESC LIMIT 1),'UNKNOWN') AS tier,
+         p.summoner1_id,p.summoner2_id,p.stat_perk_offense,p.stat_perk_flex,p.stat_perk_defense
+       FROM riot_matches m JOIN riot_match_ids i USING (match_id)
+       JOIN riot_match_participants p USING (match_id)
+       WHERE m.patch_key=$1 AND m.remake IS NOT TRUE),
+     pages AS (
+       SELECT match_id,participant_id,
+         max(style_id) FILTER(WHERE style='primary') AS primary_style,
+         max(style_id) FILTER(WHERE style='sub') AS sub_style,
+         count(*) FILTER(WHERE style='primary') AS primary_count,
+         count(*) FILTER(WHERE style='sub') AS sub_count,
+         string_agg(perk_id::text,',' ORDER BY slot) FILTER(WHERE style='primary') AS primary_perks,
+         string_agg(perk_id::text,',' ORDER BY slot) FILTER(WHERE style='sub') AS sub_perks,
+         max(perk_id) FILTER(WHERE style='primary' AND slot=0) AS keystone
+       FROM riot_match_perks WHERE match_id IN (SELECT match_id FROM players)
+       GROUP BY match_id,participant_id),
+     loadouts AS (
+       SELECT p.*,'runes' AS kind,
+         concat_ws(',',r.primary_style,r.primary_perks,r.sub_style,r.sub_perks) AS build
+       FROM players p JOIN pages r USING (match_id,participant_id)
+       WHERE r.primary_count=4 AND r.sub_count=2
+       UNION ALL
+       SELECT p.*,'keystone',r.keystone::text FROM players p JOIN pages r USING (match_id,participant_id)
+       WHERE r.keystone IS NOT NULL
+       UNION ALL
+       SELECT p.*,'shards',concat_ws(',',p.stat_perk_offense,p.stat_perk_flex,p.stat_perk_defense)
+       FROM players p WHERE p.stat_perk_offense IS NOT NULL AND p.stat_perk_flex IS NOT NULL
+         AND p.stat_perk_defense IS NOT NULL
+       UNION ALL
+       SELECT p.*,'spells',concat_ws(',',least(p.summoner1_id,p.summoner2_id),
+         greatest(p.summoner1_id,p.summoner2_id))
+       FROM players p WHERE p.summoner1_id>0 AND p.summoner2_id>0)
+     INSERT INTO champion_builds(patch_key,queue,region,tier,champion_key,role,kind,build,games,
+       result_games,wins,built_at)
+     SELECT $1,queue,region,tier,champion_key,role,kind,build,count(*),count(win),
+       count(*) FILTER(WHERE win),$2
+     FROM loadouts GROUP BY queue,region,tier,champion_key,role,kind,build`,
+    [patchKey, now],
+  );
+  return inserted.rowCount ?? 0;
+}
+
+const entryKind = (kind: (typeof buildKinds)[number]): BuildItem["kind"] =>
+  kind === "runes" || kind === "keystone"
+    ? "rune"
+    : kind === "shards"
+      ? "shard"
+      : kind === "spells"
+        ? "spell"
+        : "item";
 /**
- * The most played builds of each kind for a champion on a patch, summed over the filtered
- * roles, regions and tiers. Reads only build aggregates and the item catalog.
+ * The most played builds and loadouts of each kind for a champion on a patch, summed over the
+ * filtered roles, regions and tiers. Reads only build aggregates and the catalog.
  */
 export async function championBuilds(
   db: Executor,
@@ -166,6 +227,8 @@ export async function championBuilds(
     role: string;
     region?: string | undefined;
     tier?: string | undefined;
+    /** The champion's games in the selection, the denominator of pick rates. */
+    championGames: number;
   },
   perKind = 5,
 ): Promise<ChampionBuilds> {
@@ -187,38 +250,79 @@ export async function championBuilds(
      WHERE n<=$6 ORDER BY kind,n`,
     [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null, perKind],
   );
-  const ids = [...new Set(rows.rows.flatMap((r) => r.build.split(",").map(Number)))];
-  const names = new Map(
-    (
-      await db.query<{ item_id: number; name: string; asset_hash: string | null }>(
-        `SELECT DISTINCT ON (c.item_id) c.item_id,c.name,i.asset_hash FROM catalog_items c
-         JOIN patches p USING (patch_key)
-         LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='item'
-           AND i.catalog_id=c.item_id::text
-         WHERE c.item_id=ANY($2::integer[])
-         ORDER BY c.item_id,(c.patch_key=$1) DESC,p.release_order DESC`,
-        [input.patch, ids],
-      )
-    ).rows.map((r) => [r.item_id, r]),
-  );
+  const ids = (kind: BuildItem["kind"]) => [
+    ...new Set(
+      rows.rows
+        .filter((r) => entryKind(r.kind) === kind)
+        .flatMap((r) => r.build.split(",").map(Number)),
+    ),
+  ];
+  // Names and cached icons from the patch's catalog, or the newest catalog that has the entry.
+  const lookup = async (sql: string, values: number[]) =>
+    new Map(
+      (
+        await db.query<{ id: number; catalog_id: string; name: string; asset_hash: string | null }>(
+          sql,
+          [input.patch, values],
+        )
+      ).rows.map((r) => [r.id, r]),
+    );
+  const catalogs = {
+    item: await lookup(
+      `SELECT DISTINCT ON (c.item_id) c.item_id AS id,c.item_id::text AS catalog_id,c.name,i.asset_hash
+       FROM catalog_items c JOIN patches p USING (patch_key)
+       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='item' AND i.catalog_id=c.item_id::text
+       WHERE c.item_id=ANY($2::integer[]) ORDER BY c.item_id,(c.patch_key=$1) DESC,p.release_order DESC`,
+      ids("item"),
+    ),
+    rune: await lookup(
+      `SELECT DISTINCT ON (c.rune_id) c.rune_id AS id,c.rune_id::text AS catalog_id,c.name,i.asset_hash
+       FROM catalog_runes c JOIN patches p USING (patch_key)
+       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='rune' AND i.catalog_id=c.rune_id::text
+       WHERE c.rune_id=ANY($2::integer[]) ORDER BY c.rune_id,(c.patch_key=$1) DESC,p.release_order DESC`,
+      ids("rune"),
+    ),
+    spell: await lookup(
+      `SELECT DISTINCT ON (c.spell_key) c.spell_key AS id,c.spell_id AS catalog_id,c.name,i.asset_hash
+       FROM catalog_summoner_spells c JOIN patches p USING (patch_key)
+       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='spell' AND i.catalog_id=c.spell_id
+       WHERE c.spell_key=ANY($2::integer[]) ORDER BY c.spell_key,(c.patch_key=$1) DESC,p.release_order DESC`,
+      ids("spell"),
+    ),
+    shard: new Map<number, { catalog_id: string; name: string; asset_hash: string | null }>(),
+  };
   const result = Object.fromEntries(buildKinds.map((k) => [k, [] as BuildRow[]])) as ChampionBuilds;
   for (const r of rows.rows) {
-    const rate = applySamplePolicy({
+    const kind = entryKind(r.kind);
+    const win = applySamplePolicy({
       value: r.result_games ? r.wins / r.result_games : null,
       sampleCount: r.result_games,
     });
+    // Loadouts come from every game, so their pick rate is over the champion's games. Items
+    // come only from games with timelines, which the aggregates do not count, so they have none.
+    const pick =
+      kind === "item"
+        ? { value: null, sampleCount: 0 }
+        : applySamplePolicy({
+            value: input.championGames ? r.games / input.championGames : null,
+            sampleCount: input.championGames,
+          });
     result[r.kind].push({
-      items: r.build.split(",").map((id) => {
-        const item = names.get(Number(id));
+      items: r.build.split(",").map((raw) => {
+        const id = Number(raw);
+        const entry = catalogs[kind].get(id);
         return {
-          id: Number(id),
-          name: item?.name ?? null,
-          imageUrl: item?.asset_hash ? `/api/images/${item.asset_hash}` : null,
+          kind,
+          id,
+          catalogId: entry?.catalog_id ?? raw,
+          name: entry?.name ?? null,
+          imageUrl: entry?.asset_hash ? `/api/images/${entry.asset_hash}` : null,
         };
       }),
       games: r.games,
-      winRate: { value: rate.value, sampleCount: rate.sampleCount },
-      sample: rate.status,
+      pickRate: { value: pick.value, sampleCount: pick.sampleCount },
+      winRate: { value: win.value, sampleCount: win.sampleCount },
+      sample: win.status,
     });
   }
   return result;

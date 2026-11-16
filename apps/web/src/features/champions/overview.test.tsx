@@ -24,10 +24,11 @@ const overview: ChampionOverview = {
     start: [
       {
         items: [
-          { id: 1056, name: "Doran's Ring", imageUrl: null },
-          { id: 2003, name: "Health Potion", imageUrl: null },
+          { kind: "item", id: 1056, catalogId: "1056", name: "Doran's Ring", imageUrl: null },
+          { kind: "item", id: 2003, catalogId: "2003", name: "Health Potion", imageUrl: null },
         ],
         games: 30,
+        pickRate: { value: null, sampleCount: 0 },
         winRate: { value: 0.6, sampleCount: 30 },
         sample: "low-sample",
       },
@@ -36,11 +37,12 @@ const overview: ChampionOverview = {
     path: [
       {
         items: [
-          { id: 4645, name: "Shadowflame", imageUrl: null },
-          { id: 3089, name: null, imageUrl: null },
-          { id: 3157, name: "Zhonya's Hourglass", imageUrl: null },
+          { kind: "item", id: 4645, catalogId: "4645", name: "Shadowflame", imageUrl: null },
+          { kind: "item", id: 3089, catalogId: "3089", name: null, imageUrl: null },
+          { kind: "item", id: 3157, catalogId: "3157", name: "Zhonya's Hourglass", imageUrl: null },
         ],
         games: 4,
+        pickRate: { value: null, sampleCount: 0 },
         winRate: { value: null, sampleCount: 4 },
         sample: "hidden",
       },
@@ -48,6 +50,40 @@ const overview: ChampionOverview = {
     slot1: [],
     slot2: [],
     slot3: [],
+    runes: [],
+    keystone: [
+      {
+        items: [{ kind: "rune", id: 8112, catalogId: "8112", name: "Electrocute", imageUrl: null }],
+        games: 25,
+        pickRate: { value: 0.625, sampleCount: 40 },
+        winRate: { value: 0.56, sampleCount: 25 },
+        sample: "low-sample",
+      },
+    ],
+    shards: [
+      {
+        items: [
+          { kind: "shard", id: 5005, catalogId: "5005", name: null, imageUrl: null },
+          { kind: "shard", id: 5008, catalogId: "5008", name: null, imageUrl: null },
+        ],
+        games: 3,
+        pickRate: { value: null, sampleCount: 40 },
+        winRate: { value: null, sampleCount: 3 },
+        sample: "hidden",
+      },
+    ],
+    spells: [
+      {
+        items: [
+          { kind: "spell", id: 4, catalogId: "SummonerFlash", name: "Flash", imageUrl: null },
+          { kind: "spell", id: 14, catalogId: "SummonerDot", name: "Ignite", imageUrl: null },
+        ],
+        games: 30,
+        pickRate: { value: 0.75, sampleCount: 40 },
+        winRate: { value: 0.5, sampleCount: 30 },
+        sample: "low-sample",
+      },
+    ],
   },
 };
 it("shows rates with samples, the interval, the tier and its basis, and the trend", () => {
@@ -90,4 +126,20 @@ it("shows builds with items, games and win rates, hiding small samples", () => {
   );
   view.rerender(<ChampionOverviewPage overview={{ ...overview, builds: null }} error={null} />);
   expect(screen.getByText(/pro play has no item purchase events/)).toBeVisible();
+});
+it("shows rune pages, shards and spells with pick and win rates", () => {
+  const view = render(<ChampionOverviewPage overview={overview} error={null} />);
+  const keystones = screen.getByRole("table", { name: "Keystones" });
+  expect(keystones).toHaveTextContent("Electrocute");
+  expect(keystones).toHaveTextContent("62.5%");
+  expect(keystones).toHaveTextContent("56.0% · 25 results");
+  expect(screen.getByRole("table", { name: "Stat shards" })).toHaveTextContent(
+    /Stat shard 5005.*Stat shard 5008/,
+  );
+  expect(screen.getByRole("table", { name: "Summoner spells" })).toHaveTextContent(/Flash.*Ignite/);
+  expect(screen.getByRole("table", { name: "Rune pages" })).toHaveTextContent("No games yet.");
+  view.rerender(<ChampionOverviewPage overview={{ ...overview, builds: null }} error={null} />);
+  expect(
+    screen.getByText(/Rune pages and spells come from solo-queue match details/),
+  ).toBeVisible();
 });

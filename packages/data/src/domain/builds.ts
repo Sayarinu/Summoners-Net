@@ -75,15 +75,36 @@ export function deriveBuild(
   };
 }
 
-export const buildKinds = ["start", "boots", "path", "slot1", "slot2", "slot3"] as const;
+export const buildKinds = [
+  "start",
+  "boots",
+  "path",
+  "slot1",
+  "slot2",
+  "slot3",
+  "runes",
+  "keystone",
+  "shards",
+  "spells",
+] as const;
 export interface BuildItem {
+  kind: "item" | "rune" | "shard" | "spell";
+  /** Data Dragon id: item id, rune or style id, stat shard id, or summoner spell key. */
   id: number;
+  /** Data Dragon's own id for a summoner spell ("SummonerFlash"), used for its icon. */
+  catalogId: string;
+  /** Null when Data Dragon has no entry, as for stat shards. */
   name: string | null;
   imageUrl: string | null;
 }
 export interface BuildRow {
   items: BuildItem[];
   games: number;
+  /**
+   * Rune and spell rows: the share of the champion's games in the selection, null below the
+   * minimum sample. Item rows have none (sample 0): only games with timelines count for items.
+   */
+  pickRate: { value: number | null; sampleCount: number };
   /** Null below the minimum sample, with the sample count kept. */
   winRate: { value: number | null; sampleCount: number };
   sample: "shown" | "low-sample" | "hidden";
