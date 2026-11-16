@@ -52,7 +52,7 @@ export interface FeatureEvent {
   buildingType: string | null;
 }
 
-const emptyCounts = (): TeamCounts => ({
+export const emptyCounts = (): TeamCounts => ({
   kills: 0,
   towers: 0,
   inhibitors: 0,
@@ -61,6 +61,53 @@ const emptyCounts = (): TeamCounts => ({
   dragons: Object.fromEntries(dragonTypes.map((t) => [t, 0])) as DragonCounts,
   soul: false,
 });
+
+/**
+ * Counts one event into the teams' running totals and returns the side it credits, or null when
+ * the event changes nothing the features count.
+ */
+export function applyEvent(
+  blue: TeamCounts,
+  red: TeamCounts,
+  e: FeatureEvent,
+  teams: ReadonlyMap<number, number>,
+): "blue" | "red" | null {
+  const side = (team: number | null) => (team === 100 ? "blue" : team === 200 ? "red" : null);
+  const other = (team: number | null) => (team === 100 ? "red" : team === 200 ? "blue" : null);
+  const counts = (s: "blue" | "red") => (s === "blue" ? blue : red);
+  if (e.type === "CHAMPION_KILL") {
+    // Credit the kill to the victim's opponents, even when a tower or minion executed them.
+    const credited = other(e.victimId === null ? null : (teams.get(e.victimId) ?? null));
+    if (credited) counts(credited).kills++;
+    return credited;
+  }
+  if (e.type === "BUILDING_KILL") {
+    // A building event names the team that owned the building.
+    const credited = other(e.teamId);
+    if (!credited) return null;
+    if (e.buildingType === "TOWER_BUILDING") counts(credited).towers++;
+    else if (e.buildingType === "INHIBITOR_BUILDING") counts(credited).inhibitors++;
+    else return null;
+    return credited;
+  }
+  if (e.type === "ELITE_MONSTER_KILL") {
+    const credited = side(e.teamId);
+    if (!credited) return null;
+    const team = counts(credited);
+    if (e.monsterType === "BARON_NASHOR") team.barons++;
+    else if (e.monsterType === "DRAGON" && e.monsterSubType === "ELDER_DRAGON") team.elders++;
+    else if (e.monsterType === "DRAGON" && e.monsterSubType && e.monsterSubType in team.dragons)
+      team.dragons[e.monsterSubType as keyof DragonCounts]++;
+    // Heralds and void grubs are credited but not counted by the features.
+    return credited;
+  }
+  if (e.type === "DRAGON_SOUL_GIVEN") {
+    const credited = side(e.teamId);
+    if (credited) counts(credited).soul = true;
+    return credited;
+  }
+  return null;
+}
 
 /**
  * One row per minute that has frames. Event counts are cumulative up to the minute's frame time.
@@ -77,35 +124,13 @@ export function extractFeatures(
   const ordered = [...events].sort((a, b) => a.timestampMs - b.timestampMs);
   const blue = emptyCounts();
   const red = emptyCounts();
-  const side = (team: number | null) => (team === 100 ? blue : team === 200 ? red : null);
-  const other = (team: number | null) => (team === 100 ? red : team === 200 ? blue : null);
   let next = 0;
   const rows: FeatureRow[] = [];
   for (const minute of [...minutes.keys()].sort((a, b) => a - b)) {
     const minuteFrames = minutes.get(minute)!;
     const timestampMs = Math.max(...minuteFrames.map((f) => f.timestampMs));
     for (; next < ordered.length && ordered[next]!.timestampMs <= timestampMs; next++) {
-      const e = ordered[next]!;
-      if (e.type === "CHAMPION_KILL") {
-        // Credit the kill to the victim's opponents, even when a tower or minion executed them.
-        const team = other(e.victimId === null ? null : (teams.get(e.victimId) ?? null));
-        if (team) team.kills++;
-      } else if (e.type === "BUILDING_KILL") {
-        // A building event names the team that owned the building.
-        const team = other(e.teamId);
-        if (team && e.buildingType === "TOWER_BUILDING") team.towers++;
-        if (team && e.buildingType === "INHIBITOR_BUILDING") team.inhibitors++;
-      } else if (e.type === "ELITE_MONSTER_KILL") {
-        const team = side(e.teamId);
-        if (!team) continue;
-        if (e.monsterType === "BARON_NASHOR") team.barons++;
-        else if (e.monsterType === "DRAGON" && e.monsterSubType === "ELDER_DRAGON") team.elders++;
-        else if (e.monsterType === "DRAGON" && e.monsterSubType && e.monsterSubType in team.dragons)
-          team.dragons[e.monsterSubType as keyof DragonCounts]++;
-      } else if (e.type === "DRAGON_SOUL_GIVEN") {
-        const team = side(e.teamId);
-        if (team) team.soul = true;
-      }
+      applyEvent(blue, red, ordered[next]!, teams);
     }
     const totals = (team: number, pick: (f: FeatureFrame) => number | null) => {
       const values = minuteFrames.filter((f) => teams.get(f.participantId) === team).map(pick);

@@ -43,6 +43,7 @@ import {
   winProbabilityModels,
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
+import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -141,7 +142,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2929,6 +2930,65 @@ describe("Champion aggregates", () => {
     );
     expect(await soloGame(pool, "EUW1_999")).toBeNull();
     await expect(soloGame(pool, "not a match")).rejects.toThrow();
+  });
+  it("stores win probability added per event and participant for each model", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    // Training publishes a model and scores the stored games with it.
+    const trainer = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      winProbability: { minimumMatches: 1, seed: 5 },
+    });
+    try {
+      await trainer.request({ kind: "wp-train" });
+      expect((await trainer.runNext()).state).toBe("done");
+    } finally {
+      await trainer.close();
+    }
+    const first = (await activeWinProbabilityModel(pool))!;
+    const scored = await matchWpa(pool, "EUW1_1", first.id);
+    expect(scored.events.map((e) => [e.type, e.team])).toEqual([
+      ["CHAMPION_KILL", "blue"],
+      ["ELITE_MONSTER_KILL", "blue"],
+      ["BUILDING_KILL", "blue"],
+    ]);
+    const kill = scored.events[0]!;
+    expect(kill.delta).not.toBeNull();
+    expect(kill.participants.map((p) => [p.participantId, p.role])).toEqual([
+      [7, "victim"],
+      [2, "killer"],
+      [1, "assister"],
+      [4, "assister"],
+    ]);
+    expect(kill.participants.find((p) => p.role === "victim")!.value).toBeCloseTo(-kill.delta!);
+    // The tower was taken by minions: a team value and the assister's share, no taker.
+    expect(scored.events[2]!.participants.map((p) => p.role)).toEqual(["assister"]);
+
+    // Rescoring with the same model replaces its rows; a new model keeps the old model's values.
+    await scoreMatchWpa(pool, "EUW1_1", first, now);
+    expect((await matchWpa(pool, "EUW1_1", first.id)).events).toEqual(scored.events);
+    instant = new Date(now.valueOf() + 86400000);
+    await trainWinProbabilityModel(pool, instant, { minimumMatches: 1, seed: 6 });
+    const second = (await activeWinProbabilityModel(pool))!;
+    await runAggregate();
+    expect((await matchWpa(pool, "EUW1_1", second.id)).events).toHaveLength(3);
+    expect((await matchWpa(pool, "EUW1_1", first.id)).events).toHaveLength(3);
+    expect(
+      (
+        await pool.query<{ n: number }>(
+          "SELECT count(DISTINCT model_id)::integer n FROM riot_wpa_events",
+        )
+      ).rows[0]!.n,
+    ).toBe(2);
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);
