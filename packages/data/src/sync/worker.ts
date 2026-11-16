@@ -1,3 +1,4 @@
+import { importReplayTrack, ReplayTrackImportError } from "../persistence/replay-tracks.js";
 import { setTimeout as pauseFor } from "node:timers/promises";
 import { z } from "zod";
 import type { Pool } from "pg";
@@ -117,6 +118,7 @@ class ProviderError extends Error {
 const tracksSource = (r: SyncRequest) =>
   r.kind !== "resolve" &&
   r.kind !== "drafts" &&
+  r.kind !== "replay-track" &&
   r.kind !== "aggregate" &&
   !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
@@ -598,6 +600,17 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const report = await resolveStored(pool, clock());
       await cacheImages(pool, fetcher, clock);
       return report.links;
+    }
+    if (r.kind === "replay-track") {
+      try {
+        return await importReplayTrack(pool, r.file, clock());
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ReplayTrackImportError
+            ? error.message
+            : "Replay track could not be read or stored; saved tracks are unchanged.",
+        );
+      }
     }
     if (r.kind === "history") {
       try {

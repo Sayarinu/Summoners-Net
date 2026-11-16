@@ -161,6 +161,14 @@ export const querySchema = z.object({
 export type BrowseQuery = z.input<typeof querySchema>;
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("replay-track"),
+    file: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((value) => !value.includes(String.fromCharCode(0)), "Invalid file path."),
+  }),
   z
     .object({
       kind: z.enum([

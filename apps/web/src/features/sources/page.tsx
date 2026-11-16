@@ -1,4 +1,5 @@
 "use client";
+import { ReplayTrackUpload } from "./replay-track-upload";
 import { useState } from "react";
 import { Button, Input, Table, TextLink, StatusIndicator } from "@summonersnet/ui";
 import type { SyncStatus, Queries } from "@summonersnet/data";
@@ -140,6 +141,7 @@ export function SourcesPage({
       <RiotKeySection riotKey={status.riotKey} timezone={timezone} />
       <RiotCrawlerSection crawl={status.riotCrawl} timezone={timezone} />
       <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
+      <ReplayTrackUpload />
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">

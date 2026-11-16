@@ -73,3 +73,26 @@ const json = JSON.stringify(exported);
 Validation is atomic: do not persist a valid prefix of an invalid file. A future incompatible format
 gets a new explicit version and a deliberate reader/migration path. Do not reinterpret version 1
 fields or silently discard unknown-version data.
+
+## Importing
+
+On Sources & imports, choose **Replay track JSON**, then **Queue track import**. The browser sends
+the original file bytes to the local upload endpoint; it does not parse frames, fetch providers or
+write track rows. Uploads are streamed with a 64 MiB file limit plus bounded multipart overhead,
+saved privately under a content hash, and queued for the worker.
+
+The worker reads bounded UTF-8 bytes, validates every sample using the schema, and stores the whole
+track in one transaction. Re-importing the same platform, game ID and format version replaces that
+row; other games remain stored. A failed file or database write leaves the previous track intact.
+Its source-file SHA-256 and import timestamp are retained.
+
+A track can be stored before its Riot match arrives. Linking uses the exact platform and game ID,
+then corroborates patch, map and all participant/champion/team IDs. Conflicting stored match facts
+reject the import. A later matching Riot record can establish the link; a missing or inconsistent
+record leaves the track unlinked. No names or nearest-time guesses establish identity.
+
+Local tracks have no cascading foreign key to provider matches, so Riot retention cannot delete
+them. A retained track becomes unlinked if its provider match is pruned. The public
+`replayTrack({ platform, gameId })` query reports the track, hash, timestamp and current link state.
+The sample count and null observations are preserved exactly. This does not certify capture timing
+or detection accuracy; those still require the checks described in the decision record.

@@ -220,3 +220,24 @@ it("shows Riot quota, job outcomes and crawl progress, and queues a crawl", asyn
     expect.objectContaining({ body: JSON.stringify({ kind: "riot-match-ids" }) }),
   );
 });
+
+it("only uploads track bytes to the queue and reports request failures", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<SourcesPage status={status} timezone="UTC" year={2026} />);
+  const button = screen.getByRole("button", { name: "Queue track import" });
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Track import queued/);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/import?kind=replay-track",
+    expect.objectContaining({ method: "POST" }),
+  );
+  expect((fetcher.mock.calls[0]![1]!.body as FormData).get("kind")).toBe("replay-track");
+  fetcher.mockResolvedValue(new Response("{}", { status: 400 }));
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Track import could not be queued/);
+  fetcher.mockRejectedValue(new Error("offline"));
+  fireEvent.submit(button.closest("form")!);
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+});

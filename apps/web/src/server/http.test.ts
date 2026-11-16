@@ -123,3 +123,41 @@ describe("local HTTP entry points", () => {
     expect((await importUpload(upload("games.csv", "2026"))).status).toBe(400);
   });
 });
+
+it("queues bounded track uploads without parsing them or accepting a server path", async () => {
+  const form = new FormData();
+  form.set("kind", "replay-track");
+  form.set("file", new File(["not JSON; worker validates"], "track.json"));
+  form.set("path", "/etc/passwd");
+  const upload = () =>
+    new Request("http://localhost:3000/api/import?kind=replay-track", {
+      method: "POST",
+      headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+      body: form,
+    });
+  mocks.writeFile.mockResolvedValue(undefined);
+  expect((await importUpload(upload())).status).toBe(202);
+  const queued: unknown = mocks.request.mock.calls.at(-1)?.[0];
+  expect(queued).toHaveProperty("kind", "replay-track");
+  expect(queued).toHaveProperty(
+    "file",
+    expect.stringMatching(/\.local\/imports\/[a-f0-9]{64}\.json$/),
+  );
+  expect(mocks.writeFile).toHaveBeenCalledWith(
+    expect.stringMatching(/\.json$/),
+    Buffer.from("not JSON; worker validates"),
+    { mode: 0o600 },
+  );
+  form.set("file", new File(["{}"], "bad.csv"));
+  expect((await importUpload(upload())).status).toBe(400);
+  form.set("file", new File([], "empty.json"));
+  expect((await importUpload(upload())).status).toBe(400);
+  form.set("file", new File([new Uint8Array(64 * 1024 * 1024 + 8193)], "large.json"));
+  expect((await importUpload(upload())).status).toBe(413);
+  form.set("file", new File(["{}"], "track.json"));
+  form.set("kind", "unknown");
+  expect((await importUpload(upload())).status).toBe(400);
+  expect(
+    (await mutate(request({ kind: "replay-track", file: "/etc/passwd" }), "refresh")).status,
+  ).toBe(400);
+});

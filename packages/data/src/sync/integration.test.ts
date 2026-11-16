@@ -1,3 +1,4 @@
+import { parseReplayTrackFile, type ReplayTrack } from "../domain/replay-tracks.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -125,7 +126,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -3259,4 +3260,172 @@ it("derives draft rates with patch/league SQL filters, role order, missing count
     (await importCsv(draftCsv({ id: "draft-missing" }).replaceAll("2026-03-01", "bad-date"))).state,
   ).toBe("failed");
   expect(await queries.draftAnalytics(q)).toEqual(corrected);
+});
+
+describe("replay track imports", () => {
+  const fixture = () =>
+    parseReplayTrackFile(
+      readFileSync(new URL("../../tests/replay-tracks/valid-v1.json", import.meta.url), "utf8"),
+    );
+  const key = { platform: "euw1" as const, gameId: "EUW1_1234567890" };
+  async function upload(value: unknown, name = "track.json") {
+    const file = join(directory, name);
+    await writeFile(file, typeof value === "string" ? value : JSON.stringify(value));
+    return run({ kind: "replay-track", file });
+  }
+  async function storeRiot(track: ReplayTrack) {
+    const raw: unknown = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    );
+    const match = parseRiotMatch(raw, "EUW1_7612345678");
+    track.gameId = match.matchId;
+    track.roster = match.participants.map((p) => ({
+      participantId: p.participantId,
+      championId: p.championId,
+      teamId: p.teamId,
+    }));
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      [match.matchId],
+      10,
+      now,
+    );
+    await saveRiotMatch(pool, match, raw, now);
+    return { platform: track.platform, gameId: track.gameId };
+  }
+  it("validates complete files, replaces one version and keeps other games and nulls without provider calls", async () => {
+    const original = fixture();
+    expect((await upload(original)).state).toBe("done");
+    const saved = await queries.replayTrack(key);
+    expect(saved).toMatchObject({
+      track: original,
+      importedAt: now.toISOString(),
+      matchId: null,
+      linkState: "unavailable",
+    });
+    expect(saved!.contentSha256).toBe(
+      createHash("sha256").update(JSON.stringify(original)).digest("hex"),
+    );
+    expect((await upload(original)).state).toBe("done");
+    const other = { ...original, gameId: "EUW1_999" };
+    expect((await upload(other, "other.json")).state).toBe("done");
+    const correction = structuredClone(original);
+    correction.samples = correction.samples.slice(0, 1);
+    correction.samples[0]!.positions[0]!.position = null;
+    correction.samples[0]!.positions[0]!.confidence = 0.2;
+    instant = new Date(now.valueOf() + 1000);
+    expect((await upload(correction)).state).toBe("done");
+    expect(await queries.replayTrack(key)).toMatchObject({
+      track: correction,
+      importedAt: instant.toISOString(),
+    });
+    expect((await queries.replayTrack({ ...key, gameId: other.gameId }))!.track).toEqual(other);
+    for (const bad of [
+      "broken",
+      { ...correction, formatVersion: 2 },
+      { ...correction, platform: "kr" },
+      { ...correction, samples: [...correction.samples, { timeMs: -1, positions: [] }] },
+    ]) {
+      expect((await upload(bad)).state).toBe("failed");
+      expect((await queries.replayTrack(key))!.track).toEqual(correction);
+    }
+    expect(await queries.replayTrack({ ...key, platform: "kr" })).toBeNull();
+    await expect(queries.replayTrack({ ...key, gameId: "bad" })).rejects.toThrow();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await queries.status()).sources.every((s) => s.lastAttempt === null)).toBe(true);
+  });
+  it("links only exact platform/game identities with corroborating metadata and participant rosters", async () => {
+    const track = fixture();
+    const matchedKey = await storeRiot(track);
+    expect((await upload(track)).state).toBe("done");
+    expect(await queries.replayTrack(matchedKey)).toMatchObject({
+      matchId: track.gameId,
+      linkState: "linked",
+    });
+    const original = (await queries.replayTrack(matchedKey))!.track;
+    for (const altered of [
+      { ...track, patch: "16.21" },
+      {
+        ...track,
+        roster: track.roster.map((p, i) => ({ ...p, championId: i === 0 ? 999999 : p.championId })),
+      },
+    ]) {
+      const failed = await upload(altered);
+      expect(failed.state).toBe("failed");
+      expect(failed).toHaveProperty("error", expect.stringContaining("does not match"));
+      expect((await queries.replayTrack(matchedKey))!.track).toEqual(original);
+    }
+    await pool.query("UPDATE riot_matches SET platform_id='KR' WHERE match_id=$1", [track.gameId]);
+    expect((await queries.replayTrack(matchedKey))!.matchId).toBeNull();
+    expect((await upload(track)).state).toBe("failed");
+    await pool.query("UPDATE riot_matches SET platform_id=NULL WHERE match_id=$1", [track.gameId]);
+    expect((await upload(track)).state).toBe("failed");
+    await pool.query("UPDATE riot_matches SET platform_id='EUW1',map_id=12 WHERE match_id=$1", [
+      track.gameId,
+    ]);
+    expect((await upload(track)).state).toBe("failed");
+    await pool.query("UPDATE riot_matches SET map_id=11 WHERE match_id=$1", [track.gameId]);
+    await pool.query(
+      "DELETE FROM riot_match_participants WHERE match_id=$1 AND participant_id=10",
+      [track.gameId],
+    );
+    expect((await upload(track)).state).toBe("failed");
+    await pool.query("DELETE FROM riot_matches WHERE match_id=$1", [track.gameId]);
+    expect(await queries.replayTrack(matchedKey)).toMatchObject({
+      track: original,
+      matchId: null,
+      linkState: "unavailable",
+    });
+  });
+  it("can link a previously imported track after an exact Riot match arrives", async () => {
+    const track = fixture();
+    const raw: unknown = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    );
+    const match = parseRiotMatch(raw, "EUW1_7612345678");
+    track.gameId = match.matchId;
+    track.roster = match.participants.map((p) => ({
+      participantId: p.participantId,
+      championId: p.championId,
+      teamId: p.teamId,
+    }));
+    expect((await upload(track)).state).toBe("done");
+    const matchedKey = await storeRiot(track);
+    expect((await queries.replayTrack(matchedKey))!.matchId).toBe(track.gameId);
+  });
+  it("rolls back storage failures and keeps distinct pending uploads", async () => {
+    const track = fixture();
+    expect((await upload(track)).state).toBe("done");
+    await pool.query(
+      "CREATE FUNCTION reject_test_track() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected storage failure'; END $$",
+    );
+    await pool.query(
+      "CREATE TRIGGER reject_test_track_write BEFORE UPDATE ON replay_tracks FOR EACH ROW EXECUTE FUNCTION reject_test_track()",
+    );
+    try {
+      expect((await upload({ ...track, sampleRateHz: 10 })).state).toBe("failed");
+      expect((await queries.replayTrack(key))!.track).toEqual(track);
+    } finally {
+      await pool.query("DROP TRIGGER reject_test_track_write ON replay_tracks");
+      await pool.query("DROP FUNCTION reject_test_track()");
+    }
+    const first = await sync.request({ kind: "replay-track", file: "/first.json" });
+    expect(await sync.request({ kind: "replay-track", file: "/first.json" })).toBe(first);
+    expect(await sync.request({ kind: "replay-track", file: "/correction.json" })).not.toBe(first);
+  });
+  it("rejects missing, non-file, oversized and invalid UTF-8 inputs without changing data", async () => {
+    for (const file of [join(directory, "missing.json"), directory])
+      expect((await run({ kind: "replay-track", file })).state).toBe("failed");
+    const file = join(directory, "invalid-utf8.json");
+    await writeFile(file, Buffer.from([0xff, 0xfe]));
+    expect((await run({ kind: "replay-track", file })).state).toBe("failed");
+    await writeFile(file, Buffer.alloc(64 * 1024 * 1024 + 1, 32));
+    const failed = await run({ kind: "replay-track", file });
+    expect(failed.state).toBe("failed");
+    expect(failed).toHaveProperty("error", expect.stringContaining("64 MiB"));
+    expect(await queries.replayTrack(key)).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });
