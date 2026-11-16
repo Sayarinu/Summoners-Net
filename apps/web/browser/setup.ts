@@ -1,7 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createSync } from "@summonersnet/data/sync";
 import { database } from "../../../packages/data/src/persistence/database";
+import { draftCsv } from "../../../packages/data/tests/draft-fixtures";
 import { historyCsv, rawMatch, now } from "../../../packages/data/tests/fixtures";
 export default async function setup() {
   const url = process.env.TEST_DATABASE_URL;
@@ -13,7 +14,19 @@ export default async function setup() {
     pause: () => Promise.resolve(),
     fetch: (input) => {
       const endpoint = input instanceof Request ? input.url : input.toString();
-      if (endpoint.includes("cdn-api.pandascore.co"))
+      if (endpoint.endsWith("/api/versions.json"))
+        return Promise.resolve(Response.json(["16.4.1"]));
+      const catalogFile = endpoint.match(
+        /\/data\/en_US\/(champion|item|runesReforged|summoner)\.json$/,
+      )?.[1];
+      if (catalogFile)
+        return readFile(
+          new URL(`../../../packages/data/tests/ddragon/${catalogFile}.json`, import.meta.url),
+          "utf8",
+        ).then((text) =>
+          Response.json(JSON.parse(text.replaceAll('"16.22.1"', '"16.4.1"')) as unknown),
+        );
+      if (endpoint.includes("cdn-api.pandascore.co") || endpoint.includes("/img/"))
         return Promise.resolve(
           new Response(
             Buffer.from(
@@ -74,6 +87,14 @@ export default async function setup() {
     await writeFile(file, historyCsv());
     await sync.request({ kind: "history", year: 2026, file });
     if ((await sync.runNext()).state !== "done") throw new Error("Browser fixture import failed");
+    await sync.request({ kind: "metadata" });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser catalog fixture sync failed");
+    const draftFile = resolve(folder, "drafts.csv");
+    await writeFile(draftFile, draftCsv({ league: "Draft acceptance" }));
+    await sync.request({ kind: "history", year: 2026, file: draftFile });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser draft fixture import failed");
     await sync.request({ kind: "entities" });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser fixture identity linking failed");

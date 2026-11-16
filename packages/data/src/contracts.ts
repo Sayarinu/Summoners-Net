@@ -16,3 +16,12 @@ export type { MapImage } from "./domain/map.js";
 
 export { catalogIconQuerySchema } from "./domain/catalog-icons.js";
 export type { CatalogIconQuery, CatalogIcon } from "./domain/catalog-icons.js";
+
+export { draftQuerySchema } from "./domain/drafts.js";
+export type {
+  DraftQuery,
+  ParsedDraftQuery,
+  DraftPriority,
+  DraftRole,
+  DraftAnalytics,
+} from "./domain/drafts.js";
