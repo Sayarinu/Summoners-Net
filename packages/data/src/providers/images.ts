@@ -75,3 +75,7 @@ export async function readImage(response: Response) {
   if (mime === "image/png" && !validPng(body)) throw new Error("PNG image integrity check failed.");
   return { body, mime, hash: createHash("sha256").update(body).digest("hex") };
 }
+
+// The versioned minimap linked by https://developer.riotgames.com/docs/lol#other.
+export const summonersRiftImageUrl =
+  "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/map/map11.png";

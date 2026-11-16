@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { imageAddress, readImage } from "../providers/images.js";
+import { imageAddress, readImage, summonersRiftImageUrl } from "../providers/images.js";
 import {
   transparentImage,
   renditionVersion,
@@ -88,4 +88,26 @@ export async function cacheImages(pool: Pool, fetcher: typeof fetch, clock: () =
       }),
     );
   return { attempted: candidates.length, saved };
+}
+
+export async function cacheMapImage(
+  pool: Pool,
+  request: (url: string) => Promise<Response>,
+  clock: () => Date,
+) {
+  const image = await readImage(await request(summonersRiftImageUrl));
+  if (image.mime !== "image/png") throw new Error("The minimap must be a PNG image.");
+  await transaction(pool, async (c) => {
+    await c.query("INSERT INTO image_assets VALUES($1,$2,$3) ON CONFLICT DO NOTHING", [
+      image.hash,
+      image.mime,
+      image.body,
+    ]);
+    await c.query(
+      `INSERT INTO map_images VALUES(11,$1,$2,$3)
+       ON CONFLICT(map_id) DO UPDATE SET source_url=EXCLUDED.source_url,
+       asset_hash=EXCLUDED.asset_hash,fetched_at=EXCLUDED.fetched_at`,
+      [summonersRiftImageUrl, image.hash, clock()],
+    );
+  });
 }

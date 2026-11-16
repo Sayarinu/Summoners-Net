@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MapImage } from "../domain/map.js";
 import type { Pool } from "pg";
 import { enrichIdentities } from "./entities.js";
 import {
@@ -431,6 +432,24 @@ export function queries(pool: Pool, clock: () => Date) {
         resolution,
         games: await games(input, identity.id),
       };
+    },
+    async mapImage(): Promise<MapImage | null> {
+      const row = (
+        await pool.query<{
+          map_id: number;
+          source_url: string;
+          asset_hash: string;
+          fetched_at: Date;
+        }>("SELECT * FROM map_images WHERE map_id=11")
+      ).rows[0];
+      return row
+        ? {
+            mapId: row.map_id,
+            sourceUrl: row.source_url,
+            imageUrl: `/api/images/${row.asset_hash}`,
+            fetchedAt: row.fetched_at.toISOString(),
+          }
+        : null;
     },
     async image(hash: string) {
       z.string()

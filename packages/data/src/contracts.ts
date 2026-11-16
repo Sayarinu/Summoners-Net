@@ -11,3 +11,5 @@ export type {
   HistoricalCoverage,
   SampledValue,
 } from "./domain/historical.js";
+
+export type { MapImage } from "./domain/map.js";

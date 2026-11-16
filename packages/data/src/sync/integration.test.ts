@@ -39,6 +39,11 @@ const json = (value: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(value), {
     headers: { "Content-Type": "application/json", ...headers },
   });
+const mapBytes = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomrgAK2IYWhIAdr5swVmNv80AAAAASUVORK5CYII=",
+  "base64",
+);
+const mapResponse = () => new Response(mapBytes, { headers: { "content-type": "image/png" } });
 type DataDragonFile = "champion" | "item" | "runesReforged" | "summoner";
 const dataDragonFixtures = Object.fromEntries(
   await Promise.all(
@@ -53,10 +58,14 @@ const dataDragonFixtures = Object.fromEntries(
 /** Serves Data Dragon from real, trimmed fixtures; a file override replaces one response. */
 function serveDataDragon(
   versions: string[],
-  overrides: Partial<Record<DataDragonFile, unknown>> = {},
+  overrides: Partial<Record<DataDragonFile | "map", unknown>> = {},
 ) {
   fetcher.mockImplementation((input) => {
     const url = endpoint(input);
+    if (url.endsWith("/img/map/map11.png"))
+      return Promise.resolve(
+        overrides.map instanceof Response ? overrides.map.clone() : mapResponse(),
+      );
     if (url.endsWith("/api/versions.json")) return Promise.resolve(json(versions));
     const [, version, name] = url.match(/\/cdn\/([^/]+)\/data\/en_US\/(\w+)\.json$/) ?? [];
     const file = name as DataDragonFile;
@@ -1296,4 +1305,32 @@ it("enriches each historical appearance without replacing its source-era name or
       .find((g) => g.sourceId === "renamed")
       ?.participants.find((p) => p.player?.id === "oracle:player:10-mid")?.player?.name,
   ).toBe("New Handle");
+});
+
+it("caches the map through the worker and preserves its bytes and timestamp on failed replacements", async () => {
+  expect(await queries.mapImage()).toBeNull();
+  serveDataDragon(["16.4.1"]);
+  expect((await run({ kind: "metadata" })).state).toBe("done");
+  const saved = await queries.mapImage();
+  expect(saved).toEqual({
+    mapId: 11,
+    sourceUrl: "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/map/map11.png",
+    imageUrl: `/api/images/${createHash("sha256").update(mapBytes).digest("hex")}`,
+    fetchedAt: now.toISOString(),
+  });
+  expect((await queries.image(saved!.imageUrl.split("/").at(-1)!))?.bytes).toEqual(
+    new Uint8Array(mapBytes),
+  );
+  expect(fetcher.mock.lastCall?.[0]).toBe(saved!.sourceUrl);
+  expect(fetcher.mock.lastCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  instant = new Date(now.valueOf() + 86400000);
+  serveDataDragon(["16.4.1"], { map: new Response("unavailable", { status: 503 }) });
+  expect((await run({ kind: "metadata" })).state).toBe("queued");
+  expect(await queries.mapImage()).toEqual(saved);
+  instant = new Date(instant.valueOf() + 86400000);
+  serveDataDragon(["16.4.1"], {
+    map: new Response("GIF89a", { headers: { "content-type": "image/gif" } }),
+  });
+  expect((await sync.runNext()).state).toBe("failed");
+  expect(await queries.mapImage()).toEqual(saved);
 });
