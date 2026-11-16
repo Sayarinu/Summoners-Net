@@ -58,10 +58,9 @@ export type {
   ChampionOverview,
   ChampionOverviewQuery,
   ChampionTier,
-  TierList,
-  TierListQuery,
-  TierListRow,
 } from "./domain/champion-stats.js";
+export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
+export type { TierList, TierListQuery, TierListRow } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
   ParsedDraftQuery,

@@ -20,10 +20,14 @@ describe("Data Dragon catalog parsers", () => {
       treeId: null,
       slot: null,
     });
-    expect(parseItemCatalog(item, "16.22.1").map((i) => [i.id, i.name])).toEqual([
-      ["1001", "Boots"],
-      ["3006", "Berserker's Greaves"],
-    ]);
+    const items = parseItemCatalog(item, "16.22.1");
+    expect(items.map((i) => i.id)).toContain("1001");
+    expect(items.find((i) => i.id === "3020")).toMatchObject({
+      name: "Sorcerer's Shoes",
+      item: { tags: ["Boots", "MagicPenetration"], from: [1001], totalGold: 1100 },
+    });
+    // A Data Dragon item without components or upgrades has empty lists, not missing ones.
+    expect(items.find((i) => i.id === "3340")?.item).toMatchObject({ from: [], into: [] });
     expect(parseSpellCatalog(summoner, "16.22.1").map((s) => [s.id, s.key])).toEqual([
       ["SummonerDot", "14"],
       ["SummonerFlash", "4"],

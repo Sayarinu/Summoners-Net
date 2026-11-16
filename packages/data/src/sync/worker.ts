@@ -487,6 +487,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         await markTimelineUnavailable(pool, matchId, "invalid", clock());
       }
     }
+    if (ingested) await aggregate(false);
     return ingested;
   }
   /**
