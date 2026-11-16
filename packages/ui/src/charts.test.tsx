@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { BarChart, HeatGrid, LineChart, ScatterChart, Sparkline } from "./charts.js";
@@ -113,6 +114,16 @@ describe("SVG charts", () => {
       />,
     );
     expect(svg.querySelector("rect")).toHaveAttribute("fill-opacity", "0.6");
+  });
+
+  it("preserves heat-grid tooltips in server-rendered markup", () => {
+    const html = renderToStaticMarkup(
+      <HeatGrid
+        title="Grid"
+        cells={[{ id: "a", row: "Top", column: "A", value: 50, sampleCount: 20 }]}
+      />,
+    );
+    expect(html).toContain("<title>Top, A: 50; samples: 20</title>");
   });
 
   it("has no serious accessibility violations with the data alternative expanded", async () => {

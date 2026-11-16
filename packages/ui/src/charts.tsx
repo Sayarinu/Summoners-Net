@@ -275,9 +275,7 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
               fill="currentColor"
               fillOpacity={scale(cell.value, domain, 0.2, 1)}
             >
-              <title>
-                {cell.row}, {cell.column}: {cell.value}; samples: {display(cell.sampleCount)}
-              </title>
+              <title>{`${cell.row}, ${cell.column}: ${cell.value}; samples: ${display(cell.sampleCount)}`}</title>
             </rect>
           ) : null,
         )}
