@@ -11,6 +11,7 @@ import { database, transaction, migrate } from "../persistence/database.js";
 import { reserveRequest, observeQuota, DeferredRequest } from "./quota.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
+import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
 const env = new URL("../../../../.env", import.meta.url);
 if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
@@ -51,7 +52,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -483,6 +484,68 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect((await run({ kind: "metadata" })).state).toBe("queued");
     expect(await queries.metadata("16.5.1")).toEqual([]);
     expect(await queries.metadata()).toHaveLength(2);
+  });
+  it("builds the patch catalog, links Oracle patches and keeps it when Data Dragon fails", async () => {
+    const champion = () => json({ data: { Ahri: { name: "Ahri", image: { full: "Ahri.png" } } } });
+    fetcher
+      .mockResolvedValueOnce(json(["16.4.1", "16.3.1", "16.3.2", "15.21.1", "lolpatch_7.20"]))
+      .mockResolvedValueOnce(champion())
+      .mockResolvedValueOnce(json({ data: {} }));
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    let catalog = await listPatches(pool);
+    expect(catalog.map((p) => [p.key, p.releaseOrder])).toEqual([
+      ["16.4", 3],
+      ["16.3", 2],
+      ["15.21", 1],
+    ]);
+    expect(catalog[1]).toMatchObject({
+      ddragonVersions: ["16.3.1", "16.3.2"],
+      observedAt: now.toISOString(),
+    });
+    await importCsv();
+    await importCsv(historyCsv({ id: "unknown-patch" }).replaceAll(",16.4,", ",16.99,"));
+    await importCsv(historyCsv({ id: "label-patch" }).replaceAll(",16.4,", ",25.S1.1,"));
+    expect(await patchFor(pool, "oracle", "16.4")).toBe("16.4");
+    expect(await patchFor(pool, "ddragon", "16.3.2")).toBe("16.3");
+    expect(await patchFor(pool, "oracle", "16.99")).toBeNull();
+    expect(await patchFor(pool, "riot", "16.4")).toBeNull();
+    expect(await unresolvedPatches(pool)).toEqual([
+      { source: "ddragon", value: "lolpatch_7.20", reason: "unparseable" },
+      { source: "oracle", value: "16.99", reason: "unknown" },
+      { source: "oracle", value: "25.S1.1", reason: "unparseable" },
+    ]);
+    // Source strings stay as received on the game record.
+    const stored = await pool.query<{ patch: string }>(
+      "SELECT patch FROM oracle_archive_games ORDER BY patch",
+    );
+    expect(stored.rows.map((r) => r.patch)).toEqual(["16.4", "16.99", "25.S1.1"]);
+
+    // A later catalog that adds a patch links the waiting Oracle string; absent patches are kept.
+    instant = new Date(now.valueOf() + 86400000);
+    fetcher
+      .mockResolvedValueOnce(json(["16.99.1", "16.4.1"]))
+      .mockResolvedValueOnce(champion())
+      .mockResolvedValueOnce(json({ data: {} }));
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    expect(await patchFor(pool, "oracle", "16.99")).toBe("16.99");
+    catalog = await listPatches(pool);
+    expect(catalog.map((p) => p.key)).toEqual(["16.99", "16.4", "16.3", "15.21"]);
+    expect(catalog.find((p) => p.key === "16.4")?.sourceStrings).toEqual([
+      { source: "ddragon", value: "16.4.1" },
+      { source: "oracle", value: "16.4" },
+    ]);
+
+    // A failed versions fetch leaves the catalog and its timestamps untouched.
+    const success = (await queries.status()).sources.find(
+      (s) => s.source === "ddragon",
+    )?.lastSuccess;
+    instant = new Date(now.valueOf() + 2 * 86400000);
+    fetcher.mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    expect((await run({ kind: "metadata" })).state).toBe("queued");
+    expect(await listPatches(pool)).toEqual(catalog);
+    expect((await queries.status()).sources.find((s) => s.source === "ddragon")?.lastSuccess).toBe(
+      success,
+    );
   });
 });
 it("counts eligible team games even when team summary rows are missing, and counts champion games once", async () => {
