@@ -72,6 +72,21 @@ const overview: ChampionOverview = {
         sample: "hidden",
       },
     ],
+    skills: [
+      {
+        items: [
+          { kind: "skill", id: 1, catalogId: "1", name: "Q", imageUrl: null },
+          { kind: "skill", id: 3, catalogId: "3", name: "E", imageUrl: null },
+          { kind: "skill", id: 2, catalogId: "2", name: "W", imageUrl: null },
+        ],
+        games: 20,
+        pickRate: { value: null, sampleCount: 0 },
+        winRate: { value: 0.55, sampleCount: 20 },
+        sample: "low-sample",
+      },
+    ],
+    skillmax: [],
+    excluded: { skills: 2, skillmax: 7 },
     spells: [
       {
         items: [
@@ -142,4 +157,12 @@ it("shows rune pages, shards and spells with pick and win rates", () => {
   expect(
     screen.getByText(/Rune pages and spells come from solo-queue match details/),
   ).toBeVisible();
+});
+it("shows skill orders and how many games were left out", () => {
+  render(<ChampionOverviewPage overview={overview} error={null} />);
+  expect(screen.getByRole("table", { name: "First levels" })).toHaveTextContent(/Q.*E.*W/);
+  expect(screen.getByRole("table", { name: "Max order" })).toHaveTextContent(
+    "No games with a decided max order yet.",
+  );
+  expect(screen.getByText(/2 for the first levels, 7 for the max order/)).toBeVisible();
 });

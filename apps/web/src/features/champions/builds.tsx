@@ -22,6 +22,7 @@ const fallbackNames: Record<BuildItem["kind"], string> = {
   rune: "Rune",
   shard: "Stat shard",
   spell: "Summoner spell",
+  skill: "Ability",
 };
 function Entry({ entry }: { entry: BuildItem }) {
   const name = entry.name ?? `${fallbackNames[entry.kind]} ${entry.id}`;
@@ -141,6 +142,31 @@ export function LoadoutsSection({ builds }: { builds: ChampionBuilds | null }) {
           ))}
         </>
       )}
+    </section>
+  );
+}
+
+export function SkillsSection({ builds }: { builds: ChampionBuilds | null }) {
+  if (!builds) return null;
+  return (
+    <section className="np-stack" aria-labelledby="skills-heading">
+      <h2 id="skills-heading">Skills</h2>
+      <p className="np-body-sm">
+        From timeline skill-ups of the basic abilities. The first levels are the first three
+        level-ups; the max order is the order abilities reach five points. Games that end before an
+        order is decided are left out: {builds.excluded.skills} for the first levels,{" "}
+        {builds.excluded.skillmax} for the max order.
+      </p>
+      <BuildTable
+        title="First levels"
+        rows={builds.skills}
+        emptyMessage="No games with timelines yet."
+      />
+      <BuildTable
+        title="Max order"
+        rows={builds.skillmax}
+        emptyMessage="No games with a decided max order yet."
+      />
     </section>
   );
 }

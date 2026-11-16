@@ -2332,7 +2332,7 @@ describe("Champion aggregates", () => {
     expect(
       (
         await pool.query(
-          "SELECT kind,build,games,result_games,wins FROM champion_builds WHERE champion_key=103 AND kind NOT IN ('runes','keystone','shards','spells') ORDER BY kind,build",
+          "SELECT kind,build,games,result_games,wins FROM champion_builds WHERE champion_key=103 AND kind NOT IN ('runes','keystone','shards','spells') AND kind NOT LIKE 'skill%' ORDER BY kind,build",
         )
       ).rows,
     ).toEqual([
@@ -2431,6 +2431,61 @@ describe("Champion aggregates", () => {
       ["shard", 5008, null],
       ["shard", 5001, null],
     ]);
+  });
+  it("derives skill orders and counts games whose skill-ups do not decide one", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: { frames: { events: Record<string, unknown>[] }[] };
+    };
+    const save = async (matchId: string, slots: number[]) => {
+      const copy = structuredClone(timeline);
+      copy.metadata.matchId = matchId;
+      // The fixture already levels Ahri's Q at 2.1 seconds.
+      copy.info.frames[2]!.events.push(
+        ...slots.map((skillSlot, i) => ({
+          type: "SKILL_LEVEL_UP",
+          timestamp: 200000 + i * 60000,
+          participantId: 1,
+          skillSlot,
+          levelUpType: "NORMAL",
+        })),
+      );
+      await saveTimeline(pool, parseRiotTimeline(copy, matchId), now);
+    };
+    await save("EUW1_1", [3, 2, 1, 1, 4, 1, 3, 1, 3, 4, 3, 3, 2, 2, 4, 2, 2]);
+    await save("EUW1_2", []);
+    await runAggregate();
+    expect(
+      (
+        await pool.query(
+          `SELECT kind,build,games FROM champion_builds WHERE champion_key=103
+           AND kind LIKE 'skill%' ORDER BY kind,build`,
+        )
+      ).rows,
+    ).toEqual([
+      { kind: "skillmax", build: "1,3,2", games: 1 },
+      { kind: "skillmax_incomplete", build: "0", games: 1 },
+      { kind: "skills", build: "1,3,2", games: 1 },
+      { kind: "skills_incomplete", build: "0", games: 1 },
+    ]);
+    const builds = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!.builds!;
+    expect(builds.skills[0]!.items.map((i) => [i.kind, i.id, i.name])).toEqual([
+      ["skill", 1, "Q"],
+      ["skill", 3, "E"],
+      ["skill", 2, "W"],
+    ]);
+    expect(builds.skillmax[0]).toMatchObject({
+      games: 1,
+      winRate: { value: null, sampleCount: 1 },
+    });
+    expect(builds.excluded).toEqual({ skills: 1, skillmax: 1 });
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

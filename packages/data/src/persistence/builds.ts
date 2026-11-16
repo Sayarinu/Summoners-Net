@@ -9,9 +9,16 @@ import {
   type ItemInfo,
 } from "../domain/builds.js";
 import { applySamplePolicy } from "../domain/statistics.js";
+import { deriveSkillOrder, skillNames, type SkillEvent } from "../domain/skills.js";
 import type { Executor } from "./database.js";
 
-const itemEventTypes = ["ITEM_PURCHASED", "ITEM_SOLD", "ITEM_DESTROYED", "ITEM_UNDO"];
+const itemEventTypes = [
+  "ITEM_PURCHASED",
+  "ITEM_SOLD",
+  "ITEM_DESTROYED",
+  "ITEM_UNDO",
+  "SKILL_LEVEL_UP",
+];
 /**
  * Rebuilds one patch's solo-queue builds from timeline item events, inside the caller's
  * transaction. Only matches with a fetched timeline count; remakes are excluded.
@@ -82,6 +89,7 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
   for (let i = 0; i < matchIds.length; i += 200) {
     const batch = matchIds.slice(i, i + 200);
     const events = new Map<string, ItemEvent[]>();
+    const skills = new Map<string, SkillEvent[]>();
     for (const e of (
       await c.query<{
         match_id: string;
@@ -90,14 +98,27 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
         timestamp_ms: number;
         item_id: number | null;
         after_item_id: number | null;
+        skill_slot: number | null;
+        level_up_type: string | null;
       }>(
-        `SELECT match_id,participant_id,type,timestamp_ms,item_id,after_item_id
+        `SELECT match_id,participant_id,type,timestamp_ms,item_id,after_item_id,skill_slot,
+           level_up_type
          FROM riot_timeline_events WHERE match_id=ANY($1::text[]) AND type=ANY($2::text[])
            AND participant_id IS NOT NULL ORDER BY match_id,seq`,
         [batch, itemEventTypes],
       )
     ).rows) {
       const key = `${e.match_id}|${e.participant_id}`;
+      if (e.type === "SKILL_LEVEL_UP") {
+        const ups = skills.get(key) ?? [];
+        ups.push({
+          timestampMs: e.timestamp_ms,
+          skillSlot: e.skill_slot,
+          levelUpType: e.level_up_type,
+        });
+        skills.set(key, ups);
+        continue;
+      }
       const list = events.get(key) ?? [];
       list.push({
         type: e.type,
@@ -114,6 +135,10 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
       if (build.boots) add(base, "boots", [build.boots], p.win);
       if (build.completed.length >= 3) add(base, "path", build.completed.slice(0, 3), p.win);
       build.completed.slice(0, 3).forEach((item, n) => add(base, `slot${n + 1}`, [item], p.win));
+      // Incomplete skill-ups are counted on their own, never as an order.
+      const order = deriveSkillOrder(skills.get(`${p.match_id}|${p.participant_id}`) ?? []);
+      add(base, order.first ? "skills" : "skills_incomplete", order.first ?? [0], p.win);
+      add(base, order.max ? "skillmax" : "skillmax_incomplete", order.max ?? [0], p.win);
     }
   }
   const rows = [...counts].map(([key, n]) => {
@@ -208,13 +233,15 @@ async function rebuildLoadouts(c: PoolClient, patchKey: string, now: Date) {
 }
 
 const entryKind = (kind: (typeof buildKinds)[number]): BuildItem["kind"] =>
-  kind === "runes" || kind === "keystone"
-    ? "rune"
-    : kind === "shards"
-      ? "shard"
-      : kind === "spells"
-        ? "spell"
-        : "item";
+  kind === "skills" || kind === "skillmax"
+    ? "skill"
+    : kind === "runes" || kind === "keystone"
+      ? "rune"
+      : kind === "shards"
+        ? "shard"
+        : kind === "spells"
+          ? "spell"
+          : "item";
 /**
  * The most played builds and loadouts of each kind for a champion on a patch, summed over the
  * filtered roles, regions and tiers. Reads only build aggregates and the catalog.
@@ -246,6 +273,7 @@ export async function championBuilds(
        FROM champion_builds
        WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
          AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
+         AND kind NOT IN ('skills_incomplete','skillmax_incomplete')
        GROUP BY kind,build) b
      WHERE n<=$6 ORDER BY kind,n`,
     [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null, perKind],
@@ -290,8 +318,31 @@ export async function championBuilds(
       ids("spell"),
     ),
     shard: new Map<number, { catalog_id: string; name: string; asset_hash: string | null }>(),
+    skill: new Map(
+      Object.entries(skillNames).map(([slot, name]) => [
+        Number(slot),
+        { catalog_id: slot, name, asset_hash: null as string | null },
+      ]),
+    ),
   };
-  const result = Object.fromEntries(buildKinds.map((k) => [k, [] as BuildRow[]])) as ChampionBuilds;
+  const excluded = await db.query<{ kind: string; games: number }>(
+    `SELECT kind,sum(games)::integer AS games FROM champion_builds
+     WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
+       AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
+       AND kind IN ('skills_incomplete','skillmax_incomplete') GROUP BY kind`,
+    [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null],
+  );
+  const excludedGames = (kind: string) => excluded.rows.find((r) => r.kind === kind)?.games ?? 0;
+  const result = {
+    ...(Object.fromEntries(buildKinds.map((k) => [k, [] as BuildRow[]])) as Omit<
+      ChampionBuilds,
+      "excluded"
+    >),
+    excluded: {
+      skills: excludedGames("skills_incomplete"),
+      skillmax: excludedGames("skillmax_incomplete"),
+    },
+  } as ChampionBuilds;
   for (const r of rows.rows) {
     const kind = entryKind(r.kind);
     const win = applySamplePolicy({
