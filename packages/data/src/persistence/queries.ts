@@ -30,6 +30,8 @@ import {
 import { draftQueries } from "./draft-queries.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { soloGame } from "./solo-games.js";
+import { wpaLeaderboard } from "./wpa-leaderboards.js";
+import type { WpaLeaderboardQuery } from "../domain/wpa-leaderboards.js";
 import type {
   ChampionOverviewQuery,
   ChampionStatsQuery,
@@ -185,6 +187,7 @@ export function queries(pool: Pool, clock: () => Date) {
     tierList: (input?: TierListQuery) => tierList(pool, input),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
+    wpaLeaderboard: (input?: WpaLeaderboardQuery) => wpaLeaderboard(pool, input),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");

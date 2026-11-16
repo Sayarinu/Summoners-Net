@@ -44,6 +44,7 @@ import {
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
+import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -142,7 +143,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2989,6 +2990,103 @@ describe("Champion aggregates", () => {
         )
       ).rows[0]!.n,
     ).toBe(2);
+  });
+  it("aggregates win probability added per champion, player and role into leaderboards", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    expect((await wpaLeaderboard(pool)).model).toBeNull();
+    await trainWinProbabilityModel(pool, now, { minimumMatches: 1, seed: 5 });
+    await runAggregate();
+    const model = (await activeWinProbabilityModel(pool))!;
+    const scored = await matchWpa(pool, "EUW1_1", model.id);
+    const share = (participantId: number) =>
+      scored.events
+        .flatMap((e) => e.participants)
+        .filter((p) => p.participantId === participantId)
+        .reduce((n, p) => n + p.value, 0);
+    const rows = async (kind: string) =>
+      (
+        await pool.query<{ subject: string; games: number; total: number }>(
+          "SELECT subject,games,total FROM wpa_aggregates WHERE model_id=$1 AND kind=$2 ORDER BY subject",
+          [model.id, kind],
+        )
+      ).rows;
+    // Every participant counts a game, with zero when they had no share.
+    expect(await rows("champion")).toHaveLength(10);
+    const ahri = (await rows("champion")).find((r) => r.subject === "103")!;
+    expect(ahri.games).toBe(1);
+    expect(ahri.total).toBeCloseTo(share(1));
+    expect((await rows("champion")).find((r) => r.subject === "86")!.total).toBe(0);
+    expect((await rows("role")).map((r) => [r.subject, r.games])).toEqual([
+      ["BOTTOM", 2],
+      ["JUNGLE", 2],
+      ["MIDDLE", 2],
+      ["TOP", 2],
+      ["UTILITY", 2],
+    ]);
+    expect((await rows("player")).find((r) => r.subject === "a".repeat(78))!.total).toBeCloseTo(
+      share(1),
+    );
+    // One game is below the minimum sample: counts show, values do not.
+    const board = await wpaLeaderboard(pool, { kind: "champion" });
+    expect(board).toMatchObject({
+      patch: "16.22",
+      patches: ["16.22"],
+      model: { id: model.id, modelVersion: 1 },
+    });
+    expect(board.page.items.find((r) => r.subject === "103")).toMatchObject({
+      name: "Ahri",
+      championId: "Ahri",
+      games: 1,
+      perGame: { value: null, sampleCount: 1 },
+    });
+
+    // Larger synthetic samples check sorting, names and pages in SQL, in percentage points.
+    await pool.query("DELETE FROM wpa_aggregates WHERE model_id=$1 AND kind='player'", [model.id]);
+    await pool.query(
+      `INSERT INTO wpa_aggregates(model_id,patch_key,kind,subject,games,total,built_at) VALUES
+       ($1,'16.22','player','p1',100,1.0,$2),($1,'16.22','player','p2',20,0.6,$2),($1,'16.22','player','p3',60,-0.3,$2)`,
+      [model.id, now],
+    );
+    await pool.query(
+      "INSERT INTO riot_accounts(puuid,game_name,tag_line,first_seen_at,seen_at,checked_at) VALUES('p1','Top Laner','NA1',$1,$1,$1)",
+      [now],
+    );
+    const perGame = await wpaLeaderboard(pool, { kind: "player" });
+    expect(perGame.page.items.map((r) => [r.subject, r.name])).toEqual([
+      ["p2", null],
+      ["p1", "Top Laner#NA1"],
+      ["p3", null],
+    ]);
+    expect(perGame.page.items[0]!.perGame.value).toBeCloseTo(3);
+    expect(perGame.page.items[0]!.total.value).toBeCloseTo(60);
+    expect(
+      (await wpaLeaderboard(pool, { kind: "player", sort: "total" })).page.items[0]!.subject,
+    ).toBe("p1");
+    expect(
+      (await wpaLeaderboard(pool, { kind: "player", sort: "games" })).page.items.map(
+        (r) => r.subject,
+      ),
+    ).toEqual(["p1", "p3", "p2"]);
+    expect((await wpaLeaderboard(pool, { kind: "player", page: 2 })).page).toMatchObject({
+      items: [],
+      total: 0,
+    });
+    // Only the active model is read: a newer model without aggregates yet shows nothing.
+    await trainWinProbabilityModel(pool, new Date(now.valueOf() + 1000), {
+      minimumMatches: 1,
+      seed: 9,
+    });
+    expect((await wpaLeaderboard(pool, { kind: "player" })).page.total).toBe(0);
+    await expect(wpaLeaderboard(pool, { kind: "team" as "role" })).rejects.toThrow();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

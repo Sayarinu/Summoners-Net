@@ -34,6 +34,7 @@ import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { activeWinProbabilityModel, trainWinProbabilityModel } from "../persistence/wp-models.js";
 import { scorePendingWpa } from "../persistence/wpa.js";
+import { rebuildWpaAggregates } from "../persistence/wpa-leaderboards.js";
 import {
   dirtyPatches,
   markAllDirty,
@@ -527,7 +528,16 @@ export function worker(pool: Pool, options: WorkerOptions) {
   /** Scores win probability added for matches the active model has not scored yet. */
   async function scoreActiveWpa() {
     const model = await activeWinProbabilityModel(pool);
-    return model ? scorePendingWpa(pool, model, clock()) : 0;
+    if (!model) return 0;
+    const scored = await scorePendingWpa(pool, model, clock());
+    // Leaderboards read the active model's aggregates; rebuild them when new games were scored
+    // or the model has none yet.
+    const built = await pool.query("SELECT 1 FROM wpa_aggregates WHERE model_id=$1 LIMIT 1", [
+      model.id,
+    ]);
+    if (scored || !built.rowCount)
+      await transaction(pool, (c) => rebuildWpaAggregates(c, model.id, clock()));
+    return scored;
   }
   /** Rebuilds the aggregates of patches whose facts changed, one transaction per patch. */
   async function aggregate(rebuild: boolean): Promise<number> {

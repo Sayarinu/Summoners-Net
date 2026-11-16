@@ -363,6 +363,21 @@ test("a solo game charts win probability with the model's calibration and event 
   const missing = await page.goto("/solo-games/EUW1_1");
   expect(missing?.status()).toBe(404);
 });
+test("win probability added leaderboards rank champions and roles from the active model", async ({
+  page,
+}) => {
+  await page.goto("/leaderboards/wpa");
+  await expect(page.getByText(/Patch 16\.4 · model v1 \(#1/)).toBeVisible();
+  const champions = page.getByRole("table", { name: "Champions by win probability added" });
+  await expect(champions.getByRole("row")).toHaveCount(11);
+  await expect(champions).toContainText("Too few games");
+  await page.goto("/leaderboards/wpa?kind=role&sort=games");
+  await expect(page.getByRole("table", { name: "Roles by win probability added" })).toContainText(
+    "Support",
+  );
+  await page.goto("/leaderboards/wpa?kind=team");
+  await expect(page.getByText(/Choose a board/)).toBeVisible();
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();
