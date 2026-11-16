@@ -73,7 +73,8 @@ export async function proChampionStats(
     input.patch ??
     (
       await db.query<{ patch_key: string }>(
-        `SELECT s.patch_key FROM pro_champion_stats s JOIN patches p USING (patch_key)
+        `SELECT p.patch_key FROM patches p
+         WHERE EXISTS (SELECT 1 FROM pro_champion_stats s WHERE s.patch_key=p.patch_key)
          ORDER BY p.release_order DESC LIMIT 1`,
       )
     ).rows[0]?.patch_key ??
