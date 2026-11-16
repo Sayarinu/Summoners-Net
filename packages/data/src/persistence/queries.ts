@@ -1,3 +1,4 @@
+import { patchOverview } from "./patch-overview.js";
 import { trending } from "./trending.js";
 import type { TrendingQuery } from "../domain/trending.js";
 import { proFeed } from "./pro-feed.js";
@@ -180,6 +181,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    patchOverview: (patch: string) => patchOverview(pool, patch),
     trending: (input: TrendingQuery) => trending(pool, input),
     proFeed: (input: ProFeedQuery) => proFeed(pool, input),
     proAccountLink: (puuid: string) => proAccountLink(pool, puuid),
