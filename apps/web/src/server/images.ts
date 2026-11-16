@@ -14,3 +14,12 @@ export async function serveImage(hash: string) {
     },
   });
 }
+
+export async function serveMinimapImage() {
+  const map = await data().mapImage();
+  if (!map) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  return new Response(null, {
+    status: 307,
+    headers: { Location: map.imageUrl, "Cache-Control": "no-store" },
+  });
+}

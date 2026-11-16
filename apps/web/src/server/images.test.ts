@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { it, expect, vi } from "vitest";
-import { serveImage } from "./images";
+import { serveImage, serveMinimapImage } from "./images";
 const image = vi.hoisted(() => vi.fn());
-vi.mock("./data", () => ({ data: () => ({ image }) }));
+const mapImage = vi.hoisted(() => vi.fn());
+vi.mock("./data", () => ({ data: () => ({ image, mapImage }) }));
 it("serves only cached raster bytes with immutable same-origin headers", async () => {
   expect((await serveImage("invalid")).status).toBe(404);
   expect(image).not.toHaveBeenCalled();
@@ -15,4 +16,14 @@ it("serves only cached raster bytes with immutable same-origin headers", async (
   expect(response.headers.get("cache-control")).toContain("immutable");
   expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+});
+
+it("redirects the minimap to its cached hash without fetching a provider", async () => {
+  mapImage.mockResolvedValueOnce(null);
+  expect((await serveMinimapImage()).status).toBe(404);
+  mapImage.mockResolvedValueOnce({ imageUrl: `/api/images/${"a".repeat(64)}` });
+  const response = await serveMinimapImage();
+  expect(response.status).toBe(307);
+  expect(response.headers.get("location")).toBe(`/api/images/${"a".repeat(64)}`);
+  expect(response.headers.get("cache-control")).toBe("no-store");
 });

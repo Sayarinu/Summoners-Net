@@ -8,3 +8,4 @@ export * from "./internal.js";
 export * from "./navigation.js";
 export * from "./primitives.js";
 export * from "./support.js";
+export * from "./minimap.js";

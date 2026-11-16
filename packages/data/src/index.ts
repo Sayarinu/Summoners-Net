@@ -32,3 +32,5 @@ export function createQueries(connectionString: string, clock: () => Date = () =
   return { ...queries(pool, clock), close: () => pool.end() };
 }
 export type Queries = ReturnType<typeof createQueries>;
+
+export type { MapImage } from "./domain/map.js";

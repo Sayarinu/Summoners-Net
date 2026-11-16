@@ -26,7 +26,7 @@ import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
-import { cacheImages } from "./images.js";
+import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
 
@@ -297,6 +297,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
           );
         await saveGameCatalog(c, patchKey, version, catalog, clock());
       });
+      await cacheMapImage(pool, (url) => request(url, false, 15000), clock);
       return records.reduce((n, r) => n + Object.keys(r.document).length, 0);
     }
     if (r.kind === "rosters") {

@@ -1208,3 +1208,33 @@
     color: var(--color-text-secondary);
   }
 }
+
+@layer np-components {
+  .np-minimap {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 512px;
+    margin: 0;
+  }
+  .np-minimap > svg {
+    width: 100%;
+    height: auto;
+    background: var(--color-bg-raised);
+    border: var(--stroke-hairline) solid var(--color-border-subtle);
+  }
+  .np-minimap__path {
+    fill: none;
+    stroke-width: var(--stroke-strong);
+    vector-effect: non-scaling-stroke;
+  }
+  .np-minimap__point {
+    stroke: var(--color-bg-canvas);
+    stroke-width: var(--stroke-strong);
+  }
+  .np-minimap summary {
+    cursor: pointer;
+  }
+  .np-minimap ul {
+    padding-inline-start: var(--space-6);
+  }
+}
