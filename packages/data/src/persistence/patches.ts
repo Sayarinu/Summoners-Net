@@ -85,6 +85,12 @@ export async function savePatchCatalog(pool: Pool, versions: readonly string[], 
     );
     await recordSources(c, "ddragon", [...new Set(versions)], now);
     await resolveSources(c);
+    // Riot matches ingested before their patch reached the catalog are linked now.
+    await c.query(
+      `UPDATE riot_matches m SET patch_key=s.patch_key FROM patch_sources s
+       WHERE m.patch_key IS NULL AND s.source='riot' AND s.source_string=m.game_version
+         AND s.patch_key IS NOT NULL`,
+    );
   });
   return ordered.length;
 }
@@ -144,4 +150,23 @@ export async function unresolvedPatches(db: Executor): Promise<UnresolvedPatch[]
     value: r.source_string,
     reason: normalizePatch(r.source_string) ? "unknown" : "unparseable",
   }));
+}
+
+/**
+ * Records one source patch string as received and returns its catalog patch, or null when it is
+ * unparseable or not in the catalog; such strings appear in unresolvedPatches.
+ */
+export async function linkPatchString(db: Executor, source: PatchSource, value: string, now: Date) {
+  const key = normalizePatch(value)?.key ?? null;
+  const known = key
+    ? Boolean((await db.query("SELECT 1 FROM patches WHERE patch_key=$1", [key])).rowCount)
+    : false;
+  const patchKey = known ? key : null;
+  await db.query(
+    `INSERT INTO patch_sources(source,source_string,patch_key,first_seen_at,last_seen_at)
+     VALUES($1,$2,$3,$4,$4) ON CONFLICT(source,source_string)
+     DO UPDATE SET patch_key=EXCLUDED.patch_key,last_seen_at=EXCLUDED.last_seen_at`,
+    [source, value, patchKey, now],
+  );
+  return patchKey;
 }

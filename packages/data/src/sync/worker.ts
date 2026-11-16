@@ -25,6 +25,12 @@ import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
+import { parseRiotMatch } from "../providers/riot-match.js";
+import {
+  markMatchUnavailable,
+  pendingMatches,
+  saveRiotMatch,
+} from "../persistence/riot-matches.js";
 import {
   accountsToResolve,
   currentPatchKey,
@@ -55,6 +61,7 @@ import {
   matchRoute,
   parseMatchIds,
   rankedSoloQueueId,
+  riotRoutingSchema,
   parseAccount,
   parseLeagueList,
   soloQueue,
@@ -380,8 +387,45 @@ export function worker(pool: Pool, options: WorkerOptions) {
     }
     return added;
   }
+  /**
+   * Fetches queued match ids, a bounded batch per run, oldest first. Each payload is validated
+   * before one transaction writes it. A 404 or an invalid payload is recorded and skipped; a
+   * 429 or 5xx retries the job with earlier matches kept.
+   */
+  async function ingestMatches(): Promise<number> {
+    if (!riot) return 0;
+    let ingested = 0;
+    for (const { matchId, region } of await pendingMatches(pool, 50)) {
+      const response = await riot(
+        riotRoutingSchema.parse(region),
+        "match-v5.getMatch",
+        `/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
+      );
+      if (response.status === 404) {
+        await markMatchUnavailable(pool, matchId, "missing", clock());
+        continue;
+      }
+      if (!response.ok)
+        throw new ProviderError(
+          `Riot returned HTTP ${response.status} for a match; ingested matches are kept.`,
+          response.status === 429 || response.status >= 500,
+        );
+      const payload: unknown = await response.json();
+      let match;
+      try {
+        match = parseRiotMatch(payload, matchId);
+      } catch {
+        await markMatchUnavailable(pool, matchId, "invalid", clock());
+        continue;
+      }
+      await saveRiotMatch(pool, match, payload, clock());
+      ingested++;
+    }
+    return ingested;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-match") return ingestMatches();
     if (r.kind === "riot-match-ids") return crawlMatchIds();
     if (r.kind === "riot-ladder") return syncLadders();
     if (r.kind === "riot-accounts") return resolveAccounts();

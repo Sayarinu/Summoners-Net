@@ -1,0 +1,1054 @@
+{
+  "metadata": {
+    "dataVersion": "2",
+    "matchId": "EUW1_7612345678",
+    "participants": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+      "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj"
+    ]
+  },
+  "info": {
+    "endOfGameResult": "GameComplete",
+    "gameCreation": 1763290000000,
+    "gameDuration": 1834,
+    "gameEndTimestamp": 1763291900000,
+    "gameId": 7612345678,
+    "gameMode": "CLASSIC",
+    "gameName": "teambuilder-match-7612345678",
+    "gameStartTimestamp": 1763290060000,
+    "gameType": "MATCHED_GAME",
+    "gameVersion": "16.22.734.5521",
+    "mapId": 11,
+    "participants": [
+      {
+        "participantId": 1,
+        "puuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "teamId": 100,
+        "championId": 103,
+        "championName": "Ahri",
+        "teamPosition": "MIDDLE",
+        "individualPosition": "MIDDLE",
+        "win": true,
+        "kills": 3,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11000,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20000,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player1",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 2,
+        "puuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "teamId": 100,
+        "championId": 64,
+        "championName": "LeeSin",
+        "teamPosition": "JUNGLE",
+        "individualPosition": "JUNGLE",
+        "win": true,
+        "kills": 4,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11100,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 160,
+        "totalDamageDealtToChampions": 20001,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 11,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player2",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 3,
+        "puuid": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "teamId": 100,
+        "championId": 86,
+        "championName": "Garen",
+        "teamPosition": "TOP",
+        "individualPosition": "TOP",
+        "win": true,
+        "kills": 5,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11200,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20002,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player3",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 4,
+        "puuid": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "teamId": 100,
+        "championId": 222,
+        "championName": "Jinx",
+        "teamPosition": "BOTTOM",
+        "individualPosition": "BOTTOM",
+        "win": true,
+        "kills": 6,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11300,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20003,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player4",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 5,
+        "puuid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "teamId": 100,
+        "championId": 412,
+        "championName": "Thresh",
+        "teamPosition": "UTILITY",
+        "individualPosition": "UTILITY",
+        "win": true,
+        "kills": 7,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11400,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20004,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player5",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 6,
+        "puuid": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "teamId": 200,
+        "championId": 157,
+        "championName": "Yasuo",
+        "teamPosition": "MIDDLE",
+        "individualPosition": "MIDDLE",
+        "win": false,
+        "kills": 8,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11500,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20005,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player6",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 7,
+        "puuid": "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+        "teamId": 200,
+        "championId": 121,
+        "championName": "Khazix",
+        "teamPosition": "JUNGLE",
+        "individualPosition": "JUNGLE",
+        "win": false,
+        "kills": 9,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11600,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 160,
+        "totalDamageDealtToChampions": 20006,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 11,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player7",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 8,
+        "puuid": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "teamId": 200,
+        "championId": 122,
+        "championName": "Darius",
+        "teamPosition": "TOP",
+        "individualPosition": "TOP",
+        "win": false,
+        "kills": 10,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11700,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20007,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player8",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 9,
+        "puuid": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+        "teamId": 200,
+        "championId": 202,
+        "championName": "Jhin",
+        "teamPosition": "BOTTOM",
+        "individualPosition": "BOTTOM",
+        "win": false,
+        "kills": 11,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11800,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20008,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player9",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      },
+      {
+        "participantId": 10,
+        "puuid": "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+        "teamId": 200,
+        "championId": 89,
+        "championName": "Leona",
+        "teamPosition": "UTILITY",
+        "individualPosition": "UTILITY",
+        "win": false,
+        "kills": 12,
+        "deaths": 2,
+        "assists": 5,
+        "champLevel": 16,
+        "goldEarned": 11900,
+        "totalMinionsKilled": 180,
+        "neutralMinionsKilled": 10,
+        "totalDamageDealtToChampions": 20009,
+        "visionScore": 25,
+        "summoner1Id": 4,
+        "summoner2Id": 14,
+        "gameEndedInEarlySurrender": false,
+        "riotIdGameName": "Player10",
+        "riotIdTagline": "EUW",
+        "item0": 3089,
+        "item1": 3020,
+        "item2": 0,
+        "item3": 4645,
+        "item4": 0,
+        "item5": 0,
+        "item6": 3340,
+        "perks": {
+          "statPerks": {
+            "defense": 5001,
+            "flex": 5008,
+            "offense": 5005
+          },
+          "styles": [
+            {
+              "description": "primaryStyle",
+              "style": 8100,
+              "selections": [
+                {
+                  "perk": 8112,
+                  "var1": 1,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8139,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8138,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8135,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            },
+            {
+              "description": "subStyle",
+              "style": 8200,
+              "selections": [
+                {
+                  "perk": 8226,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                },
+                {
+                  "perk": 8210,
+                  "var1": 0,
+                  "var2": 0,
+                  "var3": 0
+                }
+              ]
+            }
+          ]
+        },
+        "challenges": {
+          "kda": 4.0
+        }
+      }
+    ],
+    "platformId": "EUW1",
+    "queueId": 420,
+    "teams": [
+      {
+        "teamId": 100,
+        "win": true,
+        "bans": [
+          {
+            "championId": 238,
+            "pickTurn": 1
+          },
+          {
+            "championId": -1,
+            "pickTurn": 2
+          }
+        ],
+        "objectives": {
+          "baron": {
+            "first": true,
+            "kills": 1
+          },
+          "champion": {
+            "first": true,
+            "kills": 30
+          },
+          "dragon": {
+            "first": true,
+            "kills": 3
+          },
+          "horde": {
+            "first": false,
+            "kills": 0
+          },
+          "inhibitor": {
+            "first": true,
+            "kills": 2
+          },
+          "riftHerald": {
+            "first": true,
+            "kills": 1
+          },
+          "tower": {
+            "first": true,
+            "kills": 9
+          },
+          "atakhan": {
+            "first": false,
+            "kills": 0
+          }
+        },
+        "feats": {
+          "EPIC_MONSTER_KILL": {
+            "featState": 1
+          }
+        }
+      },
+      {
+        "teamId": 200,
+        "win": false,
+        "bans": [
+          {
+            "championId": 238,
+            "pickTurn": 6
+          },
+          {
+            "championId": -1,
+            "pickTurn": 7
+          }
+        ],
+        "objectives": {
+          "baron": {
+            "first": false,
+            "kills": 0
+          },
+          "champion": {
+            "first": false,
+            "kills": 18
+          },
+          "dragon": {
+            "first": false,
+            "kills": 1
+          },
+          "horde": {
+            "first": true,
+            "kills": 3
+          },
+          "inhibitor": {
+            "first": false,
+            "kills": 0
+          },
+          "riftHerald": {
+            "first": false,
+            "kills": 0
+          },
+          "tower": {
+            "first": false,
+            "kills": 3
+          },
+          "atakhan": {
+            "first": false,
+            "kills": 0
+          }
+        },
+        "feats": {
+          "EPIC_MONSTER_KILL": {
+            "featState": 1
+          }
+        }
+      }
+    ],
+    "tournamentCode": ""
+  }
+}

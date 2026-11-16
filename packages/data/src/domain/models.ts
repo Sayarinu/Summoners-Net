@@ -175,6 +175,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "riot-accounts",
         "riot-match-ids",
         "drafts",
+        "riot-match",
       ]),
     })
     .strict(),

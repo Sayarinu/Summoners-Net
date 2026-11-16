@@ -16,7 +16,14 @@ import {
   observeRiotLimits,
 } from "./quota.js";
 import { riotClient } from "./riot-client.js";
-import { account, currentLadder, ladderStatus, saveLadder } from "../persistence/riot.js";
+import {
+  account,
+  currentLadder,
+  ladderStatus,
+  saveLadder,
+  saveMatchIds,
+} from "../persistence/riot.js";
+import { gunzipSync } from "node:zlib";
 import { draftCsv } from "../../tests/draft-fixtures.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
@@ -111,7 +118,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -1154,6 +1161,243 @@ describe("Riot match id crawl", () => {
       expect(fetcher).not.toHaveBeenCalled();
     } finally {
       await keyless.close();
+    }
+  });
+});
+describe("Riot match details", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const match = JSON.parse(
+    readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+  ) as {
+    metadata: { matchId: string };
+    info: Record<string, unknown> & { participants: Record<string, unknown>[] };
+  };
+  const ids = ["EUW1_7612345678", "EUW1_2", "EUW1_3", "EUW1_4"];
+  const variant = (matchId: string, change: (m: typeof match) => void = () => {}) => {
+    const copy = structuredClone(match);
+    copy.metadata.matchId = matchId;
+    change(copy);
+    return copy;
+  };
+  function serveMatches(byId: Record<string, unknown>) {
+    fetcher.mockImplementation((input) => {
+      const url = new URL(endpoint(input));
+      if (!url.pathname.startsWith("/lol/match/v5/matches/")) return Promise.resolve(json({}));
+      const matchId = decodeURIComponent(url.pathname.split("/").pop()!);
+      const body = byId[matchId];
+      if (body instanceof Response) return Promise.resolve(body);
+      return Promise.resolve(body ? json(body) : new Response("", { status: 404 }));
+    });
+  }
+  const states = async () =>
+    Object.fromEntries(
+      (
+        await pool.query<{ match_id: string; fetch_state: string }>(
+          "SELECT match_id,fetch_state FROM riot_match_ids ORDER BY match_id",
+        )
+      ).rows.map((r) => [r.match_id, r.fetch_state]),
+    );
+  const ingest = async (worker: ReturnType<typeof createSync>) => {
+    await worker.request({ kind: "riot-match" });
+    let result = await worker.runNext();
+    while (result.state !== "idle") {
+      const next = await worker.runNext();
+      if (next.state === "idle") break;
+      result = next;
+    }
+    return result;
+  };
+  it("ingests queued matches with Riot identifiers, re-ingests in place and keeps missing fields null", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      ids,
+      10,
+      now,
+    );
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      serveMatches({
+        [ids[0]!]: match,
+        // A partial payload: one participant without statistics, perks or a first item.
+        [ids[1]!]: variant(ids[1]!, (m) => {
+          for (const field of ["kills", "deaths", "perks", "item0", "win"])
+            delete m.info.participants[0]![field];
+        }),
+        // An unknown patch, and one that fails validation.
+        [ids[2]!]: variant(ids[2]!, (m) => {
+          m.info.gameVersion = "16.23.741.1200";
+        }),
+        [ids[3]!]: variant(ids[3]!, (m) => {
+          m.info.participants = "not a list" as never;
+        }),
+      });
+      await ingest(worker);
+      expect(await states()).toEqual({
+        EUW1_2: "fetched",
+        EUW1_3: "fetched",
+        EUW1_4: "invalid",
+        EUW1_7612345678: "fetched",
+      });
+      const row = (
+        await pool.query<Record<string, unknown>>(
+          "SELECT queue_id,game_version,patch_key,duration_seconds,remake,platform_id FROM riot_matches WHERE match_id=$1",
+          [ids[0]],
+        )
+      ).rows[0];
+      expect(row).toEqual({
+        queue_id: 420,
+        game_version: "16.22.734.5521",
+        patch_key: "16.22",
+        duration_seconds: 1834,
+        remake: false,
+        platform_id: "EUW1",
+      });
+      const count = async (table: string, matchId = ids[0]) =>
+        (
+          await pool.query<{ n: number }>(
+            `SELECT count(*)::integer n FROM ${table} WHERE match_id=$1`,
+            [matchId],
+          )
+        ).rows[0]!.n;
+      expect(await count("riot_match_participants")).toBe(10);
+      expect(await count("riot_match_items")).toBe(40);
+      expect(await count("riot_match_perks")).toBe(60);
+      expect(await count("riot_match_teams")).toBe(2);
+      expect(await count("riot_match_objectives")).toBe(16);
+      expect(await count("riot_match_bans")).toBe(2);
+      expect(
+        (
+          await pool.query(
+            "SELECT puuid,champion_id,side,win,summoner1_id,summoner2_id FROM riot_match_participants WHERE match_id=$1 AND participant_id=1",
+            [ids[0]],
+          )
+        ).rows[0],
+      ).toEqual({
+        puuid: "a".repeat(78),
+        champion_id: 103,
+        side: "blue",
+        win: true,
+        summoner1_id: 4,
+        summoner2_id: 14,
+      });
+      // Missing statistics stay null rather than becoming zero.
+      expect(
+        (
+          await pool.query(
+            "SELECT kills,deaths,win,assists FROM riot_match_participants WHERE match_id=$1 AND participant_id=1",
+            [ids[1]],
+          )
+        ).rows[0],
+      ).toEqual({ kills: null, deaths: null, win: null, assists: 5 });
+      expect(await count("riot_match_perks", ids[1])).toBe(54);
+      // The raw payload is kept compressed inside the package.
+      const stored = (
+        await pool.query<{ payload: Buffer }>(
+          "SELECT payload FROM riot_match_payloads WHERE match_id=$1",
+          [ids[0]],
+        )
+      ).rows[0]!.payload;
+      expect(JSON.parse(gunzipSync(stored).toString("utf8"))).toEqual(match);
+      // Every match request reserved from the ledger.
+      expect(
+        (
+          await pool.query<{ n: number }>(
+            "SELECT count(*)::integer n FROM riot_request_ledger WHERE method='match-v5.getMatch'",
+          )
+        ).rows[0]!.n,
+      ).toBe(4);
+
+      // The unknown version stays null and is reported, then links once the catalog has it.
+      expect(
+        (await pool.query("SELECT patch_key FROM riot_matches WHERE match_id=$1", [ids[2]]))
+          .rows[0],
+      ).toEqual({ patch_key: null });
+      expect(await unresolvedPatches(pool)).toContainEqual({
+        source: "riot",
+        value: "16.23.741.1200",
+        reason: "unknown",
+      });
+      await savePatchCatalog(pool, ["16.23.1", "16.22.1"], instant);
+      expect(
+        (await pool.query("SELECT patch_key FROM riot_matches WHERE match_id=$1", [ids[2]]))
+          .rows[0],
+      ).toEqual({ patch_key: "16.23" });
+
+      // Re-ingesting replaces the facts instead of duplicating them.
+      instant = new Date(now.valueOf() + 3600000);
+      await pool.query("UPDATE riot_match_ids SET fetch_state='pending' WHERE match_id=$1", [
+        ids[0],
+      ]);
+      serveMatches({
+        [ids[0]!]: variant(ids[0]!, (m) => {
+          m.info.participants[0]!.kills = 11;
+          m.info.participants[0]!.item1 = 0;
+        }),
+      });
+      await ingest(worker);
+      expect(await count("riot_match_participants")).toBe(10);
+      expect(await count("riot_match_items")).toBe(39);
+      expect(
+        (
+          await pool.query(
+            "SELECT kills FROM riot_match_participants WHERE match_id=$1 AND participant_id=1",
+            [ids[0]],
+          )
+        ).rows[0],
+      ).toEqual({ kills: 11 });
+      expect(
+        (await pool.query("SELECT fetched_at FROM riot_matches WHERE match_id=$1", [ids[0]]))
+          .rows[0],
+      ).toEqual({ fetched_at: instant });
+    } finally {
+      await worker.close();
+    }
+  });
+  it("marks a match Riot no longer has, and retries a transient failure keeping earlier matches", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      ids.slice(0, 3),
+      10,
+      now,
+    );
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      // Ids are fetched in order: EUW1_2 is gone, EUW1_3 succeeds, then the last one fails.
+      serveMatches({ [ids[2]!]: variant(ids[2]!), [ids[0]!]: new Response("", { status: 503 }) });
+      await ingest(worker);
+      expect(await states()).toEqual({
+        EUW1_2: "missing",
+        EUW1_3: "fetched",
+        EUW1_7612345678: "pending",
+      });
+      expect(
+        (
+          await pool.query<{ state: string; error: string }>(
+            "SELECT state,error FROM sync_jobs WHERE request->>'kind'='riot-match'",
+          )
+        ).rows,
+      ).toEqual([
+        {
+          state: "queued",
+          error: "Riot returned HTTP 503 for a match; ingested matches are kept.",
+        },
+      ]);
+    } finally {
+      await worker.close();
     }
   });
 });
