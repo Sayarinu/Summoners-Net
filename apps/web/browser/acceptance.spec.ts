@@ -480,3 +480,22 @@ test("pro drafts filter and paginate source observations with samples and explic
   await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Enter a patch");
 });
+
+test("replay track uploads queue validation without processing frames in the browser", async ({
+  page,
+}) => {
+  await page.goto("/sources");
+  await page.getByLabel("Replay track JSON").setInputFiles({
+    name: "track.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"formatVersion":1}'),
+  });
+  const response = page.waitForResponse(
+    (r) => r.url().endsWith("/api/import?kind=replay-track") && r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Queue track import" }).click();
+  expect((await response).status()).toBe(202);
+  await expect(page.getByText(/Track import queued/)).toBeVisible();
+  await page.getByRole("button", { name: "Reload status" }).click();
+  await expect(page.getByText("replay-track", { exact: true }).first()).toBeVisible();
+});

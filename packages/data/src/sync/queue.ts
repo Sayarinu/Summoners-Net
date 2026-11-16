@@ -3,6 +3,8 @@ import type { Pool } from "pg";
 import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 export function jobKey(r: SyncRequest) {
+  if (r.kind === "replay-track")
+    return "replay-track:" + createHash("sha256").update(r.file).digest("hex");
   if (r.kind === "entity-history" || r.kind === "entity-rosters") return `${r.kind}:${r.year}`;
   if (r.kind === "aggregate") return r.rebuild ? "aggregate:rebuild" : "aggregate";
   return r.kind === "history"

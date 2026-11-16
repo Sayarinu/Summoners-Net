@@ -1,3 +1,4 @@
+import { replayTrack } from "./replay-tracks.js";
 import { z } from "zod";
 import {
   catalogIconQuerySchema,
@@ -165,6 +166,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
     tierList: (input?: TierListQuery) => tierList(pool, input),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),

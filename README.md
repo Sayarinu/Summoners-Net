@@ -108,6 +108,11 @@ To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/
 `pnpm sync:once`. `pnpm sync:status` shows the queue. The **Sources & imports** page also accepts
 uploads.
 
+The **Sources & imports** page also queues [replay track JSON](docs/formats/replay-track-v1.md)
+files up to 64 MiB. The worker validates the whole file before replacing that game's track version.
+Tracks for other games remain stored, including when Riot match retention prunes provider data. A
+track links only to the exact Riot platform/game ID with matching patch, map and roster.
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting
