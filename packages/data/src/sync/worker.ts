@@ -32,7 +32,8 @@ import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
-import { trainWinProbabilityModel } from "../persistence/wp-models.js";
+import { activeWinProbabilityModel, trainWinProbabilityModel } from "../persistence/wp-models.js";
+import { scorePendingWpa } from "../persistence/wpa.js";
 import {
   dirtyPatches,
   markAllDirty,
@@ -523,12 +524,18 @@ export function worker(pool: Pool, options: WorkerOptions) {
     await recordRetention(pool, { previous, kept, pruned, backfilled }, clock());
     return pruned + backfilled;
   }
+  /** Scores win probability added for matches the active model has not scored yet. */
+  async function scoreActiveWpa() {
+    const model = await activeWinProbabilityModel(pool);
+    return model ? scorePendingWpa(pool, model, clock()) : 0;
+  }
   /** Rebuilds the aggregates of patches whose facts changed, one transaction per patch. */
   async function aggregate(rebuild: boolean): Promise<number> {
     if (rebuild) await markAllDirty(pool, clock());
     let rows = 0;
     for (const { source, patchKey } of await dirtyPatches(pool, 200))
       rows += await rebuildPatch(pool, source, patchKey, clock());
+    await scoreActiveWpa();
     return rows;
   }
   async function perform(r: SyncRequest): Promise<number> {
@@ -538,6 +545,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
         minimumMatches: options.winProbability?.minimumMatches ?? 500,
         seed: options.winProbability?.seed ?? 20261116,
       });
+      // A newly active model scores events from the start; the aggregate job keeps it current.
+      if (trained.active) await scoreActiveWpa();
       return trained.active ? 1 : 0;
     }
     if (r.kind === "riot-key") return checkRiotKey();
