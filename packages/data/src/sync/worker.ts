@@ -28,7 +28,7 @@ import {
 import { normalizePatch } from "../domain/patches.js";
 import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js";
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
-import { claim, enqueue, schedule } from "./queue.js";
+import { claim, enqueue, jobKey, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -118,6 +118,12 @@ export interface WorkerOptions {
    * checkpoints) to publish a model, and the seed.
    */
   winProbability?: { minimumMatches?: number; minimumProGames?: number; seed?: number };
+  /**
+   * Riot match and timeline runs fetch until the queue is empty or the rate limit defers them,
+   * but yield after this many items or milliseconds (by the injected clock) and requeue
+   * themselves behind other due jobs. The time stays under the five-minute job lease.
+   */
+  riotRun?: { maxItems?: number; maxMs?: number };
 }
 class ProviderError extends Error {
   constructor(
@@ -431,83 +437,115 @@ export function worker(pool: Pool, options: WorkerOptions) {
     return added;
   }
   /**
-   * Fetches queued match ids, a bounded batch per run, oldest first. Each payload is validated
-   * before one transaction writes it. A 404 or an invalid payload is recorded and skipped; a
-   * 429 or 5xx retries the job with earlier matches kept.
+   * Fetches queued items oldest first, committing each before the next, until none remain or the
+   * rate limit defers the run. A run yields after riotRun's item or time limit and requeues itself
+   * when items remain. Aggregates are refreshed for whatever was ingested, even on a deferral.
+   */
+  async function drainRiot(
+    pending: (limit: number) => Promise<{ matchId: string; region: string }[]>,
+    fetchOne: (item: { matchId: string; region: string }) => Promise<boolean>,
+  ): Promise<number> {
+    const maxItems = options.riotRun?.maxItems ?? 500;
+    const maxMs = options.riotRun?.maxMs ?? 240_000;
+    const started = clock().valueOf();
+    let ingested = 0;
+    let handled = 0;
+    const spent = () => handled >= maxItems || clock().valueOf() - started >= maxMs;
+    try {
+      while (!spent()) {
+        const batch = await pending(Math.min(50, maxItems - handled));
+        if (!batch.length) return ingested;
+        for (const item of batch) {
+          if (await fetchOne(item)) ingested++;
+          handled++;
+          if (spent()) break;
+        }
+      }
+      requeueAfterRun = (await pending(1)).length > 0;
+      return ingested;
+    } finally {
+      // Refresh the affected patches' aggregates right after ingestion.
+      if (ingested) await aggregate(false);
+    }
+  }
+  /**
+   * Fetches queued match ids, oldest first. Each payload is validated before one transaction
+   * writes it. A 404 or an invalid payload is recorded and skipped; a 429 or 5xx retries the job
+   * with earlier matches kept.
    */
   async function ingestMatches(): Promise<number> {
     if (!riot) return 0;
-    let ingested = 0;
-    for (const { matchId, region } of await pendingMatches(pool, 50)) {
-      const response = await riot(
-        riotRoutingSchema.parse(region),
-        "match-v5.getMatch",
-        `/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
-      );
-      if (response.status === 404) {
-        await markMatchUnavailable(pool, matchId, "missing", clock());
-        continue;
-      }
-      if (!response.ok)
-        throw new ProviderError(
-          `Riot returned HTTP ${response.status} for a match; ingested matches are kept.`,
-          response.status === 429 || response.status >= 500,
+    return drainRiot(
+      (limit) => pendingMatches(pool, limit),
+      async ({ matchId, region }) => {
+        const response = await riot(
+          riotRoutingSchema.parse(region),
+          "match-v5.getMatch",
+          `/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
         );
-      const payload: unknown = await response.json();
-      let match;
-      try {
-        match = parseRiotMatch(payload, matchId);
-      } catch {
-        await markMatchUnavailable(pool, matchId, "invalid", clock());
-        continue;
-      }
-      await saveRiotMatch(pool, match, payload, clock());
-      ingested++;
-    }
-    // Refresh the affected patches' aggregates right after ingestion.
-    if (ingested) await aggregate(false);
-    return ingested;
+        if (response.status === 404) {
+          await markMatchUnavailable(pool, matchId, "missing", clock());
+          return false;
+        }
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for a match; ingested matches are kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        const payload: unknown = await response.json();
+        let match;
+        try {
+          match = parseRiotMatch(payload, matchId);
+        } catch {
+          await markMatchUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+        await saveRiotMatch(pool, match, payload, clock());
+        return true;
+      },
+    );
   }
   /**
-   * Fetches timelines for ingested matches, a bounded batch per run. Each timeline is validated
-   * and written in one transaction; a 404 or an invalid timeline is recorded and skipped.
+   * Fetches timelines for ingested matches, oldest first. Each timeline is validated and written
+   * in one transaction; a 404 or an invalid timeline is recorded and skipped.
    */
   async function ingestTimelines(): Promise<number> {
     if (!riot) return 0;
-    let ingested = 0;
-    for (const { matchId, region } of await pendingTimelines(pool, 50)) {
-      const response = await riot(
-        riotRoutingSchema.parse(region),
-        "match-v5.getTimeline",
-        `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
-      );
-      if (response.status === 404) {
-        await markTimelineUnavailable(pool, matchId, "missing", clock());
-        continue;
-      }
-      if (!response.ok)
-        throw new ProviderError(
-          `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
-          response.status === 429 || response.status >= 500,
+    return drainRiot(
+      (limit) => pendingTimelines(pool, limit),
+      async ({ matchId, region }) => {
+        const response = await riot(
+          riotRoutingSchema.parse(region),
+          "match-v5.getTimeline",
+          `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
         );
-      let timeline;
-      try {
-        timeline = parseRiotTimeline(await response.json(), matchId);
-      } catch {
-        await markTimelineUnavailable(pool, matchId, "invalid", clock());
-        continue;
-      }
-      try {
-        await saveTimeline(pool, timeline, clock());
-        ingested++;
-      } catch (error) {
-        // A timeline naming participants the ingested match does not have (foreign key).
-        if ((error as { code?: string }).code !== "23503") throw error;
-        await markTimelineUnavailable(pool, matchId, "invalid", clock());
-      }
-    }
-    if (ingested) await aggregate(false);
-    return ingested;
+        if (response.status === 404) {
+          await markTimelineUnavailable(pool, matchId, "missing", clock());
+          return false;
+        }
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        let timeline;
+        try {
+          timeline = parseRiotTimeline(await response.json(), matchId);
+        } catch {
+          await markTimelineUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+        try {
+          await saveTimeline(pool, timeline, clock());
+          return true;
+        } catch (error) {
+          // A timeline naming participants the ingested match does not have (foreign key).
+          if ((error as { code?: string }).code !== "23503") throw error;
+          await markTimelineUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+      },
+    );
   }
   /**
    * Keeps solo-queue data for the current patch and the configured previous patches. Prunes in
@@ -544,6 +582,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
     return scored;
   }
   /** Rebuilds the aggregates of patches whose facts changed, one transaction per patch. */
+  /** Set by a Riot run that stopped at its limit with items left; read when the job completes. */
+  let requeueAfterRun = false;
   async function aggregate(rebuild: boolean): Promise<number> {
     if (rebuild) await markAllDirty(pool, clock());
     let rows = 0;
@@ -813,6 +853,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         if (scheduleDue) await schedule(pool, clock(), options.currentFile);
         const job = await claim(pool, clock());
         if (!job) return { state: "idle" as const };
+        requeueAfterRun = false;
         const source = sourceOf(job.request);
         if (tracksSource(job.request))
           await pool.query("UPDATE source_status SET last_attempt=$2 WHERE source=$1", [
@@ -838,6 +879,13 @@ export function worker(pool: Pool, options: WorkerOptions) {
               "UPDATE sync_jobs SET state='done',lease_until=NULL,error=NULL WHERE id=$1",
               [job.id],
             );
+            // A run that yielded with work left continues behind the jobs already due.
+            if (requeueAfterRun)
+              await c.query(
+                `INSERT INTO sync_jobs(job_key,request,requested_at,available_at)
+                 VALUES($1,$2,$3,$3) ON CONFLICT DO NOTHING`,
+                [jobKey(job.request), job.request, clock()],
+              );
           });
           return { state: "done" as const, id: job.id, records };
         } catch (error) {
