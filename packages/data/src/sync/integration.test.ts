@@ -24,6 +24,8 @@ import {
   saveMatchIds,
 } from "../persistence/riot.js";
 import { gunzipSync } from "node:zlib";
+import { saveRiotMatch } from "../persistence/riot-matches.js";
+import { parseRiotMatch } from "../providers/riot-match.js";
 import { draftCsv } from "../../tests/draft-fixtures.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
@@ -118,7 +120,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -1399,6 +1401,210 @@ describe("Riot match details", () => {
     } finally {
       await worker.close();
     }
+  });
+});
+describe("Riot match timelines", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const read = (name: string) =>
+    JSON.parse(readFileSync(new URL(`../../tests/riot/${name}`, import.meta.url), "utf8")) as {
+      metadata: { matchId: string };
+      info: Record<string, unknown>;
+    };
+  const matchPayload = read("match-euw1.json");
+  const timeline = read("timeline-euw1.json");
+  const ids = ["EUW1_7612345678", "EUW1_2", "EUW1_3", "EUW1_4"];
+  async function ingestMatch(matchId: string) {
+    const copy = structuredClone(matchPayload);
+    copy.metadata.matchId = matchId;
+    await saveRiotMatch(pool, parseRiotMatch(copy, matchId), copy, now);
+  }
+  const withId = (matchId: string, change: (t: typeof timeline) => void = () => {}) => {
+    const copy = structuredClone(timeline);
+    copy.metadata.matchId = matchId;
+    change(copy);
+    return copy;
+  };
+  it("stores frames and events linked to match participants, with missing coordinates null", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      ids,
+      10,
+      now,
+    );
+    for (const id of ids) await ingestMatch(id);
+    const bodies: Record<string, unknown> = {
+      [ids[0]!]: timeline,
+      // A partial frame and an extra purchase event.
+      [ids[1]!]: withId(ids[1]!, (t) => {
+        const frames = t.info.frames as {
+          events: Record<string, unknown>[];
+          participantFrames: unknown;
+        }[];
+        frames[0]!.events.push({
+          type: "ITEM_PURCHASED",
+          timestamp: 3000,
+          participantId: 9,
+          itemId: 1,
+        });
+        frames[1]!.participantFrames = { "1": { participantId: 1 } };
+      }),
+      [ids[2]!]: withId(ids[2]!, (t) => {
+        t.info.frames = "nope";
+      }),
+    };
+    fetcher.mockImplementation((input) => {
+      const url = new URL(endpoint(input));
+      if (!url.pathname.endsWith("/timeline")) return Promise.resolve(json({}));
+      const matchId = decodeURIComponent(url.pathname.split("/")[5]!);
+      const body = bodies[matchId];
+      return Promise.resolve(body ? json(body) : new Response("", { status: 404 }));
+    });
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      await worker.request({ kind: "riot-timeline" });
+      while ((await worker.runNext()).state !== "idle");
+    } finally {
+      await worker.close();
+    }
+    expect(
+      Object.fromEntries(
+        (
+          await pool.query<{ match_id: string; timeline_state: string }>(
+            "SELECT match_id,timeline_state FROM riot_matches ORDER BY match_id",
+          )
+        ).rows.map((r) => [r.match_id, r.timeline_state]),
+      ),
+    ).toEqual({
+      EUW1_2: "fetched",
+      EUW1_3: "invalid",
+      EUW1_4: "missing",
+      EUW1_7612345678: "fetched",
+    });
+    const frames = await pool.query(
+      "SELECT minute,x,y,level,total_gold FROM riot_timeline_frames WHERE match_id=$1 AND participant_id=3 ORDER BY minute",
+      [ids[0]],
+    );
+    expect(frames.rows).toEqual([
+      { minute: 0, x: 800, y: 700, level: 1, total_gold: 500 },
+      { minute: 1, x: 810, y: 700, level: 2, total_gold: 900 },
+      { minute: 2, x: null, y: null, level: 3, total_gold: 1300 },
+    ]);
+    // A partial frame keeps its unknown statistics null.
+    expect(
+      (
+        await pool.query(
+          "SELECT x,total_gold,level FROM riot_timeline_frames WHERE match_id=$1 AND minute=1 AND participant_id=1",
+          [ids[1]],
+        )
+      ).rows,
+    ).toEqual([{ x: null, total_gold: null, level: null }]);
+    expect(
+      (
+        await pool.query(
+          "SELECT type,participant_id,victim_id,x,y,assisting_participant_ids FROM riot_timeline_events WHERE match_id=$1 AND type IN ('CHAMPION_KILL','WARD_PLACED','BUILDING_KILL') ORDER BY seq",
+          [ids[0]],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        type: "WARD_PLACED",
+        participant_id: 5,
+        victim_id: null,
+        x: null,
+        y: null,
+        assisting_participant_ids: null,
+      },
+      {
+        type: "CHAMPION_KILL",
+        participant_id: 2,
+        victim_id: 7,
+        x: 7200,
+        y: 7100,
+        assisting_participant_ids: [1, 4],
+      },
+      {
+        type: "BUILDING_KILL",
+        participant_id: null,
+        victim_id: null,
+        x: 8955,
+        y: 8510,
+        assisting_participant_ids: [1],
+      },
+    ]);
+    // Reads by champion and patch: Ahri's (champion 103) skill-ups on patch 16.22.
+    expect(
+      (
+        await pool.query(
+          `SELECT e.match_id,e.skill_slot FROM riot_timeline_events e
+           JOIN riot_match_participants p ON p.match_id=e.match_id AND p.participant_id=e.participant_id
+           JOIN riot_matches m ON m.match_id=e.match_id
+           WHERE p.champion_id=103 AND m.patch_key='16.22' AND e.type='SKILL_LEVEL_UP' ORDER BY e.match_id`,
+        )
+      ).rows,
+    ).toEqual([
+      { match_id: "EUW1_2", skill_slot: 1 },
+      { match_id: "EUW1_7612345678", skill_slot: 1 },
+    ]);
+    expect(
+      (
+        await pool.query<{ n: number }>(
+          "SELECT count(*)::integer n FROM riot_request_ledger WHERE method='match-v5.getTimeline'",
+        )
+      ).rows[0]!.n,
+    ).toBe(4);
+  });
+  it("rejects a timeline whose participants are not in the ingested match and retries transient failures", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      ids.slice(0, 2),
+      10,
+      now,
+    );
+    await ingestMatch(ids[0]!);
+    // EUW1_2's match has only participants 1-5.
+    const partial = structuredClone(matchPayload);
+    partial.metadata.matchId = ids[1]!;
+    (partial.info as { participants: unknown[] }).participants.splice(5);
+    await saveRiotMatch(pool, parseRiotMatch(partial, ids[1]!), partial, now);
+    fetcher.mockImplementation((input) => {
+      const matchId = decodeURIComponent(new URL(endpoint(input)).pathname.split("/")[5] ?? "");
+      if (matchId === ids[1]) return Promise.resolve(json(withId(ids[1])));
+      if (matchId === ids[0]) return Promise.resolve(new Response("", { status: 503 }));
+      return Promise.resolve(json({}));
+    });
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      await worker.request({ kind: "riot-timeline" });
+      while ((await worker.runNext()).state !== "idle");
+    } finally {
+      await worker.close();
+    }
+    expect(
+      (await pool.query("SELECT match_id,timeline_state FROM riot_matches ORDER BY match_id")).rows,
+    ).toEqual([
+      { match_id: "EUW1_2", timeline_state: "invalid" },
+      { match_id: "EUW1_7612345678", timeline_state: "pending" },
+    ]);
+    expect(
+      (await pool.query("SELECT count(*)::integer n FROM riot_timeline_frames")).rows[0],
+    ).toEqual({ n: 0 });
+    expect(
+      (await pool.query("SELECT state FROM sync_jobs WHERE request->>'kind'='riot-timeline'")).rows,
+    ).toEqual([{ state: "queued" }]);
   });
 });
 describe("Riot API key", () => {

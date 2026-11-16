@@ -26,6 +26,12 @@ import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js
 import { claim, enqueue, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
+import { parseRiotTimeline } from "../providers/riot-timeline.js";
+import {
+  markTimelineUnavailable,
+  pendingTimelines,
+  saveTimeline,
+} from "../persistence/riot-timelines.js";
 import {
   markMatchUnavailable,
   pendingMatches,
@@ -423,8 +429,49 @@ export function worker(pool: Pool, options: WorkerOptions) {
     }
     return ingested;
   }
+  /**
+   * Fetches timelines for ingested matches, a bounded batch per run. Each timeline is validated
+   * and written in one transaction; a 404 or an invalid timeline is recorded and skipped.
+   */
+  async function ingestTimelines(): Promise<number> {
+    if (!riot) return 0;
+    let ingested = 0;
+    for (const { matchId, region } of await pendingTimelines(pool, 50)) {
+      const response = await riot(
+        riotRoutingSchema.parse(region),
+        "match-v5.getTimeline",
+        `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
+      );
+      if (response.status === 404) {
+        await markTimelineUnavailable(pool, matchId, "missing", clock());
+        continue;
+      }
+      if (!response.ok)
+        throw new ProviderError(
+          `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
+          response.status === 429 || response.status >= 500,
+        );
+      let timeline;
+      try {
+        timeline = parseRiotTimeline(await response.json(), matchId);
+      } catch {
+        await markTimelineUnavailable(pool, matchId, "invalid", clock());
+        continue;
+      }
+      try {
+        await saveTimeline(pool, timeline, clock());
+        ingested++;
+      } catch (error) {
+        // A timeline naming participants the ingested match does not have (foreign key).
+        if ((error as { code?: string }).code !== "23503") throw error;
+        await markTimelineUnavailable(pool, matchId, "invalid", clock());
+      }
+    }
+    return ingested;
+  }
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-timeline") return ingestTimelines();
     if (r.kind === "riot-match") return ingestMatches();
     if (r.kind === "riot-match-ids") return crawlMatchIds();
     if (r.kind === "riot-ladder") return syncLadders();
