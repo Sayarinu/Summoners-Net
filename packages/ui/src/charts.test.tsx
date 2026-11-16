@@ -81,6 +81,7 @@ describe("SVG charts", () => {
       const svg = screen.getByRole("img", { name: "Empty" });
       expect(svg.querySelectorAll("circle, rect")).toHaveLength(0);
       expect(svg.innerHTML).not.toMatch(/NaN|Infinity/);
+      expect(svg.querySelectorAll("text")).toHaveLength(0);
       expect(screen.getByText("No observations available")).toBeVisible();
     },
   );

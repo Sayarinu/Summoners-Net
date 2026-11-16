@@ -141,7 +141,7 @@ function CartesianChart({
         />
       }
     >
-      {!compact ? (
+      {!compact && valid.length > 0 ? (
         <g className="np-chart__axes">
           <path d={`M ${left} ${top} V ${bottom} H ${right}`} />
           <text x={left - 8} y={top + 4} textAnchor="end">
@@ -259,9 +259,11 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
             {row}
           </text>
         ))}
-        <text x={136} y={292}>
-          Intensity: {display(domain[0])} – {display(domain[1])}
-        </text>
+        {values.length > 0 ? (
+          <text x={136} y={292}>
+            Intensity: {display(domain[0])} – {display(domain[1])}
+          </text>
+        ) : null}
       </g>
       <g style={{ color: colorValue(color) }}>
         {cells.map((cell) =>
