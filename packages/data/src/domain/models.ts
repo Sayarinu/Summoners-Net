@@ -196,6 +196,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "riot-match",
         "riot-timeline",
         "riot-retention",
+        "wp-train",
       ]),
     })
     .strict(),
