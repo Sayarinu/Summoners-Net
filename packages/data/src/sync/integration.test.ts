@@ -5017,3 +5017,158 @@ describe("champion trends", () => {
       await expect(queries.trending(input as { page: number })).rejects.toThrow();
   });
 });
+
+describe("patch overviews", () => {
+  async function core(
+    patch: string,
+    champion: number,
+    build: string,
+    games: number,
+    role = "MIDDLE",
+    queue = "420",
+  ) {
+    await pool.query(
+      `INSERT INTO champion_builds(patch_key,queue,region,tier,champion_key,role,kind,build,games,result_games,wins,built_at)
+      VALUES($1,$2,'europe','TEST',$3,$4,'path',$5,$6,$6,0,$7)`,
+      [patch, queue, champion, role, build, games, now],
+    );
+  }
+  async function pro(champion: number, picks: number, bans: number, games: number, league = "LCK") {
+    await pool.query(
+      `INSERT INTO pro_champion_stats(patch_key,league,champion_key,league_games,picks,bans,
+      result_picks,wins,blue_picks,blue_result_picks,blue_wins,red_picks,red_result_picks,red_wins,blind_picks,counter_picks,built_at)
+      VALUES('16.22',$1,$2,$3,$4,$5,0,0,0,0,0,0,0,0,0,0,$6)`,
+      [league, champion, games, picks, bans, now],
+    );
+  }
+  it("ranks significant aggregate-only changes before limiting and agrees with full trends", async () => {
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1"], now);
+    await pool.query(
+      `INSERT INTO champion_aggregates(source,patch_key,queue,region,tier,champion_key,role,games,result_games,wins,bans,slice_games,win_rate,pick_rate,ban_rate,built_at)
+      SELECT 'solo',patch,'420','europe','TEST',champ,'ALL',100,100,
+        CASE WHEN champ=99 THEN CASE WHEN patch='16.22' THEN 100 ELSE 0 END
+          WHEN patch='16.21' THEN 50 WHEN champ<=12 THEN 70+champ ELSE 30-(champ-12) END,
+        NULL,1000,NULL,NULL,NULL,$1
+      FROM (SELECT generate_series(1,24) AS champ UNION SELECT 99) c
+      CROSS JOIN (VALUES('16.22'),('16.21')) p(patch)`,
+      [now],
+    );
+    const calls = fetcher.mock.calls.length;
+    const page = await queries.patchOverview("16.22");
+    expect(page?.risers.map((r) => r.championKey)).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
+    expect(page?.fallers.map((r) => r.championKey)).toEqual([
+      24, 23, 22, 21, 20, 19, 18, 17, 16, 15,
+    ]);
+    const full = await queries.trending({ patch: "16.22" });
+    for (const r of [...page!.risers, ...page!.fallers]) {
+      expect(r.metric).toBe("win");
+      expect(r.change).toEqual(
+        full.page.items.find((c) => c.championKey === r.championKey)!.winRate,
+      );
+    }
+    expect(page?.risers[0]).toMatchObject({
+      championId: null,
+      name: null,
+      imageUrl: null,
+      change: { current: { sampleCount: 100 }, previous: { sampleCount: 100 } },
+    });
+    expect(fetcher.mock.calls.length).toBe(calls);
+    expect(
+      (await pool.query<{ n: number }>("SELECT count(*)::integer AS n FROM riot_matches")).rows[0]!
+        .n,
+    ).toBe(0);
+    // A region contributes to the pool once, regardless of champion rows. Role and queue stay scoped.
+    await pool.query(
+      `UPDATE champion_aggregates SET games=CASE WHEN patch_key='16.22' THEN 800 ELSE 200 END WHERE champion_key=1`,
+    );
+    expect((await queries.patchOverview("16.22"))?.risers[0]).toMatchObject({
+      championKey: 1,
+      metric: "pick",
+      change: { current: { sampleCount: 1000 } },
+    });
+    expect((await queries.patchOverview("16.22"))?.risers[0]?.change.delta).toBeCloseTo(0.6);
+    await pool.query("UPDATE champion_aggregates SET role='MIDDLE' WHERE champion_key=1");
+    expect((await queries.patchOverview("16.22"))?.risers.some((r) => r.championKey === 1)).toBe(
+      false,
+    );
+    await pool.query("UPDATE champion_aggregates SET queue='450'");
+    expect((await queries.patchOverview("16.22"))?.risers).toEqual([]);
+  });
+  it("requires preceding core coverage, excludes existing builds and deduplicates pro samples", async () => {
+    serveDataDragon(["16.22.1", "16.21.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await core("16.21", 103, "1001,2003,3340", 50);
+    await core("16.22", 103, "3001,3002,3003", 50);
+    await core("16.22", 103, "1001,2003,3340", 100);
+    await core("16.22", 103, "3001,3002,3004", 49);
+    await core("16.22", 103, "3001,3002,3005", 1000, "TOP");
+    await core("16.22", 103, "3001,3002,3006", 1000, "MIDDLE", "450");
+    await core("16.21", 157, "1001,2003,3340", 49);
+    await core("16.22", 157, "3001,3002,3003", 1000);
+    await pro(103, 6, 4, 20);
+    await pro(157, 4, 1, 20);
+    await pro(103, 2, 3, 10, "LEC");
+    await pro(999, 0, 1, 10, "LEC");
+    const result = await queries.patchOverview("16.22");
+    expect(result?.builds).toHaveLength(1);
+    expect(result?.builds[0]).toMatchObject({
+      championKey: 103,
+      name: "Ahri",
+      games: 50,
+      previousSample: 50,
+      share: { value: 50 / 199, sampleCount: 199 },
+      items: [{ id: 3001 }, { id: 3002 }, { id: 3003 }],
+    });
+    expect(result?.builds[0]?.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+    expect(result?.pro.map((r) => r.championKey)).toEqual([103, 157, 999]);
+    expect(result?.pro[0]).toMatchObject({
+      picks: 8,
+      bans: 7,
+      presence: { value: 0.5, sampleCount: 30 },
+      sample: "low-sample",
+    });
+    await pool.query("UPDATE pro_champion_stats SET league_games=100");
+    expect((await queries.patchOverview("16.22"))?.pro[0]?.sample).toBe("shown");
+    await pool.query("UPDATE pro_champion_stats SET league_games=4");
+    expect((await queries.patchOverview("16.22"))?.pro).toEqual([]);
+  });
+  it("caps new-build and pro lists after ranking and keeps item catalog identities", async () => {
+    serveDataDragon(["16.22.1", "16.21.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    for (let champion = 1; champion <= 12; champion++) {
+      await core("16.21", champion, "3001,3002,3003", 50);
+      await core("16.22", champion, "1001,3002,3003", 50 + champion);
+      await pro(champion, champion, 0, 100);
+    }
+    const result = await queries.patchOverview("16.22");
+    expect(result?.builds.map((r) => r.championKey)).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
+    expect(result?.pro.map((r) => r.championKey)).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
+    expect(result?.builds[0]?.items[0]).toMatchObject({
+      id: 1001,
+      catalogId: "1001",
+      name: "Boots",
+    });
+    expect(result?.builds[0]?.items[0]?.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
+    expect(result?.builds[0]?.items[1]).toMatchObject({ id: 3002, name: null, imageUrl: null });
+  });
+  it("returns not found for unknown keys, empty low-data sections and never skips a catalog patch", async () => {
+    expect(await queries.patchOverview("16.22")).toBeNull();
+    for (const patch of ["16.22.1", "016.22", "16.022", "../16.22"])
+      await expect(queries.patchOverview(patch)).rejects.toThrow();
+    await savePatchCatalog(pool, ["16.22.1", "16.21.1", "16.20.1"], now);
+    await core("16.20", 103, "1001,2003,3340", 500);
+    await core("16.22", 103, "3001,3002,3003", 500);
+    expect(await queries.patchOverview("16.22")).toEqual({
+      patch: "16.22",
+      previousPatch: "16.21",
+      risers: [],
+      fallers: [],
+      builds: [],
+      pro: [],
+    });
+    expect((await queries.patchOverview("16.20"))?.previousPatch).toBeNull();
+    expect(await queries.patchOverview("16.99")).toBeNull();
+    await core("16.21", 103, "1001,2003,3340", 50);
+    expect((await queries.patchOverview("16.22"))?.builds).toHaveLength(1);
+  });
+});

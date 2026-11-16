@@ -706,3 +706,23 @@ test("champion trends show missing comparisons and validate source and role filt
   await page.goto("/trending?source=other");
   await expect(page.getByRole("alert").filter({ hasText: "Solo queue or Pro" })).toBeVisible();
 });
+
+test("patch overview explains low samples and returns not found for unknown patches", async ({
+  page,
+}) => {
+  await page.goto("/patches/16.4");
+  await expect(page.getByRole("heading", { name: "Patch 16.4", exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Biggest risers in solo queue" })).toContainText(
+    "No qualifying changes",
+  );
+  await expect(page.getByRole("table", { name: "Newly observed three-item cores" })).toContainText(
+    "No qualifying new builds",
+  );
+  await expect(page.getByRole("table", { name: "Pro pick and ban presence" })).toContainText(
+    "Too little pro draft data",
+  );
+  await page.getByRole("link", { name: "Trending champions" }).click();
+  await expect(page).toHaveURL(/trending\?patch=16.4/);
+  expect((await page.goto("/patches/16.99"))?.status()).toBe(404);
+  expect((await page.goto("/patches/16.4.1"))?.status()).toBe(404);
+});

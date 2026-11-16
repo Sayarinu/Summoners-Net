@@ -5,6 +5,31 @@ import {
 } from "../domain/trending.js";
 import { compareProportions } from "../domain/statistics.js";
 import type { Executor } from "./database.js";
+// Shared aggregate scope for the full trend list and patch highlights.
+export const trendScope = `chosen AS (
+   SELECT p.patch_key,p.release_order FROM patches p WHERE p.patch_key=coalesce($1::text,(
+     SELECT a.patch_key FROM champion_aggregates a JOIN patches p USING(patch_key)
+     WHERE a.source=$2 AND a.queue=$3 ORDER BY p.release_order DESC LIMIT 1))
+ ), prior AS (
+   SELECT p.patch_key FROM patches p,chosen c WHERE p.release_order<c.release_order
+   ORDER BY p.release_order DESC LIMIT 1
+ ), scoped AS (
+   SELECT * FROM champion_aggregates WHERE source=$2 AND queue=$3
+     AND patch_key IN (SELECT patch_key FROM chosen UNION ALL SELECT patch_key FROM prior)
+ ), samples AS (
+   SELECT patch_key,sum(slice_games)::integer AS games FROM (
+     SELECT DISTINCT patch_key,queue,region,tier,slice_games FROM scoped
+   ) s GROUP BY patch_key
+ ), grouped AS (
+   SELECT patch_key,champion_key,sum(games)::integer AS games,sum(result_games)::integer AS results,sum(wins)::integer AS wins
+   FROM scoped WHERE role=$4 GROUP BY patch_key,champion_key
+ ), pairs AS (
+   SELECT coalesce(c.champion_key,p.champion_key) AS "championKey",
+     c.games AS "currentPicks",c.results AS "currentResults",c.wins AS "currentWins",
+     p.games AS "previousPicks",p.results AS "previousResults",p.wins AS "previousWins"
+   FROM (SELECT * FROM grouped WHERE patch_key=(SELECT patch_key FROM chosen)) c
+   FULL JOIN (SELECT * FROM grouped WHERE patch_key=(SELECT patch_key FROM prior)) p USING(champion_key)
+ )`;
 interface Counts {
   championKey: number;
   championId: string | null;
@@ -30,30 +55,7 @@ export async function trending(db: Executor, input: TrendingQuery): Promise<Tren
       items: Counts[];
     }>(
       `
- WITH chosen AS (
-   SELECT p.patch_key,p.release_order FROM patches p WHERE p.patch_key=coalesce($1::text,(
-     SELECT a.patch_key FROM champion_aggregates a JOIN patches p USING(patch_key)
-     WHERE a.source=$2 AND a.queue=$3 ORDER BY p.release_order DESC LIMIT 1))
- ), prior AS (
-   SELECT p.patch_key FROM patches p,chosen c WHERE p.release_order<c.release_order
-   ORDER BY p.release_order DESC LIMIT 1
- ), scoped AS (
-   SELECT * FROM champion_aggregates WHERE source=$2 AND queue=$3
-     AND patch_key IN (SELECT patch_key FROM chosen UNION ALL SELECT patch_key FROM prior)
- ), samples AS (
-   SELECT patch_key,sum(slice_games)::integer AS games FROM (
-     SELECT DISTINCT patch_key,queue,region,tier,slice_games FROM scoped
-   ) s GROUP BY patch_key
- ), grouped AS (
-   SELECT patch_key,champion_key,sum(games)::integer AS games,sum(result_games)::integer AS results,sum(wins)::integer AS wins
-   FROM scoped WHERE role=$4 GROUP BY patch_key,champion_key
- ), pairs AS (
-   SELECT coalesce(c.champion_key,p.champion_key) AS "championKey",
-     c.games AS "currentPicks",c.results AS "currentResults",c.wins AS "currentWins",
-     p.games AS "previousPicks",p.results AS "previousResults",p.wins AS "previousWins"
-   FROM (SELECT * FROM grouped WHERE patch_key=(SELECT patch_key FROM chosen)) c
-   FULL JOIN (SELECT * FROM grouped WHERE patch_key=(SELECT patch_key FROM prior)) p USING(champion_key)
- ), selected AS (SELECT * FROM pairs ORDER BY "championKey" LIMIT 50 OFFSET $5),
+ WITH ${trendScope}, selected AS (SELECT * FROM pairs ORDER BY "championKey" LIMIT 50 OFFSET $5),
  rows AS (
    SELECT s.*,n.champion_id AS "championId",n.name,
      CASE WHEN n.asset_hash IS NULL THEN NULL ELSE '/api/images/'||n.asset_hash END AS "imageUrl"

@@ -112,3 +112,12 @@ export {
   trendCriticalZ,
   type ProportionTrend,
 } from "./domain/statistics.js";
+
+export {
+  overviewPatchSchema,
+  type PatchOverview,
+  type PatchChampion,
+  type PatchTrend,
+  type NewPatchBuild,
+  type PatchProLeader,
+} from "./domain/patch-overview.js";
