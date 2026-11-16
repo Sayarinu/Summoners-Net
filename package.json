@@ -46,7 +46,8 @@
     "entities:sync": "node --env-file-if-exists=.env packages/data/dist/cli.js entities",
     "entities:resolve": "node --env-file-if-exists=.env packages/data/dist/cli.js resolve",
     "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",
-    "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters"
+    "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters",
+    "replay:capture": "pnpm --filter @summonersnet/replay-capture capture"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -176,7 +176,8 @@ Bug reports, ideas and pull requests are welcome. Please open an
 release flow.
 
 Architecture decisions: [Replay capture companion](docs/decisions/0001-replay-capture.md). Data
-formats: [Replay track v1](docs/formats/replay-track-v1.md).
+formats: [Replay track v1](docs/formats/replay-track-v1.md). Companion tools:
+[Replay capture](tools/replay-capture/README.md) (experimental; Windows/macOS).
 
 ## License
 

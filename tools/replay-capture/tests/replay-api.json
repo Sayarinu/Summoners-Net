@@ -1,0 +1,33 @@
+{
+  "game": { "processID": 12345 },
+  "playback": { "paused": true, "seeking": false, "time": 20, "speed": 1, "length": 120 },
+  "render": {
+    "interfaceAll": true,
+    "interfaceMinimap": true,
+    "interfaceReplay": true,
+    "interfaceScore": true,
+    "interfaceScoreboard": true,
+    "interfaceFrames": true,
+    "interfaceTimeline": true,
+    "interfaceChat": true,
+    "interfaceTarget": true,
+    "interfaceQuests": true,
+    "interfaceAnnounce": true,
+    "interfaceKillCallouts": true,
+    "interfaceNeutralTimers": true,
+    "healthBarChampions": true,
+    "floatingText": true,
+    "fogOfWar": true,
+    "cameraMode": "top"
+  },
+  "recording": {
+    "recording": false,
+    "currentTime": 0,
+    "startTime": 0,
+    "endTime": 0,
+    "width": 0,
+    "height": 0,
+    "framesPerSecond": 0,
+    "replaySpeed": 1
+  }
+}
