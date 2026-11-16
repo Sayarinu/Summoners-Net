@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { importReplayMetadata, ReplayImportError } from "../persistence/replays.js";
 import { importReplayTrack, ReplayTrackImportError } from "../persistence/replay-tracks.js";
 import { setTimeout as pauseFor } from "node:timers/promises";
 import { z } from "zod";
@@ -95,6 +97,7 @@ export interface WorkerOptions {
   driveApiKey?: string;
   currentFile?: string;
   importDirectory?: string;
+  keepReplayFiles?: boolean;
   pause?: (milliseconds: number) => Promise<void>;
   /** Validated RIOT_API_KEY; absent when Riot is not configured. Never logged or stored. */
   riot?: RiotKeyConfig;
@@ -119,6 +122,7 @@ const tracksSource = (r: SyncRequest) =>
   r.kind !== "resolve" &&
   r.kind !== "drafts" &&
   r.kind !== "replay-track" &&
+  r.kind !== "replay-metadata" &&
   r.kind !== "aggregate" &&
   !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
@@ -600,6 +604,26 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const report = await resolveStored(pool, clock());
       await cacheImages(pool, fetcher, clock);
       return report.links;
+    }
+    if (r.kind === "replay-metadata") {
+      try {
+        return await importReplayMetadata(pool, {
+          file: r.file,
+          ...(r.platform ? { platform: r.platform } : {}),
+          directory: resolve(
+            options.importDirectory ?? resolve(process.cwd(), ".local/imports"),
+            "replays",
+          ),
+          keepFiles: options.keepReplayFiles ?? false,
+          now: clock(),
+        });
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ReplayImportError
+            ? error.message
+            : "Replay metadata could not be read or stored; saved metadata is unchanged.",
+        );
+      }
     }
     if (r.kind === "replay-track") {
       try {

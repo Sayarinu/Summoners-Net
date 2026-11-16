@@ -113,6 +113,17 @@ files up to 64 MiB. The worker validates the whole file before replacing that ga
 Tracks for other games remain stored, including when Riot match retention prunes provider data. A
 track links only to the exact Riot platform/game ID with matching patch, map and roster.
 
+Replay metadata uploads accept `.rofl` files up to 256 MiB. The worker validates the header and
+metadata without decoding game packets, then stores the metadata in one transaction. Legacy replay
+links require the embedded game ID, an explicitly selected platform and a matching patch in stored
+Riot matches. ROFL2 imports remain unlinked because their supported metadata has no verified game
+ID. See the [format evidence and limits](docs/formats/rofl-metadata-research.md).
+
+The staged replay copy is deleted by default after processing, including invalid uploads. Set
+`KEEP_REPLAY_FILES=true` for the worker to retain newly processed copies; changing this setting does
+not delete earlier retained files. The original file on your computer is untouched. If database
+storage fails after cleanup, upload the original again to retry.
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting

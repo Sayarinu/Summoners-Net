@@ -1,7 +1,11 @@
-import { replayTrackMaxBytes } from "@summonersnet/data/contracts";
+import {
+  replayFileMaxBytes,
+  replayPlatformSchema,
+  replayTrackMaxBytes,
+} from "@summonersnet/data/contracts";
 import "server-only";
-import { mkdir, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,11 +14,17 @@ import { localRequest } from "./http";
 export async function importUpload(request: Request) {
   if (!localRequest(request))
     return NextResponse.json({ error: "Local same-origin requests only." }, { status: 403 });
+  let stagedReplayPath: string | undefined;
   try {
     const kind = z
-      .enum(["history", "replay-track"])
+      .enum(["history", "replay-track", "replay-metadata"])
       .parse(new URL(request.url).searchParams.get("kind") ?? "history");
-    const limit = kind === "replay-track" ? replayTrackMaxBytes : 256 * 1024 * 1024;
+    const limit =
+      kind === "replay-track"
+        ? replayTrackMaxBytes
+        : kind === "replay-metadata"
+          ? replayFileMaxBytes
+          : 256 * 1024 * 1024;
     if (Number(request.headers.get("content-length")) > limit + 8192)
       return NextResponse.json({ error: "File too large." }, { status: 413 });
     const reader = request.body?.getReader();
@@ -43,7 +53,12 @@ export async function importUpload(request: Request) {
         { error: "Import kind does not match the upload endpoint." },
         { status: 400 },
       );
-    const extension = kind === "replay-track" ? ".json" : ".csv";
+    const extension =
+      kind === "replay-track" ? ".json" : kind === "replay-metadata" ? ".rofl" : ".csv";
+    const platform =
+      kind === "replay-metadata"
+        ? replayPlatformSchema.optional().parse(form.get("platform") || undefined)
+        : undefined;
     const year =
       kind === "history"
         ? z.coerce.number().int().min(2014).max(2100).parse(form.get("year"))
@@ -60,33 +75,47 @@ export async function importUpload(request: Request) {
           error:
             kind === "replay-track"
               ? "Choose a replay track JSON up to 64 MiB."
-              : "Choose an annual CSV up to 256 MiB.",
+              : kind === "replay-metadata"
+                ? "Choose a replay file up to 256 MiB."
+                : "Choose an annual CSV up to 256 MiB.",
         },
         { status: 400 },
       );
     const content = Buffer.from(await file.arrayBuffer());
-    const directory = resolve(process.cwd(), "../../.local/imports");
+    const directory = resolve(
+      process.cwd(),
+      "../../.local/imports",
+      kind === "replay-metadata" ? "replays" : ".",
+    );
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const path = resolve(
       directory,
-      `${createHash("sha256").update(content).digest("hex")}${extension}`,
+      kind === "replay-metadata"
+        ? randomUUID() + ".rofl"
+        : createHash("sha256").update(content).digest("hex") + extension,
     );
+    if (kind === "replay-metadata") stagedReplayPath = path;
     await writeFile(path, content, { mode: 0o600 });
     const id = await synchronization().request(
-      kind === "replay-track"
-        ? {
-            kind,
-            file: path,
-          }
-        : {
-            kind,
-            year,
-            file: path,
-            method: "upload",
-          },
+      kind === "replay-metadata"
+        ? { kind, file: path, ...(platform ? { platform } : {}) }
+        : kind === "replay-track"
+          ? { kind, file: path }
+          : { kind, year, file: path, method: "upload" },
     );
     return NextResponse.json({ id, state: "queued" }, { status: 202 });
   } catch {
+    if (stagedReplayPath) {
+      try {
+        await unlink(stagedReplayPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+          return NextResponse.json(
+            { error: "Could not queue or remove the staged replay copy. Check local imports." },
+            { status: 500 },
+          );
+      }
+    }
     return NextResponse.json({ error: "Could not queue the import." }, { status: 400 });
   }
 }

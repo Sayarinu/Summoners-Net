@@ -1,3 +1,6 @@
+import { roflFixture } from "../../tests/rofl-fixtures.js";
+import { randomUUID } from "node:crypto";
+import { mkdir, symlink, truncate } from "node:fs/promises";
 import { parseReplayTrackFile, type ReplayTrack } from "../domain/replay-tracks.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
@@ -126,7 +129,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -3624,5 +3627,146 @@ describe("replay track imports", () => {
     expect(failed).toHaveProperty("error", expect.stringContaining("64 MiB"));
     expect(await queries.replayTrack(key)).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe("replay metadata imports", () => {
+  const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+  async function staged(bytes: Buffer) {
+    const folder = join(directory, "replays");
+    await mkdir(folder, { recursive: true });
+    const file = join(folder, randomUUID() + ".rofl");
+    await writeFile(file, bytes);
+    return file;
+  }
+  const importFile = async (file: string, platform?: "euw1" | "kr", keepFiles = false) => {
+    const service = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      importDirectory: directory,
+      keepReplayFiles: keepFiles,
+    });
+    try {
+      await service.request({ kind: "replay-metadata", file, ...(platform ? { platform } : {}) });
+      return await service.runNext();
+    } finally {
+      await service.close();
+    }
+  };
+  it("stores validated metadata atomically, keeps missing statistics null, and removes staged copies by default", async () => {
+    const bytes = roflFixture(),
+      file = await staged(bytes),
+      sha256 = digest(bytes);
+    expect((await importFile(file)).state).toBe("done");
+    expect(existsSync(file)).toBe(false);
+    expect(await queries.replayMetadata(sha256)).toMatchObject({
+      sha256,
+      format: "ROFL",
+      gameId: "7612345678",
+      platform: null,
+      gameVersion: "16.22.734.5521",
+      durationMs: 1_800_000,
+      matchId: null,
+      fileRetainedAtImport: false,
+      importedAt: now.toISOString(),
+      participants: [
+        { champion: "Ahri", teamId: 100, kills: 3, deaths: null, assists: 4, win: true },
+        { champion: "Zed", teamId: 200, kills: null, deaths: 3, assists: null, win: false },
+        { champion: null, teamId: null, kills: null, deaths: null, assists: null, win: null },
+      ],
+    });
+    instant = new Date(now.valueOf() + 1000);
+    expect((await importFile(await staged(bytes), "euw1")).state).toBe("done");
+    expect(await queries.replayMetadata(sha256)).toMatchObject({
+      platform: "euw1",
+      importedAt: instant.toISOString(),
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await queries.status()).sources.every((source) => source.lastAttempt === null)).toBe(
+      true,
+    );
+    await expect(queries.replayMetadata("invalid")).rejects.toThrow();
+    expect(await queries.replayMetadata("a".repeat(64))).toBeNull();
+  });
+  it("links embedded game IDs and the supplied platform, while ROFL2 and wrong platforms stay unlinked", async () => {
+    const raw: unknown = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    );
+    const match = parseRiotMatch(raw, "EUW1_7612345678");
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+      [match.matchId],
+      10,
+      now,
+    );
+    await saveRiotMatch(pool, match, raw, now);
+    const bytes = roflFixture();
+    expect((await importFile(await staged(bytes), "euw1")).state).toBe("done");
+    expect((await queries.replayMetadata(digest(bytes)))!.matchId).toBe(match.matchId);
+    expect((await importFile(await staged(bytes), "kr")).state).toBe("done");
+    expect((await queries.replayMetadata(digest(bytes)))!.matchId).toBeNull();
+    const current = roflFixture({ format: "ROFL2" });
+    expect((await importFile(await staged(current), "euw1")).state).toBe("done");
+    expect(await queries.replayMetadata(digest(current))).toMatchObject({
+      gameId: null,
+      matchId: null,
+    });
+    const wrongPatch = roflFixture({ version: "15.1.1" });
+    expect((await importFile(await staged(wrongPatch), "euw1")).state).toBe("done");
+    expect((await queries.replayMetadata(digest(wrongPatch)))!.matchId).toBeNull();
+    expect((await importFile(await staged(bytes), "euw1")).state).toBe("done");
+    await pool.query("DELETE FROM riot_matches WHERE match_id=$1", [match.matchId]);
+    expect(await queries.replayMetadata(digest(bytes))).toMatchObject({
+      gameId: "7612345678",
+      matchId: null,
+    });
+  });
+  it("keeps uploaded copies only when configured and removes invalid staged files", async () => {
+    const bytes = roflFixture(),
+      file = await staged(bytes);
+    expect((await importFile(file, "euw1", true)).state).toBe("done");
+    expect(existsSync(file)).toBe(true);
+    expect((await queries.replayMetadata(digest(bytes)))!.fileRetainedAtImport).toBe(true);
+    const invalid = await staged(roflFixture({ metadata: { statsJson: "invalid" } }));
+    expect((await importFile(invalid)).state).toBe("failed");
+    expect(existsSync(invalid)).toBe(false);
+    expect((await queries.replayMetadata(digest(bytes)))!.fileRetainedAtImport).toBe(true);
+    const oversized = await staged(Buffer.alloc(20));
+    await truncate(oversized, 256 * 1024 * 1024 + 1);
+    const result = await importFile(oversized);
+    expect(result.state).toBe("failed");
+    expect(result).toHaveProperty("error", expect.stringContaining("256 MiB"));
+    expect(existsSync(oversized)).toBe(false);
+  });
+  it("never deletes original paths or symlink targets and preserves existing metadata after a storage failure", async () => {
+    const bytes = roflFixture(),
+      original = join(directory, "original.rofl");
+    await writeFile(original, bytes);
+    expect((await importFile(original)).state).toBe("failed");
+    expect(existsSync(original)).toBe(true);
+    const linked = await staged(bytes);
+    await rm(linked);
+    await symlink(original, linked);
+    expect((await importFile(linked)).state).toBe("failed");
+    expect(existsSync(original)).toBe(true);
+    const file = await staged(bytes);
+    expect((await importFile(file, "euw1")).state).toBe("done");
+    await pool.query(
+      "CREATE FUNCTION reject_replay_metadata() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected storage failure'; END $$",
+    );
+    await pool.query(
+      "CREATE TRIGGER reject_replay_metadata_write BEFORE UPDATE ON replay_metadata FOR EACH ROW EXECUTE FUNCTION reject_replay_metadata()",
+    );
+    try {
+      const correction = await staged(bytes);
+      expect((await importFile(correction, "kr")).state).toBe("failed");
+      expect(existsSync(correction)).toBe(false);
+      expect((await queries.replayMetadata(digest(bytes)))!.platform).toBe("euw1");
+    } finally {
+      await pool.query("DROP TRIGGER reject_replay_metadata_write ON replay_metadata");
+      await pool.query("DROP FUNCTION reject_replay_metadata()");
+    }
   });
 });

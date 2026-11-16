@@ -1,3 +1,4 @@
+import { keepReplayFilesSchema } from "./domain/replays.js";
 import { createSync } from "./sync/index.js";
 import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
@@ -16,6 +17,7 @@ if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
 const riot = parseRiotKeyConfig(process.env);
 const riotPlatforms = parseRiotPlatforms(process.env.RIOT_PLATFORMS);
 const sync = createSync(connection, {
+  keepReplayFiles: keepReplayFilesSchema.parse(process.env.KEEP_REPLAY_FILES),
   ...(riot ? { riot } : {}),
   riotPlatforms,
   riotMatchCap: parseMatchCap(process.env.RIOT_MATCH_CAP),

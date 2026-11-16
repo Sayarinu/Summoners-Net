@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   mkdir: vi.fn(),
   writeFile: vi.fn(),
+  unlink: vi.fn(),
 }));
 vi.mock("./data", () => ({
   synchronization: () => ({ request: mocks.request }),
@@ -13,6 +14,7 @@ vi.mock("./data", () => ({
 vi.mock("node:fs/promises", () => ({
   mkdir: mocks.mkdir,
   writeFile: mocks.writeFile,
+  unlink: mocks.unlink,
 }));
 beforeEach(() => {
   vi.clearAllMocks();
@@ -160,4 +162,42 @@ it("queues bounded track uploads without parsing them or accepting a server path
   expect(
     (await mutate(request({ kind: "replay-track", file: "/etc/passwd" }), "refresh")).status,
   ).toBe(400);
+});
+
+it("stages replay uploads with explicit platform provenance and cleans up when queuing fails", async () => {
+  const form = new FormData();
+  form.set("kind", "replay-metadata");
+  form.set("file", new File(["fixture header"], "EUW1_123.rofl"));
+  form.set("platform", "euw1");
+  const upload = () =>
+    new Request("http://localhost:3000/api/import?kind=replay-metadata", {
+      method: "POST",
+      headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+      body: form,
+    });
+  mocks.writeFile.mockResolvedValue(undefined);
+  mocks.unlink.mockResolvedValue(undefined);
+  expect((await importUpload(upload())).status).toBe(202);
+  const queued: unknown = mocks.request.mock.calls.at(-1)?.[0];
+  expect(queued).toHaveProperty("kind", "replay-metadata");
+  expect(queued).toHaveProperty("platform", "euw1");
+  expect(queued).toHaveProperty("file", expect.stringMatching(/replays\/[a-f0-9-]{36}\.rofl$/));
+  expect(mocks.unlink).not.toHaveBeenCalled();
+  form.set("platform", "unknown");
+  expect((await importUpload(upload())).status).toBe(400);
+  form.set("platform", "");
+  expect((await importUpload(upload())).status).toBe(202);
+  expect(mocks.request.mock.calls.at(-1)?.[0]).not.toHaveProperty("platform");
+  form.set("file", new File(["header"], "bad.json"));
+  expect((await importUpload(upload())).status).toBe(400);
+  form.set("file", new File(["header"], "file.rofl"));
+  mocks.request.mockRejectedValueOnce(new Error("private queue diagnostic"));
+  expect((await importUpload(upload())).status).toBe(400);
+  expect(mocks.unlink).toHaveBeenCalledWith(expect.stringMatching(/replays\/[a-f0-9-]{36}\.rofl$/));
+  mocks.request.mockRejectedValueOnce(new Error("private"));
+  mocks.unlink.mockRejectedValueOnce(new Error("cleanup failed"));
+  expect((await importUpload(upload())).status).toBe(500);
+  mocks.request.mockRejectedValueOnce(new Error("private"));
+  mocks.unlink.mockRejectedValueOnce(Object.assign(new Error("absent"), { code: "ENOENT" }));
+  expect((await importUpload(upload())).status).toBe(400);
 });

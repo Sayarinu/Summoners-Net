@@ -1,4 +1,5 @@
 "use client";
+import { ReplayMetadataUpload } from "./replay-metadata-upload";
 import { ReplayTrackUpload } from "./replay-track-upload";
 import { useState } from "react";
 import { Button, Input, Table, TextLink, StatusIndicator } from "@summonersnet/ui";
@@ -142,6 +143,7 @@ export function SourcesPage({
       <RiotCrawlerSection crawl={status.riotCrawl} timezone={timezone} />
       <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
       <ReplayTrackUpload />
+      <ReplayMetadataUpload />
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">
@@ -204,7 +206,11 @@ export function SourcesPage({
         getRowKey={(j) => j.id}
         columns={[
           { id: "id", header: "Job", render: (j) => j.id },
-          { id: "kind", header: "Refresh", render: (j) => j.kind },
+          {
+            id: "kind",
+            header: "Refresh",
+            render: (j) => (j.kind === "replay-metadata" ? "Replay metadata" : j.kind),
+          },
           {
             id: "state",
             header: "State",
@@ -220,7 +226,12 @@ export function SourcesPage({
             header: "Queued",
             render: (j) => dateTime(j.requestedAt, timezone),
           },
-          { id: "error", header: "Detail", render: (j) => (j.error ? "Needs attention" : "—") },
+          {
+            id: "error",
+            header: "Detail",
+            render: (j) =>
+              j.error ? (j.kind === "replay-metadata" ? j.error : "Needs attention") : "—",
+          },
         ]}
       />
       <section className="np-stack ev-prose">
