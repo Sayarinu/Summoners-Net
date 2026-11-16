@@ -170,6 +170,8 @@ Bug reports, ideas and pull requests are welcome. Please open an
 [AGENTS.md](AGENTS.md) for the architecture rules, checks, branch, commit and PR conventions and the
 release flow.
 
+Architecture decisions: [Replay capture companion](docs/decisions/0001-replay-capture.md).
+
 ## License
 
 SummonersNet is free and open-source software under the [MIT License](LICENSE).
