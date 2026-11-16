@@ -245,6 +245,9 @@ importers:
 
   tools/replay-capture:
     dependencies:
+      '@summonersnet/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@24.10.1)

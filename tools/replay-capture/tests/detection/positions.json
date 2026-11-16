@@ -1,0 +1,62 @@
+[
+  {
+    "participantId": 1,
+    "championId": 1,
+    "x": 5.5,
+    "y": 5.5
+  },
+  {
+    "participantId": 2,
+    "championId": 2,
+    "x": 17.5,
+    "y": 5.5
+  },
+  {
+    "participantId": 3,
+    "championId": 3,
+    "x": 29.5,
+    "y": 5.5
+  },
+  {
+    "participantId": 4,
+    "championId": 4,
+    "x": 41.5,
+    "y": 5.5
+  },
+  {
+    "participantId": 5,
+    "championId": 5,
+    "x": 53.5,
+    "y": 5.5
+  },
+  {
+    "participantId": 6,
+    "championId": 6,
+    "x": 5.5,
+    "y": 19.5
+  },
+  {
+    "participantId": 7,
+    "championId": 7,
+    "x": 17.5,
+    "y": 19.5
+  },
+  {
+    "participantId": 8,
+    "championId": 8,
+    "x": 29.5,
+    "y": 19.5
+  },
+  {
+    "participantId": 9,
+    "championId": 9,
+    "x": 41.5,
+    "y": 19.5
+  },
+  {
+    "participantId": 10,
+    "championId": 10,
+    "x": 53.5,
+    "y": 19.5
+  }
+]

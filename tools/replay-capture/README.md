@@ -10,7 +10,7 @@ images; they do not establish client compatibility, frame timing or detection ac
 Use the repository's pinned Node and pnpm versions, install dependencies, then build:
 
 ```sh
-pnpm --filter @summonersnet/replay-capture build
+pnpm --filter @summonersnet/replay-capture... build
 pnpm replay:capture --help
 ```
 
@@ -100,7 +100,7 @@ reinterpret nominal timestamps as verified positions or fill missing frames by g
 
 ```sh
 flock ~/.cache/summonersnet-tests.lock pnpm --filter @summonersnet/replay-capture test:coverage
-pnpm --filter @summonersnet/replay-capture build
+pnpm --filter @summonersnet/replay-capture... build
 ```
 
 The build compiles the TypeScript on every host. Its platform check exits successfully on Linux with
@@ -115,3 +115,53 @@ launcher control protocol tests; temporary constructed PNGs test real cropping a
 validation. The
 [decision record](../../docs/decisions/0001-replay-capture.md#terms-and-asset-licensing) retains the
 outstanding platform and product-registration/audit limitations.
+
+## Offline champion detection
+
+The exported `@summonersnet/replay-capture/detection` module provides
+`detectMinimapFrames(input, settings)`. It uses only supplied image bytes and makes no network
+calls. Build its workspace dependencies with the command above. The coordinate-only
+`@summonersnet/ui/map-coordinates` export contains no React imports and is also used by Minimap.
+
+Supply `mapId: 11`, a patch identifier, exactly ten `portraits` containing
+`{ participantId, championId, patch, png: Uint8Array }`, and ordered
+`frames: [{ timeMs, png: Uint8Array }]`. Participant IDs must be unique integers 1–10; champion IDs
+must be unique. Provision the matching Data Dragon portrait PNGs locally through the existing
+worker/cache or your own local files; this module never downloads them. Caller-supplied patch and
+identity labels are assertions, not independently verified provenance.
+
+Each frame must already be cropped to the calibrated, north-up, full Summoner's Rift minimap. PNG
+images are limited to 1024 × 1024 and 2 MiB each. All crops in a batch must have identical
+dimensions. A batch contains at most 600 frames, with strictly increasing game timestamps within two
+hours. For longer sequences, overlap batches by one neighbouring frame on each side and retain only
+the interior results. First/last frames cannot receive a three-frame consistency check.
+
+Settings:
+
+- `iconSizes`: one to three calibrated full portrait diameters in pixels, integers 5–48.
+- `threshold`: minimum normalized correlation, 0–1 (default 0.9).
+- `ambiguityMargin`: minimum gap from the strongest distinct location (default 0.08).
+- `jumpWorldUnits`: maximum distance for agreeing neighbours in the isolated-jump check (default
+  1500).
+- `maxGapMs`: maximum gap to either neighbour for that check (default 1000).
+
+The detector resizes each local portrait, compares grayscale intensity with normalized
+cross-correlation, and masks its outer border. It searches only the ten supplied templates at the
+calibrated sizes. Flat portraits fail validation. Weak matches, competing locations and overlapping
+champion claims yield `position: null`. The confidence is the measured similarity, not a calibrated
+probability; a null retains that score and a rejection reason.
+
+Each returned frame contains its input `timeMs` and ten participant/champion results. A retained
+`position` contains world `x/y` and crop-relative `pixel: { x, y }` at the matched icon's centre.
+The shared transform flips y, uses x bounds [-120, 14870] and y bounds [-120, 14980], and supports
+non-square crops. No hidden location is inferred. A single-frame jump with agreeing adjacent
+detections becomes null; sustained moves and gaps are never interpolated or averaged.
+
+The result is an intermediate detection batch, not an importable track file. Never copy the capture
+manifest's nominal times into a verified track without checking game-time synchronization and replay
+identity. Preserve capture calibration and the original PNGs when constructing a versioned track.
+
+Tests use [small original fixtures](tests/detection/README.md), not League screenshots or portraits.
+Live capture, real Data Dragon matching accuracy, skin/HUD variations and throughput on full-size
+captures remain unchecked. These conservative gates cannot establish that every retained sample is
+visible or correct; measure errors and missing coverage before relying on a track.
