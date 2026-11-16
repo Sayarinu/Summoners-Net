@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
@@ -12,6 +12,11 @@ import { reserveRequest, observeQuota, DeferredRequest } from "./quota.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
 import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
+import {
+  championCatalog,
+  championForOracleName,
+  unmappedOracleChampions,
+} from "../persistence/catalog.js";
 const env = new URL("../../../../.env", import.meta.url);
 if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
@@ -34,6 +39,33 @@ const json = (value: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(value), {
     headers: { "Content-Type": "application/json", ...headers },
   });
+type DataDragonFile = "champion" | "item" | "runesReforged" | "summoner";
+const dataDragonFixtures = Object.fromEntries(
+  await Promise.all(
+    (["champion", "item", "runesReforged", "summoner"] as const).map(async (name) => [
+      name,
+      JSON.parse(
+        await readFile(new URL(`../../tests/ddragon/${name}.json`, import.meta.url), "utf8"),
+      ) as unknown,
+    ]),
+  ),
+) as Record<DataDragonFile, unknown>;
+/** Serves Data Dragon from real, trimmed fixtures; a file override replaces one response. */
+function serveDataDragon(
+  versions: string[],
+  overrides: Partial<Record<DataDragonFile, unknown>> = {},
+) {
+  fetcher.mockImplementation((input) => {
+    const url = endpoint(input);
+    if (url.endsWith("/api/versions.json")) return Promise.resolve(json(versions));
+    const [, version, name] = url.match(/\/cdn\/([^/]+)\/data\/en_US\/(\w+)\.json$/) ?? [];
+    const file = name as DataDragonFile;
+    const body = file in overrides ? overrides[file] : dataDragonFixtures[file];
+    if (body instanceof Response) return Promise.resolve(body);
+    const value = JSON.stringify(body).replaceAll('"16.22.1"', JSON.stringify(version));
+    return Promise.resolve(json(JSON.parse(value)));
+  });
+}
 async function run(kind: unknown) {
   await sync.request(kind);
   return sync.runNext();
@@ -52,7 +84,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -465,32 +497,17 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect(await queries.match("pandascore:match:2")).toBeNull();
   });
   it("persists versioned metadata and preserves the last version on partial failure", async () => {
-    fetcher
-      .mockResolvedValueOnce(json(["16.4.1", "lolpatch_7.20"]))
-      .mockResolvedValueOnce(
-        json({
-          version: "16.4.1",
-          data: { Ahri: { name: "Ahri", image: { full: "Ahri.png" } } },
-        }),
-      )
-      .mockResolvedValueOnce(json({ data: { "1": { name: "Boots", image: { full: "1.png" } } } }));
+    serveDataDragon(["16.4.1", "lolpatch_7.20"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");
     expect(await queries.metadata("16.4.1")).toHaveLength(2);
     expect(await queries.metadata()).toHaveLength(2);
-    fetcher
-      .mockResolvedValueOnce(json(["16.5.1"]))
-      .mockResolvedValueOnce(json({ data: {} }))
-      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    serveDataDragon(["16.5.1"], { item: new Response("unavailable", { status: 503 }) });
     expect((await run({ kind: "metadata" })).state).toBe("queued");
     expect(await queries.metadata("16.5.1")).toEqual([]);
     expect(await queries.metadata()).toHaveLength(2);
   });
   it("builds the patch catalog, links Oracle patches and keeps it when Data Dragon fails", async () => {
-    const champion = () => json({ data: { Ahri: { name: "Ahri", image: { full: "Ahri.png" } } } });
-    fetcher
-      .mockResolvedValueOnce(json(["16.4.1", "16.3.1", "16.3.2", "15.21.1", "lolpatch_7.20"]))
-      .mockResolvedValueOnce(champion())
-      .mockResolvedValueOnce(json({ data: {} }));
+    serveDataDragon(["16.4.1", "16.3.1", "16.3.2", "15.21.1", "lolpatch_7.20"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");
     let catalog = await listPatches(pool);
     expect(catalog.map((p) => [p.key, p.releaseOrder])).toEqual([
@@ -522,10 +539,7 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
 
     // A later catalog that adds a patch links the waiting Oracle string; absent patches are kept.
     instant = new Date(now.valueOf() + 86400000);
-    fetcher
-      .mockResolvedValueOnce(json(["16.99.1", "16.4.1"]))
-      .mockResolvedValueOnce(champion())
-      .mockResolvedValueOnce(json({ data: {} }));
+    serveDataDragon(["16.99.1", "16.4.1"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");
     expect(await patchFor(pool, "oracle", "16.99")).toBe("16.99");
     catalog = await listPatches(pool);
@@ -547,6 +561,81 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       success,
     );
   });
+});
+it("stores the champion, item, rune and spell catalog per patch and maps Oracle champion names", async () => {
+  serveDataDragon(["16.22.1", "16.21.1"]);
+  expect((await run({ kind: "metadata" })).state).toBe("done");
+  expect(await championCatalog(pool, "16.22")).toEqual([
+    expect.objectContaining({ id: "Ahri", key: 103, name: "Ahri", image: "Ahri.png" }),
+    expect.objectContaining({ id: "Nunu", key: 20, name: "Nunu & Willump", version: "16.22.1" }),
+    expect.objectContaining({ id: "MonkeyKing", key: 62, name: "Wukong" }),
+  ]);
+  const count = async (table: string) =>
+    (
+      await pool.query<{ n: number }>(
+        `SELECT count(*)::integer n FROM ${table} WHERE patch_key='16.22'`,
+      )
+    ).rows[0]!.n;
+  expect(await count("catalog_items")).toBe(2);
+  expect(await count("catalog_summoner_spells")).toBe(2);
+  expect(
+    (
+      await pool.query(
+        "SELECT rune_id,rune_key,tree_id,slot FROM catalog_runes WHERE patch_key='16.22' ORDER BY tree_id NULLS FIRST,slot,rune_id",
+      )
+    ).rows,
+  ).toEqual([
+    { rune_id: 8100, rune_key: "Domination", tree_id: null, slot: null },
+    { rune_id: 8112, rune_key: "Electrocute", tree_id: 8100, slot: 0 },
+    { rune_id: 8128, rune_key: "DarkHarvest", tree_id: 8100, slot: 0 },
+    { rune_id: 8126, rune_key: "CheapShot", tree_id: 8100, slot: 1 },
+    { rune_id: 8139, rune_key: "TasteOfBlood", tree_id: 8100, slot: 1 },
+  ]);
+  expect(
+    (
+      await pool.query(
+        "SELECT spell_id,spell_key,name FROM catalog_summoner_spells ORDER BY spell_key",
+      )
+    ).rows,
+  ).toEqual([
+    { spell_id: "SummonerFlash", spell_key: 4, name: "Flash" },
+    { spell_id: "SummonerDot", spell_key: 14, name: "Ignite" },
+  ]);
+
+  expect(await championForOracleName(pool, "Wukong")).toBe("MonkeyKing");
+  expect(await championForOracleName(pool, "Nunu & Willump")).toBe("Nunu");
+  expect(await championForOracleName(pool, "wukong")).toBeNull();
+  await importCsv();
+  await importCsv(historyCsv({ id: "unmapped" }).replaceAll(",Ahri,", ",Not A Champion,"));
+  expect(await unmappedOracleChampions(pool)).toEqual([{ name: "Not A Champion", rows: 10 }]);
+
+  // A failed file leaves the whole catalog, the mapping and their timestamps untouched.
+  const before = await championCatalog(pool, "16.22");
+  instant = new Date(now.valueOf() + 86400000);
+  serveDataDragon(["16.23.1"], { runesReforged: new Response("unavailable", { status: 503 }) });
+  expect((await run({ kind: "metadata" })).state).toBe("queued");
+  expect(await championCatalog(pool, "16.23")).toEqual([]);
+  expect(await championCatalog(pool, "16.22")).toEqual(before);
+  instant = new Date(instant.valueOf() + 3600000);
+  serveDataDragon(["16.23.1"], { summoner: { data: { SummonerFlash: { id: "SummonerFlash" } } } });
+  expect((await run({ kind: "metadata" })).state).toBe("failed");
+  expect(await championCatalog(pool, "16.23")).toEqual([]);
+
+  // Two champions claiming one display name invalidate the mapping as a whole.
+  instant = new Date(instant.valueOf() + 3600000);
+  serveDataDragon(["16.23.1"], {
+    champion: {
+      data: {
+        Ahri: { id: "Ahri", key: "103", name: "Ahri", image: { full: "Ahri.png" } },
+        Wukong: { id: "Wukong", key: "999", name: "Wukong", image: { full: "Wukong.png" } },
+      },
+    },
+  });
+  const failed = await run({ kind: "metadata" });
+  expect(failed.state).toBe("failed");
+  expect("error" in failed ? failed.error : "").toContain("Wukong");
+  expect(await championCatalog(pool, "16.23")).toEqual([]);
+  expect(await championForOracleName(pool, "Wukong")).toBe("MonkeyKing");
 });
 it("counts eligible team games even when team summary rows are missing, and counts champion games once", async () => {
   const csv = historyCsv()

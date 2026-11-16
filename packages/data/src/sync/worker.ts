@@ -11,7 +11,17 @@ import {
   parseTournamentRosters,
 } from "../providers/pandascore.js";
 import { archiveApiDownload, archiveDownload, archiveFileId } from "../providers/oracle.js";
-import { parseMetadata, parseVersionCatalog, parseVersions } from "../providers/ddragon.js";
+import {
+  parseChampionCatalog,
+  parseItemCatalog,
+  parseMetadata,
+  parseRuneCatalog,
+  parseSpellCatalog,
+  parseVersionCatalog,
+  parseVersions,
+} from "../providers/ddragon.js";
+import { normalizePatch } from "../domain/patches.js";
+import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js";
 import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
 import { claim, schedule } from "./queue.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
@@ -254,24 +264,38 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const version = parseVersions(versions)[0]!;
       // The patch catalog is complete once versions.json validates; later metadata failures keep it.
       await savePatchCatalog(pool, versions, clock());
-      const records: {
-        kind: "champion" | "item";
-        document: ReturnType<typeof parseMetadata>;
-      }[] = [];
-      for (const kind of ["champion", "item"] as const) {
-        const raw: unknown = await (
+      const patchKey = normalizePatch(version)?.key;
+      if (!patchKey)
+        throw new ProviderError(`Data Dragon version ${version} is not a known patch.`);
+      const file = async (name: string): Promise<unknown> =>
+        (
           await request(
-            `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/${kind}.json`,
+            `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/${name}.json`,
           )
         ).json();
-        records.push({ kind, document: parseMetadata(raw, version, kind) });
-      }
+      const [champion, item, runes, summoner] = [
+        await file("champion"),
+        await file("item"),
+        await file("runesReforged"),
+        await file("summoner"),
+      ];
+      const records = [
+        { kind: "champion", document: parseMetadata(champion, version, "champion") },
+        { kind: "item", document: parseMetadata(item, version, "item") },
+      ];
+      const catalog = {
+        champions: parseChampionCatalog(champion, version),
+        items: parseItemCatalog(item, version),
+        runes: parseRuneCatalog(runes),
+        spells: parseSpellCatalog(summoner, version),
+      };
       await transaction(pool, async (c) => {
         for (const r of records)
           await c.query(
             "INSERT INTO metadata VALUES($1,$2,$3) ON CONFLICT(version,kind) DO UPDATE SET document=EXCLUDED.document",
             [version, r.kind, r.document],
           );
+        await saveGameCatalog(c, patchKey, version, catalog, clock());
       });
       return records.reduce((n, r) => n + Object.keys(r.document).length, 0);
     }
@@ -345,7 +369,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
           const detail =
             error instanceof z.ZodError
               ? "Provider schema validation failed; saved data is unchanged."
-              : error instanceof ProviderError || deferred
+              : error instanceof ProviderError || error instanceof ChampionMappingError || deferred
                 ? error.message
                 : job.request.kind === "history"
                   ? "Historical import failed validation or could not be read; saved data is unchanged."

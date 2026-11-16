@@ -33,3 +33,102 @@ export function parseMetadata(input: unknown, version: string, kind: "champion" 
     ]),
   );
 }
+
+// Catalog parsers keep Data Dragon's own identifiers: champion id ("MonkeyKing") and numeric key
+// ("62"), item ids ("1001"), rune and tree ids (8112, 8100) and summoner spell ids and keys.
+const image = z.object({ full: z.string().regex(/^[\w.-]+\.png$/) });
+const numericKey = z.string().regex(/^\d{1,9}$/);
+const versioned = <T extends z.ZodType>(data: T) =>
+  z.object({ version: z.string().optional(), data: z.record(z.string(), data) });
+function checkVersion(parsed: { version?: string | undefined }, version: string) {
+  if (parsed.version && parsed.version !== version) throw new Error("Metadata version mismatch");
+}
+export interface CatalogEntry {
+  id: string;
+  /** Data Dragon's key as received: "103" for Ahri, "4" for Flash, "Electrocute" for a rune. */
+  key: string | null;
+  name: string;
+  image: string;
+  treeId: number | null;
+  slot: number | null;
+}
+export function parseChampionCatalog(input: unknown, version: string): CatalogEntry[] {
+  const parsed = versioned(
+    z.object({
+      id: z.string().regex(/^\w{1,40}$/),
+      key: numericKey,
+      name: z.string().min(1),
+      image,
+    }),
+  ).parse(input);
+  checkVersion(parsed, version);
+  return Object.entries(parsed.data).map(([record, c]) => {
+    if (record !== c.id) throw new Error("Champion record key does not match its id");
+    return { id: c.id, key: c.key, name: c.name, image: c.image.full, treeId: null, slot: null };
+  });
+}
+export function parseItemCatalog(input: unknown, version: string): CatalogEntry[] {
+  const parsed = versioned(z.object({ name: z.string(), image })).parse(input);
+  checkVersion(parsed, version);
+  return Object.entries(parsed.data).map(([id, item]) => ({
+    id: numericKey.parse(id),
+    key: null,
+    name: item.name,
+    image: item.image.full,
+    treeId: null,
+    slot: null,
+  }));
+}
+export function parseSpellCatalog(input: unknown, version: string): CatalogEntry[] {
+  const parsed = versioned(
+    z.object({
+      id: z.string().regex(/^\w{1,40}$/),
+      key: numericKey,
+      name: z.string().min(1),
+      image,
+    }),
+  ).parse(input);
+  checkVersion(parsed, version);
+  return Object.values(parsed.data).map((s) => ({
+    id: s.id,
+    key: s.key,
+    name: s.name,
+    image: s.image.full,
+    treeId: null,
+    slot: null,
+  }));
+}
+/** Trees and their runes; a tree has no tree id or slot of its own. */
+export function parseRuneCatalog(input: unknown): CatalogEntry[] {
+  const icon = z.string().regex(/^[\w./-]+\.png$/);
+  const rune = z.object({
+    id: z.number().int().positive(),
+    key: z.string().min(1),
+    name: z.string(),
+    icon,
+  });
+  const trees = z
+    .array(rune.extend({ slots: z.array(z.object({ runes: z.array(rune) })).min(1) }))
+    .min(1)
+    .parse(input);
+  return trees.flatMap((tree) => [
+    {
+      id: String(tree.id),
+      key: tree.key,
+      name: tree.name,
+      image: tree.icon,
+      treeId: null,
+      slot: null,
+    },
+    ...tree.slots.flatMap((s, slot) =>
+      s.runes.map((r) => ({
+        id: String(r.id),
+        key: r.key,
+        name: r.name,
+        image: r.icon,
+        treeId: tree.id,
+        slot,
+      })),
+    ),
+  ]);
+}
