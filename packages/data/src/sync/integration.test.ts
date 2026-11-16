@@ -26,7 +26,7 @@ import {
 import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
-import { championStats } from "../persistence/aggregates.js";
+import { championStats, tierList } from "../persistence/aggregates.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
@@ -2106,6 +2106,84 @@ describe("Champion aggregates", () => {
       rows: [],
     });
     await expect(championStats(pool, { role: "SUPPORT" as "UTILITY" })).rejects.toThrow();
+  });
+  it("serves a tier list sorted and paginated in SQL, with names, samples and facets", async () => {
+    serveDataDragon(["16.22.1", "16.21.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(
+      pool,
+      "euw1",
+      [ladderEntry(challenger, "CHALLENGER"), ladderEntry(master, "MASTER")],
+      now,
+    );
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+    });
+    await ingest("EUW1_3", master, (m) => {
+      delete m.info.participants[0]!.win;
+    });
+    await runAggregate();
+    const list = await tierList(pool, {});
+    expect(list).toMatchObject({ patch: "16.22", sliceGames: 3 });
+    expect(list.facets).toEqual({
+      patches: ["16.22"],
+      regions: ["europe"],
+      tiers: ["CHALLENGER", "MASTER"],
+    });
+    // Eleven champions (ten picked, one only banned), sorted by games, then key.
+    expect(list.page.total).toBe(11);
+    expect(list.page.items[0]).toMatchObject({
+      championKey: 64,
+      name: null,
+      games: 3,
+      sample: "hidden",
+    });
+    const ahri = list.page.items.find((r) => r.championKey === 103)!;
+    expect(ahri).toMatchObject({
+      championId: "Ahri",
+      name: "Ahri",
+      games: 3,
+      wins: 1,
+      winRate: { value: 0.5, sampleCount: 2 },
+      pickRate: { value: 1, sampleCount: 3 },
+      banRate: { value: 0, sampleCount: 3 },
+      sample: "hidden",
+    });
+    expect(ahri.winRate.lower).toBeLessThan(0.5);
+    expect(list.page.items.at(-1)).toMatchObject({
+      championKey: 238,
+      games: 0,
+      winRate: { value: null },
+    });
+
+    // Win rate ascending keeps unknown win rates last; descending puts winners first.
+    const ascending = await tierList(pool, { sort: "winRate", order: "asc" });
+    expect(ascending.page.items[0]!.winRate.value).toBe(0);
+    expect(ascending.page.items.at(-1)!.winRate.value).toBeNull();
+    const descending = await tierList(pool, { sort: "winRate" });
+    expect(descending.page.items[0]!.winRate.value).toBe(1);
+    expect((await tierList(pool, { sort: "banRate" })).page.items[0]!.championKey).toBe(238);
+
+    // Role, tier and page filters.
+    const mid = await tierList(pool, { role: "MIDDLE", tier: "MASTER" });
+    expect(mid.sliceGames).toBe(1);
+    // Both mid laners of the one master-tier game: Ahri's result is unknown, Yasuo lost.
+    expect(mid.page.items.map((r) => [r.championKey, r.games, r.winRate.value])).toEqual([
+      [103, 1, null],
+      [157, 1, 0],
+    ]);
+    expect((await tierList(pool, { page: 2 })).page).toMatchObject({
+      items: [],
+      total: 0,
+      page: 2,
+    });
+    expect(await tierList(pool, { source: "pro" })).toMatchObject({
+      patch: null,
+      page: { total: 0 },
+    });
+    await expect(tierList(pool, { sort: "name" as "games" })).rejects.toThrow();
+    expect((await queries.tierList({ patch: "16.21" })).page.total).toBe(0);
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

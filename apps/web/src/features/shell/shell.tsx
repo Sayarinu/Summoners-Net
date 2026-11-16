@@ -32,6 +32,7 @@ export function ShellHeader({
     { href: "/history", label: "History" },
     { href: "/teams", label: "Teams" },
     { href: "/players", label: "Players" },
+    { href: "/tier-list", label: "Tier list" },
     { href: "/search", label: "Search" },
   ];
   return (

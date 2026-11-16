@@ -275,6 +275,35 @@ test("the Riot crawler shows progress per region and patch and queues a crawl", 
   });
   expect(invalid.status()).toBe(400);
 });
+test("the tier list filters by role and source and sorts in SQL", async ({ page }) => {
+  await page.goto("/tier-list");
+  const table = page.getByRole("table", { name: "Champion tier list" });
+  // Ten picked champions and one only banned, from one solo-queue game.
+  await expect(table.getByRole("row")).toHaveCount(12);
+  await expect(page.getByText(/Patch 16\.4 · 1 game/)).toBeVisible();
+  const choose = async (label: string, option: string) => {
+    await page.locator(".np-select", { hasText: label }).getByRole("button").click();
+    await page.getByRole("option", { name: option, exact: true }).click();
+  };
+  await choose("Role", "Mid");
+  await choose("Sort by", "Win rate");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/role=MIDDLE/);
+  await expect(page).toHaveURL(/sort=winRate/);
+  await expect(table.getByRole("row")).toHaveCount(3);
+  await expect(table.getByRole("row").nth(1)).toContainText("Ahri");
+  await expect(table.getByRole("row").nth(1)).toContainText("Too few games");
+  await choose("Order", "Lowest first");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/order=asc/);
+  await expect(table.getByRole("row").nth(1)).toContainText("Champion 157");
+  await choose("Source", "Pro");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/source=pro/);
+  await expect(table.getByRole("row").nth(1)).toContainText("Ahri");
+  await page.goto("/tier-list?role=SUPPORT");
+  await expect(page.getByText(/Choose filters from the lists/)).toBeVisible();
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

@@ -46,3 +46,47 @@ export interface ChampionStats {
   sliceGames: number;
   rows: ChampionStatsRow[];
 }
+
+export const tierListSorts = ["winRate", "pickRate", "banRate", "games"] as const;
+/** Tier list filters as they arrive in a query string. */
+export const tierListQuerySchema = z
+  .object({
+    source: z.enum(["solo", "pro"]).default("solo"),
+    patch: z
+      .string()
+      .regex(/^\d{1,2}\.\d{1,2}$/)
+      .optional(),
+    role: z.enum(championRoles).default("ALL"),
+    region: z.string().trim().min(1).max(100).optional(),
+    tier: z.string().trim().min(1).max(20).optional(),
+    sort: z.enum(tierListSorts).default("games"),
+    order: z.enum(["asc", "desc"]).default("desc"),
+    page: z.coerce.number().int().min(1).max(10000).default(1),
+  })
+  .strict();
+export type TierListQuery = z.input<typeof tierListQuerySchema>;
+export type ParsedTierListQuery = z.output<typeof tierListQuerySchema>;
+export interface TierListRow {
+  championKey: number;
+  /** Data Dragon's champion id and name; null when the catalog does not know the key. */
+  championId: string | null;
+  name: string | null;
+  /** The locally cached icon, when the worker has cached it. */
+  imageUrl: string | null;
+  role: (typeof championRoles)[number];
+  games: number;
+  wins: number;
+  winRate: SampledValue & { lower: number | null; upper: number | null };
+  pickRate: SampledValue;
+  banRate: SampledValue;
+  /** From the shared minimum-sample policy, applied to the win rate's sample. */
+  sample: "shown" | "low-sample" | "hidden";
+}
+export interface TierList {
+  query: ParsedTierListQuery;
+  /** The patch shown: the requested one, or the newest with aggregates for the source. */
+  patch: string | null;
+  sliceGames: number;
+  page: { items: TierListRow[]; page: number; pageSize: number; total: number };
+  facets: { patches: string[]; regions: string[]; tiers: string[] };
+}
