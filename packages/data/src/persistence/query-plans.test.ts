@@ -27,7 +27,7 @@ const now = new Date("2026-11-16T12:00:00.000Z");
 
 beforeAll(async () => {
   await migrate(pool);
-  await pool.query(`TRUNCATE ${largeTables.join(",")},wp_models,catalog_champions,patches CASCADE`);
+  await clear();
   const seed = (sql: string) => pool.query(sql, [now]);
   await seed(`INSERT INTO patches(patch_key,major,minor,release_order,ddragon_versions,observed_at)
     SELECT '16.'||m,16,m,m,ARRAY['16.'||m||'.1'],$1 FROM generate_series(1,24) m`);
@@ -72,7 +72,13 @@ beforeAll(async () => {
     FROM wp_models m, (SELECT * FROM patches WHERE minor>20) p, generate_series(1,3000) s`);
   await pool.query(`ANALYZE ${largeTables.join(",")},catalog_champions,patches,wp_models`);
 }, 120_000);
-afterAll(() => pool.end());
+// Leave nothing behind for the suites that share the test database.
+const clear = () =>
+  pool.query(`TRUNCATE ${largeTables.join(",")},wp_models,catalog_champions,patches CASCADE`);
+afterAll(async () => {
+  await clear();
+  await pool.end();
+});
 
 interface PlanNode {
   "Node Type": string;
