@@ -124,6 +124,10 @@ The staged replay copy is deleted by default after processing, including invalid
 not delete earlier retained files. The original file on your computer is untouched. If database
 storage fails after cleanup, upload the original again to retry.
 
+Regional solo-queue ladders are available at `/leaderboards/euw1` (replace `euw1` with a configured
+Riot platform). They show the last successful apex-tier ladder, with champion counts from retained
+ranked games in that platform. These match samples are separate from season wins and losses.
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting

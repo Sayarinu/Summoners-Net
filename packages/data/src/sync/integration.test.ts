@@ -25,6 +25,8 @@ import {
   currentLadder,
   ladderStatus,
   saveLadder,
+  saveAccount,
+  recordLadderFailure,
   saveMatchIds,
 } from "../persistence/riot.js";
 import { gunzipSync } from "node:zlib";
@@ -3768,5 +3770,124 @@ describe("replay metadata imports", () => {
       await pool.query("DROP TRIGGER reject_replay_metadata_write ON replay_metadata");
       await pool.query("DROP FUNCTION reject_replay_metadata()");
     }
+  });
+});
+
+describe("regional leaderboards", () => {
+  const id = (letter: string) => letter.repeat(78);
+  const entry = (
+    letter: string,
+    lp: number,
+    tier: "CHALLENGER" | "GRANDMASTER" | "MASTER" = "CHALLENGER",
+  ) => ({
+    puuid: id(letter),
+    summonerId: null,
+    tier,
+    rank: "I",
+    leaguePoints: lp,
+    wins: 3,
+    losses: 1,
+    leagueId: "fixture",
+  });
+  it("paginates a stable ranking and preserves the last successful ladder after failure", async () => {
+    await saveLadder(pool, "euw1", [entry("x", 2000)], new Date(now.getTime() - 1000));
+    await saveLadder(
+      pool,
+      "euw1",
+      [
+        entry("b", 1000),
+        entry("a", 1000),
+        entry("c", 2000, "MASTER"),
+        { ...entry("z", 500), wins: 0, losses: 0 },
+      ],
+      now,
+    );
+    await saveLadder(pool, "kr", [entry("k", 5000)], now);
+    await saveAccount(pool, { puuid: id("a"), gameName: "Ladder fixture", tagLine: "EUW" }, now);
+    const first = await queries.leaderboard({ region: "euw1", pageSize: 2 });
+    expect(first.page.total).toBe(4);
+    expect(first.page.items.map((r) => [r.rank, r.puuid])).toEqual([
+      [1, id("a")],
+      [2, id("b")],
+    ]);
+    expect(first.page.items[0]).toMatchObject({
+      gameName: "Ladder fixture",
+      tagLine: "EUW",
+      winRate: { value: 0.75, sampleCount: 4 },
+      sampledGames: 0,
+      champions: [],
+    });
+    const second = await queries.leaderboard({ region: "euw1", pageSize: 2, page: 2 });
+    expect(second.page.items.map((r) => [r.rank, r.puuid])).toEqual([
+      [3, id("z")],
+      [4, id("c")],
+    ]);
+    expect(second.page.items[0]?.winRate).toEqual({ value: null, sampleCount: 0 });
+    expect(second.page.items[0]?.gameName).toBeNull();
+    const outside = await queries.leaderboard({ region: "euw1", page: 100 });
+    expect(outside.page).toMatchObject({ items: [], total: 4 });
+    await recordLadderFailure(pool, "euw1", "fixture failed refresh");
+    const failed = await queries.leaderboard({ region: "euw1", pageSize: 2 });
+    expect(failed.page).toEqual(first.page);
+    expect(failed.lastSuccess).toBe(now.toISOString());
+    expect(failed.refreshFailed).toBe(true);
+    const empty = await queries.leaderboard({ region: "na1" });
+    expect(empty.lastSuccess).toBeNull();
+    expect(empty.refreshFailed).toBe(false);
+    expect(empty.page.total).toBe(0);
+    for (const input of [
+      { region: "invalid" },
+      { region: "euw1", page: 0 },
+      { region: "euw1", pageSize: 101 },
+    ])
+      await expect(queries.leaderboard(input as { region: "euw1" })).rejects.toThrow();
+  });
+  it("counts only this platform's stored solo games and bounds each player's champion list", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [entry("a", 1000)], now);
+    const template = JSON.parse(
+      readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+    ) as {
+      metadata: { matchId: string };
+      info: { queueId: number; platformId: string; participants: { championId: number }[] };
+    };
+    for (const [index, champion] of [103, 103, 64, 86, 222, 103, 103].entries()) {
+      const raw = structuredClone(template);
+      const platform = index === 6 ? "kr" : "euw1";
+      const matchId = platform.toUpperCase() + "_" + (8000000000 + index);
+      raw.metadata.matchId = matchId;
+      raw.info.platformId = platform.toUpperCase();
+      raw.info.queueId = index === 5 ? 450 : 420;
+      raw.info.participants[0]!.championId = champion;
+      await saveMatchIds(
+        pool,
+        {
+          puuid: id("a"),
+          platform,
+          region: platform === "kr" ? "asia" : "europe",
+          patchKey: "16.22",
+        },
+        [matchId],
+        20,
+        now,
+      );
+      await saveRiotMatch(pool, parseRiotMatch(raw, matchId), raw, now);
+    }
+    const row = (await queries.leaderboard({ region: "euw1" })).page.items[0]!;
+    expect(row.sampledGames).toBe(5);
+    expect(row.champions.map((c) => [c.championKey, c.games])).toEqual([
+      [103, 2],
+      [64, 1],
+      [86, 1],
+    ]);
+    expect(row.champions[0]).toMatchObject({ championId: null, name: null, imageUrl: null });
+    // The catalog resolves identity and a locally cached image without fetching during the query.
+    serveDataDragon(["16.22.1"]);
+    await sync.request({ kind: "metadata" });
+    await sync.runNext();
+    const known = (await queries.leaderboard({ region: "euw1" })).page.items[0]!.champions[0]!;
+    expect(known.championId).toBe("Ahri");
+    expect(known.name).toBe("Ahri");
+    expect(known.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
   });
 });
