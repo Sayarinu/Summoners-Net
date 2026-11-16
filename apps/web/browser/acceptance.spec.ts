@@ -304,6 +304,23 @@ test("the tier list filters by role and source and sorts in SQL", async ({ page 
   await page.goto("/tier-list?role=SUPPORT");
   await expect(page.getByText(/Choose filters from the lists/)).toBeVisible();
 });
+test("a champion page shows rates, tier and trend, and unknown champions are not found", async ({
+  page,
+}) => {
+  await page.goto("/tier-list?role=MIDDLE");
+  await page.getByRole("link", { name: "Ahri", exact: true }).click();
+  await expect(page).toHaveURL(/\/champions\/Ahri$/);
+  await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
+  const stats = page.getByRole("region", { name: "Champion statistics" });
+  await expect(stats).toContainText("Patch 16.4");
+  await expect(stats).toContainText("Win rate · 1 results");
+  await expect(stats).toContainText("Tier");
+  await expect(page.getByText("Ahri win rate by patch").first()).toBeAttached();
+  await page.goto("/champions/Ahri?source=pro");
+  await expect(page.getByText("Pro play · All roles")).toBeVisible();
+  const missing = await page.goto("/champions/NotAChampion");
+  expect(missing?.status()).toBe(404);
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

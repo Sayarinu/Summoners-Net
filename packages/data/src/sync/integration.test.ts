@@ -26,7 +26,8 @@ import {
 import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
-import { championStats, tierList } from "../persistence/aggregates.js";
+import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
+import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
@@ -132,6 +133,9 @@ beforeEach(async () => {
   await pool.query("UPDATE quota_state SET cooldown_until=NULL");
   await pool.query(
     "UPDATE riot_key_status SET configured=false,kind=NULL,fingerprint=NULL,set_at=NULL,state='missing',checked_at=NULL,detail=NULL",
+  );
+  await pool.query(
+    "UPDATE riot_retention SET previous_patches=NULL,kept_patches='{}',last_run_at=NULL,pruned_matches=0,backfilled_matches=0",
   );
 });
 afterAll(async () => {
@@ -2184,6 +2188,79 @@ describe("Champion aggregates", () => {
     });
     await expect(tierList(pool, { sort: "name" as "games" })).rejects.toThrow();
     expect((await queries.tierList({ patch: "16.21" })).page.total).toBe(0);
+  });
+  it("gives a champion overview with a shrunk-rate tier and a trend with gaps", async () => {
+    serveDataDragon(["16.22.1", "16.21.1", "16.20.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(
+      pool,
+      "euw1",
+      [ladderEntry(challenger, "CHALLENGER"), ladderEntry(master, "MASTER")],
+      now,
+    );
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+    });
+    await ingest("EUW1_3", master, (m) => {
+      delete m.info.participants[0]!.win;
+    });
+    await ingest("EUW1_4", challenger, (m) => {
+      (m.info as unknown as { gameVersion: string }).gameVersion = "16.21.700.1";
+    });
+    await runAggregate();
+    const ahri = (await championOverview(pool, { champion: "Ahri" }))!;
+    expect(ahri).toMatchObject({
+      // The metadata job caches catalog icons locally.
+      champion: {
+        id: "Ahri",
+        key: 103,
+        name: "Ahri",
+        imageUrl: expect.stringMatching(/^\/api\/images\/[a-f0-9]{64}$/) as string,
+      },
+      patch: "16.22",
+      sliceGames: 3,
+      games: 3,
+      winRate: { value: 0.5, sampleCount: 2 },
+      pickRate: { value: 1, sampleCount: 3 },
+      banRate: { value: 0, sampleCount: 3 },
+    });
+    expect(ahri.winRate.lower).toBeLessThan(0.5);
+    expect(ahri.shrunkWinRate.sampleCount).toBe(2);
+    expect(ahri.tier).toBe(tierFromDelta(ahri.shrunkWinRate.value! - ahri.baseline!));
+    // 16.20 is in the catalog but has no games: a gap, not zero.
+    expect(ahri.trend).toEqual([
+      { patch: "16.20", games: 0, winRate: { value: null, sampleCount: 0 } },
+      { patch: "16.21", games: 1, winRate: { value: 1, sampleCount: 1 } },
+      { patch: "16.22", games: 3, winRate: { value: 0.5, sampleCount: 2 } },
+    ]);
+    // Filters apply to the rates, the prior and the trend alike.
+    const master16 = (await championOverview(pool, {
+      champion: "Ahri",
+      tier: "MASTER",
+      role: "MIDDLE",
+    }))!;
+    expect(master16).toMatchObject({
+      sliceGames: 1,
+      games: 1,
+      winRate: { value: null, sampleCount: 0 },
+      shrunkWinRate: { value: null, sampleCount: 0 },
+      tier: null,
+    });
+    // With a retention setting the trend spans the kept patches.
+    await pool.query("UPDATE riot_retention SET kept_patches='{16.22,16.21}'");
+    expect((await championOverview(pool, { champion: "Ahri" }))!.trend.map((t) => t.patch)).toEqual(
+      ["16.21", "16.22"],
+    );
+    // No pro data yet: unknown rather than zero; an unknown champion is not found.
+    expect(await queries.championOverview({ champion: "Ahri", source: "pro" })).toMatchObject({
+      patch: null,
+      games: 0,
+      winRate: { value: null },
+      pickRate: { value: null },
+      tier: null,
+    });
+    expect(await championOverview(pool, { champion: "NotAChampion" })).toBeNull();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

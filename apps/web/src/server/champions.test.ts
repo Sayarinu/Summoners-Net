@@ -1,9 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const tierList = vi.fn();
+const championOverview = vi.fn();
 vi.mock("server-only", () => ({}));
-vi.mock("./data", () => ({ data: () => ({ tierList }) }));
-const { loadTierList } = await import("./champions");
+vi.mock("./data", () => ({ data: () => ({ tierList, championOverview }) }));
+const { loadChampionOverview, loadTierList } = await import("./champions");
 beforeEach(() => tierList.mockReset().mockResolvedValue({ patch: "16.22" }));
 
 it("validates the query string before reading aggregates", async () => {
@@ -22,4 +23,27 @@ it("validates the query string before reading aggregates", async () => {
     expect(result.error).toMatch(/Choose filters/);
   }
   expect(tierList).toHaveBeenCalledTimes(1);
+});
+
+it("validates champion ids and filters, and returns null for unknown champions", async () => {
+  championOverview
+    .mockReset()
+    .mockImplementation(({ champion }: { champion: string }) =>
+      Promise.resolve(champion === "Ahri" ? { champion: { id: "Ahri" } } : null),
+    );
+  expect(await loadChampionOverview("Ahri", { role: "MIDDLE", region: "all" })).toEqual({
+    overview: { champion: { id: "Ahri" } },
+    error: null,
+  });
+  expect(championOverview).toHaveBeenLastCalledWith(
+    expect.objectContaining({ champion: "Ahri", role: "MIDDLE", source: "solo" }),
+  );
+  // Invalid filters fall back to the defaults with an error; the champion still shows.
+  const invalid = await loadChampionOverview("Ahri", { role: "SUPPORT" });
+  expect(invalid?.error).toMatch(/Choose filters/);
+  expect(championOverview).toHaveBeenLastCalledWith({ champion: "Ahri" });
+  expect(await loadChampionOverview("Unknown", {})).toBeNull();
+  const calls = championOverview.mock.calls.length;
+  expect(await loadChampionOverview("../etc", {})).toBeNull();
+  expect(championOverview.mock.calls.length).toBe(calls);
 });

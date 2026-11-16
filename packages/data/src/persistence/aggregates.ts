@@ -1,7 +1,11 @@
 import type { Pool } from "pg";
 import {
+  championOverviewQuerySchema,
   championStatsQuerySchema,
+  tierFromDelta,
   tierListQuerySchema,
+  type ChampionOverview,
+  type ChampionOverviewQuery,
   type TierList,
   type TierListQuery,
   type TierListRow,
@@ -9,7 +13,12 @@ import {
   type ChampionStatsQuery,
   type ChampionStatsRow,
 } from "../domain/champion-stats.js";
-import { applySamplePolicy, wilsonInterval } from "../domain/statistics.js";
+import {
+  applySamplePolicy,
+  fitRatePrior,
+  shrinkRate,
+  wilsonInterval,
+} from "../domain/statistics.js";
 import { transaction, type Executor } from "./database.js";
 
 export type AggregateSource = "solo" | "pro";
@@ -331,5 +340,131 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       pageSize: tierListPageSize,
       total: rows.rows[0]?.total ?? 0,
     },
+  };
+}
+
+/**
+ * One champion's statistics for a patch, a tier from its shrunk win rate, and its trend across
+ * kept patches. Null when the champion id is not in the catalog. Reads only aggregates.
+ */
+export async function championOverview(
+  db: Executor,
+  input: ChampionOverviewQuery,
+): Promise<ChampionOverview | null> {
+  const q = championOverviewQuerySchema.parse(input);
+  const champion = (
+    await db.query<{
+      champion_id: string;
+      champion_key: number;
+      name: string;
+      asset_hash: string | null;
+    }>(
+      `SELECT c.champion_id,c.champion_key,c.name,i.asset_hash FROM catalog_champions c
+       JOIN patches p USING (patch_key)
+       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion'
+         AND i.catalog_id=c.champion_id
+       WHERE c.champion_id=$1 ORDER BY p.release_order DESC LIMIT 1`,
+      [q.champion],
+    )
+  ).rows[0];
+  if (!champion) return null;
+  const list = await tierList(db, {
+    source: q.source,
+    role: q.role,
+    ...(q.patch ? { patch: q.patch } : {}),
+    ...(q.region ? { region: q.region } : {}),
+    ...(q.tier ? { tier: q.tier } : {}),
+  });
+  const filters = [q.source, q.region ?? null, q.tier ?? null, q.role];
+  // Every champion's results in the slice, for the empirical-Bayes prior.
+  const slice = list.patch
+    ? (
+        await db.query<{
+          champion_key: number;
+          wins: number;
+          result_games: number;
+          games: number;
+          bans: number | null;
+        }>(
+          `SELECT champion_key,sum(wins)::integer AS wins,sum(result_games)::integer AS result_games,
+             sum(games)::integer AS games,sum(bans)::integer AS bans
+           FROM champion_aggregates WHERE source=$1 AND ($2::text IS NULL OR region=$2)
+             AND ($3::text IS NULL OR tier=$3) AND role=$4 AND patch_key=$5
+           GROUP BY champion_key`,
+          [...filters, list.patch],
+        )
+      ).rows
+    : [];
+  const own = slice.find((r) => r.champion_key === champion.champion_key);
+  const prior = fitRatePrior(slice.map((r) => ({ successes: r.wins, trials: r.result_games })));
+  const shrunk = shrinkRate(own?.wins ?? 0, own?.result_games ?? 0, prior);
+  const shrunkWinRate = own?.result_games ? shrunk : { value: null, sampleCount: 0 };
+  // The trend spans the kept solo-queue patches, or the last eight catalog patches.
+  const kept =
+    q.source === "solo"
+      ? ((await db.query<{ kept_patches: string[] }>("SELECT kept_patches FROM riot_retention"))
+          .rows[0]?.kept_patches ?? [])
+      : [];
+  const span = (
+    await db.query<{ patch_key: string }>(
+      kept.length
+        ? "SELECT patch_key FROM patches WHERE patch_key=ANY($1::text[]) ORDER BY release_order"
+        : `SELECT patch_key FROM (SELECT patch_key,release_order FROM patches
+             WHERE release_order<=coalesce((SELECT release_order FROM patches WHERE patch_key=$1),
+               (SELECT max(release_order) FROM patches))
+             ORDER BY release_order DESC LIMIT 8) p ORDER BY release_order`,
+      [kept.length ? kept : list.patch],
+    )
+  ).rows.map((r) => r.patch_key);
+  const points = new Map(
+    (
+      await db.query<{ patch_key: string; wins: number; result_games: number; games: number }>(
+        `SELECT patch_key,sum(wins)::integer AS wins,sum(result_games)::integer AS result_games,
+           sum(games)::integer AS games FROM champion_aggregates
+         WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
+           AND role=$4 AND champion_key=$5 AND patch_key=ANY($6::text[])
+         GROUP BY patch_key`,
+        [...filters, champion.champion_key, span],
+      )
+    ).rows.map((r) => [r.patch_key, r]),
+  );
+  const winRate = wilsonInterval(own?.wins ?? null, own?.result_games ?? null);
+  return {
+    query: q,
+    champion: {
+      id: champion.champion_id,
+      key: champion.champion_key,
+      name: champion.name,
+      imageUrl: champion.asset_hash ? `/api/images/${champion.asset_hash}` : null,
+    },
+    patch: list.patch,
+    sliceGames: list.sliceGames,
+    games: own?.games ?? 0,
+    winRate: own ? winRate : { value: null, sampleCount: 0, lower: null, upper: null },
+    pickRate: {
+      value: list.sliceGames ? (own?.games ?? 0) / list.sliceGames : null,
+      sampleCount: list.sliceGames,
+    },
+    banRate: {
+      value: list.sliceGames && own?.bans != null ? own.bans / list.sliceGames : null,
+      sampleCount: own?.bans != null ? list.sliceGames : 0,
+    },
+    shrunkWinRate,
+    baseline: prior?.baseline ?? null,
+    tier: tierFromDelta(
+      shrunkWinRate.value !== null && prior ? shrunkWinRate.value - prior.baseline : null,
+    ),
+    trend: span.map((patch) => {
+      const p = points.get(patch);
+      return {
+        patch,
+        games: p?.games ?? 0,
+        winRate: {
+          value: p?.result_games ? p.wins / p.result_games : null,
+          sampleCount: p?.result_games ?? 0,
+        },
+      };
+    }),
+    facets: list.facets,
   };
 }

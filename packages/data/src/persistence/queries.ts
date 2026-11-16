@@ -19,8 +19,12 @@ import {
   type SyncStatus,
 } from "../domain/models.js";
 import { draftQueries } from "./draft-queries.js";
-import { championStats, tierList } from "./aggregates.js";
-import type { ChampionStatsQuery, TierListQuery } from "../domain/champion-stats.js";
+import { championOverview, championStats, tierList } from "./aggregates.js";
+import type {
+  ChampionOverviewQuery,
+  ChampionStatsQuery,
+  TierListQuery,
+} from "../domain/champion-stats.js";
 import { historicalQueries } from "./historical-queries.js";
 
 const idSchema = z.string().min(1).max(300);
@@ -163,6 +167,7 @@ export function queries(pool: Pool, clock: () => Date) {
     ...draftQueries(pool),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
     tierList: (input?: TierListQuery) => tierList(pool, input),
+    championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");
