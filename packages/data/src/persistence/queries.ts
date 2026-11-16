@@ -1,3 +1,5 @@
+import { summoner } from "./summoners.js";
+import type { SummonerQuery } from "../domain/summoners.js";
 import { leaderboard } from "./leaderboards.js";
 import type { LeaderboardQuery } from "../domain/leaderboards.js";
 import { replayMetadata } from "./replays.js";
@@ -169,6 +171,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    summoner: (input: SummonerQuery) => summoner(pool, input, clock()),
     leaderboard: (input: LeaderboardQuery) => leaderboard(pool, input),
     replayMetadata: (sha256: string) => replayMetadata(pool, sha256),
     replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),

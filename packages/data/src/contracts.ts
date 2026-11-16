@@ -67,3 +67,12 @@ export {
   type LeaderboardRow,
   type LeaderboardChampion,
 } from "./domain/leaderboards.js";
+
+export {
+  summonerQuerySchema,
+  type SummonerQuery,
+  type SummonerProfile,
+  type SummonerGame,
+  type SummonerChampion,
+  type LadderHistoryPoint,
+} from "./domain/summoners.js";

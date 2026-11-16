@@ -70,8 +70,13 @@ export function LeaderboardPage({
               {
                 id: "name",
                 header: "Riot ID",
-                render: (r) =>
-                  r.gameName && r.tagLine ? `${r.gameName}#${r.tagLine}` : "Riot ID not resolved",
+                render: (r) => (
+                  <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}`}>
+                    {r.gameName && r.tagLine
+                      ? `${r.gameName}#${r.tagLine}`
+                      : "Riot ID not resolved"}
+                  </TextLink>
+                ),
               },
               { id: "tier", header: "Tier", render: (r) => r.tier },
               { id: "lp", header: "LP", align: "end", render: (r) => r.leaguePoints },
