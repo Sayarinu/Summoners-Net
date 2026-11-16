@@ -743,3 +743,22 @@ test("patch overview explains low samples and returns not found for unknown patc
   expect((await page.goto("/patches/16.99"))?.status()).toBe(404);
   expect((await page.goto("/patches/16.4.1"))?.status()).toBe(404);
 });
+
+test("champion players explain their minimum sample and validate sort and page selections", async ({
+  page,
+}) => {
+  await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
+  const section = page.getByRole("region", { name: "Top sampled ladder players" });
+  await expect(section).toContainText("At least 10 retained ranked solo games");
+  await expect(section.getByRole("table")).toContainText(
+    "No current ladder players have enough sampled games",
+  );
+  await section.getByRole("button", { name: /Sort players by$/ }).click();
+  await page.getByRole("option", { name: "Win rate", exact: true }).click();
+  await section.getByRole("button", { name: "Sort players", exact: true }).click();
+  await expect(page).toHaveURL(/playersSort=winRate/);
+  await expect(page).toHaveURL(/role=MIDDLE/);
+  await expect(section.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await page.goto("/champions/Ahri?playersPage=0");
+  await expect(page.getByRole("alert").filter({ hasText: "Choose filters" })).toBeVisible();
+});

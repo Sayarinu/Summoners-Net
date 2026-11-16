@@ -148,3 +148,11 @@ export {
   type NewPatchBuild,
   type PatchProLeader,
 } from "./domain/patch-overview.js";
+
+export {
+  championPlayerMinimumGames,
+  championPlayerPageSize,
+  championPlayerSorts,
+  type ChampionPlayer,
+  type ChampionPlayers,
+} from "./domain/champion-players.js";

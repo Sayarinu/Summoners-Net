@@ -47,3 +47,23 @@ it("validates champion ids and filters, and returns null for unknown champions",
   expect(await loadChampionOverview("../etc", {})).toBeNull();
   expect(championOverview.mock.calls.length).toBe(calls);
 });
+
+it("validates player sorting and pages including repeated query parameters", async () => {
+  championOverview.mockReset().mockResolvedValue({ champion: { id: "Ahri" } });
+  const valid = await loadChampionOverview("Ahri", { playersSort: "winRate", playersPage: "2" });
+  expect(valid?.error).toBeNull();
+  expect(championOverview).toHaveBeenLastCalledWith(
+    expect.objectContaining({ playersSort: "winRate", playersPage: 2 }),
+  );
+  for (const params of [
+    { playersSort: "rank" },
+    { playersPage: "0" },
+    { playersPage: "1001" },
+    { playersPage: ["1", "2"] },
+    { playersSort: "all" },
+    { playersPage: "" },
+  ]) {
+    expect((await loadChampionOverview("Ahri", params))?.error).toMatch(/Choose filters/);
+    expect(championOverview).toHaveBeenLastCalledWith({ champion: "Ahri" });
+  }
+});
