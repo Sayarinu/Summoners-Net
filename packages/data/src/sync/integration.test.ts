@@ -126,7 +126,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -2486,6 +2486,87 @@ describe("Champion aggregates", () => {
       winRate: { value: null, sampleCount: 1 },
     });
     expect(builds.excluded).toEqual({ skills: 1, skillmax: 1 });
+  });
+  it("buckets win rate by game length and by gold and level lead over the lane opponent", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger, (m) => {
+      m.info.participants[0]!.win = false;
+      (m.info as unknown as { gameDuration: number }).gameDuration = 1100;
+    });
+    // Sixteen one-minute frames; Ahri (1) and the red mid laner (6) differ at 10 and 15.
+    const state = (minute: number, participantId: number) => {
+      const special: Record<string, [number, number]> = {
+        "10:1": [4000, 8],
+        "10:6": [3200, 7],
+        "15:1": [6000, 10],
+        "15:6": [7600, 11],
+      };
+      const [totalGold, level] = special[`${minute}:${participantId}`] ?? [
+        500 + minute * 300,
+        1 + minute,
+      ];
+      return { participantId, totalGold, level, position: { x: 1000, y: 1000 } };
+    };
+    const timeline = {
+      metadata: { matchId: "EUW1_1" },
+      info: {
+        frames: Array.from({ length: 16 }, (_, minute) => ({
+          timestamp: minute * 60000,
+          participantFrames: Object.fromEntries(
+            Array.from({ length: 10 }, (_, i) => [String(i + 1), state(minute, i + 1)]),
+          ),
+          events: [],
+        })),
+      },
+    };
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    await runAggregate();
+    expect(
+      (
+        await pool.query(
+          "SELECT kind,bucket,games,result_games,wins FROM champion_buckets WHERE champion_key=103 ORDER BY kind,bucket",
+        )
+      ).rows,
+    ).toEqual([
+      { kind: "gold10", bucket: 3, games: 1, result_games: 1, wins: 1 },
+      { kind: "gold15", bucket: 0, games: 1, result_games: 1, wins: 1 },
+      // 18.3 minutes and 30.6 minutes.
+      { kind: "length", bucket: 0, games: 1, result_games: 1, wins: 0 },
+      { kind: "length", bucket: 3, games: 1, result_games: 1, wins: 1 },
+      { kind: "level10", bucket: 3, games: 1, result_games: 1, wins: 1 },
+      { kind: "level15", bucket: 1, games: 1, result_games: 1, wins: 1 },
+    ]);
+    // The red mid laner sees the mirror image.
+    expect(
+      (
+        await pool.query(
+          "SELECT kind,bucket FROM champion_buckets WHERE champion_key=157 AND kind<>'length' ORDER BY kind",
+        )
+      ).rows,
+    ).toEqual([
+      { kind: "gold10", bucket: 1 },
+      { kind: "gold15", bucket: 4 },
+      { kind: "level10", bucket: 1 },
+      { kind: "level15", bucket: 3 },
+    ]);
+    const buckets = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!.buckets!;
+    expect(buckets.length.map((b) => b.games)).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(buckets.length[1]).toEqual({
+      index: 1,
+      label: "20–25 min",
+      games: 0,
+      winRate: { value: null, sampleCount: 0 },
+    });
+    // One game is below the minimum sample: a count but no rate.
+    expect(buckets.gold10[3]).toMatchObject({
+      label: "Ahead 500–1,500",
+      games: 1,
+      winRate: { value: null, sampleCount: 1 },
+    });
+    expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.buckets).toBeNull();
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);

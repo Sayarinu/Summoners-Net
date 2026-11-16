@@ -60,6 +60,7 @@ export type {
   ChampionTier,
 } from "./domain/champion-stats.js";
 export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
+export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";
 export type { TierList, TierListQuery, TierListRow } from "./domain/champion-stats.js";
 export type {
   DraftQuery,
