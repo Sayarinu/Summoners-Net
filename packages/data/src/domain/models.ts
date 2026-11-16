@@ -171,6 +171,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "entities",
         "resolve",
         "riot-key",
+        "riot-ladder",
       ]),
     })
     .strict(),

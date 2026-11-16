@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { createSync } from "./index.js";
@@ -16,6 +16,7 @@ import {
   observeRiotLimits,
 } from "./quota.js";
 import { riotClient } from "./riot-client.js";
+import { currentLadder, ladderStatus } from "../persistence/riot.js";
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 import { archiveFileId } from "../providers/oracle.js";
 import { listPatches, patchFor, unresolvedPatches } from "../persistence/patches.js";
@@ -100,7 +101,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses RESTART IDENTITY CASCADE",
+    "TRUNCATE identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -777,6 +778,123 @@ describe("Riot request ledger", () => {
     fetcher.mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "1" } }));
     expect((await get("kr", "league-v4", "/lol/x")).status).toBe(429);
     expect((await ledger()).find((r) => r.region === "kr")?.n).toBe(3);
+  });
+});
+describe("Riot apex ladders", () => {
+  const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
+  const ladder = JSON.parse(
+    readFileSync(new URL("../../tests/riot/challenger-euw1.json", import.meta.url), "utf8"),
+  ) as { tier: string; entries: { puuid: string; leaguePoints: number }[] };
+  const league = (tier: string, entries: unknown[] = []) => json({ ...ladder, tier, entries });
+  /** Serves each platform's tiers; `fail` maps "platform/tier path" to a failing response. */
+  function serveLadders(fail: Record<string, () => Response> = {}) {
+    fetcher.mockImplementation((input) => {
+      const url = new URL(endpoint(input));
+      const platform = url.hostname.split(".")[0]!;
+      const path = url.pathname.split("/")[4]!;
+      const failure = fail[`${platform}/${path}`];
+      if (failure) return Promise.resolve(failure());
+      if (path === "challengerleagues")
+        return Promise.resolve(league("CHALLENGER", ladder.entries));
+      if (path === "grandmasterleagues") return Promise.resolve(league("GRANDMASTER"));
+      if (path === "masterleagues") return Promise.resolve(league("MASTER"));
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+  }
+  it("syncs every selected platform, keeping a failed platform's last ladder while others continue", async () => {
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+      riotPlatforms: ["euw1", "kr"],
+    });
+    try {
+      serveLadders({ "kr/grandmasterleagues": () => new Response("", { status: 503 }) });
+      await worker.request({ kind: "riot-ladder" });
+      const first = await worker.runNext();
+      expect(first).toMatchObject({ state: "queued" });
+      expect("error" in first ? first.error : "").toContain("kr");
+      expect((await currentLadder(pool, "euw1")).map((e) => [e.tier, e.leaguePoints])).toEqual([
+        ["CHALLENGER", 1824],
+        ["CHALLENGER", 1503],
+      ]);
+      expect(await currentLadder(pool, "kr")).toEqual([]);
+      expect(await ladderStatus(pool)).toEqual([
+        {
+          platform: "euw1",
+          lastSuccess: now.toISOString(),
+          lastAttempt: now.toISOString(),
+          entries: 2,
+          error: null,
+        },
+        {
+          platform: "kr",
+          lastSuccess: null,
+          lastAttempt: now.toISOString(),
+          entries: 0,
+          error: "Riot returned HTTP 503. The last ladder is kept.",
+        },
+      ]);
+      // Every tier request reserved from the ledger, including the failed one.
+      expect(
+        (
+          await pool.query<{ region: string; n: number }>(
+            "SELECT region,count(*)::integer n FROM riot_request_ledger WHERE method LIKE 'league-v4.%' GROUP BY region ORDER BY region",
+          )
+        ).rows,
+      ).toEqual([
+        { region: "euw1", n: 3 },
+        { region: "kr", n: 2 },
+      ]);
+
+      // Later, euw1 returns a malformed ladder and keeps its last one; kr succeeds.
+      instant = new Date(now.valueOf() + 3600000);
+      serveLadders({ "euw1/masterleagues": () => json({ tier: "MASTER", entries: "nope" }) });
+      expect((await worker.runNext()).state).toBe("queued");
+      expect(await currentLadder(pool, "kr")).toHaveLength(2);
+      const euw = await currentLadder(pool, "euw1");
+      expect(euw.every((e) => e.fetchedAt === now.toISOString())).toBe(true);
+      expect((await ladderStatus(pool))[0]).toMatchObject({
+        lastSuccess: now.toISOString(),
+        lastAttempt: instant.toISOString(),
+        error: "Riot returned an unexpected ladder. The last ladder is kept.",
+      });
+
+      // A player who left the apex tiers keeps their row but drops out of the current ladder.
+      instant = new Date(now.valueOf() + 3 * 3600000);
+      fetcher.mockImplementation((input) => {
+        const path = new URL(endpoint(input)).pathname.split("/")[4]!;
+        if (path === "challengerleagues")
+          return Promise.resolve(league("CHALLENGER", ladder.entries.slice(0, 1)));
+        return Promise.resolve(league(path === "grandmasterleagues" ? "GRANDMASTER" : "MASTER"));
+      });
+      expect((await worker.runNext()).state).toBe("done");
+      expect(await currentLadder(pool, "euw1")).toHaveLength(1);
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::integer n FROM riot_ladder_entries WHERE platform='euw1'",
+          )
+        ).rows[0],
+      ).toEqual({ n: 2 });
+    } finally {
+      await worker.close();
+    }
+  });
+  it("skips ladders without a key", async () => {
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      riotPlatforms: ["euw1"],
+    });
+    try {
+      await worker.request({ kind: "riot-ladder" });
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await worker.close();
+    }
   });
 });
 describe("Riot API key", () => {

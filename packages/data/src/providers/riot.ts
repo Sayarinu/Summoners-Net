@@ -58,7 +58,8 @@ export const riotPlatforms = [
   "vn2",
 ] as const;
 export const riotRegions = ["americas", "asia", "europe", "sea"] as const;
-export type RiotRouting = (typeof riotPlatforms)[number] | (typeof riotRegions)[number];
+export type RiotPlatform = (typeof riotPlatforms)[number];
+export type RiotRouting = RiotPlatform | (typeof riotRegions)[number];
 export const riotRoutingSchema = z.enum([...riotPlatforms, ...riotRegions]);
 
 export interface RateLimit {
@@ -80,3 +81,68 @@ export const defaultApplicationLimits: RateLimit[] = [
   { limit: 20, windowSeconds: 1 },
   { limit: 100, windowSeconds: 120 },
 ];
+
+// league-v4 apex tiers for ranked solo queue. summonerId is no longer returned for every entry,
+// so it is optional; the PUUID is the stable player identifier.
+export const apexTiers = [
+  { tier: "CHALLENGER", path: "challengerleagues" },
+  { tier: "GRANDMASTER", path: "grandmasterleagues" },
+  { tier: "MASTER", path: "masterleagues" },
+] as const;
+export const soloQueue = "RANKED_SOLO_5x5";
+export interface LadderEntry {
+  puuid: string;
+  summonerId: string | null;
+  tier: (typeof apexTiers)[number]["tier"];
+  rank: string;
+  leaguePoints: number;
+  wins: number;
+  losses: number;
+  leagueId: string;
+}
+export function parseLeagueList(
+  input: unknown,
+  tier: (typeof apexTiers)[number]["tier"],
+): LadderEntry[] {
+  const count = z.number().int().min(0);
+  const list = z
+    .object({
+      tier: z.literal(tier),
+      leagueId: z.string().min(1).max(100),
+      queue: z.literal(soloQueue),
+      entries: z
+        .array(
+          z.object({
+            puuid: z.string().min(20).max(100),
+            summonerId: z.string().min(1).max(100).optional(),
+            rank: z.enum(["I", "II", "III", "IV"]),
+            leaguePoints: count,
+            wins: count,
+            losses: count,
+          }),
+        )
+        .max(10000),
+    })
+    .parse(input);
+  return list.entries.map((e) => ({
+    puuid: e.puuid,
+    summonerId: e.summonerId ?? null,
+    tier,
+    rank: e.rank,
+    leaguePoints: e.leaguePoints,
+    wins: e.wins,
+    losses: e.losses,
+    leagueId: list.leagueId,
+  }));
+}
+/** Parses RIOT_PLATFORMS ("euw1,kr"): the platforms whose ladders the worker syncs. */
+export function parseRiotPlatforms(value: string | undefined): RiotPlatform[] {
+  const names = (value ?? "")
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  const parsed = z.array(z.enum(riotPlatforms)).safeParse(names);
+  if (!parsed.success)
+    throw new Error(`RIOT_PLATFORMS must list platforms from: ${riotPlatforms.join(", ")}.`);
+  return [...new Set(parsed.data)];
+}
