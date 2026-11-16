@@ -5,7 +5,7 @@ export function RefreshButton({
   kind,
   year,
 }: {
-  kind: "matches" | "running" | "rosters" | "metadata" | "history" | "entities";
+  kind: "matches" | "running" | "rosters" | "metadata" | "history" | "entities" | "riot-key";
   year?: number;
 }) {
   const [pending, setPending] = useState(false);

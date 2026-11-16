@@ -3,10 +3,14 @@ import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { archiveYears } from "./providers/oracle.js";
+import { parseRiotKeyConfig } from "./providers/riot.js";
 const [command, ...args] = process.argv.slice(2);
 const connection = process.env.DATABASE_URL;
 if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
+// Validated at startup; the key is passed only to the worker and never printed.
+const riot = parseRiotKeyConfig(process.env);
 const sync = createSync(connection, {
+  ...(riot ? { riot } : {}),
   ...(process.env.PANDASCORE_TOKEN ? { token: process.env.PANDASCORE_TOKEN } : {}),
   ...(process.env.GOOGLE_DRIVE_API_KEY ? { driveApiKey: process.env.GOOGLE_DRIVE_API_KEY } : {}),
   ...(process.env.ORACLE_CURRENT_FILE ? { currentFile: process.env.ORACLE_CURRENT_FILE } : {}),

@@ -162,7 +162,17 @@ export type BrowseQuery = z.input<typeof querySchema>;
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
   z
-    .object({ kind: z.enum(["running", "matches", "rosters", "metadata", "entities", "resolve"]) })
+    .object({
+      kind: z.enum([
+        "running",
+        "matches",
+        "rosters",
+        "metadata",
+        "entities",
+        "resolve",
+        "riot-key",
+      ]),
+    })
     .strict(),
   z
     .object({
@@ -187,8 +197,18 @@ export interface SourceStatus {
   error: string | null;
   records: number;
 }
+export interface RiotKeyStatus {
+  state: "missing" | "untested" | "valid" | "rejected";
+  kind: "development" | "personal" | "production" | null;
+  setAt: string | null;
+  checkedAt: string | null;
+  detail: string | null;
+  /** For development keys: 24 hours after the current key was first seen. */
+  expiresAt: string | null;
+}
 export interface SyncStatus {
   sources: SourceStatus[];
+  riotKey: RiotKeyStatus;
   jobs: {
     id: string;
     kind: string;
