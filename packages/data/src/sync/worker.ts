@@ -34,6 +34,7 @@ import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { activeWinProbabilityModel, trainWinProbabilityModel } from "../persistence/wp-models.js";
 import { scorePendingWpa } from "../persistence/wpa.js";
+import { trainCheckpointModel } from "../persistence/pro-wp.js";
 import { rebuildWpaAggregates } from "../persistence/wpa-leaderboards.js";
 import {
   dirtyPatches,
@@ -112,8 +113,11 @@ export interface WorkerOptions {
   riotMatchCap?: number;
   /** Patches before the current one whose solo-queue data is kept (RIOT_RETAIN_PATCHES). */
   riotRetainPatches?: number;
-  /** Win probability training: the fewest training matches to publish a model, and the seed. */
-  winProbability?: { minimumMatches?: number; seed?: number };
+  /**
+   * Win probability training: the fewest training matches (solo queue) and games (pro
+   * checkpoints) to publish a model, and the seed.
+   */
+  winProbability?: { minimumMatches?: number; minimumProGames?: number; seed?: number };
 }
 class ProviderError extends Error {
   constructor(
@@ -557,7 +561,11 @@ export function worker(pool: Pool, options: WorkerOptions) {
       });
       // A newly active model scores events from the start; the aggregate job keeps it current.
       if (trained.active) await scoreActiveWpa();
-      return trained.active ? 1 : 0;
+      const pro = await trainCheckpointModel(pool, clock(), {
+        minimumGames: options.winProbability?.minimumProGames ?? 200,
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      return Number(trained.active) + Number(pro.active);
     }
     if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "riot-retention") return applyRetention();

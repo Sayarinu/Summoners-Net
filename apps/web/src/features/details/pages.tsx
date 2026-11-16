@@ -10,10 +10,11 @@ import {
   EmptyState,
   MatchRow,
 } from "@summonersnet/ui";
-import type { Match, Game, Profile, BrowseQuery } from "@summonersnet/data";
+import type { Match, Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
 import { dateTime, identityHref, matchDisplay, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { WatchPlayer } from "../watch/player";
+import { ProWinProbability } from "./pro-win-probability";
 export function MatchPage({
   match,
   timezone,
@@ -89,10 +90,13 @@ export function GamePage({
   game,
   timezone,
   hideSpoilers,
+  winProbability,
 }: {
   game: Game;
   timezone: string;
   hideSpoilers: boolean;
+  /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
+  winProbability?: ProGameWinProbability | null;
 }) {
   const [hidden, setHidden] = useState(hideSpoilers);
   return (
@@ -174,6 +178,7 @@ export function GamePage({
           },
         ]}
       />
+      {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
       <p className="np-meta">Series association {game.matchId ? "verified" : "unconfirmed"}.</p>
     </div>
   );

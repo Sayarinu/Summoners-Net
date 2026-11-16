@@ -45,6 +45,7 @@ import {
 import { soloGame } from "../persistence/solo-games.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
+import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -3087,6 +3088,71 @@ describe("Champion aggregates", () => {
     });
     expect((await wpaLeaderboard(pool, { kind: "player" })).page.total).toBe(0);
     await expect(wpaLeaderboard(pool, { kind: "team" as "role" })).rejects.toThrow();
+  });
+  it("trains a separate pro checkpoint model and scores a pro game's four checkpoints", async () => {
+    const ids = ["g1", "g2", "g3", "g4", "g5", "g6"];
+    for (const id of ids) await importCsv(historyCsv({ id }));
+    // Checkpoints on each blue team row: blue leads and wins the odd games, trails and loses the rest.
+    for (const [n, id] of ids.entries()) {
+      const lead = n % 2 === 0 ? 1500 : -1500;
+      const statistics = Object.fromEntries(
+        [10, 15, 20, 25].flatMap((m) => [
+          [`golddiffat${m}`, (lead * m) / 10],
+          [`xpdiffat${m}`, lead / 2],
+          [`csdiffat${m}`, lead / 100],
+          [`killsat${m}`, lead > 0 ? 4 : 2],
+          [`opp_killsat${m}`, lead > 0 ? 2 : 4],
+        ]),
+      );
+      if (id === "g6") delete statistics.golddiffat25;
+      await pool.query(
+        `UPDATE oracle_archive_participants SET statistics=statistics||$2::jsonb,result=$3
+         WHERE game_id=(SELECT id FROM oracle_archive_games WHERE source_game_id=$1)
+           AND position='team' AND side='blue'`,
+        [id, JSON.stringify(statistics), lead > 0],
+      );
+    }
+    expect((await proGameWinProbability(pool, "oracle:game:g1")).reason).toMatch(
+      /No pro win probability model/,
+    );
+    await trainCheckpointModel(pool, now, { minimumGames: 2, seed: 4 });
+    const model = (await activeWinProbabilityModel(pool, "pro-checkpoints"))!;
+    expect(model).toMatchObject({
+      kind: "pro-checkpoints",
+      patchWindow: ["2026"],
+      status: "active",
+    });
+    expect(model.coefficients.features).toEqual([
+      "minute",
+      "goldDiff",
+      "xpDiff",
+      "csDiff",
+      "killDiff",
+      "goldDiffByMinute",
+    ]);
+    // The timeline model is a separate kind and is untouched.
+    expect(await activeWinProbabilityModel(pool)).toBeNull();
+    const ahead = await proGameWinProbability(pool, "oracle:game:g1");
+    expect(ahead.model).toMatchObject({ id: model.id, years: ["2026"] });
+    expect(ahead.points.map((p) => p.minute)).toEqual([10, 15, 20, 25]);
+    expect(ahead.points.every((p) => p.blueWinProbability! > 0.5)).toBe(true);
+    expect(
+      (await proGameWinProbability(pool, "oracle:game:g2")).points[0]!.blueWinProbability,
+    ).toBeLessThan(0.5);
+    // A missing checkpoint is a gap.
+    expect((await queries.proGameWinProbability("oracle:game:g6")).points[3]).toEqual({
+      minute: 25,
+      blueWinProbability: null,
+    });
+    // A game without checkpoints gets no chart.
+    await importCsv(historyCsv({ id: "plain" }));
+    expect(await proGameWinProbability(pool, "oracle:game:plain")).toMatchObject({
+      points: [],
+      reason: expect.stringContaining("no checkpoint data") as string,
+    });
+    // Too few games: stored as rejected, the active checkpoint model stays.
+    await trainCheckpointModel(pool, now, { minimumGames: 100, seed: 4 });
+    expect((await activeWinProbabilityModel(pool, "pro-checkpoints"))!.id).toBe(model.id);
   });
   it("builds pro aggregates separately, rebuilds only affected patches and reruns from stored facts", async () => {
     serveDataDragon(["16.4.1", "16.22.1"]);
