@@ -1,3 +1,4 @@
+import { roflFixture } from "../../../packages/data/tests/rofl-fixtures";
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "axe-core";
 import { historyCsv } from "../../../packages/data/tests/fixtures";
@@ -503,4 +504,21 @@ test("replay track uploads queue validation without processing frames in the bro
   await expect(page.getByText(/Track import queued/)).toBeVisible();
   await page.getByRole("button", { name: "Reload status" }).click();
   await expect(page.getByText("replay-track", { exact: true }).first()).toBeVisible();
+});
+
+test("replay metadata uploads stay local and queue worker validation", async ({ page }) => {
+  await page.goto("/sources");
+  await page.getByLabel("Replay file", { exact: true }).setInputFiles({
+    name: "fixture.rofl",
+    mimeType: "application/octet-stream",
+    buffer: roflFixture(),
+  });
+  const response = page.waitForResponse(
+    (r) => r.url().endsWith("/api/import?kind=replay-metadata") && r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Queue replay metadata" }).click();
+  expect((await response).status()).toBe(202);
+  await expect(page.getByText(/Replay metadata import queued/)).toBeVisible();
+  await page.getByRole("button", { name: "Reload status" }).click();
+  await expect(page.getByText("Replay metadata", { exact: true }).first()).toBeVisible();
 });

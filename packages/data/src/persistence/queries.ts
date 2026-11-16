@@ -1,3 +1,4 @@
+import { replayMetadata } from "./replays.js";
 import { replayTrack } from "./replay-tracks.js";
 import { z } from "zod";
 import {
@@ -166,6 +167,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    replayMetadata: (sha256: string) => replayMetadata(pool, sha256),
     replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
     tierList: (input?: TierListQuery) => tierList(pool, input),

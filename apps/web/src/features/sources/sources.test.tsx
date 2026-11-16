@@ -241,3 +241,42 @@ it("only uploads track bytes to the queue and reports request failures", async (
   fireEvent.submit(button.closest("form")!);
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
 });
+
+it("queues replay metadata without parsing bytes and shows controlled worker errors", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <SourcesPage
+      status={{
+        ...status,
+        jobs: [
+          ...status.jobs,
+          {
+            id: "99",
+            kind: "replay-metadata",
+            state: "failed",
+            error: "Replay header or metadata is malformed.",
+            requestedAt: instant,
+          },
+        ],
+      }}
+      timezone="UTC"
+      year={2026}
+    />,
+  );
+  expect(screen.getByText("Replay header or metadata is malformed.")).toBeVisible();
+  const button = screen.getByRole("button", { name: "Queue replay metadata" });
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Replay metadata import queued/);
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/import?kind=replay-metadata",
+    expect.objectContaining({ method: "POST" }),
+  );
+  expect((fetcher.mock.calls[0]![1]!.body as FormData).get("kind")).toBe("replay-metadata");
+  fetcher.mockResolvedValue(new Response("{}", { status: 400 }));
+  fireEvent.submit(button.closest("form")!);
+  await screen.findByText(/Replay import could not be queued/);
+  fetcher.mockRejectedValue(new Error("offline"));
+  fireEvent.submit(button.closest("form")!);
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+});

@@ -52,3 +52,7 @@ export {
   replayTrackMaxBytes,
 } from "./domain/replay-tracks.js";
 export type { ReplayTrack, ReplayTrackSample } from "./domain/replay-tracks.js";
+
+export { replayFileMaxBytes, replayPlatformSchema } from "./domain/replays.js";
+export { riotPlatforms } from "./domain/riot-platforms.js";
+export type { ReplayMetadataSummary } from "./domain/replays.js";
