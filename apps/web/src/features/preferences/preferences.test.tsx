@@ -1,5 +1,5 @@
 import { afterEach, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { PreferencesControl } from "./controls";
 import { browserTimezone, parsePreferences, defaultPreferences } from "./model";
 const router = vi.hoisted(() => ({ refresh: vi.fn() }));
@@ -27,7 +27,7 @@ it("saves timezone and spoiler preferences with accessible validation", async ()
   render(<PreferencesControl initial={defaultPreferences} />);
   fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
   const timezone = screen.getByRole("combobox", { name: "Timezone" });
-  fireEvent.click(screen.getByRole("button", { name: "Show options Timezone" }));
+  act(() => timezone.focus());
   fireEvent.input(timezone, { target: { value: "America/Phoenix" } });
   fireEvent.click(await screen.findByRole("option", { name: "America/Phoenix" }));
   fireEvent.click(screen.getByRole("button", { name: "Save timezone" }));

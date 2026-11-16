@@ -35,3 +35,6 @@ export function createQueries(connectionString: string, clock: () => Date = () =
 export type Queries = ReturnType<typeof createQueries>;
 
 export type { MapImage } from "./domain/map.js";
+
+export { catalogIconQuerySchema } from "./domain/catalog-icons.js";
+export type { CatalogIconQuery, CatalogIcon } from "./domain/catalog-icons.js";

@@ -79,3 +79,19 @@ export async function readImage(response: Response) {
 // The versioned minimap linked by https://developer.riotgames.com/docs/lol#other.
 export const summonersRiftImageUrl =
   "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/map/map11.png";
+
+/** Only catalog paths on the public Data Dragon CDN are accepted. */
+export function catalogImageAddress(
+  kind: "champion" | "item" | "rune" | "spell",
+  version: string,
+  image: string,
+) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Invalid catalog version.");
+  if (kind === "rune") {
+    if (!/^perk-images\/(?:[A-Za-z0-9_-]+\/)+[A-Za-z0-9_-]+\.png$/.test(image))
+      throw new Error("Invalid rune image path.");
+    return `https://ddragon.leagueoflegends.com/cdn/img/${image}`;
+  }
+  if (!/^[A-Za-z0-9_-]+\.png$/.test(image)) throw new Error("Invalid catalog image filename.");
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/${kind}/${image}`;
+}

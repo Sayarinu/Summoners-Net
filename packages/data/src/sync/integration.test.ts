@@ -66,13 +66,17 @@ const dataDragonFixtures = Object.fromEntries(
 /** Serves Data Dragon from real, trimmed fixtures; a file override replaces one response. */
 function serveDataDragon(
   versions: string[],
-  overrides: Partial<Record<DataDragonFile | "map", unknown>> = {},
+  overrides: Partial<Record<DataDragonFile | "map" | "icons", unknown>> = {},
 ) {
   fetcher.mockImplementation((input) => {
     const url = endpoint(input);
     if (url.endsWith("/img/map/map11.png"))
       return Promise.resolve(
         overrides.map instanceof Response ? overrides.map.clone() : mapResponse(),
+      );
+    if (url.includes("/img/"))
+      return Promise.resolve(
+        overrides.icons instanceof Response ? overrides.icons.clone() : mapResponse(),
       );
     if (url.endsWith("/api/versions.json")) return Promise.resolve(json(versions));
     const [, version, name] = url.match(/\/cdn\/([^/]+)\/data\/en_US\/(\w+)\.json$/) ?? [];
@@ -1584,4 +1588,57 @@ it("caches the map through the worker and preserves its bytes and timestamp on f
   });
   expect((await sync.runNext()).state).toBe("failed");
   expect(await queries.mapImage()).toEqual(saved);
+});
+
+it("caches all catalog icon kinds, bounds queries and retains successful images on failed refreshes", async () => {
+  const query = { patch: "16.22", kind: "champion" as const, ids: ["MonkeyKing"] };
+  expect(await queries.catalogIcons(query)).toEqual([]);
+  await expect(
+    queries.catalogIcons({ ...query, ids: Array<string>(101).fill("MonkeyKing") }),
+  ).rejects.toThrow();
+  await expect(queries.catalogIcons({ ...query, patch: "../bad" })).rejects.toThrow();
+  serveDataDragon(["16.22.1"], { icons: new Response("unavailable", { status: 503 }) });
+  expect((await run({ kind: "metadata" })).state).toBe("done");
+  expect(await queries.catalogIcons(query)).toEqual([
+    { id: "MonkeyKing", kind: "champion", name: "Wukong", imageUrl: null, fetchedAt: null },
+  ]);
+  fetcher.mockClear();
+  serveDataDragon(["16.22.1"]);
+  await run({ kind: "metadata" });
+  expect(fetcher.mock.calls.filter((c) => endpoint(c[0]).includes("/img/champion/"))).toHaveLength(
+    0,
+  );
+  instant = new Date(now.valueOf() + 86400001);
+  await run({ kind: "metadata" });
+  const url = `/api/images/${createHash("sha256").update(mapBytes).digest("hex")}`;
+  for (const [kind, id, name] of [
+    ["champion", "MonkeyKing", "Wukong"],
+    ["item", "1001", "Boots"],
+    ["rune", "8112", "Electrocute"],
+    ["spell", "SummonerFlash", "Flash"],
+  ] as const) {
+    expect(await queries.catalogIcons({ ...query, kind, ids: [id, "missing"] })).toEqual([
+      { id, kind, name, imageUrl: url, fetchedAt: instant.toISOString() },
+    ]);
+  }
+  expect((await queries.image(url.split("/").at(-1)!))?.bytes).toEqual(new Uint8Array(mapBytes));
+  expect(await queries.catalogIcons({ ...query, patch: "16.21" })).toEqual([]);
+  expect(
+    fetcher.mock.calls.some((c) =>
+      endpoint(c[0]).endsWith("/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png"),
+    ),
+  ).toBe(true);
+  const saved = await queries.catalogIcons(query);
+  instant = new Date(instant.valueOf() + 8 * 86400000);
+  serveDataDragon(["16.22.1"], {
+    icons: new Response("GIF89a", { headers: { "content-type": "image/gif" } }),
+  });
+  await run({ kind: "metadata" });
+  expect(await queries.catalogIcons(query)).toEqual(saved);
+  const ledger = await pool.query<{ attempts: number; error: string; source_url: string }>(
+    "SELECT attempts,error,source_url FROM catalog_images WHERE kind='champion' AND catalog_id='MonkeyKing'",
+  );
+  expect(ledger.rows[0]?.attempts).toBe(3);
+  expect(ledger.rows[0]?.error).toContain("retained");
+  expect(ledger.rows[0]?.source_url).toContain("16.22.1/img/champion/MonkeyKing.png");
 });

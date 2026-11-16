@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  catalogIconQuerySchema,
+  type CatalogIconQuery,
+  type CatalogIcon,
+} from "../domain/catalog-icons.js";
 import type { MapImage } from "../domain/map.js";
 import type { Pool } from "pg";
 import { enrichIdentities } from "./entities.js";
@@ -432,6 +437,28 @@ export function queries(pool: Pool, clock: () => Date) {
         resolution,
         games: await games(input, identity.id),
       };
+    },
+    async catalogIcons(input: CatalogIconQuery): Promise<CatalogIcon[]> {
+      const q = catalogIconQuerySchema.parse(input);
+      const result = await pool.query<{
+        id: string;
+        kind: CatalogIconQuery["kind"];
+        name: string;
+        asset_hash: string | null;
+        fetched_at: Date | null;
+      }>(
+        `SELECT c.id,c.kind,c.name,i.asset_hash,i.fetched_at FROM catalog_icon_entries c
+         LEFT JOIN catalog_images i ON (i.patch_key,i.kind,i.catalog_id)=(c.patch_key,c.kind,c.id)
+         WHERE c.patch_key=$1 AND c.kind=$2 AND c.id=ANY($3::text[]) ORDER BY c.id LIMIT 100`,
+        [q.patch, q.kind, q.ids],
+      );
+      return result.rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        name: r.name,
+        imageUrl: r.asset_hash ? `/api/images/${r.asset_hash}` : null,
+        fetchedAt: stamp(r.fetched_at),
+      }));
     },
     async mapImage(): Promise<MapImage | null> {
       const row = (
