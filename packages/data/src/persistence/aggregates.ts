@@ -24,6 +24,7 @@ import { championBuilds, rebuildBuilds } from "./builds.js";
 import { championBuckets, rebuildBuckets } from "./buckets.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
 import { proChampionStats, rebuildProStats } from "./pro-stats.js";
+import { computeFeatures } from "./wp-features.js";
 
 export type AggregateSource = "solo" | "pro";
 
@@ -167,7 +168,8 @@ export async function rebuildPatch(
       source === "solo"
         ? (await rebuildBuilds(c, patchKey, now)) +
           (await rebuildBuckets(c, patchKey, now)) +
-          (await rebuildDuos(c, patchKey, now))
+          (await rebuildDuos(c, patchKey, now)) +
+          (await computeFeatures(c, patchKey, now))
         : await rebuildProStats(c, patchKey, now);
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
       source,
