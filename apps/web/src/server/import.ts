@@ -1,4 +1,5 @@
 import {
+  proAccountLinksMaxBytes,
   replayFileMaxBytes,
   replayPlatformSchema,
   replayTrackMaxBytes,
@@ -17,14 +18,16 @@ export async function importUpload(request: Request) {
   let stagedReplayPath: string | undefined;
   try {
     const kind = z
-      .enum(["history", "replay-track", "replay-metadata"])
+      .enum(["history", "replay-track", "replay-metadata", "pro-account-links"])
       .parse(new URL(request.url).searchParams.get("kind") ?? "history");
     const limit =
-      kind === "replay-track"
-        ? replayTrackMaxBytes
-        : kind === "replay-metadata"
-          ? replayFileMaxBytes
-          : 256 * 1024 * 1024;
+      kind === "pro-account-links"
+        ? proAccountLinksMaxBytes
+        : kind === "replay-track"
+          ? replayTrackMaxBytes
+          : kind === "replay-metadata"
+            ? replayFileMaxBytes
+            : 256 * 1024 * 1024;
     if (Number(request.headers.get("content-length")) > limit + 8192)
       return NextResponse.json({ error: "File too large." }, { status: 413 });
     const reader = request.body?.getReader();
@@ -54,7 +57,11 @@ export async function importUpload(request: Request) {
         { status: 400 },
       );
     const extension =
-      kind === "replay-track" ? ".json" : kind === "replay-metadata" ? ".rofl" : ".csv";
+      kind === "replay-track" || kind === "pro-account-links"
+        ? ".json"
+        : kind === "replay-metadata"
+          ? ".rofl"
+          : ".csv";
     const platform =
       kind === "replay-metadata"
         ? replayPlatformSchema.optional().parse(form.get("platform") || undefined)
@@ -73,11 +80,13 @@ export async function importUpload(request: Request) {
       return NextResponse.json(
         {
           error:
-            kind === "replay-track"
-              ? "Choose a replay track JSON up to 64 MiB."
-              : kind === "replay-metadata"
-                ? "Choose a replay file up to 256 MiB."
-                : "Choose an annual CSV up to 256 MiB.",
+            kind === "pro-account-links"
+              ? "Choose a pro account link JSON up to 5 MiB."
+              : kind === "replay-track"
+                ? "Choose a replay track JSON up to 64 MiB."
+                : kind === "replay-metadata"
+                  ? "Choose a replay file up to 256 MiB."
+                  : "Choose an annual CSV up to 256 MiB.",
         },
         { status: 400 },
       );
@@ -99,7 +108,7 @@ export async function importUpload(request: Request) {
     const id = await synchronization().request(
       kind === "replay-metadata"
         ? { kind, file: path, ...(platform ? { platform } : {}) }
-        : kind === "replay-track"
+        : kind === "replay-track" || kind === "pro-account-links"
           ? { kind, file: path }
           : { kind, year, file: path, method: "upload" },
     );

@@ -1,3 +1,4 @@
+import { proAccountLink } from "./pro-accounts.js";
 import { summoner } from "./summoners.js";
 import type { SummonerQuery } from "../domain/summoners.js";
 import { leaderboard } from "./leaderboards.js";
@@ -171,6 +172,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    proAccountLink: (puuid: string) => proAccountLink(pool, puuid),
     summoner: (input: SummonerQuery) => summoner(pool, input, clock()),
     leaderboard: (input: LeaderboardQuery) => leaderboard(pool, input),
     replayMetadata: (sha256: string) => replayMetadata(pool, sha256),

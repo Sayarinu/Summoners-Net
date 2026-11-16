@@ -201,3 +201,36 @@ it("stages replay uploads with explicit platform provenance and cleans up when q
   mocks.unlink.mockRejectedValueOnce(Object.assign(new Error("absent"), { code: "ENOENT" }));
   expect((await importUpload(upload())).status).toBe(400);
 });
+
+it("queues bounded pro account link uploads for worker validation and rejects path injection", async () => {
+  const form = new FormData();
+  form.set("kind", "pro-account-links");
+  form.set("file", new File(["worker validates this JSON"], "links.json"));
+  form.set("path", "/etc/passwd");
+  const upload = () =>
+    new Request("http://localhost:3000/api/import?kind=pro-account-links", {
+      method: "POST",
+      headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+      body: form,
+    });
+  mocks.writeFile.mockResolvedValue(undefined);
+  expect((await importUpload(upload())).status).toBe(202);
+  const queued: unknown = mocks.request.mock.calls.at(-1)?.[0];
+  expect(queued).toHaveProperty("kind", "pro-account-links");
+  expect(queued).toHaveProperty(
+    "file",
+    expect.stringMatching(/\.local\/imports\/[a-f0-9]{64}\.json$/),
+  );
+  expect(mocks.writeFile).toHaveBeenCalledWith(
+    expect.stringMatching(/\.json$/),
+    Buffer.from("worker validates this JSON"),
+    { mode: 0o600 },
+  );
+  form.set("file", new File(["{}"], "links.csv"));
+  expect((await importUpload(upload())).status).toBe(400);
+  form.set("file", new File([new Uint8Array(5 * 1024 * 1024 + 8193)], "large.json"));
+  expect((await importUpload(upload())).status).toBe(413);
+  expect(
+    (await mutate(request({ kind: "pro-account-links", file: "/etc/passwd" }), "refresh")).status,
+  ).toBe(400);
+});

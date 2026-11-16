@@ -1,4 +1,5 @@
 "use client";
+import { ProAccountUpload } from "./pro-account-upload";
 import { ReplayMetadataUpload } from "./replay-metadata-upload";
 import { ReplayTrackUpload } from "./replay-track-upload";
 import { useState } from "react";
@@ -144,6 +145,7 @@ export function SourcesPage({
       <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
       <ReplayTrackUpload />
       <ReplayMetadataUpload />
+      <ProAccountUpload />
       <section className="np-stack">
         <h2>Import an annual game file</h2>
         <p className="np-body-sm">
@@ -209,7 +211,12 @@ export function SourcesPage({
           {
             id: "kind",
             header: "Refresh",
-            render: (j) => (j.kind === "replay-metadata" ? "Replay metadata" : j.kind),
+            render: (j) =>
+              j.kind === "pro-account-links"
+                ? "Pro account links"
+                : j.kind === "replay-metadata"
+                  ? "Replay metadata"
+                  : j.kind,
           },
           {
             id: "state",
@@ -230,7 +237,11 @@ export function SourcesPage({
             id: "error",
             header: "Detail",
             render: (j) =>
-              j.error ? (j.kind === "replay-metadata" ? j.error : "Needs attention") : "—",
+              j.error
+                ? j.kind === "replay-metadata" || j.kind === "pro-account-links"
+                  ? j.error
+                  : "Needs attention"
+                : "—",
           },
         ]}
       />

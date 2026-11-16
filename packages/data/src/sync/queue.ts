@@ -3,6 +3,8 @@ import type { Pool } from "pg";
 import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 export function jobKey(r: SyncRequest) {
+  if (r.kind === "pro-account-links")
+    return "pro-account-links:" + createHash("sha256").update(r.file).digest("hex");
   if (r.kind === "replay-metadata")
     return "replay-metadata:" + createHash("sha256").update(r.file).digest("hex");
   if (r.kind === "replay-track")

@@ -76,3 +76,11 @@ export {
   type SummonerChampion,
   type LadderHistoryPoint,
 } from "./domain/summoners.js";
+
+export {
+  proAccountLinksMaxBytes,
+  proAccountLinksSchema,
+  parseProAccountLinksFile,
+  type ProAccountLinksFile,
+  type ProAccountLink,
+} from "./domain/pro-accounts.js";

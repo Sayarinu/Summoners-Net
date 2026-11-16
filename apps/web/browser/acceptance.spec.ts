@@ -1,3 +1,4 @@
+import { proAccountFixture } from "../../../packages/data/tests/pro-account-fixtures";
 import { roflFixture } from "../../../packages/data/tests/rofl-fixtures";
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "axe-core";
@@ -591,4 +592,25 @@ test("solo queue profiles use stable player IDs and show samples and ladder hist
   await expect(page.getByRole("alert").filter({ hasText: "positive page numbers" })).toBeVisible();
   const missing = await page.goto("/summoners/" + "x".repeat(78));
   expect(missing?.status()).toBe(404);
+});
+
+test("pro account link uploads queue the whole evidence file for local validation", async ({
+  page,
+}) => {
+  await page.goto("/sources");
+  await page.getByLabel("Pro account link JSON").setInputFiles({
+    name: "pro-links.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(proAccountFixture())),
+  });
+  const queued = page.waitForResponse((r) =>
+    r.url().includes("/api/import?kind=pro-account-links"),
+  );
+  await page.getByRole("button", { name: "Queue pro account links", exact: true }).click();
+  expect((await queued).status()).toBe(202);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Pro account link import queued" }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("cell", { name: "Pro account links", exact: true })).toBeVisible();
 });

@@ -1,3 +1,4 @@
+import { proAccountFixture, proAccountFixtureLink } from "../../tests/pro-account-fixtures.js";
 import { roflFixture } from "../../tests/rofl-fixtures.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, symlink, truncate } from "node:fs/promises";
@@ -135,7 +136,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -4328,5 +4329,110 @@ describe("solo queue profiles", () => {
     expect(ahri.name).toBe("Ahri");
     expect(ahri.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
     expect(ahri.winRate).toEqual({ value: 1, sampleCount: 1 });
+  });
+});
+
+describe("pro account link imports", () => {
+  const a = "a".repeat(78),
+    b = "b".repeat(78),
+    c = "c".repeat(78);
+  async function importLinks(value: unknown = proAccountFixture()) {
+    const file = join(directory, randomUUID() + ".json");
+    await writeFile(file, JSON.stringify(value));
+    return run({ kind: "pro-account-links", file });
+  }
+  it("imports exact source identities with evidence, repeats safely and keeps absent links", async () => {
+    await importCsv();
+    const sources = (await queries.status()).sources,
+      calls = fetcher.mock.calls.length;
+    const file = proAccountFixture([proAccountFixtureLink(), proAccountFixtureLink("b", "10-top")]);
+    expect((await importLinks(file)).state).toBe("done");
+    const first = (await queries.proAccountLink(a))!;
+    expect(first.player).toMatchObject({
+      id: "oracle:player:10-mid",
+      source: "oracle",
+      sourceId: "10-mid",
+      kind: "player",
+    });
+    expect(first.evidence).toEqual(file.links[0]!.evidence);
+    expect(first.sourceSha256).toBe(
+      createHash("sha256").update(JSON.stringify(file)).digest("hex"),
+    );
+    expect(first.importedAt).toBe(now.toISOString());
+    expect(first.formatVersion).toBe(1);
+    expect((await importLinks(file)).state).toBe("done");
+    expect(await queries.proAccountLink(a)).toEqual(first);
+    instant = new Date(now.getTime() + 1000);
+    const correction = proAccountFixture([
+      { ...file.links[0]!, evidence: [{ url: "https://example.invalid/new-evidence" }] },
+    ]);
+    expect((await importLinks(correction)).state).toBe("done");
+    expect((await queries.proAccountLink(a))!.evidence).toEqual(correction.links[0]!.evidence);
+    expect((await queries.proAccountLink(a))!.importedAt).toBe(instant.toISOString());
+    expect((await queries.proAccountLink(b))!.player.sourceId).toBe("10-top");
+    expect(await queries.proAccountLink(c)).toBeNull();
+    await expect(queries.proAccountLink("a name")).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(calls);
+    expect((await queries.status()).sources).toEqual(sources);
+  });
+  it("rejects a whole file for invalid rows, unknown players, team IDs or conflicting evidence targets", async () => {
+    await importCsv();
+    expect((await importLinks()).state).toBe("done");
+    const prior = await queries.proAccountLink(a);
+    const invalidRows = [
+      { ...proAccountFixtureLink("b"), evidence: [] },
+      proAccountFixtureLink("b", "missing"),
+      proAccountFixtureLink("b", "10"),
+      proAccountFixtureLink("b", "Player Blue mid"),
+      proAccountFixtureLink("a", "10-top"),
+    ];
+    for (const invalid of invalidRows) {
+      expect(
+        (await importLinks({ formatVersion: 1, links: [proAccountFixtureLink("c"), invalid] }))
+          .state,
+      ).toBe("failed");
+      expect(await queries.proAccountLink(c)).toBeNull();
+      expect(await queries.proAccountLink(a)).toEqual(prior);
+      expect((await queries.status()).jobs[0]?.error).toMatch(
+        /Saved links are unchanged|saved links are unchanged/,
+      );
+    }
+    const directoryResult = await run({ kind: "pro-account-links", file: directory });
+    expect(directoryResult.state).toBe("failed");
+    const invalidUtf = join(directory, "invalid-utf.json");
+    await writeFile(invalidUtf, Buffer.from([255]));
+    expect((await run({ kind: "pro-account-links", file: invalidUtf })).state).toBe("failed");
+    expect((await queries.status()).jobs[0]?.error).toMatch(/UTF-8/);
+    const large = join(directory, "large-links.json");
+    await writeFile(large, "");
+    await truncate(large, 5 * 1024 * 1024 + 1);
+    expect((await run({ kind: "pro-account-links", file: large })).state).toBe("failed");
+    expect((await queries.status()).jobs[0]?.error).toMatch(/5 MiB/);
+    expect(await queries.proAccountLink(a)).toEqual(prior);
+  });
+  it("rolls back all links on a persistence failure", async () => {
+    await importCsv();
+    await importLinks();
+    const prior = await queries.proAccountLink(a);
+    await pool.query(
+      "CREATE FUNCTION reject_pro_link_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture failure'; END $$",
+    );
+    await pool.query(
+      "CREATE TRIGGER reject_pro_link_fixture BEFORE INSERT OR UPDATE ON pro_account_links FOR EACH ROW EXECUTE FUNCTION reject_pro_link_fixture()",
+    );
+    try {
+      expect(
+        (
+          await importLinks(
+            proAccountFixture([proAccountFixtureLink(), proAccountFixtureLink("b")]),
+          )
+        ).state,
+      ).toBe("failed");
+    } finally {
+      await pool.query("DROP TRIGGER reject_pro_link_fixture ON pro_account_links");
+      await pool.query("DROP FUNCTION reject_pro_link_fixture()");
+    }
+    expect(await queries.proAccountLink(a)).toEqual(prior);
+    expect(await queries.proAccountLink(b)).toBeNull();
   });
 });
