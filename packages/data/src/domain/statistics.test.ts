@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applySamplePolicy,
+  compareProportions,
   deltaVersusExpected,
   fitRatePrior,
   shrinkRate,
@@ -172,5 +173,63 @@ describe("pair expectations", () => {
     expect(shrinkDelta(0.1, 0)).toBe(0);
     expect(shrinkDelta(null, 10)).toBeNull();
     expect(shrinkDelta(0.1, 0, 0)).toBeNull();
+  });
+});
+
+describe("patch proportion comparisons", () => {
+  it("detects rising and falling signals with the pooled two-proportion statistic", () => {
+    const up = compareProportions(80, 100, 40, 100);
+    expect(up.current).toEqual({ value: 0.8, sampleCount: 100 });
+    expect(up.previous).toEqual({ value: 0.4, sampleCount: 100 });
+    expect(up.delta).toBeCloseTo(0.4);
+    expect(up.z).toBeCloseTo(5.7735026919);
+    expect(up.direction).toBe("rising");
+    const down = compareProportions(40, 100, 80, 100);
+    expect(down.direction).toBe("falling");
+    expect(down.z).toBeCloseTo(-up.z!);
+    expect(compareProportions(58, 100, 44, 100).direction).toBe("rising");
+    expect(compareProportions(57, 100, 44, 100).direction).toBeNull();
+    expect(compareProportions(50, 100, 50, 100)).toMatchObject({
+      delta: 0,
+      z: 0,
+      direction: null,
+      reason: "not-significant",
+    });
+  });
+  it("requires 50 trials and five successes and failures in each patch", () => {
+    expect(compareProportions(40, 49, 10, 50).reason).toBe("small-sample");
+    expect(compareProportions(40, 50, 10, 49).reason).toBe("small-sample");
+    expect(compareProportions(40, 50, 10, 50).direction).toBe("rising");
+    for (const [a, b] of [
+      [4, 20],
+      [20, 4],
+      [96, 20],
+      [20, 96],
+    ])
+      expect(compareProportions(a, 100, b, 100).reason).toBe("sparse-outcomes");
+    expect(compareProportions(5, 100, 25, 100).direction).toBe("falling");
+    expect(compareProportions(95, 100, 25, 100).direction).toBe("rising");
+    expect(compareProportions(0, 100, 0, 100)).toMatchObject({
+      delta: 0,
+      z: null,
+      direction: null,
+      reason: "sparse-outcomes",
+    });
+  });
+  it("keeps absent and zero-sized samples unknown, but preserves observed zero rates", () => {
+    expect(compareProportions(null, 100, 50, 100)).toMatchObject({
+      current: { value: null, sampleCount: 0 },
+      delta: null,
+      reason: "missing",
+    });
+    expect(compareProportions(50, 100, undefined, 100).delta).toBeNull();
+    expect(compareProportions(0, 0, 50, 100).delta).toBeNull();
+    expect(compareProportions(50, 100, 0, 0).delta).toBeNull();
+    expect(compareProportions(0, 100, 20, 100)).toMatchObject({
+      current: { value: 0, sampleCount: 100 },
+      delta: -0.2,
+      direction: null,
+    });
+    expect(() => compareProportions(101, 100, 50, 100)).toThrow(RangeError);
   });
 });

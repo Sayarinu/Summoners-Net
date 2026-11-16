@@ -1,3 +1,5 @@
+import { trending } from "./trending.js";
+import type { TrendingQuery } from "../domain/trending.js";
 import { proFeed } from "./pro-feed.js";
 import type { ProFeedQuery } from "../domain/pro-feed.js";
 import { proAccountLink } from "./pro-accounts.js";
@@ -177,6 +179,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    trending: (input: TrendingQuery) => trending(pool, input),
     proFeed: (input: ProFeedQuery) => proFeed(pool, input),
     proAccountLink: (puuid: string) => proAccountLink(pool, puuid),
     summoner: (input: SummonerQuery) => summoner(pool, input, clock()),

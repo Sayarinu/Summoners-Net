@@ -667,3 +667,30 @@ test("pro solo queue feed filters linked games, paginates and validates URLs", a
   await page.goto("/leaderboards/pros?pageSize=101");
   await expect(page.getByRole("alert").filter({ hasText: "valid team and league" })).toBeVisible();
 });
+
+test("champion trends show missing comparisons and validate source and role filters", async ({
+  page,
+}) => {
+  await page.goto("/trending");
+  await expect(
+    page.getByRole("heading", { name: "Trending champions", exact: true }),
+  ).toBeVisible();
+  const table = page.getByRole("table", { name: "Champion changes between patches" });
+  await expect(table).toContainText("Ahri");
+  await expect(table).toContainText("Unknown change");
+  await expect(page.getByRole("status")).toContainText("No preceding catalog patch");
+  await page.getByText("How a trend qualifies").click();
+  await expect(page.getByText(/Both patches need at least 50/)).toBeVisible();
+  await page.getByRole("button", { name: /Source$/ }).click();
+  await page.getByRole("option", { name: "Pro", exact: true }).click();
+  await page.getByRole("button", { name: /Role$/ }).click();
+  await page.getByRole("option", { name: "Mid", exact: true }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/source=pro/);
+  await expect(page).toHaveURL(/role=MIDDLE/);
+  await expect(table).toContainText("Ahri");
+  await page.goto("/trending?page=10000");
+  await expect(table).toContainText("No champion aggregates for this role and page");
+  await page.goto("/trending?source=other");
+  await expect(page.getByRole("alert").filter({ hasText: "Solo queue or Pro" })).toBeVisible();
+});

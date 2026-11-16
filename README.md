@@ -145,6 +145,10 @@ membership or membership at the time of a solo game. Conflicting observations at
 unknown. Multiple linked accounts for one player remain separate account observations; unlinked
 accounts never appear.
 
+Compare pick and win rates at `/trending`, using Solo queue or Pro aggregates and a role filter.
+Each patch is compared with its immediate catalog predecessor; missing comparisons stay unknown.
+Trend labels require the [documented sample and significance policy](docs/analytics/trending.md).
+
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 
 ### Self-hosting
