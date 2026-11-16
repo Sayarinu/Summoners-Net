@@ -172,6 +172,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "resolve",
         "riot-key",
         "riot-ladder",
+        "riot-accounts",
       ]),
     })
     .strict(),

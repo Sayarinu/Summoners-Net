@@ -146,3 +146,30 @@ export function parseRiotPlatforms(value: string | undefined): RiotPlatform[] {
     throw new Error(`RIOT_PLATFORMS must list platforms from: ${riotPlatforms.join(", ")}.`);
   return [...new Set(parsed.data)];
 }
+
+/** account-v1 is served by the americas, asia and europe routes; any of them finds any account. */
+export function accountRoute(platform: RiotPlatform): "americas" | "asia" | "europe" {
+  if (["na1", "br1", "la1", "la2", "oc1"].includes(platform)) return "americas";
+  if (["euw1", "eun1", "tr1", "ru", "me1"].includes(platform)) return "europe";
+  return "asia";
+}
+export interface RiotAccount {
+  puuid: string;
+  gameName: string | null;
+  tagLine: string | null;
+}
+/** Parses an account-v1 AccountDto; a response for another PUUID is rejected. */
+export function parseAccount(input: unknown, puuid: string): RiotAccount {
+  const account = z
+    .object({
+      puuid: z.literal(puuid),
+      gameName: z.string().min(1).max(100).optional(),
+      tagLine: z.string().min(1).max(20).optional(),
+    })
+    .parse(input);
+  return {
+    puuid: account.puuid,
+    gameName: account.gameName ?? null,
+    tagLine: account.tagLine ?? null,
+  };
+}

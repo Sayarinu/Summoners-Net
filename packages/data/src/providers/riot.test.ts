@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import challenger from "../../tests/riot/challenger-euw1.json" with { type: "json" };
+import account from "../../tests/riot/account.json" with { type: "json" };
 import {
+  accountRoute,
+  parseAccount,
   parseLeagueList,
   parseRiotPlatforms,
   parseRateLimitHeader,
@@ -86,5 +89,26 @@ describe("league-v4 ladders", () => {
     expect(parseRiotPlatforms(" EUW1, kr ,euw1")).toEqual(["euw1", "kr"]);
     expect(() => parseRiotPlatforms("euw1,europe")).toThrow("RIOT_PLATFORMS");
     expect(() => parseRiotPlatforms("na")).toThrow("RIOT_PLATFORMS");
+  });
+});
+describe("account-v1", () => {
+  it("keeps the PUUID and Riot ID, and rejects an account for another PUUID", () => {
+    expect(parseAccount(account, account.puuid)).toEqual({
+      puuid: account.puuid,
+      gameName: "Midlane Fox",
+      tagLine: "EUW",
+    });
+    expect(parseAccount({ puuid: account.puuid }, account.puuid)).toEqual({
+      puuid: account.puuid,
+      gameName: null,
+      tagLine: null,
+    });
+    expect(() => parseAccount(account, "another-puuid-of-sufficient-length")).toThrow();
+  });
+  it("routes each platform to an account-v1 region", () => {
+    expect(accountRoute("na1")).toBe("americas");
+    expect(accountRoute("euw1")).toBe("europe");
+    expect(accountRoute("kr")).toBe("asia");
+    expect(accountRoute("sg2")).toBe("asia");
   });
 });
