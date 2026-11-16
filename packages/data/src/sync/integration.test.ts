@@ -486,10 +486,10 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect(await queries.metadata()).toHaveLength(2);
   });
   it("builds the patch catalog, links Oracle patches and keeps it when Data Dragon fails", async () => {
-    const champion = json({ data: { Ahri: { name: "Ahri", image: { full: "Ahri.png" } } } });
+    const champion = () => json({ data: { Ahri: { name: "Ahri", image: { full: "Ahri.png" } } } });
     fetcher
       .mockResolvedValueOnce(json(["16.4.1", "16.3.1", "16.3.2", "15.21.1", "lolpatch_7.20"]))
-      .mockResolvedValueOnce(champion)
+      .mockResolvedValueOnce(champion())
       .mockResolvedValueOnce(json({ data: {} }));
     expect((await run({ kind: "metadata" })).state).toBe("done");
     let catalog = await listPatches(pool);
@@ -524,7 +524,7 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     instant = new Date(now.valueOf() + 86400000);
     fetcher
       .mockResolvedValueOnce(json(["16.99.1", "16.4.1"]))
-      .mockResolvedValueOnce(champion)
+      .mockResolvedValueOnce(champion())
       .mockResolvedValueOnce(json({ data: {} }));
     expect((await run({ kind: "metadata" })).state).toBe("done");
     expect(await patchFor(pool, "oracle", "16.99")).toBe("16.99");
