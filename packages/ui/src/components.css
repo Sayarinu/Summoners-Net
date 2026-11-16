@@ -1168,3 +1168,42 @@
     }
   }
 }
+
+@layer np-components {
+  .np-chart {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    margin: 0;
+  }
+
+  .np-chart > svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .np-chart--sparkline {
+    max-width: 320px;
+  }
+
+  .np-chart__line,
+  .np-chart__axes path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: var(--stroke-strong);
+    vector-effect: non-scaling-stroke;
+  }
+
+  .np-chart__axes,
+  .np-chart__label {
+    color: var(--color-text-secondary);
+    fill: currentColor;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-family-mono), monospace;
+  }
+
+  .np-chart summary {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+  }
+}

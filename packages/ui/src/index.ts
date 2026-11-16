@@ -1,5 +1,6 @@
 "use client";
 
+export * from "./charts.js";
 export * from "./data-display.js";
 export * from "./esports.js";
 export * from "./forms.js";

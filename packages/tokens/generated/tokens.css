@@ -129,6 +129,8 @@
   --color-status-warning: var(--color-primitive-amber);
   --color-status-info: var(--color-primitive-blue);
   --color-status-live: var(--color-primitive-red);
+  --color-side-blue: var(--color-primitive-blue);
+  --color-side-red: var(--color-primitive-red);
   --color-chart-1: var(--color-primitive-gold-500);
   --color-chart-2: var(--color-primitive-blue);
   --color-chart-3: var(--color-primitive-green);
