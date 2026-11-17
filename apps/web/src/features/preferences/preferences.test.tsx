@@ -30,7 +30,7 @@ it("saves timezone and spoiler preferences with accessible validation", async ()
   act(() => timezone.focus());
   fireEvent.input(timezone, { target: { value: "America/Phoenix" } });
   fireEvent.click(await screen.findByRole("option", { name: "America/Phoenix" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save timezone" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save Timezone" }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
   expect(router.refresh).toHaveBeenCalledOnce();
   fetcher.mockResolvedValue(new Response("{}", { status: 500 }));

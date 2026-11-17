@@ -7,28 +7,28 @@ it("loads exactly one player after consent, switches safely, unloads and offers 
   expect(document.querySelector("iframe")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
   expect(document.querySelectorAll("iframe")).toHaveLength(1);
-  expect(screen.getByTitle("Match broadcast")).toHaveAttribute(
+  expect(screen.getByTitle("Match Broadcast")).toHaveAttribute(
     "src",
     expect.stringContaining("youtube-nocookie.com"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Player not working" }));
+  fireEvent.click(screen.getByRole("button", { name: "Player Not Working" }));
   expect(screen.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(document.querySelectorAll("iframe")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: "Player not working" }));
+  fireEvent.click(screen.getByRole("button", { name: "Player Not Working" }));
   expect(document.querySelector("iframe")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Unload player" }));
+  fireEvent.click(screen.getByRole("button", { name: "Unload Player" }));
   expect(screen.getByRole("button", { name: "Load Stream" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /Broadcast/ }));
   fireEvent.click(screen.getByRole("option", { name: /Twitch/ }));
   expect(document.querySelector("iframe")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
-  expect(screen.getByTitle("Match broadcast")).toHaveAttribute(
+  expect(screen.getByTitle("Match Broadcast")).toHaveAttribute(
     "src",
     expect.stringContaining("parent=localhost"),
   );
   view.rerender(<WatchPlayer broadcasts={[]} />);
-  expect(screen.getByText("No broadcast supplied")).toBeVisible();
+  expect(screen.getByText("No Broadcast Supplied")).toBeVisible();
 });
 it("validates embed IDs and keeps unsupported provider links accessible", () => {
   expect(embedUrl(match.broadcasts[0]!, "127.0.0.1")).toContain("origin=http%3A%2F%2F127.0.0.1");

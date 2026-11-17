@@ -13,7 +13,7 @@ export function ReplayMetadataUpload() {
         body: new FormData(form),
       });
       if (!response.ok) throw new Error();
-      setMessage("Replay metadata import queued. Reload status after the local worker runs.");
+      setMessage("Replay metadata import queued. Reload status after the worker runs.");
     } catch {
       setMessage("Replay import could not be queued. Choose a .rofl file up to 256 MiB.");
     } finally {
@@ -22,7 +22,7 @@ export function ReplayMetadataUpload() {
   }
   return (
     <section className="np-stack">
-      <h2>Import replay metadata</h2>
+      <h2>Import Replay Metadata</h2>
       <p className="np-body-sm">
         Upload a .rofl file to read its version, length and end-of-game statistics. The worker does
         not decode game packets. Uploaded copies are deleted after processing unless replay
@@ -41,13 +41,13 @@ export function ReplayMetadataUpload() {
         }}
       >
         <input type="hidden" name="kind" value="replay-metadata" />
-        <Input label="Replay file" type="file" name="file" accept=".rofl" required />
+        <Input label="Replay File" type="file" name="file" accept=".rofl" required />
         <Select
-          label="Replay platform"
+          label="Replay Platform"
           name="platform"
           defaultValue=""
           options={[
-            { label: "Unknown — keep unlinked", value: "" },
+            { label: "Unknown — Keep Unlinked", value: "" },
             ...riotPlatforms.map((platform) => ({
               label: platform.toUpperCase(),
               value: platform,
@@ -55,7 +55,7 @@ export function ReplayMetadataUpload() {
           ]}
         />
         <Button type="submit" variant="primary" loading={pending} disabled={pending}>
-          Queue replay metadata
+          Queue Replay Metadata
         </Button>
       </form>
       <p role="status">{message}</p>

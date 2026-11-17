@@ -73,10 +73,10 @@ it("shows both samples, signed changes and qualified directions, preserving filt
   );
   expect(rows[2]).toHaveTextContent("Champion 999");
   expect(rows[2]).toHaveTextContent("Unknown change · Comparison unavailable");
-  expect(rows[2]).toHaveTextContent("Too few games");
-  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  expect(rows[2]).toHaveTextContent("Too Few Games");
+  fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   expect(push).toHaveBeenLastCalledWith("/trending?source=solo&patch=16.22&role=MIDDLE&page=2");
-  fireEvent.click(screen.getByText("How a trend qualifies"));
+  fireEvent.click(screen.getByText("How a Trend Qualifies"));
   expect(screen.getByText(/Both patches need at least 50/)).toBeVisible();
 });
 it("explains missing preceding patches, sparse outcomes, neutral deltas and empty selections", () => {
@@ -108,9 +108,9 @@ it("explains missing preceding patches, sparse outcomes, neutral deltas and empt
   expect(screen.getByRole("status")).toHaveTextContent("No aggregate sample");
   expect(screen.getByText("0.0 pp · No significant signal")).toBeVisible();
   expect(screen.getByText(/Too few successes or failures/)).toBeVisible();
-  expect(screen.getByText(/Pro · All roles/)).toBeVisible();
+  expect(screen.getByText(/Pro · All Roles/)).toBeVisible();
   view.rerender(<TrendingPage trends={null} error={null} />);
-  expect(screen.getByText("No champion aggregates for this selection")).toBeVisible();
+  expect(screen.getByText("No Champion Aggregates for This Selection")).toBeVisible();
   view.rerender(<TrendingPage trends={null} error="Invalid selection" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid selection");
 });

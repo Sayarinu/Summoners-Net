@@ -14,7 +14,7 @@ const matchSections = [
     label: "Upcoming",
     states: ["scheduled", "postponed", "cancelled", "unknown"],
   },
-  { id: "past", label: "Past games", states: ["final"] },
+  { id: "past", label: "Past Games", states: ["final"] },
 ] as const;
 
 export function MatchesPage({
@@ -47,9 +47,7 @@ export function MatchesPage({
         <div>
           <span className="np-overline">Schedule</span>
           <h1>Matches</h1>
-          <p className="np-body-sm">
-            Live, upcoming and recent series, refreshed by the local worker.
-          </p>
+          <p className="np-body-sm">Live, upcoming and recent series.</p>
         </div>
       </header>
       <Filters query={query} />
@@ -115,15 +113,15 @@ export function MatchesPage({
       })}
       {!data.items.length && (
         <EmptyState
-          title="No matches in this view"
-          description="Try another date or league. Refreshes are processed by the local synchronization worker."
+          title="No Matches in This View"
+          description="Try another date, league or status."
         />
       )}
       <Pages data={data} />
       <p className="np-body-sm">
         Looking further back?{" "}
         <TextLink href="/history" variant="accent">
-          Browse the game archive
+          Browse the Game Archive
         </TextLink>
       </p>
     </div>
@@ -135,12 +133,12 @@ export function HistoryPage({ data, query }: { data: Page<Game>; query: BrowseQu
       <header className="ev-title">
         <div>
           <span className="np-overline">Historical records</span>
-          <h1>Game archive</h1>
+          <h1>Game Archive</h1>
           <p className="np-body-sm">
             Played lineups and basic statistics, from 2014 onward where imported.
           </p>
         </div>
-        <TextLink href="/sources">Manage imports</TextLink>
+        <TextLink href="/sources">Manage Imports</TextLink>
       </header>
       <Filters query={query} history />
       <GamesTable games={data.items} timezone={query.timezone ?? "UTC"} />
@@ -161,7 +159,7 @@ export function DirectoryPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Your library</span>
+          <span className="np-overline">Directory</span>
           <h1>{kind === "team" ? "Teams" : "Players"}</h1>
         </div>
       </header>
@@ -180,7 +178,7 @@ export function DirectoryPage({
       </div>
       {!data.items.length && (
         <EmptyState
-          title="No identities found"
+          title="No Identities Found"
           description="Try another name or import historical games."
         />
       )}
@@ -193,7 +191,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Across your library</span>
+          <span className="np-overline">Find Anything</span>
           <h1>Search</h1>
         </div>
       </header>
@@ -219,7 +217,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
       ))}
       {!data.items.length && (
         <EmptyState
-          title={query.q ? "No results" : "Find a team, player or match"}
+          title={query.q ? "No Results" : "Find a Team, Player or Match"}
           description="Search a team, player, champion, solo-queue Riot ID (Name#TAG), match or historical game ID."
         />
       )}

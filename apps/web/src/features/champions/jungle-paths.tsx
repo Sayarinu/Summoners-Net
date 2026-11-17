@@ -34,7 +34,7 @@ export function JunglePathsSection({
   const drawn = paths.clusters.slice(0, 3);
   return (
     <section className="np-stack" aria-labelledby="jungle-paths-heading">
-      <h2 id="jungle-paths-heading">Early jungle paths</h2>
+      <h2 id="jungle-paths-heading">Early Jungle Paths</h2>
       <p className="np-meta">
         Inferred from {paths.games} jungle {paths.games === 1 ? "game" : "games"} on patch{" "}
         {paths.patch}: the side of the camp waited at at 1:00, the side reached by 3:00, and the
@@ -54,7 +54,7 @@ export function JunglePathsSection({
             }))}
           />
           <Table
-            caption="Jungle paths"
+            caption="Jungle Paths"
             compact
             rows={paths.clusters}
             getRowKey={(c) => `${c.startSide}:${c.route}:${c.gankLane}`}
@@ -66,18 +66,18 @@ export function JunglePathsSection({
               },
               {
                 id: "route",
-                header: "First clear",
+                header: "First Clear",
                 render: (c) => (c.route ? routeLabels[c.route] : "Unknown"),
               },
               {
                 id: "gank",
-                header: "First gank",
+                header: "First Gank",
                 render: (c) => (c.gankLane ? laneLabels[c.gankLane] : "Unknown"),
               },
               { id: "games", header: "Games", align: "end", render: (c) => c.games },
               {
                 id: "win",
-                header: "Win rate",
+                header: "Win Rate",
                 align: "end",
                 render: (c) =>
                   c.winRate === null
@@ -89,7 +89,7 @@ export function JunglePathsSection({
         </>
       ) : (
         <EmptyState
-          title="No jungle games"
+          title="No Jungle Games"
           description="No games with a stored timeline have this champion in the jungle on this patch."
         />
       )}

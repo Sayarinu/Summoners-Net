@@ -30,7 +30,7 @@ export function RefreshButton({
         body: JSON.stringify({ kind, ...(year ? { year } : {}) }),
       });
       if (!response.ok) throw new Error();
-      setMessage("Queued. The local worker will process this refresh.");
+      setMessage("Queued. The worker will process this refresh.");
     } catch {
       setMessage("Could not queue refresh. Try again.");
     } finally {

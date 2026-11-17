@@ -23,7 +23,7 @@ export function RiotStorageSection({
 }) {
   return (
     <section className="np-stack" aria-labelledby="riot-storage-heading">
-      <h2 id="riot-storage-heading">Solo-queue storage</h2>
+      <h2 id="riot-storage-heading">Solo-Queue Storage</h2>
       <p className="np-body-sm">
         {storage.previousPatches === null
           ? "Retention has not run yet. The worker applies RIOT_RETAIN_PATCHES daily."
@@ -33,7 +33,7 @@ export function RiotStorageSection({
       </p>
       {storage.patches.length ? (
         <Table
-          caption="Solo-queue data per patch"
+          caption="Solo-Queue Data per Patch"
           rows={storage.patches}
           getRowKey={(p) => p.patchKey ?? "unknown"}
           columns={[
@@ -42,7 +42,7 @@ export function RiotStorageSection({
             { id: "timelines", header: "Timelines", render: (p) => p.timelines },
             {
               id: "size",
-              header: "Estimated size",
+              header: "Estimated Size",
               render: (p) => formatBytes(p.estimatedBytes),
             },
           ]}

@@ -52,7 +52,7 @@ it("charts win probability with the model's version and calibration, markers and
     screen.getByText(/model v1 \(#4, features v1\).*Brier score on held-out games is 0\.181/),
   ).toBeVisible();
   expect(container.querySelectorAll(".np-chart__markers path")).toHaveLength(1);
-  expect(screen.getByRole("table", { name: "Kills and objectives" })).toHaveTextContent(
+  expect(screen.getByRole("table", { name: "Kills and Objectives" })).toHaveTextContent(
     "1:38BlueBlue kill62.0%",
   );
   expect(screen.getByRole("table", { name: "Players" })).toHaveTextContent("3 / 2 / ?");
@@ -74,7 +74,7 @@ it("explains why there is no chart instead of drawing a flat line", () => {
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent("No win probability model is active yet.");
-  expect(screen.queryByText("Blue side win probability by minute")).toBeNull();
+  expect(screen.queryByText("Blue Side Win Probability by Minute")).toBeNull();
   expect(screen.getByRole("heading", { name: "Result unknown" })).toBeVisible();
 });
 it("shows the pre-game draft win probability with its inputs", () => {
@@ -103,15 +103,15 @@ it("shows the pre-game draft win probability with its inputs", () => {
       }}
     />,
   );
-  expect(screen.getByRole("heading", { name: "Draft win probability" })).toBeVisible();
-  expect(screen.getByLabelText("Draft win probability by side")).toHaveTextContent(
+  expect(screen.getByRole("heading", { name: "Draft Win Probability" })).toBeVisible();
+  expect(screen.getByLabelText("Draft Win Probability by Side")).toHaveTextContent(
     "Blue side60.0%",
   );
-  expect(screen.getByLabelText("Draft win probability by side")).toHaveTextContent(
-    "Lane matchup coverage0 of 1",
+  expect(screen.getByLabelText("Draft Win Probability by Side")).toHaveTextContent(
+    "Lane Matchup coverage0 of 1",
   );
-  expect(screen.getByRole("table", { name: "Draft model inputs" })).toHaveTextContent(
+  expect(screen.getByRole("table", { name: "Draft Model Inputs" })).toHaveTextContent(
     "Champion 9999",
   );
-  expect(screen.getByRole("table", { name: "Draft model inputs" })).toHaveTextContent("Unknown4");
+  expect(screen.getByRole("table", { name: "Draft Model Inputs" })).toHaveTextContent("Unknown4");
 });

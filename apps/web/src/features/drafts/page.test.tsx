@@ -56,9 +56,9 @@ it("shows samples, coverage, filters and accessible draft tables", async () => {
   expect(screen.getByLabelText("League")).toHaveValue("LCK");
   expect(screen.getByText(/2 included · 1 excluded/)).toBeVisible();
   expect(screen.getByText("First-pick win rate: 50.0% · 2 games")).toBeVisible();
-  expect(screen.getByRole("table", { name: "Pick and ban priority" })).toBeVisible();
-  expect(screen.getByText("Phase total")).toBeVisible();
-  fireEvent.click(screen.getByText("How these rates are measured"));
+  expect(screen.getByRole("table", { name: "Pick and Ban Priority" })).toBeVisible();
+  expect(screen.getByText("Phase Total")).toBeVisible();
+  fireEvent.click(screen.getByText("How These Rates Are Measured"));
   expect(screen.getByText(/Blind means picked before/)).toBeVisible();
   const result = await axe.run(document.body, {
     rules: { "color-contrast": { enabled: false }, region: { enabled: false } },
@@ -86,8 +86,8 @@ it("shows samples, coverage, filters and accessible draft tables", async () => {
 it("explains missing data and invalid filters", () => {
   const { rerender } = render(<DraftsPage query={null} analytics={null} error="Invalid filters" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid filters");
-  expect(screen.queryByText("No draft data yet")).not.toBeInTheDocument();
+  expect(screen.queryByText("No Draft Data Yet")).not.toBeInTheDocument();
   rerender(<DraftsPage query={null} analytics={null} error={null} />);
-  expect(screen.getByText("No draft data yet")).toBeVisible();
+  expect(screen.getByText("No Draft Data Yet")).toBeVisible();
   expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("href", "/sources");
 });

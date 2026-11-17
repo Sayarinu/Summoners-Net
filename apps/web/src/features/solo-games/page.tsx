@@ -36,7 +36,7 @@ export function SoloGamePage({
               : ""}
             {" · "}
             <TextLink href={`/solo-games/${encodeURIComponent(game.matchId)}/map`}>
-              Game map
+              Game Map
             </TextLink>
           </p>
         </div>
@@ -51,7 +51,7 @@ export function SoloGamePage({
         />
       ) : null}
       <section className="np-stack" aria-labelledby="wp-heading">
-        <h2 id="wp-heading">Win probability</h2>
+        <h2 id="wp-heading">Win Probability</h2>
         {wp.model && wp.points.length ? (
           <>
             <p className="np-meta">
@@ -60,12 +60,12 @@ export function SoloGamePage({
               Brier score on held-out games is{" "}
               {wp.model.brier === null ? "unknown" : wp.model.brier.toFixed(3)} (lower is better;
               0.25 is a coin flip). Minutes without stored features are gaps.{" "}
-              <TextLink href={`/models?model=${wp.model.id}`}>Model diagnostics</TextLink>.
+              <TextLink href={`/models?model=${wp.model.id}`}>Model Diagnostics</TextLink>.
             </p>
             <LineChart
-              title="Blue side win probability by minute"
+              title="Blue Side Win Probability by Minute"
               xLabel="Minute"
-              yLabel="Blue win probability (%)"
+              yLabel="Blue Win Probability (%)"
               color="blue"
               points={wp.points.map((p) => ({
                 id: String(p.minute),
@@ -89,7 +89,7 @@ export function SoloGamePage({
           <p role="status">{wp.reason}</p>
         )}
         <Table
-          caption="Kills and objectives"
+          caption="Kills and Objectives"
           compact
           rows={wp.markers}
           getRowKey={(m) => m.id}
@@ -105,7 +105,7 @@ export function SoloGamePage({
             { id: "event", header: "Event", render: (m) => m.label },
             {
               id: "wp",
-              header: "Blue win probability that minute",
+              header: "Blue Win Probability That Minute",
               align: "end",
               render: (m) =>
                 percent(wp.points.find((p) => p.minute === m.minute)?.blueWinProbability ?? null),

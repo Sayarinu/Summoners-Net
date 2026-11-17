@@ -252,7 +252,7 @@ export function Combobox({
       <div className="np-combobox__control">
         <Icon icon={Search} size="small" />
         <AriaInput placeholder={placeholder} />
-        <AriaButton aria-label="Show options">
+        <AriaButton aria-label="Show Options">
           <Icon icon={ChevronDown} size="small" />
         </AriaButton>
       </div>
@@ -263,7 +263,7 @@ export function Combobox({
         </AriaText>
       ) : null}
       <AriaPopover className="np-popover np-select__popover">
-        <ListBox className="np-listbox" items={options} renderEmptyState={() => "No results"}>
+        <ListBox className="np-listbox" items={options} renderEmptyState={() => "No Results"}>
           {(option) => (
             <ListBoxItem className="np-listbox__item" id={option.value} textValue={option.label}>
               <span>

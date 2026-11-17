@@ -9,7 +9,7 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
   const { pro, query: q, champion } = overview;
   return (
     <section className="np-stack" aria-labelledby="pro-heading">
-      <h2 id="pro-heading">Pro play</h2>
+      <h2 id="pro-heading">Pro Play</h2>
       <form action={`/champions/${champion.id}`} method="get" className="ev-filters">
         {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
           q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
@@ -19,17 +19,17 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
           name="league"
           defaultValue={q.league ?? "all"}
           options={[
-            { label: "All leagues", value: "all" },
+            { label: "All Leagues", value: "all" },
             ...pro.leagues.map((l) => ({ label: l, value: l })),
           ]}
         />
-        <Button type="submit">Apply league</Button>
+        <Button type="submit">Apply League</Button>
       </form>
       {!pro.patch ? (
         <p className="np-meta">No pro drafts imported yet.</p>
       ) : (
         <>
-          <dl className="ev-summary" aria-label="Pro-play statistics">
+          <dl className="ev-summary" aria-label="Pro-Play Statistics">
             <div>
               <dt>Presence · {pro.games} games</dt>
               <dd>{percent(pro.presence)}</dd>

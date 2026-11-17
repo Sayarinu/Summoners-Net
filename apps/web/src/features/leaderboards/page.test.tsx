@@ -58,12 +58,12 @@ it("shows ranks, samples, missing statistics and refresh failure without losing 
   expect(rows[2]).toHaveTextContent("No sampled games");
   expect(rows[2]).toHaveTextContent("Riot ID not resolved");
   expect(screen.getByRole("link", { name: "EUW1" })).toHaveAttribute("aria-current", "page");
-  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   expect(push).toHaveBeenCalledWith("/leaderboards/euw1?page=2&pageSize=2");
 });
 it("shows empty and invalid states and fallback champion identity", () => {
   const view = render(<LeaderboardPage list={null} error={null} region="kr" timezone="UTC" />);
-  expect(screen.getByText("No ladder stored for this region")).toBeVisible();
+  expect(screen.getByText("No Ladder Stored for This Region")).toBeVisible();
   view.rerender(<LeaderboardPage list={null} error="Invalid page" region="kr" timezone="UTC" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid page");
   view.rerender(

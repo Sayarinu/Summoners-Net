@@ -9,7 +9,7 @@ it("queues manual refresh and reports success or failure without pretending to f
   vi.stubGlobal("fetch", fetcher);
   const view = render(<RefreshButton kind="matches" />);
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-  await screen.findByText(/Queued\. The local worker/);
+  await screen.findByText(/Queued\. The worker/);
   expect(fetcher).toHaveBeenCalledWith(
     "/api/refresh",
     expect.objectContaining({ body: JSON.stringify({ kind: "matches" }) }),
@@ -34,23 +34,23 @@ it("shows data freshness, actual coverage and queued uploads", async () => {
   vi.stubGlobal("fetch", fetcher);
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  expect(screen.getByRole("table", { name: "Data freshness" })).toBeVisible();
+  expect(screen.getByRole("table", { name: "Data Freshness" })).toBeVisible();
   expect(screen.getAllByText("Needs attention")).toHaveLength(2);
   expect(screen.getByRole("link", { name: "2026" })).toHaveAttribute("href", "/history?year=2026");
-  fireEvent.submit(screen.getByRole("button", { name: "Queue local import" }).closest("form")!);
+  fireEvent.submit(screen.getByRole("button", { name: "Queue Import" }).closest("form")!);
   await screen.findByText(/Import queued/);
   expect(fetcher).toHaveBeenCalledWith("/api/import", expect.objectContaining({ method: "POST" }));
   fetcher.mockRejectedValue(new Error());
-  fireEvent.submit(screen.getByRole("button", { name: "Queue local import" }).closest("form")!);
+  fireEvent.submit(screen.getByRole("button", { name: "Queue Import" }).closest("form")!);
   await screen.findByText(/Import could not be queued/);
   fetcher.mockResolvedValue(new Response("{}", { status: 400 }));
-  fireEvent.submit(screen.getByRole("button", { name: "Queue local import" }).closest("form")!);
+  fireEvent.submit(screen.getByRole("button", { name: "Queue Import" }).closest("form")!);
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
   view.rerender(
     <SourcesPage status={{ ...status, cooldownUntil: instant }} timezone="UTC" year={2026} />,
   );
   expect(screen.getByText(/Refresh cooldown until/)).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Reload status" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reload Status" }));
   error.mockRestore();
 });
 it("reports linked profiles, cached images and failed image refreshes", () => {
@@ -66,7 +66,7 @@ it("reports linked profiles, cached images and failed image refreshes", () => {
       }}
     />,
   );
-  expect(screen.getByRole("table", { name: "Resolved library" })).toBeVisible();
+  expect(screen.getByRole("table", { name: "Resolved Identities" })).toBeVisible();
   expect(screen.getByText(/1 ambiguous candidates/)).toBeVisible();
   expect(screen.getByText(/1 image downloads unavailable/)).toBeVisible();
   expect(screen.getByRole("button", { name: "Refresh identities & images" })).toBeVisible();
@@ -75,8 +75,8 @@ it("shows the Riot key state, last check and development key expiry without cont
   const fetcher = vi.fn();
   vi.stubGlobal("fetch", fetcher);
   const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  const section = () => screen.getByRole("region", { name: "Riot API key" });
-  expect(section()).toHaveTextContent("Not configured");
+  const section = () => screen.getByRole("region", { name: "Riot API Key" });
+  expect(section()).toHaveTextContent("Not Configured");
   expect(section()).toHaveTextContent("Riot jobs are skipped until a key is set");
   const riot = (riotKey: Partial<typeof status.riotKey>) =>
     view.rerender(
@@ -111,7 +111,7 @@ it("shows the Riot key state, last check and development key expiry without cont
 });
 it("shows solo-queue storage per patch and the retention setting", () => {
   const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  const section = () => screen.getByRole("region", { name: "Solo-queue storage" });
+  const section = () => screen.getByRole("region", { name: "Solo-Queue Storage" });
   expect(section()).toHaveTextContent("Retention has not run yet");
   expect(section()).toHaveTextContent("No solo-queue matches stored yet.");
   view.rerender(
@@ -136,7 +136,7 @@ it("shows solo-queue storage per patch and the retention setting", () => {
     />,
   );
   expect(section()).toHaveTextContent("current patch and 1 previous patch (16.22, 16.21)");
-  const table = screen.getByRole("table", { name: "Solo-queue data per patch" });
+  const table = screen.getByRole("table", { name: "Solo-Queue Data per Patch" });
   expect(table).toHaveTextContent("Unknown version");
   expect(table).toHaveTextContent("50 MiB");
   expect(table).toHaveTextContent("3.0 MiB");
@@ -147,7 +147,7 @@ it("shows Riot quota, job outcomes and crawl progress, and queues a crawl", asyn
   const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status: 202 }));
   vi.stubGlobal("fetch", fetcher);
   const view = render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  const section = () => screen.getByRole("region", { name: "Riot crawler" });
+  const section = () => screen.getByRole("region", { name: "Riot Crawler" });
   expect(section()).toHaveTextContent("No ladder or match data yet.");
   expect(section()).toHaveTextContent("No Riot requests in the last hour.");
   view.rerender(
@@ -204,17 +204,17 @@ it("shows Riot quota, job outcomes and crawl progress, and queues a crawl", asyn
       year={2026}
     />,
   );
-  const progress = screen.getByRole("table", { name: "Crawl progress by region and patch" });
+  const progress = screen.getByRole("table", { name: "Crawl Progress by Region and Patch" });
   expect(progress).toHaveTextContent("europe16.22300200015001400");
-  const jobs = screen.getByRole("table", { name: "Riot jobs" });
+  const jobs = screen.getByRole("table", { name: "Riot Jobs" });
   expect(jobs).toHaveTextContent("Match details");
   expect(jobs).toHaveTextContent("No patch catalog yet");
-  const quota = screen.getByRole("table", { name: "Riot request quota" });
+  const quota = screen.getByRole("table", { name: "Riot Request Quota" });
   expect(quota).toHaveTextContent("3 / 20 per 1 s, 42 / 100 per 2 min");
   expect(quota).toHaveTextContent("All methods (application limit)");
   expect(quota).toHaveTextContent("Limit not reported yet");
-  fireEvent.click(screen.getByRole("button", { name: "Queue crawl" }));
-  await screen.findByText(/Queued\. The local worker/);
+  fireEvent.click(screen.getByRole("button", { name: "Queue Crawl" }));
+  await screen.findByText(/Queued\. The worker/);
   expect(fetcher).toHaveBeenCalledWith(
     "/api/refresh",
     expect.objectContaining({ body: JSON.stringify({ kind: "riot-match-ids" }) }),
@@ -225,7 +225,7 @@ it("only uploads track bytes to the queue and reports request failures", async (
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 202 }));
   vi.stubGlobal("fetch", fetcher);
   render(<SourcesPage status={status} timezone="UTC" year={2026} />);
-  const button = screen.getByRole("button", { name: "Queue track import" });
+  const button = screen.getByRole("button", { name: "Queue Track Import" });
   fireEvent.submit(button.closest("form")!);
   await screen.findByText(/Track import queued/);
   expect(fetcher).toHaveBeenCalledTimes(1);
@@ -265,7 +265,7 @@ it("queues replay metadata without parsing bytes and shows controlled worker err
     />,
   );
   expect(screen.getByText("Replay header or metadata is malformed.")).toBeVisible();
-  const button = screen.getByRole("button", { name: "Queue replay metadata" });
+  const button = screen.getByRole("button", { name: "Queue Replay Metadata" });
   fireEvent.submit(button.closest("form")!);
   await screen.findByText(/Replay metadata import queued/);
   expect(fetcher).toHaveBeenCalledWith(
@@ -303,7 +303,7 @@ it("queues pro account links and shows whole-file validation reports", async () 
     />,
   );
   expect(screen.getByText(/Link 2: no stored player/)).toBeVisible();
-  const button = screen.getByRole("button", { name: "Queue pro account links" });
+  const button = screen.getByRole("button", { name: "Queue Pro Account Links" });
   fireEvent.submit(button.closest("form")!);
   await screen.findByText(/Pro account link import queued/);
   expect(fetcher).toHaveBeenCalledWith(
@@ -351,14 +351,14 @@ it("shows the active win probability model or why there is none, and only queues
       models={{ models: [rejected, model], selected: null }}
     />,
   );
-  const section = screen.getByRole("region", { name: "Win probability model" });
+  const section = screen.getByRole("region", { name: "Win Probability Model" });
   expect(section).toHaveTextContent("Model v1 (#2) is active");
   expect(section).toHaveTextContent(
     "812 games (24000 states) from patches 16.22, 16.21. Brier score 0.181 on 203 held-out games",
   );
   expect(section).toHaveTextContent("Last attempt rejected: Only 12 training matches");
-  fireEvent.click(screen.getByRole("button", { name: "Queue training" }));
-  await screen.findByText(/Queued\. The local worker/);
+  fireEvent.click(screen.getByRole("button", { name: "Queue Training" }));
+  await screen.findByText(/Queued\. The worker/);
   expect(fetcher).toHaveBeenCalledWith(
     "/api/refresh",
     expect.objectContaining({ body: JSON.stringify({ kind: "wp-train" }) }),

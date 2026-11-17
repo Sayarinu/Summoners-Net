@@ -35,9 +35,9 @@ const paths: ChampionJunglePaths = {
 
 it("tables clustered paths with samples and draws them on the minimap", () => {
   const { container } = render(<JunglePathsSection paths={paths} champion="Lee Sin" />);
-  expect(screen.getByRole("heading", { name: "Early jungle paths" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Early Jungle Paths" })).toBeVisible();
   expect(screen.getByText(/Inferred from 15 jungle games on patch 16.22/)).toBeVisible();
-  const table = screen.getByRole("table", { name: "Jungle paths" });
+  const table = screen.getByRole("table", { name: "Jungle Paths" });
   expect(table).toHaveTextContent("Blue buff sideCrosses to the other sideTop1275.0% (12)");
   expect(table).toHaveTextContent("UnknownUnknownUnknown3Too few games (2)");
   // The second path has one located minute, so only the first can be drawn as a line.
@@ -48,6 +48,6 @@ it("tables clustered paths with samples and draws them on the minimap", () => {
 });
 it("says when the champion has no jungle games", () => {
   render(<JunglePathsSection paths={{ ...paths, games: 0, clusters: [] }} champion="Ahri" />);
-  expect(screen.getByText("No jungle games")).toBeVisible();
+  expect(screen.getByText("No Jungle Games")).toBeVisible();
   expect(screen.getByText(/Inferred from 0 jungle games/)).toBeVisible();
 });

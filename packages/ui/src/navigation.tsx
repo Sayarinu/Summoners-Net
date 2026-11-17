@@ -72,7 +72,7 @@ export function Pagination({
       <IconButton
         disabled={currentPage <= 1}
         icon={<Icon icon={ChevronLeft} size="small" />}
-        label="Previous page"
+        label="Previous Page"
         onPress={() => onPageChange(currentPage - 1)}
         size="compact"
         variant="ghost"
@@ -99,7 +99,7 @@ export function Pagination({
       <IconButton
         disabled={currentPage >= totalPages}
         icon={<Icon icon={ChevronRight} size="small" />}
-        label="Next page"
+        label="Next Page"
         onPress={() => onPageChange(currentPage + 1)}
         size="compact"
         variant="ghost"

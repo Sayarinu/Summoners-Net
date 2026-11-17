@@ -44,9 +44,9 @@ export function SummonerPage({
           </TextLink>
         </div>
       </header>
-      <nav aria-label="Player regions" className="ev-filters">
+      <nav aria-label="Player Regions" className="ev-filters">
         <TextLink href={base} aria-current={!profile?.query.region ? "page" : undefined}>
-          All regions
+          All Regions
         </TextLink>
         {riotPlatforms.map((r) => (
           <TextLink
@@ -62,10 +62,10 @@ export function SummonerPage({
         <p role="alert">{error}</p>
       ) : profile ? (
         <>
-          <section className="np-stack" aria-label="Recent solo queue games">
-            <h2>Recent games</h2>
+          <section className="np-stack" aria-label="Recent Solo Queue Games">
+            <h2>Recent Games</h2>
             <Table
-              caption="Recent ranked solo games"
+              caption="Recent Ranked Solo Games"
               rows={profile.games.items}
               getRowKey={(r) => r.matchId}
               emptyMessage="No sampled games in this selection."
@@ -109,16 +109,16 @@ export function SummonerPage({
               {profile.games.total} sampled games · Page {profile.games.page}
             </p>
             <Pagination
-              label="Recent game pages"
+              label="Recent Game Pages"
               currentPage={profile.games.page}
               totalPages={Math.max(1, Math.ceil(profile.games.total / 25))}
               onPageChange={(p) => go("page", p)}
             />
           </section>
-          <section className="np-stack" aria-label="Champion pool">
-            <h2>Champion pool</h2>
+          <section className="np-stack" aria-label="Champion Pool">
+            <h2>Champion Pool</h2>
             <Table
-              caption="Sampled champion pool"
+              caption="Sampled Champion Pool"
               rows={profile.champions.items}
               getRowKey={(r) => String(r.championKey)}
               emptyMessage="No sampled champions in this selection."
@@ -141,14 +141,14 @@ export function SummonerPage({
                 { id: "games", header: "Games", align: "end", render: (r) => r.games },
                 {
                   id: "rate",
-                  header: "Win rate",
+                  header: "Win Rate",
                   align: "end",
                   render: (r) =>
                     r.winRate.value === null ? "Unknown" : `${(r.winRate.value * 100).toFixed(1)}%`,
                 },
                 {
                   id: "sample",
-                  header: "Known results",
+                  header: "Known Results",
                   align: "end",
                   render: (r) => r.winRate.sampleCount,
                 },
@@ -158,14 +158,14 @@ export function SummonerPage({
               {profile.champions.total} champions · Page {profile.champions.page}
             </p>
             <Pagination
-              label="Champion pool pages"
+              label="Champion Pool Pages"
               currentPage={profile.champions.page}
               totalPages={Math.max(1, Math.ceil(profile.champions.total / 25))}
               onPageChange={(p) => go("championPage", p)}
             />
           </section>
-          <section className="np-stack" aria-label="Ladder history">
-            <h2>LP and rank history</h2>
+          <section className="np-stack" aria-label="Ladder History">
+            <h2>LP and Rank History</h2>
             <p>
               Last 30 UTC days ({profile.historyFrom} to {profile.historyTo}). Each point uses the
               day's latest observed ladder position; the sample count is that day's observations.
@@ -181,7 +181,7 @@ export function SummonerPage({
                   <h3>{h.platform.toUpperCase()}</h3>
                   <LineChart
                     title={`${h.platform.toUpperCase()} LP history`}
-                    xLabel="Day in window"
+                    xLabel="Day in Window"
                     yLabel="LP"
                     points={h.points.map((p, i) => ({
                       id: p.day,
@@ -193,7 +193,7 @@ export function SummonerPage({
                   />
                   <LineChart
                     title={`${h.platform.toUpperCase()} rank history`}
-                    xLabel="Day in window"
+                    xLabel="Day in Window"
                     yLabel="Rank"
                     points={h.points.map((p, i) => ({
                       id: p.day,
@@ -207,8 +207,8 @@ export function SummonerPage({
               ))
             ) : (
               <EmptyState
-                title="No ladder snapshots in this window"
-                description="History appears after the local worker observes this player in a successful ladder refresh."
+                title="No Ladder Snapshots in This Window"
+                description="History appears after the worker observes this player in a successful ladder refresh."
               />
             )}
           </section>

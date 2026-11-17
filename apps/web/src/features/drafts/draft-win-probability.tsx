@@ -7,8 +7,8 @@ const percent = (value: number | null) =>
 const points = (value: number | null) =>
   value === null ? "Unknown" : `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)} pts`;
 const kinds: Record<DraftInput["kind"], string> = {
-  strength: "Champion strength",
-  lane: "Lane matchup",
+  strength: "Champion Strength",
+  lane: "Lane Matchup",
   synergy: "Synergy",
 };
 
@@ -29,12 +29,12 @@ export function DraftWinProbabilitySection({
   const ours = blue === null ? null : side === "blue" ? blue : 1 - blue;
   return (
     <section className="np-stack" aria-labelledby="draft-wp-heading">
-      <h2 id="draft-wp-heading">Draft win probability</h2>
+      <h2 id="draft-wp-heading">Draft Win Probability</h2>
       {!v.model || blue === null ? (
         <p role="status">{v.reason}</p>
       ) : (
         <>
-          <dl className="ev-summary" aria-label="Draft win probability by side">
+          <dl className="ev-summary" aria-label="Draft Win Probability by Side">
             <div>
               <dt>{side === "blue" ? "Blue" : "Red"} side</dt>
               <dd>{percent(ours)}</dd>
@@ -59,7 +59,7 @@ export function DraftWinProbabilitySection({
             is a coin flip). <TextLink href={`/models?model=${v.model.id}`}>Calibration</TextLink>
           </p>
           <details>
-            <summary>Inputs and samples</summary>
+            <summary>Inputs and Samples</summary>
             <p className="np-body-sm">
               The model adds up, from blue’s side, each champion’s role win rate, each lane’s shrunk
               matchup and each pair of teammates’ shrunk duo result, all in win-rate points above
@@ -67,7 +67,7 @@ export function DraftWinProbabilitySection({
               and counted in the coverage above.
             </p>
             <Table
-              caption="Draft model inputs"
+              caption="Draft Model Inputs"
               compact
               rows={v.inputs.map((input, i) => ({ ...input, id: i }))}
               getRowKey={(r) => String(r.id)}

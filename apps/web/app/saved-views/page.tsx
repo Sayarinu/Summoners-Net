@@ -6,7 +6,7 @@ export default function Page() {
       <header className="ev-title">
         <div>
           <span className="np-overline">This browser</span>
-          <h1>Saved views</h1>
+          <h1>Saved Views</h1>
         </div>
       </header>
       <SavedViewsPanel />

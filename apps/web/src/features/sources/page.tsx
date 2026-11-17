@@ -49,7 +49,7 @@ export function SourcesPage({
         body: new FormData(form),
       });
       if (!response.ok) throw new Error();
-      setMessage("Import queued. Start the local worker to process it, then reload this page.");
+      setMessage("Import queued. Start the worker to process it, then reload this page.");
     } catch {
       setMessage(
         "Import could not be queued. Choose an annual CSV up to 256 MiB and a year from 2014 onward.",
@@ -62,33 +62,33 @@ export function SourcesPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Your local library</span>
-          <h1>Data management</h1>
+          <span className="np-overline">Data</span>
+          <h1>Data Management</h1>
           <p className="np-body-sm">
             Refreshes join the shared queue. Keep <code>pnpm sync</code> running to process them.
           </p>
         </div>
-        <Button onPress={() => window.location.reload()}>Reload status</Button>
+        <Button onPress={() => window.location.reload()}>Reload Status</Button>
       </header>
       <Table
-        caption="Data freshness"
+        caption="Data Freshness"
         rows={status.sources}
         getRowKey={(s) => s.source}
         columns={[
           { id: "source", header: "Data", render: (s) => dataLabel(s.source) },
           {
             id: "success",
-            header: "Last success",
+            header: "Last Success",
             render: (s) => (s.lastSuccess ? dateTime(s.lastSuccess, timezone) : "Never"),
           },
           {
             id: "attempt",
-            header: "Last attempt",
+            header: "Last Attempt",
             render: (s) => (s.lastAttempt ? dateTime(s.lastAttempt, timezone) : "Never"),
           },
           {
             id: "records",
-            header: "Last job records",
+            header: "Last Job Records",
             render: (s) => s.records,
           },
           { id: "error", header: "Status", render: (s) => (s.error ? "Needs attention" : "Ready") },
@@ -116,21 +116,21 @@ export function SourcesPage({
           : "No refresh cooldown."}
       </p>
       <section className="np-stack">
-        <h2>Identity & image coverage</h2>
+        <h2>Identity & Image Coverage</h2>
         <p className="np-body-sm">
           Records are linked using corroborating lineups or repeated fixtures. Ambiguous identities
           remain separate. Images are saved locally and may reflect current branding.
         </p>
         {entities && (
           <Table
-            caption="Resolved library"
+            caption="Resolved Identities"
             rows={entities.counts}
             getRowKey={(r) => r.kind}
             columns={[
               { id: "kind", header: "Kind", render: (r) => r.kind },
               { id: "total", header: "Profiles", render: (r) => r.identities },
-              { id: "linked", header: "Linked records", render: (r) => r.linked },
-              { id: "images", header: "With images", render: (r) => r.images },
+              { id: "linked", header: "Linked Records", render: (r) => r.linked },
+              { id: "images", header: "With Images", render: (r) => r.images },
             ]}
           />
         )}
@@ -152,7 +152,7 @@ export function SourcesPage({
       <ReplayMetadataUpload />
       <ProAccountUpload />
       <section className="np-stack">
-        <h2>Import an annual game file</h2>
+        <h2>Import an Annual Game File</h2>
         <p className="np-body-sm">
           Choose an original annual game CSV. Summary exports are not game records. A failed file
           leaves saved games intact.
@@ -175,7 +175,7 @@ export function SourcesPage({
           />
           <Input label="Annual CSV" type="file" name="file" accept=".csv,text/csv" required />
           <Button type="submit" variant="primary" loading={pending} disabled={pending}>
-            Queue local import
+            Queue Import
           </Button>
         </form>
         <p role="status">{message}</p>
@@ -185,7 +185,7 @@ export function SourcesPage({
         </p>
       </section>
       <Table
-        caption="Imported historical coverage"
+        caption="Imported Historical Coverage"
         rows={status.history}
         getRowKey={(h) => String(h.year)}
         columns={[
@@ -197,18 +197,18 @@ export function SourcesPage({
           { id: "games", header: "Games", render: (h) => h.games },
           {
             id: "eligible",
-            header: "Eligible games",
+            header: "Eligible Games",
             render: (h) => h.eligible,
           },
           {
             id: "latest",
-            header: "Latest game",
+            header: "Latest Game",
             render: (h) => dateTime(h.latestGameAt, timezone),
           },
         ]}
       />
       <Table
-        caption="Recent synchronization jobs"
+        caption="Recent Synchronization Jobs"
         rows={status.jobs}
         getRowKey={(j) => j.id}
         columns={[
@@ -251,7 +251,7 @@ export function SourcesPage({
         ]}
       />
       <section className="np-stack ev-prose">
-        <h2>Coverage & data notes</h2>
+        <h2>Coverage & Data Notes</h2>
         <p className="np-body-sm">
           Korea, China, Europe, North America, LCP, Worlds, MSI, First Stand and EWC. Historical
           regional names are grouped for browsing. PCS, VCS, LJL and Oceania predecessors are

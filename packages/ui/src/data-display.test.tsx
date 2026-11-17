@@ -23,7 +23,7 @@ describe("feedback and data display", () => {
     expect(container.querySelector(".np-skeleton")).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelector(".np-state-panel__icon")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Notice" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Nothing here yet" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Nothing Here Yet" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
   });
@@ -45,10 +45,10 @@ describe("feedback and data display", () => {
         columns={columns}
         compact
         getRowKey={(row) => row.name}
-        rows={[{ name: "Win rate", value: 67 }]}
+        rows={[{ name: "Win Rate", value: 67 }]}
       />,
     );
-    expect(screen.getByRole("table", { name: "Metrics" })).toHaveTextContent("Win rate");
+    expect(screen.getByRole("table", { name: "Metrics" })).toHaveTextContent("Win Rate");
     expect(screen.getByRole("region", { name: "Metrics" })).toHaveAttribute("tabindex", "0");
     rerender(
       <Table

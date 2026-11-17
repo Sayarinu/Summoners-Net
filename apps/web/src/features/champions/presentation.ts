@@ -1,19 +1,19 @@
 import type { SampledValue, TierListRow } from "@summonersnet/data/contracts";
 
 export const roleLabels: Record<TierListRow["role"], string> = {
-  ALL: "All roles",
+  ALL: "All Roles",
   TOP: "Top",
   JUNGLE: "Jungle",
   MIDDLE: "Mid",
   BOTTOM: "Bot",
   UTILITY: "Support",
-  UNKNOWN: "Unknown role",
+  UNKNOWN: "Unknown Role",
 };
 export const sortLabels = {
   games: "Games",
-  winRate: "Win rate",
-  pickRate: "Pick rate",
-  banRate: "Ban rate",
+  winRate: "Win Rate",
+  pickRate: "Pick Rate",
+  banRate: "Ban Rate",
 } as const;
 /** A rate as a percentage, or "Unknown" when there is no sample; never 0% for missing data. */
 export function percent(rate: SampledValue) {
@@ -26,6 +26,6 @@ export function interval(rate: { lower: number | null; upper: number | null }) {
 }
 export const sampleLabels: Record<TierListRow["sample"], string> = {
   shown: "",
-  "low-sample": "Low sample",
-  hidden: "Too few games",
+  "low-sample": "Low Sample",
+  hidden: "Too Few Games",
 };

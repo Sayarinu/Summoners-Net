@@ -120,7 +120,7 @@ export async function importUpload(request: Request) {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT")
           return NextResponse.json(
-            { error: "Could not queue or remove the staged replay copy. Check local imports." },
+            { error: "Could not queue or remove the staged replay copy. Check the import folder." },
             { status: 500 },
           );
       }

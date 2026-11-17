@@ -30,7 +30,7 @@ it("draws a heatmap with its sample, side normalization and navigation", () => {
   );
   expect(screen.getByText(/Red side is rotated half a turn/)).toBeVisible();
   expect(container.querySelectorAll(".np-minimap circle")).toHaveLength(2);
-  const types = screen.getByRole("navigation", { name: "Heatmap type" });
+  const types = screen.getByRole("navigation", { name: "Heatmap Type" });
   expect(within(types).getByRole("link", { name: "Kills" })).toHaveAttribute(
     "href",
     "/heatmaps?subjectKind=champion&subject=Ahri&kind=kill&patch=16.22",
@@ -66,7 +66,7 @@ it("reports the sample but does not draw below the minimum", () => {
   );
   expect(screen.getByRole("heading", { name: "Jungle: deaths" })).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Sample: 1 game and 1 point");
-  expect(screen.getByText("Too few games to draw")).toBeVisible();
+  expect(screen.getByText("Too Few Games to Draw")).toBeVisible();
   expect(container.querySelector(".np-minimap")).toBeNull();
   expect(screen.getByRole("link", { name: "Jungle" })).toHaveAttribute("aria-current", "page");
 });
@@ -89,7 +89,7 @@ it("explains missing heatmaps, unresolved players and invalid queries", () => {
     />,
   );
   expect(screen.getByRole("heading", { name: "Riot ID not resolved: positions" })).toBeVisible();
-  expect(screen.getByText("No heatmap yet")).toBeVisible();
+  expect(screen.getByText("No Heatmap Yet")).toBeVisible();
   expect(screen.queryByRole("navigation", { name: "Patch" })).toBeNull();
   unmount();
   render(<HeatmapPage heatmap={null} error="Choose a champion." />);

@@ -81,13 +81,13 @@ it("shows linked identities, source observations and unknown values, and preserv
     "href",
     "/players/pro-player",
   );
-  expect(within(rows[1]!).getByRole("link", { name: "Solo queue profile" })).toHaveAttribute(
+  expect(within(rows[1]!).getByRole("link", { name: "Solo Queue Profile" })).toHaveAttribute(
     "href",
     "/summoners/a",
   );
   expect(rows[2]).toHaveTextContent("Unknown");
   expect(rows[2]).toHaveTextContent("Champion 999");
-  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   expect(push).toHaveBeenLastCalledWith("/leaderboards/pros?league=LCK&page=2&pageSize=2");
 });
 it("resets pagination when selecting and clearing SQL filters", () => {
@@ -110,10 +110,10 @@ it("resets pagination when selecting and clearing SQL filters", () => {
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: /Team$/ }));
-  fireEvent.click(screen.getByRole("option", { name: "All teams" }));
+  fireEvent.click(screen.getByRole("option", { name: "All Teams" }));
   expect(push).toHaveBeenLastCalledWith("/leaderboards/pros?league=LCK&page=1&pageSize=2");
   fireEvent.click(screen.getByRole("button", { name: /League$/ }));
-  fireEvent.click(screen.getByRole("option", { name: "All leagues" }));
+  fireEvent.click(screen.getByRole("option", { name: "All Leagues" }));
   expect(push).toHaveBeenLastCalledWith(
     "/leaderboards/pros?team=oracle%3Ateam%3A1&page=1&pageSize=2",
   );
@@ -130,7 +130,7 @@ it("explains empty and invalid states and shows losses", () => {
       timezone="UTC"
     />,
   );
-  expect(screen.getByText("No linked solo queue games")).toBeVisible();
+  expect(screen.getByText("No Linked Solo Queue Games")).toBeVisible();
   expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("href", "/sources");
   view.rerender(<ProFeedPage feed={null} error="Invalid filters" timezone="UTC" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid filters");

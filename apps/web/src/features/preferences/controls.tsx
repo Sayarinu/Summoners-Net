@@ -104,7 +104,7 @@ export function PreferencesControl({
             onSelectionChange={(timezone) => setValue({ ...value, timezone })}
             placeholder="Search timezones"
           />
-          <Button type="submit">Save timezone</Button>
+          <Button type="submit">Save Timezone</Button>
         </form>
         <SpoilerControl
           hidden={value.hideSpoilers}

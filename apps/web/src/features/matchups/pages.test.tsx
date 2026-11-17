@@ -76,13 +76,13 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
   expect(table).toHaveTextContent("+37.5 · n=10");
   expect(table).toHaveTextContent("-20.0 · n=10");
   expect(table).toHaveTextContent("Unknown · n=9");
-  expect(table).toHaveTextContent("Team first blood");
+  expect(table).toHaveTextContent("Team First Blood");
   expect(table).toHaveTextContent("Champion 999");
   expect(screen.getByRole("link", { name: "Nunu & Willump" })).toHaveAttribute(
     "href",
     "/champions/Nunu/matchups?source=solo&value=shrunk&patch=16.22&role=MIDDLE",
   );
-  expect(screen.getByRole("table", { name: "Unpairable roles" })).toHaveTextContent("Unknown role");
+  expect(screen.getByRole("table", { name: "Unpairable Roles" })).toHaveTextContent("Unknown Role");
   rerender(
     <ChampionMatchupsPage
       matchups={{ ...matchups, query: { ...matchups.query, value: "raw", source: "pro" } }}
@@ -117,7 +117,7 @@ it("shows the blindability score, its coverage and the method with the formula",
   const { rerender } = render(
     <ChampionMatchupsPage matchups={matchups} blindability={scored} error={null} />,
   );
-  const stats = screen.getByLabelText("Blindability statistics");
+  const stats = screen.getByLabelText("Blindability Statistics");
   expect(stats).toHaveTextContent("Blindability score45.0%");
   expect(stats).toHaveTextContent("Pick-weighted win rate51.5%");
   expect(stats).toHaveTextContent("Counter-pick worst case45.0% · against Nunu & Willump");
@@ -125,15 +125,15 @@ it("shows the blindability score, its coverage and the method with the formula",
   expect(stats).toHaveTextContent("Variance0.0015");
   expect(stats).toHaveTextContent("Covered pick share62.5% · 100 of 160 opponent picks");
   expect(screen.getByText(/3 of 4 sampled opponents meet the minimum/)).toBeVisible();
-  expect(screen.getByText("How blindability is calculated")).toBeVisible();
+  expect(screen.getByText("How Blindability Is Calculated")).toBeVisible();
   expect(screen.getByText(/E = Σ wᵢ·pᵢ \/ Σ wᵢ/)).toBeInTheDocument();
   expect(screen.queryByRole("status")).toBeNull();
-  const counter = screen.getByLabelText("Counter-pick statistics");
+  const counter = screen.getByLabelText("Counter-Pick Statistics");
   expect(counter).toHaveTextContent("Blind win rate51.5%");
   expect(counter).toHaveTextContent("Counter-pick win rate55.0%");
   expect(counter).toHaveTextContent("Counter-pick value+3.5 pts");
   expect(counter).toHaveTextContent("Best response to1 opponent · 50 of 160 opponent picks");
-  expect(screen.getByRole("link", { name: "Compare the role" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Compare the Role" })).toHaveAttribute(
     "href",
     "/matchups/MIDDLE/counter-picks?source=solo&patch=16.22",
   );
@@ -158,7 +158,7 @@ it("shows the blindability score, its coverage and the method with the formula",
       error={null}
     />,
   );
-  expect(screen.getByLabelText("Blindability statistics")).toHaveTextContent(
+  expect(screen.getByLabelText("Blindability Statistics")).toHaveTextContent(
     "Blindability scoreUnknown",
   );
   expect(screen.getByText(/Counter-pick value unavailable/)).toHaveTextContent(
@@ -209,11 +209,11 @@ it("keeps sparse matrix cells blank with sample tooltips and a readable table", 
     ],
   };
   const { rerender } = render(<MatchupMatrixPage matrix={matrix} error={null} />);
-  const svg = screen.getByRole("img", { name: "Mid matchups: Win rate (%) · shrunk" });
+  const svg = screen.getByRole("img", { name: "Mid matchups: Win Rate (%) · shrunk" });
   expect(svg).toHaveTextContent("Ahri, Nunu & Willump: 55; samples: 10");
   expect(svg.querySelectorAll("rect")[1]).toHaveAttribute("fill-opacity", "0");
   expect(svg).toHaveTextContent("Ahri, Champion 999: Unknown; samples: 9");
-  fireEvent.click(screen.getByText("View data for Mid matchups: Win rate (%) · shrunk"));
+  fireEvent.click(screen.getByText("View data for Mid matchups: Win Rate (%) · shrunk"));
   expect(screen.getByRole("row", { name: "Ahri Champion 999 Unknown 9" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Ahri matchups" })).toHaveAttribute(
     "href",

@@ -56,7 +56,7 @@ export function StatePanel({
 export function EmptyState({
   action,
   description,
-  title = "Nothing here yet",
+  title = "Nothing Here Yet",
 }: {
   readonly action?: ReactNode;
   readonly description: ReactNode;
@@ -72,7 +72,7 @@ export function EmptyState({
 export function ErrorState({
   description,
   onRetry,
-  title = "Unable to load",
+  title = "Unable to Load",
 }: {
   readonly description: ReactNode;
   readonly onRetry?: () => void;

@@ -19,7 +19,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
       <header className="ev-title">
         <div>
           <span className="np-overline">Champions</span>
-          <h1>Tier list</h1>
+          <h1>Tier List</h1>
           <p>Win, pick and ban rates per patch, from stored aggregates.</p>
         </div>
       </header>
@@ -28,7 +28,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
         <p role="alert">{error}</p>
       ) : !list?.patch ? (
         <EmptyState
-          title="No champion statistics yet"
+          title="No Champion Statistics Yet"
           description={
             <span>
               Statistics appear once games are ingested and aggregated. See{" "}
@@ -37,7 +37,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
           }
         />
       ) : (
-        <section className="np-stack" aria-label="Tier list">
+        <section className="np-stack" aria-label="Tier List">
           <p className="np-meta">
             Patch {list.patch} · {list.sliceGames} {list.sliceGames === 1 ? "game" : "games"} in
             this selection. Win rates show a 95% interval; rows with few games are marked.
@@ -55,7 +55,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             }}
           />
           <Table
-            caption="Champion tier list"
+            caption="Champion Tier List"
             rows={list.page.items}
             getRowKey={(r) => `${r.championKey}:${r.role}`}
             emptyMessage="No champions match these filters."
@@ -83,15 +83,15 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
                 },
               },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
-              { id: "win", header: "Win rate", align: "end", render: (r) => percent(r.winRate) },
+              { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
               {
                 id: "interval",
                 header: "95% interval",
                 align: "end",
                 render: (r) => interval(r.winRate),
               },
-              { id: "pick", header: "Pick rate", align: "end", render: (r) => percent(r.pickRate) },
-              { id: "ban", header: "Ban rate", align: "end", render: (r) => percent(r.banRate) },
+              { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
+              { id: "ban", header: "Ban Rate", align: "end", render: (r) => percent(r.banRate) },
               {
                 id: "sample",
                 header: "Sample",
@@ -109,7 +109,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               {list.page.total} champions · Page {list.page.page}
             </span>
             <Pagination
-              label="Tier list pages"
+              label="Tier List Pages"
               currentPage={list.page.page}
               totalPages={Math.max(1, Math.ceil(list.page.total / list.page.pageSize))}
               onPageChange={(page) => {
@@ -121,7 +121,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
           </div>
         </section>
       )}
-      <SavedViewsPanel path="/tier-list" defaultName="Tier list" />
+      <SavedViewsPanel path="/tier-list" defaultName="Tier List" />
     </div>
   );
 }

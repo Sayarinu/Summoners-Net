@@ -4,7 +4,7 @@ import { dateTime } from "../browse/presentation";
 import { RefreshButton } from "./refresh";
 
 const states = {
-  missing: { label: "Not configured", tone: "neutral" },
+  missing: { label: "Not Configured", tone: "neutral" },
   untested: { label: "Untested", tone: "info" },
   valid: { label: "Valid", tone: "success" },
   rejected: { label: "Rejected", tone: "danger" },
@@ -20,10 +20,10 @@ export function RiotKeySection({
   const state = states[riotKey.state];
   return (
     <section className="np-stack" aria-labelledby="riot-key-heading">
-      <h2 id="riot-key-heading">Riot API key</h2>
+      <h2 id="riot-key-heading">Riot API Key</h2>
       <p className="np-body-sm">
         Solo-queue data needs <code>RIOT_API_KEY</code> in the ignored <code>.env</code>. Only the
-        local worker reads it and checks it with one request; this page never contacts Riot.
+        worker reads it and checks it with one request; this page never contacts Riot.
       </p>
       <p>
         <StatusIndicator label={state.label} tone={state.tone} />

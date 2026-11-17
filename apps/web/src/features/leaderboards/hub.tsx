@@ -14,16 +14,16 @@ export function LeaderboardsPage() {
       </header>
       <ul>
         <li>
-          <TextLink href="/leaderboards/wpa">Win probability added</TextLink>: champions, players
+          <TextLink href="/leaderboards/wpa">Win Probability Added</TextLink>: champions, players
           and roles ranked by the active model.
         </li>
         <li>
-          <TextLink href="/leaderboards/pros">Pro accounts</TextLink>: solo-queue accounts linked to
+          <TextLink href="/leaderboards/pros">Pro Accounts</TextLink>: solo-queue accounts linked to
           pro players.
         </li>
       </ul>
       <section className="np-stack" aria-labelledby="ladders">
-        <h2 id="ladders">Regional solo-queue ladders</h2>
+        <h2 id="ladders">Regional Solo-Queue Ladders</h2>
         <ul>
           {riotPlatforms.map((p) => (
             <li key={p}>

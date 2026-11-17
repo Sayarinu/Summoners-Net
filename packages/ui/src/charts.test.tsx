@@ -151,7 +151,7 @@ describe("SVG charts", () => {
 it("draws event markers along the x-axis of line charts, with their labels", () => {
   const { container } = render(
     <LineChart
-      title="Win probability"
+      title="Win Probability"
       xLabel="Minute"
       points={[
         { id: "0", label: "0", x: 0, y: 0.5, sampleCount: 1 },

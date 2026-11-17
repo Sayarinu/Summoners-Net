@@ -19,7 +19,7 @@ export function PatchesPage({ directory: d }: { directory: PatchDirectory }) {
       </p>
       {d.patches.length ? (
         <Table
-          caption="Patches with champion statistics"
+          caption="Patches with Champion Statistics"
           rows={d.patches}
           getRowKey={(p) => p.patch}
           columns={[
@@ -32,13 +32,13 @@ export function PatchesPage({ directory: d }: { directory: PatchDirectory }) {
               id: "sources",
               header: "Sources",
               render: (p) =>
-                [p.solo ? "Solo queue" : null, p.pro ? "Pro" : null].filter(Boolean).join(" · "),
+                [p.solo ? "Solo Queue" : null, p.pro ? "Pro" : null].filter(Boolean).join(" · "),
             },
           ]}
         />
       ) : (
         <EmptyState
-          title="No patch statistics yet"
+          title="No Patch Statistics Yet"
           description={
             <span>
               Patches appear once games are ingested and aggregated. See{" "}

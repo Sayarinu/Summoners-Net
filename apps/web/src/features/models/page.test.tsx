@@ -45,21 +45,21 @@ const diagnostics: ModelDiagnostics = {
 };
 it("lists model versions and shows the selected model's calibration and weights", () => {
   render(<ModelsPage diagnostics={diagnostics} error={null} />);
-  const versions = screen.getByRole("table", { name: "Model versions" });
+  const versions = screen.getByRole("table", { name: "Model Versions" });
   expect(versions).toHaveTextContent(
     "#3 · v1Pro (4 checkpoints)activeYears 2025, 2026800 games · 24000 statesv10.181",
   );
   expect(versions).toHaveTextContent("Patches 16.22");
   expect(versions).toHaveTextContent(
-    "#4 · v1Solo queue (pre-game draft)activePatches 16.21, 16.22",
+    "#4 · v1Solo Queue (Pre-Game Draft)activePatches 16.21, 16.22",
   );
   expect(versions).toHaveTextContent("Unknown");
   expect(screen.getByRole("link", { name: "#2 · v1" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByText(/Evaluated on 200 held-out games \(6000 states\)/)).toBeVisible();
   expect(
-    screen.getAllByText("Reliability: predicted vs observed blue win rate (%)")[0],
+    screen.getAllByText("Reliability: Predicted vs Observed Blue Win Rate (%)")[0],
   ).toBeInTheDocument();
-  expect(screen.getByRole("table", { name: "Feature weights" })).toHaveTextContent(
+  expect(screen.getByRole("table", { name: "Feature Weights" })).toHaveTextContent(
     "Gold difference (per 5,000)1.234",
   );
 });
@@ -78,5 +78,5 @@ it("explains rejected models, empty libraries and errors", () => {
   view.rerender(<ModelsPage diagnostics={{ ...diagnostics, selected: null }} error={null} />);
   expect(screen.getByText("No active model; choose a version above.")).toBeVisible();
   view.rerender(<ModelsPage diagnostics={{ models: [], selected: null }} error={null} />);
-  expect(screen.getByText("No models trained yet")).toBeVisible();
+  expect(screen.getByText("No Models Trained Yet")).toBeVisible();
 });

@@ -12,9 +12,7 @@ export function ProAccountUpload() {
         body: new FormData(form),
       });
       if (!response.ok) throw new Error();
-      setMessage(
-        "Pro account link import queued. Reload status after the local worker validates it.",
-      );
+      setMessage("Pro account link import queued. Reload status after the worker validates it.");
     } catch {
       setMessage(
         "Pro account links could not be queued. Choose a version 1 JSON file up to 5 MiB.",
@@ -25,7 +23,7 @@ export function ProAccountUpload() {
   }
   return (
     <section className="np-stack">
-      <h2>Import pro account links</h2>
+      <h2>Import Pro Account Links</h2>
       <p className="np-body-sm">
         Choose a version 1 link file with each account's PUUID, a stored pro player's source and
         source ID, and supporting source URLs. Names alone never create a link. Evidence is supplied
@@ -44,14 +42,14 @@ export function ProAccountUpload() {
       >
         <input type="hidden" name="kind" value="pro-account-links" />
         <Input
-          label="Pro account link JSON"
+          label="Pro Account Link JSON"
           type="file"
           name="file"
           accept=".json,application/json"
           required
         />
         <Button type="submit" variant="primary" loading={pending} disabled={pending}>
-          Queue pro account links
+          Queue Pro Account Links
         </Button>
       </form>
       <p role="status">{message}</p>

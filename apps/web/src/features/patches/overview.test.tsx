@@ -19,7 +19,7 @@ it("explains absent samples without inventing zero rates", () => {
   expect(screen.getByText(/No qualifying new builds/)).toBeVisible();
   expect(screen.getByText("Too little pro draft data for presence leaders.")).toBeVisible();
   expect(screen.queryByText("0.0%")).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Trending champions" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Trending Champions" })).toHaveAttribute(
     "href",
     "/trending?patch=16.22",
   );

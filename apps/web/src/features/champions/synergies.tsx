@@ -16,7 +16,7 @@ import {
 } from "@summonersnet/data/contracts";
 import { percent, roleLabels } from "./presentation";
 
-const sortLabels = { games: "Games", winRate: "Win rate", delta: "Delta" } as const;
+const sortLabels = { games: "Games", winRate: "Win Rate", delta: "Delta" } as const;
 const signed = (value: number | null) =>
   value === null ? "Unknown" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)} pts`;
 const championName = (key: number, name: string | null) => name ?? `Champion ${key}`;
@@ -26,7 +26,7 @@ function Matrix({ matrix }: { matrix: BotLaneMatrix }) {
   const support = new Map(matrix.supports.map((s) => [s.key, championName(s.key, s.name)]));
   return (
     <HeatGrid
-      title="Bot-lane pairs: win rate (%)"
+      title="Bot-Lane Pairs: Win Rate (%)"
       cells={matrix.cells.map((c) => ({
         id: `${c.carry}:${c.support}`,
         row: carry.get(c.carry)!,
@@ -48,7 +48,7 @@ export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
           q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
         )}
         <Select
-          label="Sort allies by"
+          label="Sort Allies By"
           name="synergySort"
           defaultValue={synergies.sort}
           options={synergySorts.map((s) => ({ label: sortLabels[s], value: s }))}
@@ -61,7 +61,7 @@ export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
           {synergies.page.total} allies · Page {synergies.page.page}
         </span>
         <Pagination
-          label="Ally pages"
+          label="Ally Pages"
           currentPage={synergies.page.page}
           totalPages={Math.max(1, Math.ceil(synergies.page.total / synergies.page.pageSize))}
           onPageChange={(page) => {
@@ -107,7 +107,7 @@ function AlliesTable({ synergies }: { synergies: Synergies }) {
           render: (r) => roleLabels[r.allyRole as keyof typeof roleLabels] ?? r.allyRole,
         },
         { id: "games", header: "Games", align: "end", render: (r) => r.games },
-        { id: "win", header: "Win rate", align: "end", render: (r) => percent(r.winRate) },
+        { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
         {
           id: "expected",
           header: "Expected",

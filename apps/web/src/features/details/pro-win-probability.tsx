@@ -7,7 +7,7 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
   const { model, points, reason } = winProbability;
   return (
     <section className="np-stack" aria-labelledby="pro-wp-heading">
-      <h2 id="pro-wp-heading">Win probability (coarse, 4 checkpoints)</h2>
+      <h2 id="pro-wp-heading">Win Probability (Coarse, 4 Checkpoints)</h2>
       {model && points.length ? (
         <>
           <p className="np-meta">
@@ -16,12 +16,12 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
             {model.id}), trained on {model.years.join("–")} games; Brier score{" "}
             {model.brier === null ? "unknown" : model.brier.toFixed(3)} on held-out games (0.25 is a
             coin flip). Missing checkpoints are gaps.{" "}
-            <TextLink href={`/models?model=${model.id}`}>Model diagnostics</TextLink>.
+            <TextLink href={`/models?model=${model.id}`}>Model Diagnostics</TextLink>.
           </p>
           <LineChart
-            title="Blue side win probability at checkpoints (coarse)"
+            title="Blue Side Win Probability at Checkpoints (Coarse)"
             xLabel="Minute"
-            yLabel="Blue win probability (%)"
+            yLabel="Blue Win Probability (%)"
             color="blue"
             points={points.map((p) => ({
               id: String(p.minute),
