@@ -68,6 +68,21 @@ try {
     } finally {
       await queries.close();
     }
+  } else if (command === "track-accuracy") {
+    // Read-only: compares an imported, linked track with the stored timeline at minute marks.
+    const queries = createQueries(connection);
+    try {
+      const result = await queries.trackAccuracy(args[0] ?? "");
+      if (!result) {
+        process.stderr.write("No replay track is linked to that stored Riot match.\n");
+        process.exitCode = 1;
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        if (!result.verdict.pass) process.exitCode = 2;
+      }
+    } finally {
+      await queries.close();
+    }
   } else if (command === "backfill-all") {
     for (const year of archiveYears) {
       const id = await sync.request({ kind: "history", year });

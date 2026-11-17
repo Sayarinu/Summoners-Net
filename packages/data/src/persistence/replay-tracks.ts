@@ -11,7 +11,14 @@ import {
   type ReplayTrack,
 } from "../domain/replay-tracks.js";
 import { detectMovements, type TrackMovement } from "../domain/track-movements.js";
-import { soloMatchIdSchema } from "../domain/solo-games.js";
+import { soloMatchIdSchema, timelineMinuteLimit } from "../domain/solo-games.js";
+import {
+  accuracyThresholds,
+  compareTrack,
+  evaluateAccuracy,
+  markToleranceMs,
+  type TrackAccuracy,
+} from "../domain/track-accuracy.js";
 import {
   trackRangeQuerySchema,
   trackRangeSampleLimit,
@@ -225,4 +232,84 @@ export async function matchTrackRange(
       confidence: p.confidence,
     })),
   }));
+}
+
+/**
+ * Compares a linked track with the game's stored timeline frames at minute marks. Reads one
+ * sample per mark and per-participant observation counts, so the read is bounded per game.
+ * Null when the game has no track linked to its stored Riot match.
+ */
+export async function trackAccuracy(db: Executor, matchId: string): Promise<TrackAccuracy | null> {
+  const id = soloMatchIdSchema.parse(matchId);
+  const key = [platformOf(id), id];
+  const track = (
+    await db.query<{ roster: ReplayTrack["roster"] }>(
+      "SELECT roster FROM replay_tracks WHERE platform=$1 AND game_id=$2 AND format_version=1",
+      key,
+    )
+  ).rows[0];
+  if (!track || (await matchTrackSummary(db, id))?.linkState !== "linked") return null;
+  const frames = (
+    await db.query<{
+      participant_id: number;
+      timestamp_ms: number;
+      x: number | null;
+      y: number | null;
+    }>(
+      `SELECT participant_id,timestamp_ms,x,y FROM riot_timeline_frames
+       WHERE match_id=$1 AND minute<=$2 ORDER BY minute,participant_id`,
+      [id, timelineMinuteLimit],
+    )
+  ).rows;
+  const marks = [...new Set(frames.map((f) => f.timestamp_ms))];
+  const samples = (
+    await db.query<{
+      time_ms: number;
+      positions: { participantId: number; position: { x: number; y: number } | null }[];
+    }>(
+      `SELECT DISTINCT s.time_ms,s.positions FROM unnest($3::integer[]) AS m(ts)
+       CROSS JOIN LATERAL (SELECT time_ms,positions FROM replay_track_samples
+         WHERE platform=$1 AND game_id=$2 AND format_version=1
+           AND time_ms BETWEEN m.ts-$4 AND m.ts+$4
+         ORDER BY abs(time_ms-m.ts),time_ms LIMIT 1) s`,
+      [...key, marks, markToleranceMs],
+    )
+  ).rows;
+  const counts = (
+    await db.query<{ participant_id: number; observations: number; nulls: number }>(
+      `SELECT (o->>'participantId')::integer AS participant_id,count(*)::integer AS observations,
+         (count(*) FILTER (WHERE o->'position'='null'::jsonb))::integer AS nulls
+       FROM replay_track_samples s, jsonb_array_elements(s.positions) o
+       WHERE s.platform=$1 AND s.game_id=$2 AND s.format_version=1 GROUP BY 1`,
+      key,
+    )
+  ).rows;
+  const report = compareTrack({
+    roster: track.roster,
+    samples: samples.map((s) => ({
+      timeMs: s.time_ms,
+      positions: s.positions.map((o) => ({
+        participantId: o.participantId,
+        x: o.position?.x ?? null,
+        y: o.position?.y ?? null,
+      })),
+    })),
+    frames: frames.map((f) => ({
+      participantId: f.participant_id,
+      timestampMs: f.timestamp_ms,
+      x: f.x,
+      y: f.y,
+    })),
+    counts: counts.map((c) => ({
+      participantId: c.participant_id,
+      observations: c.observations,
+      nulls: c.nulls,
+    })),
+  });
+  return {
+    matchId: id,
+    report,
+    verdict: evaluateAccuracy(report.overall),
+    thresholds: accuracyThresholds,
+  };
 }

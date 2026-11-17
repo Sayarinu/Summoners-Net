@@ -20,7 +20,7 @@ import type { SummonerQuery } from "../domain/summoners.js";
 import { leaderboard } from "./leaderboards.js";
 import type { LeaderboardQuery } from "../domain/leaderboards.js";
 import { replayMetadata } from "./replays.js";
-import { matchTrackRange, matchTrackSummary, replayTrack } from "./replay-tracks.js";
+import { matchTrackRange, matchTrackSummary, replayTrack, trackAccuracy } from "./replay-tracks.js";
 import type { TrackRangeQuery } from "../domain/track-views.js";
 import { z } from "zod";
 import {
@@ -214,6 +214,7 @@ export function queries(pool: Pool, clock: () => Date) {
     replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),
     matchTrackSummary: (matchId: string) => matchTrackSummary(pool, matchId),
     matchTrackRange: (input: TrackRangeQuery) => matchTrackRange(pool, input),
+    trackAccuracy: (matchId: string) => trackAccuracy(pool, matchId),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
     tierList: (input?: TierListQuery) => tierList(pool, input),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
