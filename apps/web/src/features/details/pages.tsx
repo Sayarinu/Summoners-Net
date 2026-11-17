@@ -121,8 +121,7 @@ export function GamePage({
       <p className="np-body-sm">
         {game.complete
           ? "Eligible for basic statistics."
-          : "Partial record · excluded from summary statistics."}{" "}
-        Lineups show who played this game.
+          : "Partial record · excluded from summary statistics."}
       </p>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal game statistics</Button> : null}
       <Table
@@ -244,10 +243,6 @@ export function ProfilePage({
       </details>
       <section className="np-stack">
         <h2>Observed current roster</h2>
-        <p className="np-body-sm">
-          Current roster records describe the latest supplied lineup, not contractual roster
-          history.
-        </p>
         {profile.roster.length ? (
           <Table
             caption="Latest roster observation"
@@ -320,10 +315,6 @@ export function ProfilePage({
                 <dd>{summary.kda?.toFixed(2) ?? "—"}</dd>
               </div>
             </dl>
-            <p className="np-body-sm">
-              Only complete ten-player games contribute. Missing values stay unknown. KDA is (kills
-              + assists) / deaths; zero deaths has no finite ratio.
-            </p>
             {summary.champions.length > 0 && (
               <Table
                 caption="Champion usage"

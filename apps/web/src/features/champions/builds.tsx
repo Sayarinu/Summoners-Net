@@ -101,10 +101,6 @@ export function BuildsSection({ builds }: { builds: ChampionBuilds | null }) {
         </p>
       ) : (
         <>
-          <p className="np-body-sm">
-            From timeline purchases: undone purchases and sales are not purchases. Starting items
-            are bought in the first 90 seconds; a path is the first three completed items.
-          </p>
           {itemSections.map(({ kind, title }) => (
             <BuildTable
               key={kind}
@@ -127,10 +123,6 @@ export function LoadoutsSection({ builds }: { builds: ChampionBuilds | null }) {
         <p className="np-body-sm">Rune pages and spells come from solo-queue match details.</p>
       ) : (
         <>
-          <p className="np-body-sm">
-            Pick rate is the share of this champion&apos;s games in the selection. Stat shards show
-            their ids because Data Dragon does not describe them.
-          </p>
           {loadoutSections.map(({ kind, title }) => (
             <BuildTable
               key={kind}
@@ -151,11 +143,9 @@ export function SkillsSection({ builds }: { builds: ChampionBuilds | null }) {
   return (
     <section className="np-stack" aria-labelledby="skills-heading">
       <h2 id="skills-heading">Skills</h2>
-      <p className="np-body-sm">
-        From timeline skill-ups of the basic abilities. The first levels are the first three
-        level-ups; the max order is the order abilities reach five points. Games that end before an
-        order is decided are left out: {builds.excluded.skills} for the first levels,{" "}
-        {builds.excluded.skillmax} for the max order.
+      <p className="np-meta">
+        Games left out: {builds.excluded.skills} for the first levels, {builds.excluded.skillmax}{" "}
+        for the max order
       </p>
       <BuildTable
         title="First levels"
