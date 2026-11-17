@@ -40,6 +40,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
       ? (roleLabels[h.subject] ?? h.subject)
       : (h.label ?? (h.subjectKind === "player" ? "Riot ID not resolved" : h.subject));
   const selected = h.patch ?? undefined;
+  const kind = kindLabels[h.kind].toLowerCase();
   return (
     <div className="np-stack">
       <header className="ev-title">
@@ -48,9 +49,8 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
             Solo queue heatmap · {subjectLabels[h.subjectKind]}
             {h.patch ? ` · Patch ${h.patch}` : ""}
           </span>
-          <h1>
-            {h.subjectKind === "role" ? <RoleIcon role={h.subject} /> : name}:{" "}
-            {kindLabels[h.kind].toLowerCase()}
+          <h1 aria-label={h.subjectKind === "role" ? `${name}: ${kind}` : undefined}>
+            {h.subjectKind === "role" ? <RoleIcon role={h.subject} /> : name}: {kind}
           </h1>
         </div>
       </header>
@@ -104,7 +104,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
             />
           ) : (
             <Minimap
-              title={`${name} ${kindLabels[h.kind].toLowerCase()} heatmap, patch ${h.patch}`}
+              title={`${name} ${kind} heatmap, patch ${h.patch}`}
               heat={h.cells.map((c) => ({
                 id: `${c.cellX}:${c.cellY}`,
                 label: `Cell ${c.cellX + 1}, ${c.cellY + 1}`,

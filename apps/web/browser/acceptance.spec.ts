@@ -350,7 +350,9 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/\/champions\/Ahri$/);
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   const stats = page.getByRole("region", { name: "Champion Statistics" });
-  await expect(page.getByText("Patch 16.4", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Champion", exact: true }).getByText("Patch 16.4"),
+  ).toBeVisible();
   await expect(stats).toContainText("1 Results100.0%");
   await expect(stats).toContainText("Tier");
   await expect(page.getByRole("img", { name: "Ahri Pick Rate by Patch" })).toContainText("16.4");
