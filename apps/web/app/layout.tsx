@@ -12,7 +12,7 @@ import { ShellHeader, ShellFooter } from "../src/features/shell/shell";
 import { SoftNavigation } from "../src/features/shell/soft-navigation";
 import { preferencesState } from "../src/server/data";
 export const metadata: Metadata = {
-  title: { default: "SummonersNet", template: "%s · SummonersNet" },
+  title: { default: "Summoners Net", template: "%s · Summoners Net" },
   description: "League of Legends esports schedules, results and analytics.",
   robots: { index: false, follow: false },
 };

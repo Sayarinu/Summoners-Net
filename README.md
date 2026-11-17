@@ -1,6 +1,6 @@
 <div align="center">
 
-# SummonersNet
+# Summoners Net
 
 **A local-first League of Legends esports viewer.**
 
@@ -220,13 +220,13 @@ the repository root.
 files. A free PandaScore token adds schedules, results, rosters and broadcasts; only free-plan
 endpoints are used.
 
-**What does SummonersNet send over the network?** Only the worker goes online, to PandaScore,
+**What does Summoners Net send over the network?** Only the worker goes online, to PandaScore,
 Oracle's Elixir's Google Drive archive, Riot's Data Dragon, the Riot API (only when you set
 `RIOT_API_KEY`) and the hosts of team and player images. Twitch and YouTube players load only after
 you choose to load them. There are no accounts and no telemetry.
 
 **Can I run it on a server?** Yes, see [Self-hosting](#self-hosting). Everything binds to loopback
-and is reached over an SSH tunnel. SummonersNet has no login, so don't expose it on the public
+and is reached over an SSH tunnel. Summoners Net has no login, so don't expose it on the public
 internet.
 
 **Why does a statistic show "—"?** The source didn't supply it. Missing values stay unknown instead
@@ -245,7 +245,7 @@ formats: [Replay track v1](docs/formats/replay-track-v1.md). Companion tools:
 
 ## License
 
-SummonersNet is free and open-source software under the [MIT License](LICENSE).
+Summoners Net is free and open-source software under the [MIT License](LICENSE).
 
 The license covers this repository's code, including `packages/ui` and `packages/tokens`, which
 carry the same license text. Provider data, team and player images, trademarks, fonts and game
@@ -253,11 +253,11 @@ assets belong to their respective owners.
 
 ## Disclaimer
 
-SummonersNet is an independent, unofficial project. It is not affiliated with, endorsed by or
-sponsored by Riot Games, Inc. League of Legends is a trademark of Riot Games, Inc. SummonersNet
+Summoners Net is an independent, unofficial project. It is not affiliated with, endorsed by or
+sponsored by Riot Games, Inc. League of Legends is a trademark of Riot Games, Inc. Summoners Net
 isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone
 officially involved in producing or managing Riot Games properties.
 
 Match data comes from [PandaScore](https://pandascore.co) and historical data from
 [Oracle's Elixir](https://oracleselixir.com), each used under its own terms. Please follow those
-terms when you run SummonersNet.
+terms when you run Summoners Net.
