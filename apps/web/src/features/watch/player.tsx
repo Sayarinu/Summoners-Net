@@ -64,12 +64,14 @@ export function WatchPlayer({
   mode = "live",
   showHeading = true,
   showPlayerActions = true,
+  showBroadcastSelect = true,
 }: {
   broadcasts: Broadcast[];
   defaultProvider?: Broadcast["provider"];
   mode?: "live" | "replay";
   showHeading?: boolean;
   showPlayerActions?: boolean;
+  showBroadcastSelect?: boolean;
 }) {
   const orderedBroadcasts = [...broadcasts].sort(
     (a, b) => Number(b.provider === "youtube") - Number(a.provider === "youtube"),
@@ -104,10 +106,10 @@ export function WatchPlayer({
     );
   return (
     <section className="np-stack ev-watch-player" aria-label="Watch Match">
-      {showHeading || mode === "live" || orderedBroadcasts.length > 1 ? (
+      {showHeading || showBroadcastSelect ? (
         <div className="np-split">
           {showHeading ? <h2>{mode === "replay" ? "Watch Replay" : "Watch"}</h2> : null}
-          {mode === "live" || orderedBroadcasts.length > 1 ? (
+          {showBroadcastSelect ? (
             <Select
               label="Broadcast"
               value={selected}

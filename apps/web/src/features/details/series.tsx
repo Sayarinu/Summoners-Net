@@ -298,7 +298,12 @@ export function MatchPage({
         )}
         {match.state === "final" && broadcasts.length ? (
           <Disclosure title="Watch Replay">
-            <WatchPlayer broadcasts={broadcasts} mode="replay" showHeading={false} />
+            <WatchPlayer
+              broadcasts={broadcasts}
+              mode="replay"
+              showHeading={false}
+              showBroadcastSelect={broadcasts.length > 1}
+            />
           </Disclosure>
         ) : null}
       </div>
