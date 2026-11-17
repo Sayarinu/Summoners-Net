@@ -953,8 +953,9 @@ test("aggregate tables download as CSV with the page's filters", async ({ page }
   );
   const matchups = await page.request.get((await link.getAttribute("href"))!);
   expect(matchups.headers()["content-type"]).toBe("text/csv; charset=utf-8");
-  // One game: rates are below the minimum, so they are empty, with their sample counts.
-  expect(await matchups.text()).toMatch(/\r\nsolo,16\.4,MIDDLE,103,Ahri,Ahri,\d+,\w+,[^,]+,1,,,1,/);
+  // One game against a champion missing from the catalog: its key stays, its name is empty, and
+  // rates below the minimum are empty with their sample counts.
+  expect(await matchups.text()).toContain("\r\nsolo,16.4,MIDDLE,103,Ahri,Ahri,157,,,1,,,1,,1,");
   expect((await page.request.get("/api/export/tier-list?role=SUPPORT")).status()).toBe(400);
   expect((await page.request.get("/api/export/unknown")).status()).toBe(404);
 });
