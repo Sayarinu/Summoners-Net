@@ -83,7 +83,8 @@ export interface LadderEntry {
   leaguePoints: number;
   wins: number;
   losses: number;
-  leagueId: string;
+  /** Riot's league id, or null where the response leaves it out. */
+  leagueId: string | null;
 }
 export function parseLeagueList(
   input: unknown,
@@ -93,7 +94,7 @@ export function parseLeagueList(
   const list = z
     .object({
       tier: z.literal(tier),
-      leagueId: z.string().min(1).max(100),
+      leagueId: z.string().min(1).max(100).optional(),
       queue: z.literal(soloQueue),
       entries: z
         .array(
@@ -117,7 +118,7 @@ export function parseLeagueList(
     leaguePoints: e.leaguePoints,
     wins: e.wins,
     losses: e.losses,
-    leagueId: list.leagueId,
+    leagueId: list.leagueId ?? null,
   }));
 }
 /** Parses RIOT_PLATFORMS ("euw1,kr"): the platforms whose ladders the worker syncs. */

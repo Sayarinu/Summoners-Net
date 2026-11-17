@@ -72,9 +72,13 @@ describe("league-v4 ladders", () => {
       leaguePoints: 1824,
       wins: 412,
       losses: 351,
-      leagueId: challenger.leagueId,
+      leagueId: null,
     });
     expect(entries[1]!.summonerId).toBeNull();
+  });
+  it("keeps a league id where an older response still returns one", () => {
+    const entries = parseLeagueList({ ...challenger, leagueId: "league-1" }, "CHALLENGER");
+    expect(entries.map((e) => e.leagueId)).toEqual(["league-1", "league-1"]);
   });
   it("rejects a ladder for another tier or queue, or with malformed entries", () => {
     expect(() => parseLeagueList(challenger, "MASTER")).toThrow();
