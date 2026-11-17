@@ -31,7 +31,6 @@ export function SavedViewsPanel({
   now?: () => Date;
 }) {
   const [views, setViews] = useState<SavedView[]>([]);
-  const [name, setName] = useState(defaultName);
   const [status, setStatus] = useState<string | null>(null);
   useEffect(() => {
     const store = storage();
@@ -51,7 +50,7 @@ export function SavedViewsPanel({
     }
   };
   const canSave = path !== undefined && isSavablePath(path);
-  const save = () => {
+  const save = (name: string) => {
     const at = now();
     const view: SavedView = {
       id: `v-${at.valueOf().toString(36)}`,
@@ -77,15 +76,11 @@ export function SavedViewsPanel({
           className="ev-filters"
           onSubmit={(e) => {
             e.preventDefault();
-            save();
+            const name = new FormData(e.currentTarget).get("name");
+            save(typeof name === "string" ? name : "");
           }}
         >
-          <Input
-            label="View Name"
-            value={name}
-            maxLength={60}
-            onChange={(e) => setName(e.currentTarget.value)}
-          />
+          <Input label="View Name" name="name" defaultValue={defaultName} maxLength={60} />
           <Button type="submit">Save This View</Button>
         </form>
       ) : null}

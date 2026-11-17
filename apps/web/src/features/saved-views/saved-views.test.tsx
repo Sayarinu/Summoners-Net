@@ -76,6 +76,14 @@ it("saves the page's filters in browser storage and removes them", async () => {
   expect(screen.getByRole("status")).toHaveTextContent("Name the view first.");
 });
 
+it("saves the name entered before the page handles input events", () => {
+  const store = memory();
+  render(<SavedViewsPanel path="/tier-list" defaultName="Tier List" storage={() => store} />);
+  screen.getByLabelText<HTMLInputElement>("View Name").value = "Mid Tier List";
+  fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
+  expect(readSavedViews(store)[0]?.name).toBe("Mid Tier List");
+});
+
 it("lists without saving off filter pages, and reports a full or refusing store", async () => {
   const { unmount } = render(<SavedViewsPanel storage={() => memory()} />);
   expect(screen.queryByRole("button", { name: "Save This View" })).toBeNull();
