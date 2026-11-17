@@ -1,4 +1,4 @@
-# Contributing to SummonersNet
+# Contributing to Summoners Net
 
 These rules apply to everyone who changes this repository, and to any coding agent working on their
 behalf. Read them before starting. Setup, configuration and self-hosting are in the
@@ -6,7 +6,7 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
 
 ## Product rules
 
-- SummonersNet is a local-first application. It has no accounts, no operator console, no paid
+- Summoners Net is a local-first application. It has no accounts, no operator console, no paid
   telemetry and no synthetic fallback data. Do not add any of them.
 - Every value shown comes from a real source. Preserve source identifiers. When a provider fails,
   keep the last successful data and its timestamps. Missing statistics stay `null`, with explicit

@@ -39,12 +39,7 @@ export function PatchesPage({ directory: d }: { directory: PatchDirectory }) {
       ) : (
         <EmptyState
           title="No Patch Statistics Yet"
-          description={
-            <span>
-              Patches appear once games are ingested and aggregated. See{" "}
-              <TextLink href="/sources">Sources</TextLink>.
-            </span>
-          }
+          description="Patches appear once games are stored and aggregated."
         />
       )}
     </div>

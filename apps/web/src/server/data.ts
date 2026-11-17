@@ -1,11 +1,9 @@
 import "server-only";
 import { createQueries, querySchema, type BrowseQuery } from "@summonersnet/data";
-import { createSync } from "@summonersnet/data/sync";
 import { cookies } from "next/headers";
 import { parsePreferences, preferencesCookie } from "../features/preferences/model";
 const globalData = globalThis as typeof globalThis & {
   viewerQueries?: ReturnType<typeof createQueries>;
-  viewerSync?: ReturnType<typeof createSync>;
 };
 function connection() {
   const url = process.env.DATABASE_URL;
@@ -14,9 +12,6 @@ function connection() {
 }
 export function data() {
   return (globalData.viewerQueries ??= createQueries(connection()));
-}
-export function synchronization() {
-  return (globalData.viewerSync ??= createSync(connection()));
 }
 export async function preferencesState() {
   const cookie = (await cookies()).get(preferencesCookie);

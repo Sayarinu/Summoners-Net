@@ -124,10 +124,10 @@ promise that an old file can still be played.
 
 ## Implemented import contract
 
-The local upload endpoint accepts a replay of at most 256 MiB and bounded multipart overhead. It
-stages a private, uniquely named copy under `.local/imports/replays`, then queues `replay-metadata`.
-The browser does not parse it. An optional platform selection is explicitly user-supplied
-provenance; no platform is inferred from the filename.
+`pnpm queue replay-metadata FILE [PLATFORM]` stages a private, uniquely named copy of the replay
+under `.local/imports/replays`, then queues `replay-metadata`. The worker rejects files over 256
+MiB. The command does not parse the replay. An optional platform selection is explicitly
+user-supplied provenance; no platform is inferred from the filename.
 
 The worker reads bounded header ranges and at most 4 MiB of metadata, and hashes the whole file in
 chunks without decoding its packet body. It checks file stability while reading. The metadata object
@@ -143,12 +143,12 @@ K/D/A and result without merging replay player identities into Riot identities. 
 and agreeing patch in stored Riot data. ROFL2 stays unlinked. Metadata survives provider retention.
 
 By default, the worker deletes its staged copy before storing validated metadata, including when
-validation fails. A database failure leaves previous metadata intact; re-upload the original to
+validation fails. A database failure leaves previous metadata intact; queue the original again to
 retry. `KEEP_REPLAY_FILES=true` retains newly processed copies, including invalid uploads; false or
 an unset value deletes them. Existing retained copies are not removed when this setting changes. The
 worker only processes regular files under the configured replay staging directory; it refuses
 arbitrary original paths and symlinks. Failure to remove a staged copy prevents metadata storage and
-reports the cleanup failure. An upload that cannot be queued also attempts to remove its new copy.
+reports the cleanup failure. A replay that cannot be queued has its new copy removed.
 
 The committed fixtures are small original, non-playable headers constructed in
 `packages/data/tests/rofl-fixtures.ts`. No real replay, extracted user metadata or game packet asset

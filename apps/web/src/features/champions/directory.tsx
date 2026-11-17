@@ -74,12 +74,7 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
       ) : (
         <EmptyState
           title="No Champion Catalog Yet"
-          description={
-            <span>
-              The catalog arrives with the first metadata sync. See{" "}
-              <TextLink href="/sources">Sources</TextLink>.
-            </span>
-          }
+          description="The catalog arrives with the first metadata synchronization."
         />
       )}
     </div>

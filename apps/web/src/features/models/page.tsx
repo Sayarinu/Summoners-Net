@@ -36,7 +36,7 @@ export function ModelsPage({
       {!diagnostics.models.length ? (
         <EmptyState
           title="No Models Trained Yet"
-          description="A model is trained once enough games are stored; see Sources & imports."
+          description="A model is trained once enough games are stored."
         />
       ) : (
         <>

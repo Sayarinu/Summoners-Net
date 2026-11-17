@@ -1,9 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { proAccountFixture } from "../../../packages/data/tests/pro-account-fixtures";
-import { roflFixture } from "../../../packages/data/tests/rofl-fixtures";
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "axe-core";
-import { historyCsv } from "../../../packages/data/tests/fixtures";
 
 async function openSettings(page: Page) {
   const openNavigation = page.getByRole("button", { name: "Open Navigation" });
@@ -267,51 +264,18 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   );
   await expect(page.locator("iframe")).toHaveCount(0);
 });
-test("manual refresh and CSV uploads join the durable queue", async ({ page }) => {
-  await page.goto("/sources");
-  await page.getByRole("button", { name: "Refresh", exact: true }).first().click();
-  await expect(page.getByRole("status").filter({ hasText: "Queued." })).toBeVisible();
-  await page.goto("/sources");
-  await expect(page.getByText("queued", { exact: true }).first()).toBeVisible();
-  await page.getByLabel("Annual CSV").setInputFiles({
-    name: "2024.csv",
-    mimeType: "text/csv",
-    buffer: Buffer.from(historyCsv({ year: 2024 })),
-  });
-  await page.getByLabel("Year", { exact: true }).fill("2024");
-  await page.getByRole("button", { name: "Queue Import" }).click();
-  await expect(page.getByText(/Import queued/)).toBeVisible();
-  await page.getByRole("button", { name: "Reload Status" }).click();
-  await expect(page.getByText("history:2024", { exact: true })).toBeVisible();
-  const invalid = await page.request.post("/api/refresh", {
-    data: { kind: "history", year: 2026, file: "/etc/passwd" },
-    headers: { origin: "http://127.0.0.1:3100" },
-  });
-  expect(invalid.status()).toBe(400);
-  const foreign = await page.request.post("/api/refresh", {
-    data: { kind: "matches" },
-    headers: { origin: "http://external.test" },
-  });
-  expect(foreign.status()).toBe(403);
-});
-test("the Riot crawler shows progress per region and patch and queues a crawl", async ({
-  page,
-}) => {
-  await page.goto("/sources");
-  const section = page.getByRole("region", { name: "Riot Crawler" });
-  const progress = section.getByRole("table", { name: "Crawl Progress by Region and Patch" });
-  await expect(progress).toContainText("europe");
-  await expect(progress).toContainText("16.4");
-  await expect(progress.getByRole("cell", { name: "3", exact: true })).toBeVisible();
-  await section.getByRole("button", { name: "Queue Crawl" }).click();
-  await expect(section.getByRole("status").filter({ hasText: "Queued." })).toBeVisible();
-  await page.goto("/sources");
-  await expect(page.getByText("riot-match-ids", { exact: true })).toBeVisible();
-  const invalid = await page.request.post("/api/refresh", {
-    data: { kind: "riot-match-ids", region: "euw1" },
-    headers: { origin: "http://127.0.0.1:3100" },
-  });
-  expect(invalid.status()).toBe(400);
+test("data management pages and import endpoints are not part of the app", async ({ page }) => {
+  expect((await page.goto("/sources"))?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "Data Management" })).toHaveCount(0);
+  for (const path of ["/api/refresh", "/api/import"]) {
+    const response = await page.request.post(path, {
+      data: { kind: "matches" },
+      headers: { origin: "http://127.0.0.1:3100" },
+    });
+    expect(response.status()).toBe(404);
+  }
+  await page.goto("/history");
+  await expect(page.getByRole("link", { name: "Manage Imports" })).toHaveCount(0);
 });
 test("the tier list filters by role and source and sorts in SQL", async ({ page }) => {
   await page.goto("/tier-list");
@@ -622,20 +586,6 @@ test("model diagnostics show versions, calibration and named weights", async ({ 
   await page.goto("/models?model=nope");
   await expect(page.getByText("Choose a model from the list.")).toBeVisible();
 });
-test("sources show the active win probability model and only queue training", async ({ page }) => {
-  await page.goto("/sources");
-  const section = page.getByRole("region", { name: "Win Probability Model" });
-  await expect(section).toContainText(/Model v1 \(#1\) is active/);
-  await section.getByRole("button", { name: "Queue Training" }).click();
-  await expect(section.getByRole("status").filter({ hasText: "Queued." })).toBeVisible();
-  await page.goto("/sources");
-  await expect(page.getByText("wp-train", { exact: true })).toBeVisible();
-  const invalid = await page.request.post("/api/refresh", {
-    data: { kind: "wp-train", minimumMatches: 1 },
-    headers: { origin: "http://127.0.0.1:3100" },
-  });
-  expect(invalid.status()).toBe(400);
-});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();
@@ -790,42 +740,6 @@ test("pro drafts filter and paginate source observations with samples and explic
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Enter a patch");
 });
 
-test("replay track uploads queue validation without processing frames in the browser", async ({
-  page,
-}) => {
-  await page.goto("/sources");
-  await page.getByLabel("Replay Track JSON").setInputFiles({
-    name: "track.json",
-    mimeType: "application/json",
-    buffer: Buffer.from('{"formatVersion":1}'),
-  });
-  const response = page.waitForResponse(
-    (r) => r.url().endsWith("/api/import?kind=replay-track") && r.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "Queue Track Import" }).click();
-  expect((await response).status()).toBe(202);
-  await expect(page.getByText(/Track import queued/)).toBeVisible();
-  await page.getByRole("button", { name: "Reload Status" }).click();
-  await expect(page.getByText("replay-track", { exact: true }).first()).toBeVisible();
-});
-
-test("replay metadata uploads stay local and queue worker validation", async ({ page }) => {
-  await page.goto("/sources");
-  await page.getByLabel("Replay File", { exact: true }).setInputFiles({
-    name: "fixture.rofl",
-    mimeType: "application/octet-stream",
-    buffer: roflFixture(),
-  });
-  const response = page.waitForResponse(
-    (r) => r.url().endsWith("/api/import?kind=replay-metadata") && r.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "Queue Replay Metadata" }).click();
-  expect((await response).status()).toBe(202);
-  await expect(page.getByText(/Replay metadata import queued/)).toBeVisible();
-  await page.getByRole("button", { name: "Reload Status" }).click();
-  await expect(page.getByText("Replay metadata", { exact: true }).first()).toBeVisible();
-});
-
 test("regional ladders show samples, paginate and reject invalid regions and pages", async ({
   page,
 }) => {
@@ -878,33 +792,6 @@ test("solo queue profiles use stable player IDs and show samples and ladder hist
   await expect(page.getByRole("alert").filter({ hasText: "positive page numbers" })).toBeVisible();
   const missing = await page.goto("/summoners/" + "x".repeat(78));
   expect(missing?.status()).toBe(404);
-});
-
-test("pro account link uploads queue the whole evidence file for local validation", async ({
-  page,
-}) => {
-  await page.goto("/sources");
-  await page.getByLabel("Pro Account Link JSON").setInputFiles({
-    name: "pro-links.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(proAccountFixture())),
-  });
-  const queued = page.waitForResponse((r) =>
-    r.url().includes("/api/import?kind=pro-account-links"),
-  );
-  await page.getByRole("button", { name: "Queue Pro Account Links", exact: true }).click();
-  expect((await queued).status()).toBe(202);
-  await expect(
-    page.getByRole("status").filter({ hasText: "Pro account link import queued" }),
-  ).toBeVisible();
-  await page.reload();
-  await expect(
-    page
-      .getByRole("row")
-      .filter({ hasText: "Pro account links" })
-      .filter({ hasText: "queued" })
-      .first(),
-  ).toBeVisible();
 });
 
 test("pro solo queue feed filters linked games, paginates and validates URLs", async ({ page }) => {

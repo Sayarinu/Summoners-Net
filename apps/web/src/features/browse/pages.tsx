@@ -201,10 +201,7 @@ export function DirectoryPage({
         ))}
       </div>
       {!data.items.length && (
-        <EmptyState
-          title="No Identities Found"
-          description="Try another name or import historical games."
-        />
+        <EmptyState title="No Identities Found" description="Try another name." />
       )}
       <Pages data={data} />
     </div>
