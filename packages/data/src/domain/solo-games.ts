@@ -51,3 +51,22 @@ export interface SoloGame {
     markers: SoloGameMarker[];
   };
 }
+
+/** Frames past this minute are not read; Riot games end well before it. */
+export const timelineMinuteLimit = 120;
+/** One stored per-minute timeline sample; coordinates Riot omitted stay null. */
+export interface TimelinePositionFrame {
+  minute: number;
+  /** Null when no frame is stored for this minute. */
+  timestampMs: number | null;
+  x: number | null;
+  y: number | null;
+}
+/** Every participant's per-minute positions, dense from minute 0 to the last stored frame. */
+export interface SoloGamePositions {
+  matchId: string;
+  timelineState: "pending" | "fetched" | "missing" | "invalid";
+  /** Frames beyond {@link timelineMinuteLimit} exist but were not read. */
+  truncated: boolean;
+  tracks: { participantId: number; frames: TimelinePositionFrame[] }[];
+}

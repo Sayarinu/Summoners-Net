@@ -43,6 +43,7 @@ import {
   winProbabilityModels,
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
+import { soloGamePositions } from "../persistence/solo-game-positions.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
@@ -50,6 +51,7 @@ import { modelDiagnostics } from "../persistence/model-diagnostics.js";
 import { trainOnDemand } from "./train-command.js";
 import { firstTrainingDue } from "../persistence/wp-models.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
+import { timelineMinuteLimit } from "../domain/solo-games.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
@@ -3159,6 +3161,51 @@ describe("Champion aggregates", () => {
     );
     expect(await soloGame(pool, "EUW1_999")).toBeNull();
     await expect(soloGame(pool, "not a match")).rejects.toThrow();
+  });
+  it("reads one game's per-minute positions with gaps for missing frames, bounded in minutes", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    // Participant 2 lacks the minute 1 frame; participant 3's minute 2 frame has no coordinates.
+    await pool.query(
+      "DELETE FROM riot_timeline_frames WHERE match_id='EUW1_1' AND participant_id=2 AND minute=1",
+    );
+    await pool.query(
+      "UPDATE riot_timeline_frames SET x=NULL,y=NULL WHERE match_id='EUW1_1' AND participant_id=3 AND minute=2",
+    );
+    const game = (await queries.soloGamePositions("EUW1_1"))!;
+    expect(game).toMatchObject({ matchId: "EUW1_1", timelineState: "fetched", truncated: false });
+    expect(game.tracks.map((t) => t.participantId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(game.tracks[0]!.frames).toEqual([
+      { minute: 0, timestampMs: 0, x: 600, y: 500 },
+      { minute: 1, timestampMs: 60022, x: 610, y: 500 },
+      { minute: 2, timestampMs: 120022, x: 620, y: 500 },
+    ]);
+    expect(game.tracks[1]!.frames[1]).toEqual({ minute: 1, timestampMs: null, x: null, y: null });
+    expect(game.tracks[2]!.frames[2]).toEqual({ minute: 2, timestampMs: 120022, x: null, y: null });
+    // Frames past the minute limit are not read, and the result says so.
+    await pool.query(
+      `INSERT INTO riot_timeline_frames(match_id,participant_id,minute,timestamp_ms,x,y)
+       VALUES ('EUW1_1',1,$1,$2,100,100)`,
+      [timelineMinuteLimit + 1, (timelineMinuteLimit + 1) * 60000],
+    );
+    const bounded = (await soloGamePositions(pool, "EUW1_1"))!;
+    expect(bounded.truncated).toBe(true);
+    expect(bounded.tracks.every((t) => t.frames.length === 3)).toBe(true);
+    // A game without a stored timeline has participants but no frames.
+    const pending = (await soloGamePositions(pool, "EUW1_2"))!;
+    expect(pending.timelineState).toBe("pending");
+    expect(pending.tracks).toHaveLength(10);
+    expect(pending.tracks.every((t) => t.frames.length === 0)).toBe(true);
+    expect(await soloGamePositions(pool, "EUW1_999")).toBeNull();
+    await expect(soloGamePositions(pool, "not a match")).rejects.toThrow();
   });
   it("stores win probability added per event and participant for each model", async () => {
     serveDataDragon(["16.22.1"]);
