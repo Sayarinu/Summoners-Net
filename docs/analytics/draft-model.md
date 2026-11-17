@@ -1,7 +1,7 @@
 # Draft win probability
 
 The draft model estimates each side's chance to win from the draft alone, before the game. It is a
-`draft` model in `wp_models` (migration 0045), trained with the other models by the `wp-train` job
+`draft` model in `wp_models` (migration 0046), trained with the other models by the `wp-train` job
 and `pnpm wp:train`, with one active model at a time. Solo game pages and the
 [draft assistant](matchups.md#draft-assistant) show it; `/models` shows its calibration.
 
