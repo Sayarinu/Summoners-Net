@@ -49,7 +49,19 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
   };
 }
 export function gameTeams(game: Game) {
-  return [
+  const teams = [
     ...new Map(game.participants.map((p) => [p.team.id, { ...p.team, side: p.side }])).values(),
-  ];
+  ]
+    .sort((a, b) => a.side.localeCompare(b.side))
+    .map((team) => {
+      const results = new Set(
+        game.participants.flatMap((p) =>
+          p.team.id === team.id && p.side === team.side && p.won !== null ? [p.won] : [],
+        ),
+      );
+      return { ...team, won: results.size === 1 ? [...results][0]! : null };
+    });
+  if (teams.length === 2 && teams[0]!.won !== null && teams[0]!.won === teams[1]!.won)
+    return teams.map((team) => ({ ...team, won: null }));
+  return teams;
 }

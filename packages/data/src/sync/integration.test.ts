@@ -4683,6 +4683,37 @@ it("derives draft rates with patch/league SQL filters, role order, missing count
     { id: "draft-other-patch", patch: "16.5" },
   ])
     expect((await importCsv(draftCsv(options))).state).toBe("done");
+  const recorded = (await queries.historicalGames({ competition: "LCK" })).items;
+  const reversed = await queries.historicalGame(
+    recorded.find((game) => game.sourceGameId === "draft-b")!.id,
+  );
+  expect(reversed?.draftOrder).toHaveLength(20);
+  expect(reversed?.draftOrder[0]).toMatchObject({
+    action: "ban",
+    slot: 1,
+    side: "red",
+    champion: "Lucian",
+  });
+  expect(reversed?.draftOrder[6]).toMatchObject({
+    action: "pick",
+    slot: 1,
+    side: "red",
+    champion: "Ahri",
+  });
+  expect(reversed?.draftOrder[19]).toMatchObject({
+    phase: 2,
+    action: "pick",
+    slot: 10,
+    side: "blue",
+  });
+  const incomplete = await queries.historicalGame(
+    recorded.find((game) => game.sourceGameId === "draft-missing")!.id,
+  );
+  expect(incomplete?.draftOrder).toEqual([]);
+  expect(incomplete?.draft[0]).toMatchObject({
+    firstPick: true,
+    bans: ["Kalista", "Rumble", "Azir", "Vi", null],
+  });
   expect(await queries.latestDraftPatch()).toBe("16.5");
   const result = await queries.draftAnalytics(q);
   expect(result).toMatchObject({

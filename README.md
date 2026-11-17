@@ -255,7 +255,8 @@ Summoners Net is free and open-source software under the [MIT License](LICENSE).
 
 The license covers this repository's code, including `packages/ui` and `packages/tokens`, which
 carry the same license text. Provider data, team and player images, trademarks, fonts and game
-assets belong to their respective owners.
+assets belong to their respective owners. The neutral position icons are from Riot Games'
+[League Client assets archived by CommunityDragon](https://raw.communitydragon.org/16.3/plugins/rcp-fe-lol-parties/global/default/).
 
 ## Disclaimer
 

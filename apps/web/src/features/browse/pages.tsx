@@ -111,19 +111,21 @@ export function PastMatchesPage({
           <h1>Past Matches</h1>
         </div>
       </header>
-      <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
-        {(["series", "games"] as const).map((option) => (
-          <a
-            key={option}
-            className="ev-tab"
-            href={viewHref(query, option)}
-            aria-current={view === option ? "page" : undefined}
-          >
-            {option === "series" ? "Series" : "Games"}
-          </a>
-        ))}
-      </nav>
-      <Filters query={query} history view={view} />
+      <div className="ev-history-toolbar">
+        <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
+          {(["series", "games"] as const).map((option) => (
+            <a
+              key={option}
+              className="ev-tab"
+              href={viewHref(query, option)}
+              aria-current={view === option ? "page" : undefined}
+            >
+              {option === "series" ? "Series" : "Games"}
+            </a>
+          ))}
+        </nav>
+        <Filters query={query} history view={view} />
+      </div>
       {view === "series" && series ? (
         <>
           {byMonth(series.items, timezone).map(([label, matches]) => (
@@ -142,7 +144,7 @@ export function PastMatchesPage({
       ) : null}
       {view === "games" && games ? (
         <>
-          <GamesTable games={games.items} timezone={timezone} />
+          <GamesTable games={games.items} timezone={timezone} hideSpoilers={rows.spoilersHidden} />
           <Pages data={games} />
         </>
       ) : null}

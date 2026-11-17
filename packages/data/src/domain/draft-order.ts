@@ -38,6 +38,16 @@ const flag = (value: string | null) =>
       : /^(0(?:\.0+)?|false)$/i.test(value)
         ? false
         : null;
+export function recordedDraftSide(side: Side, rows: DraftParticipant[]) {
+  const participants = rows.filter((row) => row.side === side);
+  return {
+    side,
+    firstPick: flag(field(participants, "firstpick")),
+    picks: [1, 2, 3, 4, 5].map((slot) => field(participants, `pick${slot}`)),
+    bans: [1, 2, 3, 4, 5].map((slot) => field(participants, `ban${slot}`)),
+  };
+}
+
 const excluded = (reason: string): DerivedDraft => ({
   excludedReason: reason,
   firstPickSide: null,

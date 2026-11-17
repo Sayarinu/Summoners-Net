@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DraftEvent } from "./draft-order.js";
 import { regions } from "./models.js";
 
 export const historicalQuerySchema = z
@@ -74,6 +75,7 @@ export interface HistoricalGameDetail extends HistoricalGameListItem {
     picks: (string | null)[];
     bans: (string | null)[];
   }[];
+  draftOrder: DraftEvent[];
   participants: HistoricalParticipant[];
 }
 export interface HistoricalSummary {

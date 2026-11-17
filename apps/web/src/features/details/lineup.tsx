@@ -1,10 +1,16 @@
 "use client";
 import { Table, TeamIdentity, PlayerIdentity, RoleIcon } from "@summonersnet/ui";
 import type { Game } from "@summonersnet/data";
-import { ChampionPortrait, GameResult, type ChampionPortraits } from "../browse/visuals";
-import { identityHref } from "../browse/presentation";
+import { roleKey } from "@summonersnet/data/contracts";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
+import { gameTeams, identityHref } from "../browse/presentation";
 
-/** The played lineup of one game; champions and results stay hidden with spoilers. */
+const roles = ["top", "jungle", "mid", "bottom", "support"];
+function roleOrder(role: string) {
+  const index = roles.indexOf(roleKey(role.toLowerCase()) ?? "");
+  return index === -1 ? roles.length : index;
+}
+
 export function LineupTable({
   game,
   hidden,
@@ -15,58 +21,75 @@ export function LineupTable({
   portraits?: ChampionPortraits | undefined;
 }) {
   return (
-    <Table
-      caption="Historical Played Lineup"
-      getRowKey={(p) => p.slot}
-      rows={game.participants.filter((p) => p.player)}
-      columns={[
-        {
-          id: "team",
-          header: "Team",
-          render: (p) => (
-            <TeamIdentity
-              name={p.team.name}
-              side={p.side}
-              shortName={p.team.name}
-              size="compact"
-              href={identityHref(p.team)}
-              {...(p.team.imageUrl ? { logo: p.team.imageUrl } : {})}
-            />
-          ),
-        },
-        { id: "role", header: "Role", render: (p) => <RoleIcon role={p.role} /> },
-        {
-          id: "player",
-          header: "Player",
-          render: (p) =>
-            p.player ? (
-              <PlayerIdentity
-                handle={p.player.name}
-                href={identityHref(p.player)}
-                {...(p.player.imageUrl ? { portrait: p.player.imageUrl } : {})}
+    <section className="ev-lineups" aria-label="Lineups">
+      {gameTeams(game).map((team) => {
+        const side = team.side === "blue" ? "Blue Side" : "Red Side";
+        const won = hidden ? null : team.won;
+        const players = game.participants
+          .filter((p) => p.team.id === team.id && p.side === team.side && p.player)
+          .sort((a, b) => roleOrder(a.role) - roleOrder(b.role));
+        return (
+          <div
+            key={team.id}
+            className="ev-lineup-card"
+            data-side={team.side}
+            data-result={won === null ? undefined : won ? "win" : "loss"}
+          >
+            <header className="ev-lineup-card__header">
+              <span className="ev-lineup-card__side">{side}</span>
+              <TeamIdentity
+                name={team.name}
+                shortName={team.name}
+                size="compact"
+                href={identityHref(team)}
+                winner={won === true}
+                {...(team.imageUrl ? { logo: team.imageUrl } : {})}
               />
-            ) : (
-              "—"
-            ),
-        },
-        {
-          id: "champion",
-          header: "Champion",
-          render: (p) =>
-            hidden ? "Hidden" : <ChampionPortrait name={p.champion} portraits={portraits} />,
-        },
-        {
-          id: "kda",
-          header: "K / D / A",
-          render: (p) =>
-            hidden ? "Hidden" : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`,
-        },
-        {
-          id: "result",
-          header: "Result",
-          render: (p) => (hidden ? "Hidden" : <GameResult won={p.won} />),
-        },
-      ]}
-    />
+            </header>
+            <Table
+              caption={`${team.name} Lineup`}
+              compact
+              getRowKey={(p) => p.slot}
+              rows={players}
+              columns={[
+                { id: "role", header: "Role", render: (p) => <RoleIcon role={p.role} /> },
+                {
+                  id: "player",
+                  header: "Player",
+                  render: (p) =>
+                    p.player ? (
+                      <PlayerIdentity
+                        handle={p.player.name}
+                        href={identityHref(p.player)}
+                        {...(p.player.imageUrl ? { portrait: p.player.imageUrl } : {})}
+                      />
+                    ) : (
+                      "—"
+                    ),
+                },
+                {
+                  id: "champion",
+                  header: "Champion",
+                  render: (p) =>
+                    hidden ? (
+                      "Hidden"
+                    ) : (
+                      <ChampionPortrait name={p.champion} portraits={portraits} />
+                    ),
+                },
+                {
+                  id: "kda",
+                  header: "K / D / A",
+                  render: (p) =>
+                    hidden
+                      ? "Hidden"
+                      : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`,
+                },
+              ]}
+            />
+          </div>
+        );
+      })}
+    </section>
   );
 }

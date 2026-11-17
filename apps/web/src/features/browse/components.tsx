@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Input,
   Select,
@@ -181,7 +181,15 @@ export function Pages({ data }: { data: Page<unknown> }) {
     </div>
   );
 }
-export function GamesTable({ games, timezone }: { games: Game[]; timezone: string }) {
+export function GamesTable({
+  games,
+  timezone,
+  hideSpoilers,
+}: {
+  games: Game[];
+  timezone: string;
+  hideSpoilers: boolean;
+}) {
   return (
     <Table
       caption="Historical Games"
@@ -202,17 +210,20 @@ export function GamesTable({ games, timezone }: { games: Game[]; timezone: strin
           id: "teams",
           header: "Teams",
           render: (g) => (
-            <div className="np-cluster">
-              {gameTeams(g).map((t) => (
-                <TeamIdentity
-                  key={t.id}
-                  name={t.name}
-                  side={t.side}
-                  shortName={t.name}
-                  size="compact"
-                  href={identityHref(t)}
-                  {...(t.imageUrl ? { logo: t.imageUrl } : {})}
-                />
+            <div className="ev-game-versus">
+              {gameTeams(g).map((team, index) => (
+                <Fragment key={team.id}>
+                  {index === 1 ? <span className="ev-game-versus__sep">vs</span> : null}
+                  <TeamIdentity
+                    name={team.name}
+                    side={team.side}
+                    shortName={team.name}
+                    size="compact"
+                    href={identityHref(team)}
+                    winner={!hideSpoilers && team.won === true}
+                    {...(team.imageUrl ? { logo: team.imageUrl } : {})}
+                  />
+                </Fragment>
               ))}
             </div>
           ),

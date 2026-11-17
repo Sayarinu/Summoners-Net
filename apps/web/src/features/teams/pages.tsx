@@ -239,7 +239,7 @@ export function TeamProfile({
             </p>
           )
         ) : (
-          <GamesTable games={games.items} timezone={timezone} />
+          <GamesTable games={games.items} timezone={timezone} hideSpoilers={rows.spoilersHidden} />
         )}
         {(series ?? games).total > 5 && <Pages data={series ?? games} />}
       </section>
