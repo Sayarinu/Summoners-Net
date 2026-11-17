@@ -29,10 +29,13 @@ export function Filters({
   query,
   history = false,
   search = false,
+  view,
 }: {
   query: BrowseQuery;
   history?: boolean;
   search?: boolean;
+  /** The past matches view; the games view is kept when the filters are submitted. */
+  view?: "series" | "games";
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timeoutRef = useRef<number | undefined>(undefined);
@@ -68,9 +71,10 @@ export function Filters({
 
   return (
     <form ref={formRef} className="ev-filters" method="get">
+      {view === "games" ? <input type="hidden" name="view" value="games" /> : null}
       <Input
         type="search"
-        label={search ? "Search" : history ? "Filter Games" : "Filter Matches"}
+        label={search ? "Search" : history && view !== "series" ? "Filter Games" : "Filter Matches"}
         name="q"
         defaultValue={query.q ?? ""}
         onChange={scheduleSubmit}

@@ -106,10 +106,22 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Acceptance Blue vs Acceptance Red",
   );
-  await expect(page.getByRole("table", { name: "Game Context" })).toBeVisible();
   // The replay player loads straight away but does not play until its play button is pressed.
   await expect(page.locator("iframe")).toHaveCount(1);
   await expect(page.locator("iframe")).toHaveAttribute("src", /autoplay=0/);
+  // Each played game has its own tab; an unconfirmed archive record is said plainly.
+  const tabs = page.getByRole("navigation", { name: "Series" });
+  await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.getByRole("link", { name: "Open Game 1" }).click();
+  await expect(page).toHaveURL(/\/games\/1$/);
+  await expect(tabs.getByRole("link", { name: "Game 1" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText("Game Details Not Available Yet")).toBeVisible();
+  await page.getByRole("link", { name: "Series Overview" }).click();
+  await expect(page.getByRole("heading", { name: "Games", level: 2 })).toBeVisible();
+  expect((await page.goto("/matches/pandascore%3Amatch%3A1/games/9"))?.status()).toBe(404);
 });
 
 test.describe("players navigation", () => {
@@ -191,6 +203,9 @@ test("search, history, observed rosters and independently accessible played line
   await page.goto("/teams/pandascore%3Ateam%3A10");
   await expect(page.getByRole("link", { name: /Observed Player/ })).toBeVisible();
   await page.goto("/history?year=2014");
+  await expect(page.getByText("No Past Matches in This View")).toBeVisible();
+  await page.getByRole("link", { name: "Games", exact: true }).click();
+  await expect(page).toHaveURL(/year=2014&view=games/);
   await expect(page.getByText("No games match these filters.")).toBeVisible();
 });
 test("search typed before hydration still runs once the page hydrates", async ({ page }) => {
@@ -225,6 +240,9 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await page.goto("/?date=2026-02-28");
   await expect(page.getByText("Result Hidden")).not.toHaveCount(0);
   await page.goto("/history");
+  await expect(page.getByRole("heading", { name: "February 2026", level: 2 })).toBeVisible();
+  await expect(page.getByText("Result Hidden")).not.toHaveCount(0);
+  await page.goto("/history?view=games");
   await expect(page.getByRole("link", { name: /02\/28\/2026/ })).toBeVisible();
 });
 test("a finished match loads its paused replay and keeps an external fallback", async ({

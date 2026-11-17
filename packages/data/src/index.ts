@@ -6,6 +6,7 @@ export type {
   BrowseQuery,
   ParsedQuery,
   Match,
+  SeriesGame,
   Game,
   Participant,
   Identity,

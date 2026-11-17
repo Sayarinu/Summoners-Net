@@ -69,6 +69,8 @@ export const matchSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 export type Match = z.infer<typeof matchSchema>;
+/** A series game with the archive game it corresponds to, or null while unconfirmed. */
+export type SeriesGame = z.infer<typeof matchGameSchema> & { gameId: string | null };
 export const participantSchema = z.object({
   slot: z.string(),
   side: z.enum(["blue", "red"]),

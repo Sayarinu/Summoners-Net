@@ -39,6 +39,7 @@ import {
   type Game,
   type Identity,
   type Match,
+  type SeriesGame,
   type Page,
   type Profile,
   type Summary,
@@ -165,6 +166,58 @@ export function queries(pool: Pool, clock: () => Date) {
       WHERE em.entity_id=entity_profiles.id AND lower(a.name) LIKE ${parameter}
     )`;
 
+  /**
+   * Pairs each game of a series with its archive game. A pair needs both series teams to
+   * resolve, through corroborated identity links, to the archive game's two teams, the same
+   * league, a time inside the series window and the same game number. Ambiguous pairs stay
+   * null; names alone never link.
+   */
+  async function matchGames(id: string): Promise<SeriesGame[] | null> {
+    const result = await pool.query<{ games: Match["games"]; links: Record<string, string> }>(
+      `WITH m AS (
+         SELECT id,league,starts_at,document FROM matches WHERE id=$1
+       ), series_teams AS (
+         SELECT array_agg(DISTINCT em.entity_id ORDER BY em.entity_id) AS entities
+         FROM m
+         CROSS JOIN LATERAL jsonb_array_elements(m.document->'teams') team
+         JOIN entity_members em ON em.id=team->>'id'
+         HAVING count(DISTINCT em.entity_id)=2 AND count(*)=2
+       ), series_window AS (
+         SELECT m.league,
+           m.starts_at-interval '3 hours' AS opens,
+           coalesce(
+             (SELECT max((g->>'finishedAt')::timestamptz)
+              FROM jsonb_array_elements(m.document->'games') g),
+             m.starts_at+interval '8 hours'
+           )+interval '3 hours' AS closes
+         FROM m
+       ), candidates AS (
+         SELECT g.id,(g.document->>'number')::integer AS number
+         FROM series_window w
+         CROSS JOIN series_teams s
+         JOIN games g ON g.league=w.league AND g.occurred_at BETWEEN w.opens AND w.closes
+         WHERE (
+           SELECT array_agg(DISTINCT em.entity_id ORDER BY em.entity_id)
+           FROM participants p JOIN entity_members em ON em.id=p.team_id
+           WHERE p.game_id=g.id
+         )=s.entities
+       )
+       SELECT m.document->'games' AS games,
+         coalesce(
+           (SELECT jsonb_object_agg(number::text,id)
+            FROM (SELECT number,min(id) AS id FROM candidates
+                  WHERE number IS NOT NULL GROUP BY number HAVING count(*)=1) linked),
+           '{}'
+         ) AS links
+       FROM m`,
+      [idSchema.parse(id)],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return (row.games ?? [])
+      .map((game) => ({ ...game, gameId: row.links[String(game.number)] ?? null }))
+      .sort((a, b) => a.number - b.number);
+  }
   const games = async (input: BrowseQuery = {}, identityId?: string) => {
     const { q, values, clauses } = filters(input, "games");
     if (identityId) {
@@ -262,6 +315,26 @@ export function queries(pool: Pool, clock: () => Date) {
         [idSchema.parse(id)],
       );
       return result.rows[0] ? (await decorateMatches([result.rows[0].document]))[0]! : null;
+    },
+    matchGames,
+    /** The series and game number an archive game belongs to, by the same rule as matchGames. */
+    async gameSeries(gameId: string): Promise<{ matchId: string; number: number } | null> {
+      const parsedId = idSchema.parse(gameId);
+      const candidates = await pool.query<{ id: string }>(
+        `SELECT m.id FROM games g
+         JOIN matches m ON m.league=g.league
+           AND m.starts_at BETWEEN g.occurred_at-interval '2 days' AND g.occurred_at+interval '3 hours'
+         WHERE g.id=$1
+         ORDER BY m.starts_at DESC,m.id
+         LIMIT 10`,
+        [parsedId],
+      );
+      const found: { matchId: string; number: number }[] = [];
+      for (const { id } of candidates.rows) {
+        const linked = (await matchGames(id))?.find((game) => game.gameId === parsedId);
+        if (linked) found.push({ matchId: id, number: linked.number });
+      }
+      return found.length === 1 ? found[0]! : null;
     },
     async game(id: string) {
       const parsedId = idSchema.parse(id);

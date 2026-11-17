@@ -1,13 +1,18 @@
 import { it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { MatchPage, GamePage, ProfilePage } from "./pages";
-import { match, game, profile, blue, instant, page } from "../../../tests/fixtures";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { MatchPage, GamePage, ProfilePage, SeriesGamePage } from "./pages";
+import { match, game, profile, blue, instant, page, seriesGames } from "../../../tests/fixtures";
 it("prioritizes match identity and loads a paused replay while retaining game context", () => {
-  const view = render(<MatchPage match={match} timezone="UTC" hideSpoilers now={instant} />);
+  const view = render(
+    <MatchPage match={match} games={seriesGames()} timezone="UTC" hideSpoilers now={instant} />,
+  );
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
   );
-  expect(screen.getByText("Game Context")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveAttribute(
+    "href",
+    "/matches/pandascore%3Amatch%3A1/games/1",
+  );
   // A finished match offers its YouTube recording, loaded but not playing.
   expect(screen.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
   expect(screen.getByTitle("Match Broadcast")).toHaveAttribute(
@@ -19,6 +24,7 @@ it("prioritizes match identity and loads a paused replay while retaining game co
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
     <MatchPage
+      games={seriesGames()}
       match={{ ...match, teams: [], games: [] }}
       timezone="UTC"
       hideSpoilers={false}
@@ -28,6 +34,7 @@ it("prioritizes match identity and loads a paused replay while retaining game co
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(match.name);
   view.rerender(
     <MatchPage
+      games={seriesGames()}
       match={{ ...match, broadcasts: match.broadcasts.slice(1) }}
       timezone="UTC"
       hideSpoilers={false}
@@ -39,6 +46,7 @@ it("prioritizes match identity and loads a paused replay while retaining game co
   expect(document.querySelector("iframe")).toBeNull();
   view.rerender(
     <MatchPage
+      games={seriesGames()}
       match={{ ...match, state: "scheduled", games: [] }}
       timezone="UTC"
       hideSpoilers={false}
@@ -175,6 +183,7 @@ it("shows linked identity evidence, canonical destinations and portraits without
   );
   view.rerender(
     <MatchPage
+      games={seriesGames()}
       match={{ ...match, teams: match.teams.map((t) => ({ ...t, imageUrl: image })) }}
       timezone="UTC"
       now={instant}
@@ -219,4 +228,138 @@ it("shows a coarse checkpoint win probability only with revealed statistics", ()
   expect(screen.getByRole("status")).toHaveTextContent(
     "No pro win probability model is active yet.",
   );
+});
+
+it("moves between a series overview and its played games with spoilers kept", () => {
+  const games = seriesGames();
+  const view = render(
+    <MatchPage match={match} games={games} timezone="UTC" hideSpoilers now={instant} />,
+  );
+  const tabs = screen.getByRole("navigation", { name: "Series" });
+  expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(within(tabs).getByRole("link", { name: "Game 2" })).toHaveAttribute(
+    "href",
+    "/matches/pandascore%3Amatch%3A1/games/2",
+  );
+  // An unplayed game is listed but cannot be opened.
+  expect(within(tabs).queryByRole("link", { name: "Game 3" })).toBeNull();
+  expect(within(tabs).getByText("Game 3")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getAllByText("Result hidden")).toHaveLength(3);
+  expect(screen.getByText(/^31:05 · /)).toBeVisible();
+  expect(screen.getByText(/^0:00 · /)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
+  expect(screen.queryByText("Result hidden")).toBeNull();
+  expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveTextContent("Acceptance Blue");
+  expect(screen.getByRole("link", { name: "Open Game 2" })).toHaveTextContent("Acceptance Red");
+  view.rerender(
+    <MatchPage match={match} games={[]} timezone="UTC" hideSpoilers={false} now={instant} />,
+  );
+  expect(screen.getByText("No Games Reported Yet")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute("href", "/history");
+});
+
+it("shows a linked game's draft and lineup, and an honest gap for an unlinked game", () => {
+  const games = seriesGames();
+  const detail = {
+    id: "oracle:archive:a",
+    year: 2026,
+    sourceLeague: "LCK",
+    competition: "LCK" as const,
+    sourceGameId: "acceptance-game",
+    occurredAt: instant,
+    patch: "16.4",
+    complete: true,
+    summaryEligible: true,
+    teams: [
+      { name: "Acceptance Blue", side: "blue" as const, won: true },
+      { name: "Acceptance Red", side: "red" as const, won: false },
+    ],
+    context: {
+      sourceYear: 2026,
+      sourceUrl: null,
+      split: null,
+      week: null,
+      playoffs: null,
+      gameNumber: "1",
+      durationSeconds: 1865,
+    },
+    draft: [
+      { side: "blue" as const, firstPick: true, picks: ["Ahri", null], bans: [] },
+      { side: "red" as const, firstPick: false, picks: ["Orianna"], bans: ["Azir"] },
+    ],
+    participants: [],
+  };
+  const view = render(
+    <SeriesGamePage
+      match={match}
+      games={games}
+      number={1}
+      game={game}
+      detail={detail}
+      winProbability={null}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
+  );
+  expect(
+    within(screen.getByRole("navigation", { name: "Series" })).getByRole("link", {
+      name: "Game 1",
+    }),
+  ).toHaveAttribute("aria-current", "page");
+  const steps = screen.getByRole("navigation", { name: "Series Games" });
+  expect(within(steps).getByRole("link", { name: "Series Overview" })).toHaveAttribute(
+    "href",
+    "/matches/pandascore%3Amatch%3A1",
+  );
+  expect(within(steps).getByRole("link", { name: "Next: Game 2" })).toBeVisible();
+  expect(screen.getByText("31:05")).toBeVisible();
+  // The draft and results stay hidden until revealed.
+  expect(screen.queryByRole("heading", { name: "Draft" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
+  expect(screen.getByRole("heading", { name: "Blue Side · Acceptance Blue · First Pick" }));
+  expect(screen.getByText("Ahri · —")).toBeVisible();
+  expect(screen.getByText("Azir")).toBeVisible();
+  expect(screen.getByRole("table", { name: "Historical Played Lineup" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open Archive Record" })).toHaveAttribute(
+    "href",
+    "/games/oracle%3Agame%3Aacceptance-game",
+  );
+  view.rerender(
+    <SeriesGamePage
+      match={match}
+      games={games}
+      number={2}
+      game={null}
+      detail={null}
+      winProbability={null}
+      timezone="UTC"
+      hideSpoilers={false}
+      now={instant}
+    />,
+  );
+  expect(screen.getByText("Game Details Not Available Yet")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Previous: Game 1" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: /^Next/ })).toBeNull();
+  expect(screen.getByText("Patch").nextElementSibling).toHaveTextContent("—");
+});
+
+it("links an archive game back to its confirmed series", () => {
+  const view = render(
+    <GamePage
+      game={game}
+      timezone="UTC"
+      hideSpoilers={false}
+      series={{ matchId: match.id, number: 1 }}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Open in Series" })).toHaveAttribute(
+    "href",
+    "/matches/pandascore%3Amatch%3A1/games/1",
+  );
+  view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
+  expect(screen.getByText("Series association unconfirmed.")).toBeVisible();
 });

@@ -40,7 +40,7 @@ export function ShellHeader({
   }, [mobileOpen]);
   const navigation = [
     { href: "/", label: "Matches" },
-    { href: "/history", label: "History" },
+    { href: "/history", label: "Past Matches" },
     { href: "/teams", label: "Teams" },
     { href: "/players", label: "Players" },
     { href: "/champions", label: "Champions" },
