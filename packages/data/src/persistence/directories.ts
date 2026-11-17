@@ -30,18 +30,24 @@ export async function championDirectory(db: Executor): Promise<ChampionDirectory
 }
 
 export async function patchDirectory(db: Executor): Promise<PatchDirectory> {
-  const rows = (
-    await db.query<{ patch: string; solo: boolean; pro: boolean }>(
-      `SELECT * FROM (
-        SELECT p.patch_key AS patch,p.release_order,
-          (SELECT true FROM champion_aggregates a WHERE a.source='solo' AND a.patch_key=p.patch_key LIMIT 1)
-            IS NOT NULL AS solo,
-          (SELECT true FROM champion_aggregates a WHERE a.source='pro' AND a.patch_key=p.patch_key LIMIT 1)
-            IS NOT NULL AS pro
-        FROM patches p) p
-      WHERE solo OR pro ORDER BY release_order DESC LIMIT $1`,
-      [patchDirectoryLimit],
-    )
-  ).rows;
-  return { patches: rows.map(({ patch, solo, pro }) => ({ patch, solo, pro })) };
+  // One probe per source through the primary key, as the tier list does, never a full scan.
+  const read = async (source: "solo" | "pro") =>
+    (
+      await db.query<{ patch_key: string; release_order: number }>(
+        `SELECT p.patch_key,p.release_order FROM patches p
+         WHERE EXISTS (SELECT 1 FROM champion_aggregates a WHERE a.source=$1 AND a.patch_key=p.patch_key)
+         ORDER BY p.release_order DESC LIMIT $2`,
+        [source, patchDirectoryLimit],
+      )
+    ).rows;
+  const [solo, pro] = [await read("solo"), await read("pro")];
+  const order = new Map([...solo, ...pro].map((r) => [r.patch_key, r.release_order]));
+  const soloKeys = new Set(solo.map((r) => r.patch_key)),
+    proKeys = new Set(pro.map((r) => r.patch_key));
+  return {
+    patches: [...order]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, patchDirectoryLimit)
+      .map(([patch]) => ({ patch, solo: soloKeys.has(patch), pro: proKeys.has(patch) })),
+  };
 }
