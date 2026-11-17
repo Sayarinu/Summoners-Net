@@ -873,7 +873,7 @@ test("role counter-pick values list stored values with reasons and validate filt
   await expect(page).toHaveURL(/sort=games/);
   await expect(table).toContainText("Ahri");
   await page.goto("/matchups/MIDDLE/counter-picks?sort=name");
-  await expect(page.getByRole("alert")).toContainText("Choose Solo queue");
+  await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
   const missing = await page.goto("/matchups/ALL/counter-picks");
   expect(missing?.status()).toBe(404);
 });
