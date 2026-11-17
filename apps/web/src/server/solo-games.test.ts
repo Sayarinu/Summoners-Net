@@ -3,8 +3,11 @@ import { expect, it, vi } from "vitest";
 const soloGame = vi.fn().mockResolvedValue({ matchId: "EUW1_1" });
 const soloGamePositions = vi.fn().mockResolvedValue({ matchId: "EUW1_1", tracks: [] });
 const soloGameMapEvents = vi.fn().mockResolvedValue({ events: [], truncated: false });
+const matchTrackSummary = vi.fn().mockResolvedValue(null);
 vi.mock("server-only", () => ({}));
-vi.mock("./data", () => ({ data: () => ({ soloGame, soloGamePositions, soloGameMapEvents }) }));
+vi.mock("./data", () => ({
+  data: () => ({ soloGame, soloGamePositions, soloGameMapEvents, matchTrackSummary }),
+}));
 const { loadSoloGame, loadSoloGameMap } = await import("./solo-games");
 
 it("validates the match id before reading", async () => {
@@ -17,6 +20,7 @@ it("loads a game's map only for a valid, stored match", async () => {
     game: { matchId: "EUW1_1" },
     positions: { matchId: "EUW1_1", tracks: [] },
     events: { events: [], truncated: false },
+    track: null,
   });
   expect(await loadSoloGameMap("not a match")).toBeNull();
   soloGame.mockResolvedValueOnce(null);

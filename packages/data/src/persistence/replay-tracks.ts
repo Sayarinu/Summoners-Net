@@ -10,12 +10,23 @@ import {
   replayTrackSchema,
   type ReplayTrack,
 } from "../domain/replay-tracks.js";
+import { detectMovements, type TrackMovement } from "../domain/track-movements.js";
+import { soloMatchIdSchema } from "../domain/solo-games.js";
+import {
+  trackRangeQuerySchema,
+  trackRangeSampleLimit,
+  type MatchTrackSummary,
+  type TrackRange,
+} from "../domain/track-views.js";
 import { transaction, type Executor } from "./database.js";
 
 export class ReplayTrackImportError extends Error {}
 async function matchState(
   db: Executor,
-  track: ReplayTrack,
+  track: { gameId: string; platform: string; mapId: number; patch: string } & Pick<
+    ReplayTrack,
+    "roster"
+  >,
 ): Promise<"linked" | "unavailable" | "mismatch"> {
   const match = (
     await db.query<{ platform_id: string | null; map_id: number | null; game_version: string }>(
@@ -74,11 +85,13 @@ export async function importReplayTrack(pool: Pool, file: string, now: Date) {
         "Replay track platform, patch, map or roster does not match the stored Riot game; saved tracks are unchanged.",
       );
     await db.query(
-      `INSERT INTO replay_tracks(platform,game_id,format_version,patch,content_sha256,sample_count,track,imported_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO replay_tracks(platform,game_id,format_version,patch,content_sha256,sample_count,
+         track,imported_at,sample_rate_hz,roster,movements)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT(platform,game_id,format_version) DO UPDATE SET patch=EXCLUDED.patch,
          content_sha256=EXCLUDED.content_sha256,sample_count=EXCLUDED.sample_count,
-         track=EXCLUDED.track,imported_at=EXCLUDED.imported_at`,
+         track=EXCLUDED.track,imported_at=EXCLUDED.imported_at,
+         sample_rate_hz=EXCLUDED.sample_rate_hz,roster=EXCLUDED.roster,movements=EXCLUDED.movements`,
       [
         track.platform,
         track.gameId,
@@ -88,7 +101,22 @@ export async function importReplayTrack(pool: Pool, file: string, now: Date) {
         track.samples.length,
         track,
         now,
+        track.sampleRateHz,
+        JSON.stringify(track.roster),
+        JSON.stringify(detectMovements(track)),
       ],
+    );
+    const key = [track.platform, track.gameId, track.formatVersion];
+    await db.query(
+      "DELETE FROM replay_track_samples WHERE platform=$1 AND game_id=$2 AND format_version=$3",
+      key,
+    );
+    await db.query(
+      `INSERT INTO replay_track_samples(platform,game_id,format_version,time_ms,positions)
+       SELECT $1,$2,$3,(s->>'timeMs')::integer,s->'positions'
+       FROM replay_tracks t, jsonb_array_elements(t.track->'samples') s
+       WHERE t.platform=$1 AND t.game_id=$2 AND t.format_version=$3`,
+      key,
     );
   });
   return track.samples.length;
@@ -114,4 +142,87 @@ export async function replayTrack(db: Executor, input: z.input<typeof keySchema>
     matchId: linkState === "linked" ? row.track.gameId : null,
     linkState,
   };
+}
+
+const platformOf = (matchId: string) => matchId.split("_")[0]!.toLowerCase();
+
+/** A stored track's summary for a solo game, without reading its samples; null if none. */
+export async function matchTrackSummary(
+  db: Executor,
+  matchId: string,
+): Promise<MatchTrackSummary | null> {
+  const id = soloMatchIdSchema.parse(matchId);
+  const row = (
+    await db.query<{
+      patch: string;
+      sample_rate_hz: number;
+      sample_count: number;
+      imported_at: Date;
+      roster: ReplayTrack["roster"];
+      movements: TrackMovement[] | null;
+      first_ms: number;
+      last_ms: number;
+    }>(
+      `SELECT t.patch,t.sample_rate_hz,t.sample_count,t.imported_at,t.roster,t.movements,
+         (SELECT min(time_ms) FROM replay_track_samples s WHERE s.platform=t.platform
+           AND s.game_id=t.game_id AND s.format_version=1) AS first_ms,
+         (SELECT max(time_ms) FROM replay_track_samples s WHERE s.platform=t.platform
+           AND s.game_id=t.game_id AND s.format_version=1) AS last_ms
+       FROM replay_tracks t WHERE t.platform=$1 AND t.game_id=$2 AND t.format_version=1`,
+      [platformOf(id), id],
+    )
+  ).rows[0];
+  if (!row) return null;
+  return {
+    sampleRateHz: row.sample_rate_hz,
+    sampleCount: row.sample_count,
+    firstMs: row.first_ms,
+    lastMs: row.last_ms,
+    importedAt: row.imported_at.toISOString(),
+    linkState: await matchState(db, {
+      gameId: id,
+      platform: platformOf(id),
+      mapId: 11,
+      patch: row.patch,
+      roster: row.roster,
+    }),
+    movements: row.movements,
+  };
+}
+
+/**
+ * A linked track's samples in one bounded time range, oldest first. Null when the game has no
+ * track linked to its stored Riot match.
+ */
+export async function matchTrackRange(
+  db: Executor,
+  input: z.input<typeof trackRangeQuerySchema>,
+): Promise<TrackRange | null> {
+  const q = trackRangeQuerySchema.parse(input);
+  const summary = await matchTrackSummary(db, q.matchId);
+  if (summary?.linkState !== "linked") return null;
+  const rows = (
+    await db.query<{
+      time_ms: number;
+      positions: {
+        participantId: number;
+        position: { x: number; y: number } | null;
+        confidence: number | null;
+      }[];
+    }>(
+      `SELECT time_ms,positions FROM replay_track_samples
+       WHERE platform=$1 AND game_id=$2 AND format_version=1 AND time_ms BETWEEN $3 AND $4
+       ORDER BY time_ms LIMIT $5`,
+      [platformOf(q.matchId), q.matchId, q.fromMs, q.toMs, trackRangeSampleLimit],
+    )
+  ).rows;
+  return rows.map((r) => ({
+    timeMs: r.time_ms,
+    positions: r.positions.map((p) => ({
+      participantId: p.participantId,
+      x: p.position?.x ?? null,
+      y: p.position?.y ?? null,
+      confidence: p.confidence,
+    })),
+  }));
 }

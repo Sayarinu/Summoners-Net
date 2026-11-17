@@ -112,7 +112,15 @@ describe("Minimap", () => {
       "var(--color-side-red)",
     );
     expect(svg.querySelectorAll(".np-minimap__point")).toHaveLength(1);
+    expect(svg.querySelector(".np-minimap__point--low")).toBeNull();
     expect(screen.getByText(/4 points, 0 paths/)).toBeVisible();
+  });
+  it("draws low-confidence champion points hollow and says so in the data list", async () => {
+    render(<Minimap title="Track" points={[{ ...blue, lowConfidence: true }]} />);
+    const svg = screen.getByRole("img", { name: "Track" });
+    expect(svg.querySelector(".np-minimap__point--low")).not.toBeNull();
+    await userEvent.setup().click(screen.getByText("View plotted data for Track"));
+    expect(screen.getByText(/5846, 6396 \(low confidence\)/)).toBeVisible();
   });
   it("handles absent, failed and remote image URLs without requesting a provider", () => {
     const { rerender } = render(<Minimap title="Map" imageUrl={null} />);

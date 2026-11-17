@@ -1,6 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { SoloGame, SoloGameMapEvents, SoloGamePositions } from "@summonersnet/data/contracts";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type {
+  MatchTrackSummary,
+  SoloGame,
+  SoloGameMapEvents,
+  SoloGamePositions,
+} from "@summonersnet/data/contracts";
 import { GameMapPage } from "./page";
 
 const participant = (participantId: number, side: "blue" | "red", name: string, role: string) => ({
@@ -203,4 +208,149 @@ it("explains a game without stored events and a truncated event list", () => {
     "No kills, objectives or ward placements are stored for this game.",
   );
   expect(screen.getByText(/first 1,000 events/)).toBeVisible();
+});
+
+const track: MatchTrackSummary = {
+  sampleRateHz: 2,
+  sampleCount: 5,
+  firstMs: 0,
+  lastMs: 130000,
+  importedAt: "2026-11-16T12:00:00.000Z",
+  linkState: "linked",
+  movements: [
+    {
+      kind: "recall",
+      startMs: 1000,
+      endMs: 1500,
+      teamId: 100,
+      participantIds: [1],
+      from: "mid",
+      to: "blue-base",
+    },
+    {
+      kind: "rotation",
+      startMs: 61000,
+      endMs: 70000,
+      teamId: 200,
+      participantIds: [6],
+      from: null,
+      to: "bot",
+    },
+  ],
+};
+const observation = (participantId: number, x: number | null, confidence: number | null) => ({
+  participantId,
+  x,
+  y: x,
+  confidence,
+});
+function trackFetcher() {
+  return vi.fn((url: string) => {
+    const from = Number(new URL(url, "http://local").searchParams.get("fromMs"));
+    const samples =
+      from === 0
+        ? [0, 500, 1000, 1500].map((timeMs) => ({
+            timeMs,
+            positions: [
+              observation(1, timeMs < 1500 ? 7000 : 500, 0.9),
+              observation(2, timeMs === 1000 ? null : 6000, 0.9),
+              observation(6, 9000, 0.2),
+            ],
+          }))
+        : [];
+    return Promise.resolve(new Response(JSON.stringify(samples)));
+  });
+}
+
+it("uses a linked track: latest samples, trails, low-confidence points, gaps and movements", async () => {
+  const fetcher = trackFetcher();
+  const { container } = render(
+    <GameMapPage
+      game={game}
+      positions={positions}
+      events={events}
+      track={track}
+      fetcher={fetcher as unknown as typeof fetch}
+    />,
+  );
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "Source at 0:00: imported replay track, about 2 samples per second (5 samples from 0:00 to 2:10",
+  );
+  // Only the chunk under the scrubber and the next one are requested.
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    "/api/solo-games/EUW1_1/track?fromMs=0&toMs=59999",
+    "/api/solo-games/EUW1_1/track?fromMs=60000&toMs=119999",
+  ]);
+  await waitFor(() =>
+    expect(table()).toHaveTextContent("AhriBlueMid7000, 7000 (track sample, confidence 0.90)"),
+  );
+  expect(table()).toHaveTextContent("GarenRedTop9000, 9000 (track sample, low confidence 0.20)");
+  expect(container.querySelectorAll(".np-minimap__point--low")).toHaveLength(1);
+  // The track runs past the last timeline frame.
+  expect(screen.getByLabelText(/^Game time/)).toHaveAttribute("max", "130000");
+  expect(screen.getByLabelText(/^Game time/)).toHaveAttribute("step", "500");
+  fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "1000" } });
+  expect(table()).toHaveTextContent("Lee SinBlueJungleGap: no sample");
+  expect(container.querySelectorAll(".np-minimap__path").length).toBeGreaterThan(0);
+  const movements = screen.getByRole("table", { name: "Detected movements" });
+  expect(movements).toHaveTextContent("Recall: Ahri");
+  expect(movements).toHaveTextContent("Rotation: Garen to bot");
+  fireEvent.click(within(movements).getByRole("button", { name: "Go to 1:01" }));
+  expect(screen.getByLabelText(/^Game time/)).toHaveValue("61000");
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+});
+it("uses the timeline outside a partial track's sampled interval", () => {
+  const fetcher = trackFetcher();
+  render(
+    <GameMapPage
+      game={game}
+      positions={positions}
+      events={events}
+      track={{ ...track, firstMs: 60000, lastMs: 90000 }}
+      fetcher={fetcher as unknown as typeof fetch}
+    />,
+  );
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "Source at 0:00: Riot match timeline, one position per champion per minute.",
+  );
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "An imported replay track covers 1:00 to 1:30.",
+  );
+  expect(table()).toHaveTextContent("AhriBlueMid600, 500 (minute frame)");
+  expect(fetcher).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "60000" } });
+  expect(screen.getByRole("note")).toHaveTextContent("Source at 1:00: imported replay track");
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it("falls back to the timeline and says why when a track is not linked or lacks movements", async () => {
+  const fetcher = trackFetcher();
+  const { unmount } = render(
+    <GameMapPage
+      game={game}
+      positions={positions}
+      events={events}
+      track={{ ...track, linkState: "mismatch" }}
+      fetcher={fetcher as unknown as typeof fetch}
+    />,
+  );
+  expect(screen.getByRole("note")).toHaveTextContent("Source at 0:00: Riot match timeline");
+  expect(screen.getByRole("note")).toHaveTextContent("does not match this game");
+  expect(fetcher).not.toHaveBeenCalled();
+  unmount();
+  render(
+    <GameMapPage
+      game={game}
+      positions={positions}
+      events={events}
+      track={{ ...track, movements: null }}
+      fetcher={
+        vi.fn(() => Promise.resolve(new Response("{}", { status: 500 }))) as unknown as typeof fetch
+      }
+    />,
+  );
+  expect(screen.getByText(/Import it again to list rotations, roams and recalls/)).toBeVisible();
+  await waitFor(() =>
+    expect(screen.getByRole("note")).toHaveTextContent("Some track samples could not be loaded."),
+  );
+  expect(table()).toHaveTextContent("Loading track samples");
 });

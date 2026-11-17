@@ -14,6 +14,8 @@ export interface MinimapPoint extends MapPosition {
   readonly label: string;
   readonly side: MinimapSide;
   readonly marker?: MinimapMarker;
+  /** Drawn hollow and dashed: a detection the source scored as uncertain. */
+  readonly lowConfidence?: boolean;
 }
 
 export interface MinimapPath {
@@ -45,11 +47,13 @@ function Marker({
   x,
   y,
   color,
+  low = false,
 }: {
   marker?: MinimapMarker | undefined;
   x: number;
   y: number;
   color: string;
+  low?: boolean | undefined;
 }) {
   const r = 6;
   if (marker === "kill")
@@ -79,7 +83,15 @@ function Marker({
         className="np-minimap__event np-minimap__event--ward"
       />
     );
-  return <circle cx={x} cy={y} r={5} fill={color} className="np-minimap__point" />;
+  return (
+    <circle
+      cx={x}
+      cy={y}
+      r={5}
+      fill={color}
+      className={low ? "np-minimap__point np-minimap__point--low" : "np-minimap__point"}
+    />
+  );
 }
 
 function pathData(positions: readonly MapPosition[]) {
@@ -179,6 +191,7 @@ export function Minimap({
                 x={point.pixel.x}
                 y={point.pixel.y}
                 color={sideColor(point.side)}
+                low={point.lowConfidence}
               />
             </g>
           ))}
@@ -197,6 +210,7 @@ export function Minimap({
           {visiblePoints.map((point) => (
             <li key={`point:${point.id}`}>
               {point.label} ({point.side}): {point.x}, {point.y}
+              {point.lowConfidence ? " (low confidence)" : ""}
             </li>
           ))}
           {visiblePaths.map((path) => (
