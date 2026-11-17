@@ -3,6 +3,8 @@ import axe from "axe-core";
 
 /** Every analytics page, loaded from the seeded fixtures with a selection that has data. */
 const analyticsRoutes = [
+  ["team finder", "/teams", "Teams"],
+  ["team profile", "/teams/acceptance-blue", "Acceptance Blue"],
   ["champion directory", "/champions", "Champions"],
   ["patch directory", "/patches", "Patches"],
   ["leaderboard hub", "/leaderboards", "Leaderboards"],

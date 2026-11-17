@@ -176,16 +176,6 @@ test("team finder and profile keep season, series and archive games accessible",
   await expect(page.getByRole("button", { name: /Season/ })).toContainText("2026");
   await expect(page.locator("main .np-match-row")).toHaveCount(5);
   await expect(page.getByText(/refresh overdue/)).toHaveCount(0);
-  await page.addScriptTag({ content: AxeBuilder.source });
-  expect(
-    await page.evaluate(async () =>
-      (
-        await (window as unknown as { axe: typeof AxeBuilder }).axe.run(document, {
-          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
-        })
-      ).violations.map((v) => v.id),
-    ),
-  ).toEqual([]);
   await page.screenshot({
     path: `../../output/playwright/${info.project.name}-team-profile.png`,
     fullPage: true,
