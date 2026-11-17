@@ -136,7 +136,7 @@ it("shows the blindability score, its coverage and the method with the formula",
   expect(counter).toHaveTextContent("Best response to1 opponent · 50 of 160 opponent picks");
   expect(screen.getByRole("link", { name: "Compare the role" })).toHaveAttribute(
     "href",
-    "/matchups/MIDDLE/counter-picks?source=solo&value=shrunk&patch=16.22",
+    "/matchups/MIDDLE/counter-picks?source=solo&patch=16.22",
   );
   rerender(
     <ChampionMatchupsPage

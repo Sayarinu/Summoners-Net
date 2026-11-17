@@ -57,6 +57,12 @@ function selection(q: { source: string; value: string }, patch: string | null) {
   if (patch) params.set("patch", patch);
   return params;
 }
+/** The role list takes only source and patch filters. */
+function counterPicksHref(role: string, source: string, patch: string | null) {
+  const params = new URLSearchParams({ source });
+  if (patch) params.set("patch", patch);
+  return `/matchups/${role}/counter-picks?${params}`;
+}
 function Champion({ champion: c, href }: { champion: PatchChampion; href?: string }) {
   return (
     <span className="ev-champion">
@@ -332,7 +338,7 @@ export function ChampionMatchupsPage({
           Role matchup matrix
         </TextLink>
         {" · "}
-        <TextLink href={`/matchups/${q.role}/counter-picks?${selection(q, m.patch)}`}>
+        <TextLink href={counterPicksHref(q.role, q.source, m.patch)}>
           Role counter-pick values
         </TextLink>
       </nav>
@@ -367,7 +373,7 @@ export function ChampionMatchupsPage({
       </form>
       <Blindability
         score={m.patch ? blindability : null}
-        listHref={`/matchups/${q.role}/counter-picks?${selection(q, m.patch)}`}
+        listHref={counterPicksHref(q.role, q.source, m.patch)}
       />
       <Policy />
       <p className="np-meta">
@@ -488,7 +494,7 @@ export function MatchupMatrixPage({
           </TextLink>
         ))}
       </nav>
-      <TextLink href={`/matchups/${q.role}/counter-picks?${selection(q, m.patch)}`}>
+      <TextLink href={counterPicksHref(q.role, q.source, m.patch)}>
         {roles[q.role]} counter-pick values
       </TextLink>
       <form className="ev-filters" method="get" action={`/matchups/${q.role}`}>
