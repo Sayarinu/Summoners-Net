@@ -39,6 +39,9 @@ export function SummonerPage({
             Results and champion pool from retained ranked solo games. Missing statistics stay
             unknown.
           </p>
+          <TextLink href={`/heatmaps?subjectKind=player&subject=${encodeURIComponent(puuid)}`}>
+            Heatmaps
+          </TextLink>
         </div>
       </header>
       <nav aria-label="Player regions" className="ev-filters">

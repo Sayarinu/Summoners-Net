@@ -5,6 +5,7 @@ import { championOverview, championStats, tierList } from "./aggregates.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
+import { heatmap } from "./heatmaps.js";
 
 // Query plan budgets for the aggregate reads. The tables are seeded at a realistic size for a
 // library with two years of pro data and four retained patches of solo queue, then every statement the reads run is
@@ -24,6 +25,8 @@ const largeTables = [
   "wpa_aggregates",
   "blindability_scores",
   "matchup_aggregates",
+  "heatmap_samples",
+  "heatmap_cells",
 ];
 /** Planner cost units; the seeded reads stay well below it when an index supports them. */
 const costBudget = 5000;
@@ -88,6 +91,16 @@ beforeAll(async () => {
     FROM (SELECT * FROM patches WHERE minor>20) p, generate_series(1,170) c, generate_series(1,20) o,
       unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) role, unnest(ARRAY['solo','pro']) source
     ON CONFLICT DO NOTHING`);
+  const subjects = `(SELECT * FROM patches WHERE minor>20) p,
+    (SELECT 'champion' AS kind,c::text AS subject,64 AS cells FROM generate_series(1,170) c
+     UNION ALL SELECT 'player','puuid-'||s,20 FROM generate_series(1,1000) s
+     UNION ALL SELECT 'role',r,256 FROM unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) r) s,
+    unnest(ARRAY['position','death','kill']) k`;
+  await seed(`INSERT INTO heatmap_samples(patch_key,subject_kind,subject,kind,games,points,built_at)
+    SELECT p.patch_key,s.kind,s.subject,k,20,400,$1 FROM ${subjects}`);
+  await pool.query(`INSERT INTO heatmap_cells(patch_key,subject_kind,subject,kind,cell_x,cell_y,points)
+    SELECT p.patch_key,s.kind,s.subject,k,i%16,i/16,1+i%5 FROM ${subjects},
+      generate_series(0,255) i WHERE i<s.cells`);
   await pool.query(`ANALYZE ${largeTables.join(",")},catalog_champions,patches,wp_models`);
 }, 120_000);
 // Leave nothing behind for the suites that share the test database.
@@ -180,6 +193,13 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
     (db) =>
       championBlindability(db, { championKey: 42, source: "solo", patch: "16.24", role: "TOP" }),
   ],
+  ["champion heatmap", (db) => heatmap(db, { subjectKind: "champion", subject: "Champ42" })],
+  [
+    "player heatmap, one patch",
+    (db) =>
+      heatmap(db, { subjectKind: "player", subject: "puuid-7", kind: "death", patch: "16.22" }),
+  ],
+  ["role heatmap", (db) => heatmap(db, { subjectKind: "role", subject: "JUNGLE", kind: "kill" })],
 ];
 
 it.each(reads)("%s stays within the plan budget on large aggregate tables", async (_, read) => {

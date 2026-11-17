@@ -50,6 +50,11 @@ export function ChampionOverviewPage({
       >
         Lane matchups
       </TextLink>
+      <TextLink
+        href={`/heatmaps?subjectKind=champion&subject=${champion.id}${q.source === "solo" && overview.patch ? `&patch=${overview.patch}` : ""}`}
+      >
+        Heatmaps
+      </TextLink>
       <ChampionFilters action={`/champions/${champion.id}`} query={q} facets={overview.facets} />
       {error ? (
         <p role="alert">{error}</p>

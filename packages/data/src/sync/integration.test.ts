@@ -44,6 +44,7 @@ import {
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "../persistence/solo-game-positions.js";
+import { heatmap, rebuildHeatmaps } from "../persistence/heatmaps.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
@@ -3256,6 +3257,96 @@ describe("Champion aggregates", () => {
     expect(await soloGameMapEvents(pool, "EUW1_2")).toEqual({ events: [], truncated: false });
     expect(await soloGameMapEvents(pool, "EUW1_999")).toBeNull();
     await expect(soloGameMapEvents(pool, "not a match")).rejects.toThrow();
+  });
+  it("bins heatmaps per champion, player and role on the fixed grid with red side mirrored", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    // A game without a stored timeline is not part of any heatmap's sample.
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    // A kill outside the map bounds is not binned.
+    await pool.query(
+      `INSERT INTO riot_timeline_events(match_id,seq,type,timestamp_ms,participant_id,victim_id,x,y)
+       VALUES ('EUW1_1',100,'CHAMPION_KILL',129000,2,8,20000,100)`,
+    );
+    await runAggregate();
+    // One game is below the minimum sample: the sample is reported and nothing is drawn.
+    const below = (await queries.heatmap({ subjectKind: "champion", subject: "Ahri" }))!;
+    expect(below).toMatchObject({
+      label: "Ahri",
+      patch: "16.22",
+      patches: [{ patch: "16.22", games: 1, points: 2 }],
+      games: 1,
+      points: 2,
+      minimumGames: 10,
+      cells: [],
+    });
+    expect((await pool.query("SELECT 1 FROM heatmap_cells")).rowCount).toBe(0);
+
+    await transaction(pool, (c) => rebuildHeatmaps(c, "16.22", now, 1));
+    const cells = async (subjectKind: string, subject: string, kind: string) =>
+      (
+        await pool.query<{ cell_x: number; cell_y: number; points: number }>(
+          `SELECT cell_x,cell_y,points FROM heatmap_cells
+           WHERE subject_kind=$1 AND subject=$2 AND kind=$3 ORDER BY cell_x,cell_y`,
+          [subjectKind, subject, kind],
+        )
+      ).rows.map((r) => [r.cell_x, r.cell_y, r.points]);
+    // Cells are 936.875 x 943.75 world units. Ahri (blue) stands at (610,500) and (620,500)
+    // at minutes 1 and 2; minute 0 is the fountain and is skipped.
+    expect(await cells("champion", "103", "position")).toEqual([[0, 0, 2]]);
+    // Red side is rotated about the centre: (1110,1000) becomes (13640,13860), cell (14,14).
+    expect(await cells("champion", "157", "position")).toEqual([[14, 14, 2]]);
+    expect(await cells("role", "MIDDLE", "position")).toEqual([
+      [0, 0, 2],
+      [14, 14, 2],
+    ]);
+    // The kill at (7200,7100): the blue killer's cell (7,7), the red victim's mirrored (8,8).
+    expect(await cells("champion", "64", "kill")).toEqual([[7, 7, 1]]);
+    expect(await cells("champion", "121", "death")).toEqual([[8, 8, 1]]);
+    expect(await cells("role", "JUNGLE", "death")).toEqual([[8, 8, 1]]);
+    expect(await cells("champion", "121", "kill")).toEqual([]);
+    const killer = (
+      await pool.query<{ puuid: string }>(
+        "SELECT puuid FROM riot_match_participants WHERE match_id='EUW1_1' AND participant_id=2",
+      )
+    ).rows[0]!.puuid;
+    expect(await cells("player", killer, "kill")).toEqual([[7, 7, 1]]);
+    const samples = (
+      await pool.query(
+        `SELECT subject,kind,games,points FROM heatmap_samples
+         WHERE subject_kind='champion' AND subject IN ('64','103') ORDER BY subject,kind`,
+      )
+    ).rows;
+    expect(samples).toEqual([
+      { subject: "103", kind: "death", games: 1, points: 0 },
+      { subject: "103", kind: "kill", games: 1, points: 0 },
+      { subject: "103", kind: "position", games: 1, points: 2 },
+      // The out-of-bounds kill is not counted.
+      { subject: "64", kind: "death", games: 1, points: 0 },
+      { subject: "64", kind: "kill", games: 1, points: 1 },
+      { subject: "64", kind: "position", games: 1, points: 2 },
+    ]);
+
+    // Reads draw cells at their centres once the sample reaches the minimum.
+    await pool.query("UPDATE heatmap_samples SET games=10 WHERE subject_kind='role'");
+    const role = (await heatmap(pool, { subjectKind: "role", subject: "JUNGLE", kind: "death" }))!;
+    expect(role).toMatchObject({ label: null, games: 10, points: 1 });
+    expect(role.cells).toEqual([{ cellX: 8, cellY: 8, x: 7843, y: 7902, points: 1 }]);
+    const player = (await heatmap(pool, { subjectKind: "player", subject: killer, kind: "kill" }))!;
+    expect(player).toMatchObject({ games: 1, points: 1, cells: [] });
+    expect(
+      await heatmap(pool, { subjectKind: "champion", subject: "Ahri", patch: "16.21" }),
+    ).toMatchObject({ patch: "16.21", games: 0, points: 0, cells: [] });
+    expect(await heatmap(pool, { subjectKind: "champion", subject: "NotAChampion" })).toBeNull();
+    expect(await heatmap(pool, { subjectKind: "role", subject: "SUPPORT" })).toBeNull();
+    await expect(heatmap(pool, { subjectKind: "role", subject: "../x" })).rejects.toThrow();
   });
   it("stores win probability added per event and participant for each model", async () => {
     serveDataDragon(["16.22.1"]);

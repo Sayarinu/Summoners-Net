@@ -410,6 +410,29 @@ test("the game map overlays timeline events and jumps to a selected event", asyn
   await expect(page.locator(".np-minimap__event--kill")).toHaveCount(0);
   await expect(list).not.toContainText("killed");
 });
+test("heatmaps report their sample and are not drawn below the minimum", async ({ page }) => {
+  await page.goto("/champions/Ahri");
+  await page.getByRole("link", { name: "Heatmaps", exact: true }).click();
+  await expect(page).toHaveURL(/\/heatmaps\?subjectKind=champion&subject=Ahri/);
+  await expect(page.getByRole("heading", { name: "Ahri: positions" })).toBeVisible();
+  // The one seeded game with a timeline: Ahri's minute 1 and 2 frames.
+  await expect(page.getByRole("status")).toHaveText("Sample: 1 game and 2 points on patch 16.4.");
+  await expect(page.getByText("Too few games to draw")).toBeVisible();
+  await expect(page.locator(".np-minimap")).toHaveCount(0);
+  await expect(page.getByText(/Red side is rotated half a turn/)).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Heatmap type" })
+    .getByRole("link", { name: "Kills" })
+    .click();
+  await expect(page.getByRole("heading", { name: "Ahri: kills" })).toBeVisible();
+  await page.getByRole("link", { name: "Jungle", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Jungle: kills" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Sample: 1 game and 1 point");
+  await page.goto("/heatmaps?subjectKind=champion&subject=Ahri&kind=assists");
+  await expect(page.getByText(/^Choose a champion, player or role/)).toBeVisible();
+  const missing = await page.goto("/heatmaps?subjectKind=champion&subject=NotAChampion");
+  expect(missing?.status()).toBe(404);
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {
