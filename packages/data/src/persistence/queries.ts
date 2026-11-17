@@ -43,6 +43,7 @@ import { soloGame } from "./solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "./solo-game-positions.js";
 import { heatmap } from "./heatmaps.js";
 import type { HeatmapQuery } from "../domain/heatmaps.js";
+import { championJunglePaths } from "./jungle-paths.js";
 import { proGameWinProbability } from "./pro-wp.js";
 import { modelDiagnostics } from "./model-diagnostics.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
@@ -212,6 +213,8 @@ export function queries(pool: Pool, clock: () => Date) {
     soloGamePositions: (matchId: string) => soloGamePositions(pool, matchId),
     soloGameMapEvents: (matchId: string) => soloGameMapEvents(pool, matchId),
     heatmap: (input: HeatmapQuery) => heatmap(pool, input),
+    championJunglePaths: (input: { championKey: number; patch: string }) =>
+      championJunglePaths(pool, input),
     proGameWinProbability: (gameId: string) => proGameWinProbability(pool, idSchema.parse(gameId)),
     modelDiagnostics: (selectedId?: number) => modelDiagnostics(pool, selectedId),
     wpaLeaderboard: (input?: WpaLeaderboardQuery) => wpaLeaderboard(pool, input),

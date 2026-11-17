@@ -3,8 +3,11 @@ import { beforeEach, expect, it, vi } from "vitest";
 const tierList = vi.fn();
 const championOverview = vi.fn();
 const championBlindability = vi.fn();
+const championJunglePaths = vi.fn().mockResolvedValue(null);
 vi.mock("server-only", () => ({}));
-vi.mock("./data", () => ({ data: () => ({ tierList, championOverview, championBlindability }) }));
+vi.mock("./data", () => ({
+  data: () => ({ tierList, championOverview, championBlindability, championJunglePaths }),
+}));
 const ahri = (role = "MIDDLE", patch: string | null = "16.22") => ({
   champion: { id: "Ahri", key: 103 },
   query: { role, source: "solo" },
@@ -43,6 +46,7 @@ it("validates champion ids and filters, and returns null for unknown champions",
   expect(await loadChampionOverview("Ahri", { role: "MIDDLE", region: "all" })).toEqual({
     overview: ahri(),
     draftValue: { counterDifference: 0.05 },
+    junglePaths: null,
     error: null,
   });
   expect(championBlindability).toHaveBeenLastCalledWith({
@@ -90,4 +94,20 @@ it("reads counter-pick values only for a lane role with a patch", async () => {
     expect((await loadChampionOverview("Ahri", {}))?.draftValue).toBeNull();
   }
   expect(championBlindability).not.toHaveBeenCalled();
+});
+it("reads jungle paths for the overview's champion and patch in solo queue only", async () => {
+  championJunglePaths.mockReset().mockResolvedValue({ games: 3 });
+  const overview = (source: string, patch: string | null) => ({
+    champion: { id: "LeeSin", key: 64 },
+    patch,
+    query: { source },
+  });
+  championOverview.mockReset().mockResolvedValueOnce(overview("solo", "16.22"));
+  expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toEqual({ games: 3 });
+  expect(championJunglePaths).toHaveBeenCalledWith({ championKey: 64, patch: "16.22" });
+  championOverview.mockResolvedValueOnce(overview("pro", "16.22"));
+  expect((await loadChampionOverview("LeeSin", { source: "pro" }))?.junglePaths).toBeNull();
+  championOverview.mockResolvedValueOnce(overview("solo", null));
+  expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toBeNull();
+  expect(championJunglePaths).toHaveBeenCalledTimes(1);
 });

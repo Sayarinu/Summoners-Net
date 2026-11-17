@@ -45,6 +45,7 @@ import {
 import { soloGame } from "../persistence/solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "../persistence/solo-game-positions.js";
 import { heatmap, rebuildHeatmaps } from "../persistence/heatmaps.js";
+import { championJunglePaths } from "../persistence/jungle-paths.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
@@ -3347,6 +3348,103 @@ describe("Champion aggregates", () => {
     expect(await heatmap(pool, { subjectKind: "champion", subject: "NotAChampion" })).toBeNull();
     expect(await heatmap(pool, { subjectKind: "role", subject: "SUPPORT" })).toBeNull();
     await expect(heatmap(pool, { subjectKind: "role", subject: "../x" })).rejects.toThrow();
+  });
+  it("stores inferred jungle paths per game and clusters them per champion and patch", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    // A game without a stored timeline has no inferred path.
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    // Blue's jungler (2) waits at blue buff and reaches raptors by minute 3; red's jungler (7)
+    // waits at its own red buff and has no minute 3 frame.
+    await pool.query(
+      `UPDATE riot_timeline_frames SET x=3871,y=7901 WHERE match_id='EUW1_1' AND participant_id=2 AND minute=1;
+       UPDATE riot_timeline_frames SET x=7016,y=10775 WHERE match_id='EUW1_1' AND participant_id=7 AND minute=1;
+       INSERT INTO riot_timeline_frames(match_id,participant_id,minute,timestamp_ms,x,y)
+       VALUES ('EUW1_1',2,3,180022,6943,5422)`,
+    );
+    await runAggregate();
+    const stored = (
+      await pool.query(
+        `SELECT match_id,participant_id,champion_key,win,start_side,start_confidence,route,
+           gank_lane,gank_confidence,gank_minute,path_x,path_y
+         FROM jungle_paths ORDER BY participant_id`,
+      )
+    ).rows;
+    // The kill at (7200,7100) by blue's jungler is on the mid diagonal: a mid gank at minute 1.
+    expect(stored).toEqual([
+      {
+        match_id: "EUW1_1",
+        participant_id: 2,
+        champion_key: 64,
+        win: true,
+        start_side: "blue-buff",
+        start_confidence: "high",
+        route: "cross",
+        gank_lane: "mid",
+        gank_confidence: "high",
+        gank_minute: 1,
+        path_x: [3871, 720, 6943],
+        path_y: [7901, 600, 5422],
+      },
+      {
+        match_id: "EUW1_1",
+        participant_id: 7,
+        champion_key: 121,
+        win: false,
+        start_side: "red-buff",
+        start_confidence: "high",
+        route: null,
+        gank_lane: null,
+        gank_confidence: null,
+        gank_minute: null,
+        path_x: [7734, 13530, null],
+        path_y: [4085, 13760, null],
+      },
+    ]);
+    const lee = await queries.championJunglePaths({ championKey: 64, patch: "16.22" });
+    expect(lee).toEqual({
+      patch: "16.22",
+      games: 1,
+      minimumSample: 10,
+      clusters: [
+        {
+          startSide: "blue-buff",
+          route: "cross",
+          gankLane: "mid",
+          games: 1,
+          resultGames: 1,
+          winRate: null,
+          path: [
+            { x: 3871, y: 7901 },
+            { x: 720, y: 600 },
+            { x: 6943, y: 5422 },
+          ],
+        },
+      ],
+    });
+    const khazix = (await championJunglePaths(pool, { championKey: 121, patch: "16.22" }))
+      .clusters[0]!;
+    expect(khazix).toMatchObject({ route: null, gankLane: null, path: [{}, {}, null] });
+    // At the minimum sample the win rate is shown.
+    await pool.query(
+      "UPDATE jungle_path_clusters SET games=12,result_games=12,wins=9 WHERE champion_key=64",
+    );
+    expect(
+      (await championJunglePaths(pool, { championKey: 64, patch: "16.22" })).clusters[0]!.winRate,
+    ).toBe(0.75);
+    expect(await championJunglePaths(pool, { championKey: 64, patch: "16.21" })).toEqual({
+      patch: "16.21",
+      games: 0,
+      minimumSample: 10,
+      clusters: [],
+    });
   });
   it("stores win probability added per event and participant for each model", async () => {
     serveDataDragon(["16.22.1"]);

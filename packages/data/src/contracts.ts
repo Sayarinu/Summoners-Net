@@ -63,6 +63,14 @@ export type {
   HeatmapSample,
   HeatmapSubjectKind,
 } from "./domain/heatmaps.js";
+export { clearMinutes, junglePathMinimumSample } from "./domain/jungle-paths.js";
+export type {
+  ChampionJunglePaths,
+  GankLane,
+  JunglePathCluster,
+  JungleRoute,
+  JungleSide,
+} from "./domain/jungle-paths.js";
 export { featureLabels, modelDiagnosticsQuerySchema } from "./domain/model-diagnostics.js";
 export type { ModelDiagnostics, ModelSummary } from "./domain/model-diagnostics.js";
 export { wpaKinds, wpaLeaderboardQuerySchema, wpaSorts } from "./domain/wpa-leaderboards.js";

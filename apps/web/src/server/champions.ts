@@ -54,5 +54,13 @@ export async function loadChampionOverview(
           role,
         })
       : null;
-  return { overview, draftValue, error: parsed.success ? null : filterError };
+  // Jungle paths come from solo-queue timelines on the overview's patch.
+  const junglePaths =
+    overview.patch && overview.query.source === "solo"
+      ? await data().championJunglePaths({
+          championKey: overview.champion.key,
+          patch: overview.patch,
+        })
+      : null;
+  return { overview, draftValue, junglePaths, error: parsed.success ? null : filterError };
 }
