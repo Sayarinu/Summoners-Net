@@ -322,7 +322,7 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.
   const start = page.getByRole("table", { name: "Starting Items" });
   await expect(start).toContainText("Doran's Ring");
-  await expect(start).toContainText("Too few games (1)");
+  await expect(start).toContainText("Too Few Games (1)");
   await expect(page.getByRole("table", { name: "Keystones" })).toContainText("Electrocute");
   await expect(page.getByRole("table", { name: "Summoner Spells" })).toContainText("Flash");
   // The seeded timeline levels Ahri's Q once: too few skill-ups to decide an order.
