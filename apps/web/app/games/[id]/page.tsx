@@ -1,6 +1,7 @@
 import { gameReplayUrl, recordingUrl } from "@summonersnet/data/contracts";
 import { notFound } from "next/navigation";
 import { GamePage } from "../../../src/features/details/pages";
+import { seriesRound } from "../../../src/features/browse/presentation";
 import { data, preferences, sourceIdFromRoute } from "../../../src/server/data";
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const id = await sourceIdFromRoute(params);
@@ -35,6 +36,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       detail={detail}
       portraits={portraits}
       vodUrl={vodUrl}
+      round={match ? seriesRound(match) : null}
     />
   );
 }

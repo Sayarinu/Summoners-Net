@@ -1,4 +1,5 @@
 import { ChampionIcon } from "@summonersnet/ui";
+import type { ComponentProps } from "react";
 
 export type ChampionPortraits = Record<string, { id: string; imageUrl: string | null }>;
 
@@ -6,10 +7,12 @@ export function ChampionPortrait({
   name,
   portraits,
   championId,
+  size = "small",
 }: {
   name: string | null;
   championId?: string | null;
   portraits?: ChampionPortraits | undefined;
+  size?: ComponentProps<typeof ChampionIcon>["size"];
 }) {
   if (!name) return "—";
   const entry = Object.hasOwn(portraits ?? {}, name) ? portraits?.[name] : undefined;
@@ -19,7 +22,7 @@ export function ChampionPortrait({
       id={id ?? name}
       name={name}
       imageUrl={entry?.imageUrl ?? null}
-      size="small"
+      size={size}
       href={id ? `/champions/${encodeURIComponent(id)}` : undefined}
     />
   );

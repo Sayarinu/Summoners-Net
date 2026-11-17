@@ -1,5 +1,5 @@
 "use client";
-import { Table, TeamIdentity, PlayerIdentity, RoleIcon } from "@summonersnet/ui";
+import { RoleIcon, Table, TeamIdentity, TextLink } from "@summonersnet/ui";
 import type { Game } from "@summonersnet/data";
 import { roleKey } from "@summonersnet/data/contracts";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
@@ -52,17 +52,25 @@ export function LineupTable({
               getRowKey={(p) => p.slot}
               rows={players}
               columns={[
-                { id: "role", header: "Role", render: (p) => <RoleIcon role={p.role} /> },
+                {
+                  id: "role",
+                  header: "Role",
+                  width: "3.25rem",
+                  align: "center",
+                  render: (p) => <RoleIcon role={p.role} />,
+                },
                 {
                   id: "player",
                   header: "Player",
                   render: (p) =>
                     p.player ? (
-                      <PlayerIdentity
-                        handle={p.player.name}
+                      <TextLink
+                        className="ev-lineup-player"
                         href={identityHref(p.player)}
-                        {...(p.player.imageUrl ? { portrait: p.player.imageUrl } : {})}
-                      />
+                        title={p.player.name}
+                      >
+                        {p.player.name}
+                      </TextLink>
                     ) : (
                       "—"
                     ),
@@ -70,20 +78,27 @@ export function LineupTable({
                 {
                   id: "champion",
                   header: "Champion",
+                  width: "5rem",
+                  align: "center",
                   render: (p) =>
                     hidden ? (
                       "Hidden"
                     ) : (
-                      <ChampionPortrait name={p.champion} portraits={portraits} />
+                      <ChampionPortrait name={p.champion} portraits={portraits} size="medium" />
                     ),
                 },
                 {
                   id: "kda",
-                  header: "K / D / A",
-                  render: (p) =>
-                    hidden
-                      ? "Hidden"
-                      : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`,
+                  header: "KDA",
+                  width: "6rem",
+                  align: "center",
+                  render: (p) => (
+                    <span className="ev-lineup-kda">
+                      {hidden
+                        ? "Hidden"
+                        : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`}
+                    </span>
+                  ),
                 },
               ]}
             />

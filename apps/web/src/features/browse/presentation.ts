@@ -65,3 +65,18 @@ export function gameTeams(game: Game) {
     return teams.map((team) => ({ ...team, won: null }));
   return teams;
 }
+
+export function seriesRound(match: Pick<Match, "event" | "name">) {
+  for (const label of [...match.event.split(" · ").reverse(), match.name.split(":", 1)[0]]) {
+    const round = label?.trim().replace(/\b(semi|quarter)-final/gi, "$1final");
+    if (
+      round &&
+      /^(?:(?:(?:upper|lower) bracket |grand )?(?:finals?|semifinals?|quarterfinals?)(?: \d+)?|round (?:of )?\d+)$/i.test(
+        round,
+      )
+    ) {
+      return round.toLowerCase().replace(/\b(?!of\b)[a-z]/g, (letter) => letter.toUpperCase());
+    }
+  }
+  return null;
+}

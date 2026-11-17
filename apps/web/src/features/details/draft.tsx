@@ -3,10 +3,8 @@ import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 import { Disclosure } from "./disclosure";
 
 const phases = [
-  { phase: 1, action: "ban", label: "Bans 1–6" },
-  { phase: 1, action: "pick", label: "Picks 1–6" },
-  { phase: 2, action: "ban", label: "Bans 7–10" },
-  { phase: 2, action: "pick", label: "Picks 7–10" },
+  { number: 1, slots: "1–6" },
+  { number: 2, slots: "7–10" },
 ] as const;
 
 export function DraftPanel({
@@ -22,28 +20,39 @@ export function DraftPanel({
   if (!hasDraft) return null;
 
   return (
-    <Disclosure title="Draft Order">
+    <Disclosure title="Draft Order" initiallyOpen>
       {detail.draftOrder.length ? (
         <div className="ev-draft-order">
-          {phases.map(({ phase, action, label }) => (
-            <section className="ev-draft-phase" key={label} aria-label={label}>
-              <h3>{label}</h3>
-              <ol>
-                {detail.draftOrder
-                  .filter((event) => event.phase === phase && event.action === action)
-                  .map((event) => (
-                    <li key={event.slot} data-side={event.side}>
-                      <span className="ev-draft-slot">
-                        <span className="np-visually-hidden">
-                          {event.side} {event.action}{" "}
-                        </span>
-                        {event.slot}
-                      </span>
-                      <ChampionPortrait name={event.champion} portraits={portraits} />
-                    </li>
-                  ))}
-              </ol>
-            </section>
+          {phases.map(({ number, slots }) => (
+            <div className="ev-draft-phase" key={number}>
+              {(["ban", "pick"] as const).map((action) => {
+                const label = `${action === "ban" ? "Bans" : "Picks"} ${slots}`;
+                return (
+                  <section className="ev-draft-phase__row" key={action} aria-label={label}>
+                    <h3>{label}</h3>
+                    <ol role="list">
+                      {detail.draftOrder
+                        .filter((event) => event.phase === number && event.action === action)
+                        .map((event) => (
+                          <li key={event.slot} data-side={event.side}>
+                            <span className="ev-draft-slot">
+                              <span className="np-visually-hidden">
+                                {event.side} {event.action}{" "}
+                              </span>
+                              {event.slot}
+                            </span>
+                            <ChampionPortrait
+                              name={event.champion}
+                              portraits={portraits}
+                              size="medium"
+                            />
+                          </li>
+                        ))}
+                    </ol>
+                  </section>
+                );
+              })}
+            </div>
           ))}
         </div>
       ) : (
@@ -59,11 +68,13 @@ export function DraftPanel({
                     ["Bans", bans],
                   ] as const
                 ).map(([label, champions]) => (
-                  <div key={label} className="np-cluster" aria-label={label} role="group">
+                  <div key={label} className="ev-draft-phase__row" aria-label={label} role="group">
                     <span className="np-meta">{label}</span>
-                    {champions.map((champion, index) => (
-                      <ChampionPortrait key={index} name={champion} portraits={portraits} />
-                    ))}
+                    <div className="np-cluster">
+                      {champions.map((champion, index) => (
+                        <ChampionPortrait key={index} name={champion} portraits={portraits} />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </section>

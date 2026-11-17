@@ -298,10 +298,8 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   await replay.click();
   await expect(page.locator("iframe")).toHaveCount(1);
   await expect(page.locator("iframe")).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  // The stored Twitch channel would show whatever is live now, so it is not offered.
-  await page.getByRole("button", { name: /Broadcast/ }).click();
-  await expect(page.getByRole("option", { name: /Twitch/ })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  // Only the stored recording is playable, so there is no broadcast choice.
+  await expect(page.getByRole("button", { name: /Broadcast/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Player Not Working" }).click();
   await expect(page.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open on YouTube/ }).last()).toHaveAttribute(
@@ -612,21 +610,13 @@ test("win probability added leaderboards rank champions and roles from the activ
   await page.goto("/leaderboards/wpa?kind=team");
   await expect(page.getByText(/Choose a board/)).toBeVisible();
 });
-test("a pro game shows the coarse checkpoint win probability section with revealed statistics", async ({
+test("a pro game without checkpoint probabilities omits the win probability panel", async ({
   page,
 }) => {
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
   const reveal = page.getByRole("button", { name: "Reveal Game Statistics" });
   if (await reveal.isVisible()) await reveal.click();
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Win Probability$/ })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
-  ).toBeVisible();
-  // The fixture archive has no checkpoint columns, so no pro model can be trained from it.
-  await expect(page.getByText("No pro win probability model is active yet.")).toBeVisible();
+  await expect(page.locator("summary").filter({ hasText: /^Win Probability$/ })).toHaveCount(0);
 });
 test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");
@@ -679,6 +669,18 @@ test("keyboard navigation, accessible names and responsive layout", async ({ pag
     .getByRole("table", { name: "Acceptance Blue Lineup" })
     .getByRole("img", { name: "Top", exact: true });
   await expect(top).toHaveCSS("background-image", /url\(.*\.png/);
+  const lineups = page.getByRole("region", { name: "Lineups" });
+  const columnWidths = await lineups
+    .getByRole("table")
+    .evaluateAll((tables) =>
+      tables.map((table) =>
+        Array.from(table.querySelectorAll("th"), (cell) =>
+          Math.round(cell.getBoundingClientRect().width),
+        ),
+      ),
+    );
+  expect(columnWidths).toHaveLength(2);
+  expect(columnWidths[0]).toEqual(columnWidths[1]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -688,7 +690,7 @@ test("keyboard navigation, accessible names and responsive layout", async ({ pag
   });
 });
 
-test("canonical profiles share local portraits across search, rosters and played lineups", async ({
+test("canonical profiles share local portraits across search and rosters with text links in lineups", async ({
   page,
 }, info) => {
   const external: string[] = [];
@@ -712,7 +714,7 @@ test("canonical profiles share local portraits across search, rosters and played
   await expect(page.getByText("Identity Details")).toHaveCount(0);
   await page.getByRole("table", { name: "Historical Games" }).getByRole("link").first().click();
   const player = page.getByRole("link", { name: /Player Blue mid/ });
-  await expect(player.locator("img")).toHaveAttribute("src", /^\/api\/images\//);
+  await expect(player.locator("img")).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Mid", exact: true })).toHaveCount(2);
   const teamLogo = page.locator('[data-entity-kind="team"]').first();
   await expect(teamLogo).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");

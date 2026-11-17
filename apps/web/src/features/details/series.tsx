@@ -1,6 +1,14 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Breadcrumb, Button, EmptyState, MatchRow, TeamIdentity, TextLink } from "@summonersnet/ui";
+import {
+  Avatar,
+  Breadcrumb,
+  Button,
+  EmptyState,
+  MatchLifecycleLabel,
+  TeamIdentity,
+  TextLink,
+} from "@summonersnet/ui";
 import type {
   Game,
   HistoricalGameDetail,
@@ -10,7 +18,7 @@ import type {
 } from "@summonersnet/data";
 import { gameReplayUrl, recordingUrl } from "@summonersnet/data/contracts";
 import { type ChampionPortraits } from "../browse/visuals";
-import { dateTime, matchDisplay, gameTeams } from "../browse/presentation";
+import { dateTime, matchDisplay, gameTeams, seriesRound } from "../browse/presentation";
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
@@ -46,6 +54,7 @@ function SeriesShell({
   onReveal,
   children,
   game,
+  vodUrl,
 }: {
   match: Match;
   games: SeriesGame[];
@@ -56,8 +65,27 @@ function SeriesShell({
   onReveal: () => void;
   children: ReactNode;
   game?: Game | null;
+  vodUrl?: string | null;
 }) {
   const display = matchDisplay(match, timezone, now);
+  const overview = current === "overview";
+  const [first, second] = display.teams;
+  const hasScores = first.score !== undefined || second.score !== undefined;
+  const margin =
+    match.state === "final" && first.score !== undefined && second.score !== undefined
+      ? first.score - second.score
+      : 0;
+  const [firstColor, secondColor] =
+    margin > 0
+      ? ["ev-outcome--win", "ev-outcome--loss"]
+      : margin < 0
+        ? ["ev-outcome--loss", "ev-outcome--win"]
+        : [];
+  const round = seriesRound(match);
+  const eventHasRound = match.event
+    .split(" · ")
+    .some((label) => label.trim().toLowerCase().replaceAll("-", "") === round?.toLowerCase());
+  const event = round && !eventHasRound ? `${match.event} · ${round}` : match.event;
   const title =
     match.teams.length > 0 ? display.teams.map((team) => team.name).join(" vs ") : match.name;
   const sides = game
@@ -68,10 +96,10 @@ function SeriesShell({
       ? { label: "Past Matches", href: "/history" }
       : { label: "Matches", href: "/" };
   return (
-    <div className="np-stack">
+    <div className="np-stack ev-series-page">
       <Breadcrumb
         items={
-          current === "overview"
+          overview
             ? [parent, { label: title }]
             : [parent, { label: title, href: seriesHref(match) }, { label: `Game ${current}` }]
         }
@@ -82,12 +110,23 @@ function SeriesShell({
             {match.league} · Best of {match.bestOf}
           </span>
           <h1>
-            {sides && match.teams.length > 0
-              ? match.teams.map((team, index) => {
-                  const side = sides.get(team.entityId ?? team.id);
+            {match.teams.length > 0
+              ? display.teams.map((team, index) => {
+                  const identity = match.teams[index];
+                  const side = identity && sides?.get(identity.entityId ?? identity.id);
                   return (
-                    <span key={team.id}>
+                    <span className="ev-series-title__team" key={index}>
                       {index ? " vs " : null}
+                      {overview && team.logo ? (
+                        <Avatar
+                          alt=""
+                          aria-hidden="true"
+                          entityKind="team"
+                          fallback={team.shortName}
+                          size="small"
+                          src={team.logo}
+                        />
+                      ) : null}
                       <span
                         className="ev-side-name"
                         data-side={side}
@@ -100,20 +139,37 @@ function SeriesShell({
                 })
               : title}
           </h1>
-          <p className="np-body-sm">
-            {match.event} · {dateTime(match.startsAt, timezone)}
-          </p>
+          <div className="np-cluster ev-series-title__facts">
+            <p className="np-body-sm">
+              {event} · {display.scheduledLabel}
+            </p>
+            {overview ? <MatchLifecycleLabel lifecycle={match.state} /> : null}
+          </div>
         </div>
+        {overview && hidden && match.state === "final" ? (
+          <Button
+            variant="secondary"
+            aria-label={`Reveal score for ${first.name} versus ${second.name}`}
+            onPress={onReveal}
+          >
+            Reveal Score
+          </Button>
+        ) : overview && hasScores ? (
+          <div
+            className="ev-series-score"
+            role="img"
+            aria-label={`Series score, ${first.name} ${first.score ?? "unknown"}, ${second.name} ${second.score ?? "unknown"}`}
+          >
+            <span className={firstColor}>{first.score ?? "—"}</span>
+            <span className="ev-series-score__separator"> – </span>
+            <span className={secondColor}>{second.score ?? "—"}</span>
+          </div>
+        ) : vodUrl ? (
+          <TextLink href={vodUrl} target="_blank" rel="noreferrer">
+            Watch Game VOD
+          </TextLink>
+        ) : null}
       </header>
-      {current === "overview" ? (
-        <div className="ev-match-group">
-          <MatchRow
-            match={{ ...display, streamAvailable: false }}
-            spoilerHidden={hidden}
-            onSpoilerReveal={onReveal}
-          />
-        </div>
-      ) : null}
       <nav aria-label="Series" className="ev-tabs ev-series-tabs">
         <a
           className="ev-tab"
@@ -193,7 +249,7 @@ export function MatchPage({
       ) : null}
       <div className="ev-series-overview">
         {games.length > 0 ? (
-          <section className="np-stack">
+          <section className="np-stack ev-series-overview__games">
             <h2>Games</h2>
             <ol className="ev-series-games">
               {games.map((game) => {
@@ -280,7 +336,6 @@ export function SeriesGamePage({
   const playedGames = games.filter(played);
   const index = playedGames.findIndex((g) => g.number === number);
   const current = playedGames[index]!;
-  const seconds = detail?.context.durationSeconds ?? observedSeconds(current);
   const vodUrl = gameReplayUrl(match, current) ?? recordingUrl(detail?.context.sourceUrl);
   return (
     <SeriesShell
@@ -288,35 +343,20 @@ export function SeriesGamePage({
       games={games}
       current={number}
       game={game}
+      vodUrl={vodUrl}
       timezone={timezone}
       now={now}
       hidden={hidden}
       onReveal={() => setRevealed(true)}
     >
-      <div className="np-split ev-game-meta">
-        <div className="np-cluster np-meta">
-          <span>{dateTime(current.startsAt, timezone)}</span>
-          {seconds !== null ? <span>{length(seconds)}</span> : null}
-          {game?.patch ? <span>Patch {game.patch}</span> : null}
-          {!game ? <Winner match={match} game={current} hidden={hidden} /> : null}
-        </div>
-        {vodUrl ? (
-          <TextLink href={vodUrl} target="_blank" rel="noreferrer">
-            Watch Game VOD
-          </TextLink>
-        ) : null}
-      </div>
-      {hidden ? <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button> : null}
       {game ? (
         <>
-          <LineupTable game={game} hidden={hidden} portraits={portraits} />
-          {detail && !hidden ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-          {!hidden && winProbability ? (
-            <Disclosure title="Win Probability">
-              <ProWinProbability winProbability={winProbability} />
-            </Disclosure>
+          {hidden ? (
+            <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button>
           ) : null}
-          <TextLink href={`/games/${encodeURIComponent(game.id)}`}>Open Archive Record</TextLink>
+          {detail && !hidden ? <DraftPanel detail={detail} portraits={portraits} /> : null}
+          <LineupTable game={game} hidden={hidden} portraits={portraits} />
+          {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
         </>
       ) : (
         <EmptyState title="Game Details Not Available Yet" />
