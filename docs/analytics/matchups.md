@@ -110,3 +110,25 @@ exist in the role (`no-opponent-picks`), fewer than three opponents meet the min
 (`few-opponents`), or the covered pick share is below 50% (`low-coverage`). Sample, opponent and
 pick counts are kept in every case. Like the matchups, the score describes stored samples and is not
 evidence of causation. The read makes no provider requests.
+
+## Counter-pick value
+
+Some champions gain a lot from picking last. The same rebuild stores, next to each blindability
+score (migration 0043), the champion's **best-response counter-pick win rate**:
+
+- For each enemy `e` in the role, its best response is the champion with the highest shrunk win rate
+  against `e` among those with at least ten win-rate observations (ties go to the lower champion
+  key).
+- A champion's counter-pick win rate is `Σ wₑ·pₑ / Σ wₑ` over the enemies it is the best response
+  to, weighted by their picks.
+- The **counter-pick value** is the counter-pick win rate minus the blind expected win rate `E`.
+
+The number of enemies and their picks are stored with it. The values are null with a reason when the
+blind win rate is unknown (`blind-unavailable`, under the blindability coverage rule) or the
+champion is not the best response to any enemy (`never-best-response`).
+
+The champion overview (for a lane role) and the champion matchup page show the blind and
+counter-pick win rates and the difference. `/matchups/[role]/counter-picks` lists a role's champions
+with every value, coverage and reason. It sorts by counter-pick value, either win rate, blindability
+score or lane games in SQL, with unknown values last, and pages 25 rows by default (at most 100).
+`queries.counterPickList` validates its input; the `(source, patch_key, role)` index supports it.

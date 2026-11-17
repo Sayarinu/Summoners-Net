@@ -1,6 +1,7 @@
 import "server-only";
 import {
   championMatchupsQuerySchema,
+  counterPickListQuerySchema,
   matchupMatrixQuerySchema,
 } from "@summonersnet/data/contracts";
 import { data } from "./data";
@@ -37,5 +38,17 @@ export async function loadMatchupMatrix(role: string, params: Params) {
   return {
     matrix: await data().matchupMatrix({ ...parsed.data, role: parsedRole.data }),
     error: null,
+  };
+}
+export async function loadCounterPickList(role: string, params: Params) {
+  const parsedRole = counterPickListQuerySchema.shape.role.safeParse(role);
+  if (!parsedRole.success) return null;
+  const parsed = counterPickListQuerySchema.omit({ role: true }).safeParse(filters(params));
+  if (!parsed.success || Object.values(params).some(Array.isArray))
+    return { list: null, error, role: parsedRole.data };
+  return {
+    list: await data().counterPickList({ ...parsed.data, role: parsedRole.data }),
+    error: null,
+    role: parsedRole.data,
   };
 }

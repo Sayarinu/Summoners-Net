@@ -2,15 +2,17 @@ import { expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import {
   championMatchupsQuerySchema,
+  counterPickListQuerySchema,
   matchupMatrixQuerySchema,
   matchupMetrics,
   type ChampionBlindability,
   type ChampionMatchups,
+  type CounterPickList,
   type MatchupMatrix,
   type MatchupEstimate,
   type MatchupMetric,
 } from "@summonersnet/data/contracts";
-import { ChampionMatchupsPage, MatchupMatrixPage } from "./pages";
+import { ChampionMatchupsPage, CounterPickListPage, MatchupMatrixPage } from "./pages";
 const ahri = { championKey: 103, championId: "Ahri", name: "Ahri", imageUrl: null };
 const nunu = { championKey: 20, championId: "Nunu", name: "Nunu & Willump", imageUrl: null };
 const unknown = { championKey: 999, championId: null, name: null, imageUrl: null };
@@ -105,6 +107,11 @@ const scored: ChampionBlindability = {
   lowerTail: 0.45,
   score: 0.45,
   reason: null,
+  counterWinRate: 0.55,
+  counterOpponents: 1,
+  counterPicks: 50,
+  counterReason: null,
+  counterDifference: 0.035,
   builtAt: "2026-11-16T12:00:00.000Z",
 };
 it("shows the blindability score, its coverage and the method with the formula", () => {
@@ -122,6 +129,15 @@ it("shows the blindability score, its coverage and the method with the formula",
   expect(screen.getByText("How blindability is calculated")).toBeVisible();
   expect(screen.getByText(/E = Σ wᵢ·pᵢ \/ Σ wᵢ/)).toBeInTheDocument();
   expect(screen.queryByRole("status")).toBeNull();
+  const counter = screen.getByLabelText("Counter-pick statistics");
+  expect(counter).toHaveTextContent("Blind win rate51.5%");
+  expect(counter).toHaveTextContent("Counter-pick win rate55.0%");
+  expect(counter).toHaveTextContent("Counter-pick value+3.5 pts");
+  expect(counter).toHaveTextContent("Best response to1 opponent · 50 of 160 opponent picks");
+  expect(screen.getByRole("link", { name: "Compare the role" })).toHaveAttribute(
+    "href",
+    "/matchups/MIDDLE/counter-picks?source=solo&value=shrunk&patch=16.22",
+  );
   rerender(
     <ChampionMatchupsPage
       matchups={matchups}
@@ -136,6 +152,9 @@ it("shows the blindability score, its coverage and the method with the formula",
         lowerTail: null,
         score: null,
         reason: "low-coverage",
+        counterWinRate: null,
+        counterDifference: null,
+        counterReason: "blind-unavailable",
       }}
       error={null}
     />,
@@ -143,7 +162,10 @@ it("shows the blindability score, its coverage and the method with the formula",
   expect(screen.getByLabelText("Blindability statistics")).toHaveTextContent(
     "Blindability scoreUnknown",
   );
-  expect(screen.getByRole("status")).toHaveTextContent(
+  expect(screen.getByText(/Counter-pick value unavailable/)).toHaveTextContent(
+    "nothing to compare with",
+  );
+  expect(screen.getByText(/^Score unavailable/)).toHaveTextContent(
     "Score unavailable: Opponents with at least 10 win-rate observations cover less than 50% of opponent picks.",
   );
   rerender(<ChampionMatchupsPage matchups={matchups} blindability={null} error={null} />);
@@ -214,4 +236,61 @@ it("keeps sparse matrix cells blank with sample tooltips and a readable table", 
     />,
   );
   expect(screen.getByText("No observations available")).toBeVisible();
+});
+it("lists a role's counter-pick values with unknown reasons and validation errors", () => {
+  const list: CounterPickList = {
+    query: counterPickListQuerySchema.parse({ role: "MIDDLE" }),
+    patch: "16.22",
+    patches: ["16.22"],
+    page: {
+      page: 1,
+      pageSize: 25,
+      total: 2,
+      items: [
+        {
+          champion: ahri,
+          games: 32,
+          coveredPicks: 30,
+          rolePicks: 32,
+          coverage: 30 / 32,
+          blind: 0.48,
+          counter: 0.55,
+          difference: 0.07,
+          score: 0.45,
+          counterOpponents: 2,
+          counterPicks: 20,
+          reason: null,
+          counterReason: null,
+        },
+        {
+          champion: unknown,
+          games: 2,
+          coveredPicks: 0,
+          rolePicks: 60,
+          coverage: 0,
+          blind: null,
+          counter: null,
+          difference: null,
+          score: null,
+          counterOpponents: 0,
+          counterPicks: 0,
+          reason: "few-opponents",
+          counterReason: "blind-unavailable",
+        },
+      ],
+    },
+  };
+  const { rerender } = render(<CounterPickListPage list={list} error={null} role="MIDDLE" />);
+  expect(screen.getByRole("heading", { name: "Mid counter-pick values" })).toBeVisible();
+  const table = screen.getByRole("table", { name: "Mid counter-pick values" });
+  expect(table).toHaveTextContent("+7.0 pts");
+  expect(table).toHaveTextContent("93.8% · 30 of 32 picks");
+  expect(table).toHaveTextContent("Fewer than 3 opponents");
+  expect(screen.getByRole("link", { name: "Ahri" })).toHaveAttribute(
+    "href",
+    "/champions/Ahri/matchups?source=solo&value=shrunk&patch=16.22&role=MIDDLE",
+  );
+  rerender(<CounterPickListPage list={null} error="Choose a sort" role="TOP" />);
+  expect(screen.getByRole("heading", { name: "Top counter-pick values" })).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose a sort");
 });

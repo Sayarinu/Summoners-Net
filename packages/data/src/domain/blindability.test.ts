@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestResponses,
   blindability,
+  roleDraftValues,
   championBlindabilityQuerySchema,
   summarizeOpponents,
   type BlindabilityMatchup,
@@ -114,5 +116,92 @@ describe("blindability", () => {
         role: "MIDDLE",
       }),
     ).toThrow();
+  });
+});
+
+describe("counter-pick values", () => {
+  // Every pair has 50 games and every champion wins 75 of 150, a 0.5 baseline, so each shrunk
+  // rate is (wins + 25) / 100. Champion 5 wins 10 of 50 against 1, 2 and 3: (10 + 10) / 100 = 0.2.
+  const wins: Record<number, Record<number, number>> = {
+    1: { 2: 30, 3: 25, 4: 20 },
+    2: { 1: 20, 3: 30, 4: 25 },
+    3: { 1: 25, 2: 20, 4: 30 },
+    4: { 1: 30, 2: 25, 3: 20 },
+    5: { 1: 10, 2: 10, 3: 10 },
+  };
+  const samples = new Map(
+    Object.entries(wins).map(([champion, row]) => [
+      Number(champion),
+      Object.entries(row).map(([opponent, w]) => ({
+        opponentKey: Number(opponent),
+        games: 50,
+        winRate: { total: w, count: 50 },
+      })),
+    ]),
+  );
+  const picks = new Map([
+    [1, 100],
+    [2, 200],
+    [3, 300],
+    [4, 400],
+    [5, 50],
+  ]);
+  it("picks the champion with the highest shrunk rate against each enemy", () => {
+    // Enemy 1: 2 → 0.45, 3 → 0.50, 4 → 0.55. Enemy 2: 1 → 0.55. Enemy 3: 2 → 0.55. Enemy 4: 3 → 0.55.
+    const rates = new Map(
+      [...samples].map(([c, m]) => [
+        c,
+        new Map(m.map((o) => [o.opponentKey, (o.winRate.total! + 25) / 100])),
+      ]),
+    );
+    expect(bestResponses(rates)).toEqual(
+      new Map([
+        [1, 4],
+        [2, 1],
+        [3, 2],
+        [4, 3],
+      ]),
+    );
+    // Equal rates go to the lower champion key.
+    expect(
+      bestResponses(
+        new Map([
+          [7, new Map([[9, 0.6]])],
+          [6, new Map([[9, 0.6]])],
+        ]),
+      ),
+    ).toEqual(new Map([[9, 6]]));
+  });
+  it("compares the pick-weighted blind rate with the rate into best-response enemies", () => {
+    const values = roleDraftValues(samples, picks);
+    // Champion 1 blind: (200·0.55 + 300·0.50 + 400·0.45) / 900 = 440 / 900.
+    // It is the best response only to enemy 2 (200 picks), at 0.55.
+    const one = values.get(1)!;
+    expect(one.expected).toBeCloseTo(440 / 900, 12);
+    expect(one).toMatchObject({ counterOpponents: 1, counterPicks: 200, counterReason: null });
+    expect(one.counterWinRate).toBeCloseTo(0.55, 12);
+    // Champion 4 blind: (100·0.55 + 200·0.50 + 300·0.45) / 600 = 290 / 600; counters enemy 1 at 0.55.
+    const four = values.get(4)!;
+    expect(four.expected).toBeCloseTo(290 / 600, 12);
+    expect(four.counterWinRate! - four.expected!).toBeCloseTo(0.55 - 290 / 600, 12);
+    // Champion 5 has a blind rate but is never the best response.
+    expect(values.get(5)).toMatchObject({
+      counterWinRate: null,
+      counterOpponents: 0,
+      counterPicks: 0,
+      counterReason: "never-best-response",
+      reason: null,
+    });
+    expect(values.get(5)!.expected).toBeCloseTo(0.2, 12);
+  });
+  it("leaves the counter-pick rate unknown when the blind rate has too little coverage", () => {
+    const thin = roleDraftValues(new Map([[1, samples.get(1)!.slice(0, 2)]]), picks);
+    expect(thin.get(1)).toMatchObject({
+      reason: "few-opponents",
+      expected: null,
+      counterWinRate: null,
+      counterOpponents: 2,
+      counterReason: "blind-unavailable",
+    });
   });
 });

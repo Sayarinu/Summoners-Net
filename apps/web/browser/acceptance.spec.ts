@@ -855,6 +855,27 @@ test("champion matchups show sampled metrics, switch values and validate selecti
   const missing = await page.goto("/champions/NoSuchChampion/matchups");
   expect(missing?.status()).toBe(404);
 });
+test("role counter-pick values list stored values with reasons and validate filters", async ({
+  page,
+}) => {
+  await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
+  await expect(page.getByLabel("Counter-pick statistics")).toContainText("Counter-pick valueUnknown");
+  await page.getByRole("link", { name: "Role counter-pick values" }).click();
+  await expect(page.getByRole("heading", { name: "Mid counter-pick values" })).toBeVisible();
+  const table = page.getByRole("table", { name: "Mid counter-pick values" });
+  await expect(table).toContainText("Ahri");
+  await expect(table).toContainText("Fewer than 3 opponents");
+  await page.getByRole("button", { name: /Sort by$/ }).click();
+  await page.getByRole("option", { name: "Lane games", exact: true }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/sort=games/);
+  await expect(table).toContainText("Ahri");
+  await page.goto("/matchups/MIDDLE/counter-picks?sort=name");
+  await expect(page.getByRole("alert")).toContainText("Choose Solo queue");
+  const missing = await page.goto("/matchups/ALL/counter-picks");
+  expect(missing?.status()).toBe(404);
+});
+
 test("role matchup matrices retain null-cell samples and expose a table alternative", async ({
   page,
 }) => {
