@@ -89,13 +89,11 @@ export function SettingsPage({ initial }: { initial: Preferences }) {
     <div className="np-stack ev-settings">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Preferences</span>
           <h1>Settings</h1>
         </div>
       </header>
       <section className="np-stack" aria-labelledby="timezone-heading">
         <h2 id="timezone-heading">Timezone</h2>
-        <p className="np-body-sm">Dates and times on every page use this timezone.</p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -115,10 +113,6 @@ export function SettingsPage({ initial }: { initial: Preferences }) {
       </section>
       <section className="np-stack" aria-labelledby="spoilers-heading">
         <h2 id="spoilers-heading">Spoilers</h2>
-        <p className="np-body-sm">
-          Results are shown by default. Hide them to keep scores and winners covered until you
-          reveal them.
-        </p>
         <SpoilerControl
           hidden={value.hideSpoilers}
           onHiddenChange={(hideSpoilers) => {

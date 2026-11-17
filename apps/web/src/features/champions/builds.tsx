@@ -120,7 +120,7 @@ export function LoadoutsSection({ builds }: { builds: ChampionBuilds | null }) {
     <section className="np-stack" aria-labelledby="loadouts-heading">
       <h2 id="loadouts-heading">Runes and Summoner Spells</h2>
       {!builds ? (
-        <p className="np-body-sm">Rune pages and spells come from solo-queue match details.</p>
+        <p>No Loadouts Available</p>
       ) : (
         <>
           {loadoutSections.map(({ kind, title }) => (

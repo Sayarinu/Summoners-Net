@@ -10,14 +10,6 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
       <h2 id="pro-wp-heading">Win Probability (Coarse, 4 Checkpoints)</h2>
       {model && points.length ? (
         <>
-          <p className="np-meta">
-            Lower fidelity than solo-queue charts: only the gold, XP, CS and kill differences at 10,
-            15, 20 and 25 minutes are known. Pro checkpoint model v{model.modelVersion} (#
-            {model.id}), trained on {model.years.join("–")} games; Brier score{" "}
-            {model.brier === null ? "unknown" : model.brier.toFixed(3)} on held-out games (0.25 is a
-            coin flip). Missing checkpoints are gaps.{" "}
-            <TextLink href={`/models?model=${model.id}`}>Model Diagnostics</TextLink>.
-          </p>
           <LineChart
             title="Blue Side Win Probability at Checkpoints (Coarse)"
             xLabel="Minute"
@@ -32,6 +24,7 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
               sampleCount: null,
             }))}
           />
+          <TextLink href={`/models?model=${model.id}`}>Model Diagnostics</TextLink>
         </>
       ) : (
         <p role="status">{reason}</p>

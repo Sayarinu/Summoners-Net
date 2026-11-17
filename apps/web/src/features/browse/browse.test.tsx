@@ -45,7 +45,7 @@ describe("browse presentation", () => {
     expect(identityHref(blue)).toContain("/teams/");
     expect(identityHref(player)).toContain("/players/");
   });
-  it("lists matches in flat rows by state, hides scores until reveal, and marks stale observations", () => {
+  it("lists matches in flat rows by state, hides scores until reveal, and omits stale observations", () => {
     render(
       <MatchesPage
         data={page([
@@ -70,7 +70,7 @@ describe("browse presentation", () => {
     expect(screen.getByText("Result Hidden")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
     expect(screen.queryByText("Result Hidden")).not.toBeInTheDocument();
-    expect(screen.getByText("Saved observation · refresh overdue")).toBeVisible();
+    expect(screen.queryByText("Saved observation · refresh overdue")).not.toBeInTheDocument();
   });
   it("lists past series as overview rows grouped by month, newest first", () => {
     const later = {
@@ -104,7 +104,7 @@ describe("browse presentation", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Reveal score/ })[0]!);
     expect(screen.getAllByText("Result Hidden")).toHaveLength(2);
     // Only one stream opens at a time across every month.
-    fireEvent.click(screen.getAllByRole("button", { name: "Watch" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Watch Replay" })[0]!);
     expect(screen.getAllByRole("button", { name: "Close Stream" })).toHaveLength(1);
     view.rerender(
       <PastMatchesPage
@@ -177,10 +177,10 @@ describe("browse presentation", () => {
       />,
     );
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
-    const watchButtons = screen.getAllByRole("button", { name: "Watch" });
+    const watchButtons = screen.getAllByRole("button", { name: "Watch Replay" });
     fireEvent.click(watchButtons[0]!);
     await waitFor(() => expect(screen.getByRole("region", { name: "Watch Match" })).toBeVisible());
-    expect(watchButtons[0]).toHaveTextContent("Watch");
+    expect(watchButtons[0]).toHaveTextContent("Watch Replay");
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
     // Finished matches open their YouTube recording; the live Twitch channel is not offered.
     expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("YouTube");
@@ -216,6 +216,7 @@ describe("browse presentation", () => {
     );
     const watch = screen.getAllByRole("button", { name: /^Watch/ });
     expect(watch).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: /Watch Live/ })).not.toBeInTheDocument();
     fireEvent.click(watch[0]!);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("Twitch"),
@@ -256,16 +257,11 @@ describe("browse presentation", () => {
         query={{ q: "Acceptance" }}
       />,
     );
-    expect(screen.getAllByRole("article")).toHaveLength(5);
-    expect(screen.getByRole("link", { name: /champion\s*Ahri/ })).toHaveAttribute(
-      "href",
-      "/champions/Ahri",
-    );
+    expect(screen.getByRole("link", { name: "Ahri" })).toHaveAttribute("href", "/champions/Ahri");
     expect(screen.getByRole("link", { name: /Mid Ahri#EUW/ })).toHaveAttribute(
       "href",
       "/summoners/puuid%2F1",
     );
-    expect(screen.getByText("Solo queue player")).toBeVisible();
     expect(screen.getByRole("link", { name: /acceptance-game/ })).toHaveAttribute(
       "href",
       `/games/${encodeURIComponent(game.id)}`,

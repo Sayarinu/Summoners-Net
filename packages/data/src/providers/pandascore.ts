@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { coveredLeague, sourceIdentity } from "../domain/coverage.js";
-import { matchSchema, type Identity, type Broadcast, type Match } from "../domain/models.js";
+import { matchSchema, type Identity, type Match } from "../domain/models.js";
+import { parseBroadcast, recordingUrl } from "../domain/broadcasts.js";
+export { parseBroadcast };
 const identity = z.object({
   id: z.number().int(),
   name: z.string().nullable(),
@@ -17,6 +19,7 @@ const rawGame = z.object({
   status: z.string(),
   begin_at: z.iso.datetime({ offset: true }).nullable().optional(),
   end_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  video_url: z.string().nullable().optional(),
   winner: z.object({ id: z.number().int().nullable() }).nullable().optional(),
 });
 const rawMatch = z.object({
@@ -59,38 +62,6 @@ function toIdentity(value: z.infer<typeof identity>, kind: "team" | "player"): I
     role: value.role ?? null,
     aliases: value.slug ? [value.slug] : [],
   };
-}
-export function parseBroadcast(raw: string, language = "unknown"): Broadcast | null {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" || url.username || url.password) return null;
-  const host = url.hostname.toLowerCase();
-  if (host === "twitch.tv" || host === "www.twitch.tv") {
-    const path = url.pathname.split("/").filter(Boolean);
-    let externalId = "";
-    if (path[0] === "videos" && /^\d+$/.test(path[1] ?? "")) externalId = `v${path[1]}`;
-    else if (path.length === 1 && /^[a-zA-Z0-9_]{3,25}$/.test(path[0] ?? ""))
-      externalId = path[0] ?? "";
-    return { provider: "twitch", externalId, url: url.toString(), language };
-  }
-  if (["youtube.com", "www.youtube.com", "youtu.be"].includes(host)) {
-    const candidate =
-      host === "youtu.be"
-        ? url.pathname.slice(1)
-        : (url.searchParams.get("v") ??
-          (url.pathname.startsWith("/live/") ? url.pathname.slice(6) : ""));
-    return {
-      provider: "youtube",
-      externalId: /^[\w-]{11}$/.test(candidate) ? candidate : "",
-      url: url.toString(),
-      language,
-    };
-  }
-  return null;
 }
 export function parseMatches(payload: unknown, now: Date): Match[] {
   return z
@@ -138,6 +109,7 @@ export function parseMatches(payload: unknown, now: Date): Match[] {
           games: (raw.games ?? []).map((g) => ({
             sourceId: String(g.id),
             number: g.position,
+            vodUrl: recordingUrl(g.video_url) ?? undefined,
             state: g.status,
             startsAt: g.begin_at ? new Date(g.begin_at).toISOString() : null,
             finishedAt: g.end_at ? new Date(g.end_at).toISOString() : null,

@@ -1,6 +1,7 @@
 "use client";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 import { useEffect, useId, useState } from "react";
-import { Button, Minimap, Select, Switch, Table, TextLink } from "@summonersnet/ui";
+import { Button, Minimap, RoleIcon, Select, Switch, Table, TextLink } from "@summonersnet/ui";
 import type {
   MapEvent,
   MatchTrackSummary,
@@ -29,7 +30,6 @@ const roleLabels: Record<string, string> = {
 };
 const roleOrder = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "unknown"];
 const roleKey = (role: string | null) => (role && role in roleLabels ? role : "unknown");
-const roleLabel = (key: string) => roleLabels[key] ?? "Unknown Role";
 /** Events this close to the scrubber time are drawn on the map. */
 const eventWindowMs = 30000;
 const eventKinds: { kind: MapEvent["kind"]; label: string }[] = [
@@ -64,9 +64,11 @@ export function GameMapPage({
   positions,
   events,
   track = null,
+  portraits,
   fetcher,
 }: {
   game: SoloGame;
+  portraits?: ChampionPortraits;
   positions: SoloGamePositions;
   events: SoloGameMapEvents;
   track?: MatchTrackSummary | null;
@@ -242,7 +244,7 @@ export function GameMapPage({
             </Switch>
             {roles.map((r) => (
               <Switch key={r} selected={!hiddenRoles.has(r)} onChange={toggle(setHiddenRoles, r)}>
-                {roleLabel(r)}
+                <RoleIcon role={r} />
               </Switch>
             ))}
           </div>
@@ -310,9 +312,15 @@ export function GameMapPage({
             getRowKey={(c) => String(c.participantId)}
             emptyMessage="Every champion is hidden by the team and role toggles."
             columns={[
-              { id: "champion", header: "Champion", render: (c) => c.name },
+              {
+                id: "champion",
+                header: "Champion",
+                render: (c) => (
+                  <ChampionPortrait name={c.name} portraits={portraits} championId={c.championId} />
+                ),
+              },
               { id: "team", header: "Team", render: (c) => (c.side === "blue" ? "Blue" : "Red") },
-              { id: "role", header: "Role", render: (c) => roleLabel(c.roleKey) },
+              { id: "role", header: "Role", render: (c) => <RoleIcon role={c.roleKey} /> },
               {
                 id: "position",
                 header: "Position (X, Y)",

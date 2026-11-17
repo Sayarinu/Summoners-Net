@@ -1,6 +1,8 @@
 "use client";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 import { ExportLink } from "../shell/export-link";
 import {
+  RoleIcon,
   Button,
   EmptyState,
   Pagination,
@@ -13,22 +15,22 @@ import type { WpaLeaderboard, WpaLeaderboardRow } from "@summonersnet/data/contr
 
 const kindLabels = { champion: "Champions", player: "Players", role: "Roles" } as const;
 const sortLabels = { perGame: "Per game", total: "Total", games: "Games" } as const;
-const roleLabels: Record<string, string> = {
-  TOP: "Top",
-  JUNGLE: "Jungle",
-  MIDDLE: "Mid",
-  BOTTOM: "Bot",
-  UTILITY: "Support",
-  UNKNOWN: "Unknown Role",
-};
 const points = (value: number | null, digits = 2) =>
   value === null ? "Unknown" : `${value >= 0 ? "+" : ""}${value.toFixed(digits)} pts`;
-function Subject({ row }: { row: WpaLeaderboardRow }) {
+function Subject({
+  row,
+  portraits,
+}: {
+  row: WpaLeaderboardRow;
+  portraits?: ChampionPortraits | undefined;
+}) {
   if (row.kind === "champion")
-    return row.championId ? (
-      <TextLink href={`/champions/${row.championId}`}>{row.name ?? row.subject}</TextLink>
-    ) : (
-      <>{row.name ?? `Champion ${row.subject}`}</>
+    return (
+      <ChampionPortrait
+        name={row.name ?? `Champion ${row.subject}`}
+        portraits={portraits}
+        championId={row.championId}
+      />
     );
   if (row.kind === "player")
     return (
@@ -36,13 +38,15 @@ function Subject({ row }: { row: WpaLeaderboardRow }) {
         {row.name ?? "Unresolved player"}
       </TextLink>
     );
-  return <>{roleLabels[row.subject] ?? row.subject}</>;
+  return <RoleIcon role={row.subject} />;
 }
 export function WpaLeaderboardPage({
   board,
+  portraits,
   error,
 }: {
   board: WpaLeaderboard | null;
+  portraits?: ChampionPortraits;
   error: string | null;
 }) {
   const q = board?.query;
@@ -50,12 +54,7 @@ export function WpaLeaderboardPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Solo queue</span>
           <h1>Win Probability Added</h1>
-          <p>
-            Who moved games: each kill and objective&apos;s change in win probability, shared by the
-            players involved and summed per game.
-          </p>
         </div>
       </header>
       <form action="/leaderboards/wpa" method="get" className="ev-filters" key={JSON.stringify(q)}>
@@ -121,7 +120,7 @@ export function WpaLeaderboardPage({
               {
                 id: "subject",
                 header: kindLabels[board.query.kind],
-                render: (r) => <Subject row={r} />,
+                render: (r) => <Subject row={r} portraits={portraits} />,
               },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               {

@@ -74,8 +74,8 @@ it("shows linked identities, source observations and unknown values, and preserv
   const rows = within(screen.getByRole("table")).getAllByRole("row");
   expect(rows[1]).toHaveTextContent("Pro player");
   expect(rows[1]).toHaveTextContent("Pro team");
-  expect(rows[1]).toHaveTextContent("Ahri");
-  expect(rows[1]).toHaveTextContent("Win");
+  expect(within(rows[1]!).getByRole("img", { name: "Ahri" })).toBeVisible();
+  expect(within(rows[1]!).getByRole("img", { name: "Win" })).toBeVisible();
   expect(rows[1]).toHaveTextContent("03/02/2026");
   expect(within(rows[1]!).getByRole("link", { name: "Pro player" })).toHaveAttribute(
     "href",
@@ -86,7 +86,7 @@ it("shows linked identities, source observations and unknown values, and preserv
     "/summoners/a",
   );
   expect(rows[2]).toHaveTextContent("Unknown");
-  expect(rows[2]).toHaveTextContent("Champion 999");
+  expect(within(rows[2]!).getByRole("img", { name: "Champion 999" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   expect(push).toHaveBeenLastCalledWith("/leaderboards/pros?league=LCK&page=2&pageSize=2");
 });
@@ -141,7 +141,7 @@ it("explains empty and invalid states and shows losses", () => {
       timezone="UTC"
     />,
   );
-  expect(screen.getByText("Loss")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Loss" })).toBeVisible();
   view.rerender(<ProFeedPage feed={null} error={null} timezone="UTC" />);
   expect(screen.queryByRole("table")).toBeNull();
 });

@@ -1,7 +1,7 @@
 "use client";
-import { ChampionIcon, TextLink } from "@summonersnet/ui";
+import { ChampionIcon, RoleIcon, TextLink } from "@summonersnet/ui";
 import type { MatchupRow } from "@summonersnet/data/contracts";
-import { roleLabels, signedPoints, type MatchupSummary } from "./presentation";
+import { signedPoints, type MatchupSummary } from "./presentation";
 
 function OpponentCard({ row, tone }: { row: MatchupRow; tone: "good" | "bad" }) {
   const { opponent } = row;
@@ -19,7 +19,6 @@ function OpponentCard({ row, tone }: { row: MatchupRow; tone: "good" | "bad" }) 
         imageUrl={opponent.imageUrl}
         size="large"
       />
-      <span className="ev-opponent__name">{name}</span>
       <strong className={`ev-opponent__delta ev-opponent__delta--${tone}`}>
         {signedPoints(delta)}
       </strong>
@@ -43,11 +42,9 @@ function OpponentCard({ row, tone }: { row: MatchupRow; tone: "good" | "bad" }) 
  */
 export function MatchupCards({
   championId,
-  championName,
   summary,
 }: {
   championId: string;
-  championName: string;
   summary: MatchupSummary | null;
 }) {
   if (!summary || (!summary.best.length && !summary.worst.length)) return null;
@@ -60,7 +57,7 @@ export function MatchupCards({
     <section className="ev-card" aria-labelledby="matchup-cards-heading">
       <div className="ev-card__header">
         <h2 id="matchup-cards-heading">
-          Matchups as {championName} · {roleLabels[summary.role]}
+          Matchups <RoleIcon role={summary.role} />
         </h2>
         <TextLink href={fullList}>Full List ({summary.opponents})</TextLink>
       </div>

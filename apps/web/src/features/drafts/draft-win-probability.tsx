@@ -1,5 +1,5 @@
 "use client";
-import { Table, TextLink } from "@summonersnet/ui";
+import { RoleIcon, Table, TextLink } from "@summonersnet/ui";
 import type { DraftInput, DraftWinProbability } from "@summonersnet/data/contracts";
 
 const percent = (value: number | null) =>
@@ -78,7 +78,7 @@ export function DraftWinProbabilitySection({
                   header: "Favours",
                   render: (r) => (r.side === "blue" ? "Blue" : "Red"),
                 },
-                { id: "role", header: "Role", render: (r) => r.role },
+                { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
                 {
                   id: "champions",
                   header: "Champions",

@@ -1,5 +1,6 @@
 "use client";
-import { ChampionIcon, LineChart, Table, TextLink } from "@summonersnet/ui";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
+import { RoleIcon, LineChart, Table, TextLink } from "@summonersnet/ui";
 import type { DraftWinProbability, SoloGame } from "@summonersnet/data/contracts";
 import { DraftWinProbabilitySection } from "../drafts/draft-win-probability";
 
@@ -11,8 +12,10 @@ const sideLabel = (side: "blue" | "red" | null) =>
 export function SoloGamePage({
   game,
   draft = null,
+  portraits,
 }: {
   game: SoloGame;
+  portraits?: ChampionPortraits;
   draft?: DraftWinProbability | null;
 }) {
   const wp = game.winProbability;
@@ -118,30 +121,27 @@ export function SoloGamePage({
         rows={game.participants}
         getRowKey={(p) => String(p.participantId)}
         columns={[
-          { id: "side", header: "Side", render: (p) => sideLabel(p.side) },
+          {
+            id: "side",
+            header: "Side",
+            render: (p) => (
+              <span data-side={p.side} className="ev-side-name">
+                {sideLabel(p.side)}
+              </span>
+            ),
+          },
           {
             id: "champion",
             header: "Champion",
-            render: (p) => {
-              const name = p.championName ?? `Champion ${p.championKey}`;
-              return (
-                <span className="ev-champion">
-                  <ChampionIcon
-                    id={p.championId ?? String(p.championKey)}
-                    name={name}
-                    imageUrl={null}
-                    size="small"
-                  />
-                  {p.championId ? (
-                    <TextLink href={`/champions/${p.championId}`}>{name}</TextLink>
-                  ) : (
-                    name
-                  )}
-                </span>
-              );
-            },
+            render: (p) => (
+              <ChampionPortrait
+                name={p.championName ?? `Champion ${p.championKey}`}
+                portraits={portraits}
+                championId={p.championId}
+              />
+            ),
           },
-          { id: "role", header: "Role", render: (p) => p.role ?? "Unknown" },
+          { id: "role", header: "Role", render: (p) => <RoleIcon role={p.role} /> },
           {
             id: "kda",
             header: "K / D / A",

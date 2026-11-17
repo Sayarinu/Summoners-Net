@@ -1,6 +1,6 @@
 "use client";
 import { PlayersSection } from "./players";
-import { ChampionIcon, EmptyState, LineChart, TextLink } from "@summonersnet/ui";
+import { ChampionIcon, EmptyState, LineChart, RoleIcon, TextLink } from "@summonersnet/ui";
 import type {
   ChampionBlindability,
   ChampionJunglePaths,
@@ -112,9 +112,9 @@ export function ChampionOverviewPage({
           />
           <div>
             <h1>{champion.name}</h1>
-            <p className="ev-champion-hero__subtitle">
-              Build, Runes and Counters{overview.patch ? ` · Patch ${overview.patch}` : ""}
-            </p>
+            {overview.patch ? (
+              <p className="ev-champion-hero__subtitle">Patch {overview.patch}</p>
+            ) : null}
             <nav aria-label="Champion Pages" className="ev-champion-hero__links">
               <TextLink
                 href={`/champions/${champion.id}/matchups?source=${q.source}&role=${matchupRole}${overview.patch ? `&patch=${overview.patch}` : ""}`}
@@ -139,8 +139,9 @@ export function ChampionOverviewPage({
                   className="ev-tab ev-tab--role"
                   href={championHref(champion.id, q, { role })}
                   aria-current={q.role === role ? "page" : undefined}
+                  aria-label={share ? `${roleLabels[role]} ${percent(share)}` : roleLabels[role]}
                 >
-                  <span>{roleLabels[role]}</span>
+                  <RoleIcon role={role} />
                   {share ? <small>{percent(share)}</small> : null}
                 </a>
               );
@@ -220,11 +221,7 @@ export function ChampionOverviewPage({
             />
           </dl>
           <BuildCard builds={overview.builds} />
-          <MatchupCards
-            championId={champion.id}
-            championName={champion.name}
-            summary={matchupSummary}
-          />
+          <MatchupCards championId={champion.id} summary={matchupSummary} />
           <div className="ev-trend-grid">
             <TrendChart
               title={`${champion.name} Win Rate by Patch`}

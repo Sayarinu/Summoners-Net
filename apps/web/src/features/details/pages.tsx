@@ -10,6 +10,7 @@ import {
   EmptyState,
 } from "@summonersnet/ui";
 import type { Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
+import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 import { dateTime, identityHref, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { LineupTable } from "./lineup";
@@ -21,17 +22,22 @@ export function GamePage({
   timezone,
   hideSpoilers,
   winProbability,
+  portraits,
+  vodUrl,
   series = null,
 }: {
   game: Game;
   timezone: string;
   hideSpoilers: boolean;
+  portraits?: ChampionPortraits;
+  vodUrl?: string | null;
   /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
   winProbability?: ProGameWinProbability | null;
   /** The series this archive game is confirmed to belong to, if any. */
   series?: { matchId: string; number: number } | null;
 }) {
   const [hidden, setHidden] = useState(hideSpoilers);
+  const teams = gameTeams(game);
   return (
     <div className="np-stack">
       <Breadcrumb
@@ -44,43 +50,46 @@ export function GamePage({
         <div>
           <span className="np-overline">{game.event}</span>
           <h1>
-            {gameTeams(game)
-              .map((t) => t.name)
-              .join(" vs ")}
+            {teams.map((team, index) => (
+              <span key={team.id}>
+                {index ? " vs " : null}
+                <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
+                  {team.name}
+                </span>
+              </span>
+            ))}
           </h1>
           <p className="np-body-sm">
-            {dateTime(game.occurredAt, timezone)} · Game {game.number} · Patch{" "}
-            {game.patch ?? "unknown"}
+            {dateTime(game.occurredAt, timezone)} · Game {game.number}
+            {game.patch ? ` · Patch ${game.patch}` : ""}
+            {game.complete ? "" : " · Partial Record"}
           </p>
         </div>
+        {vodUrl ? (
+          <TextLink href={vodUrl} target="_blank" rel="noreferrer">
+            Watch Game VOD
+          </TextLink>
+        ) : null}
       </header>
-      <p className="np-body-sm">
-        {game.complete
-          ? "Eligible for basic statistics."
-          : "Partial record · excluded from summary statistics."}
-      </p>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
-      <LineupTable game={game} hidden={hidden} />
+      <LineupTable game={game} hidden={hidden} portraits={portraits} />
       {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
       {series ? (
-        <p className="np-meta">
-          Part of a confirmed series.{" "}
-          <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
-            Open in Series
-          </TextLink>
-        </p>
-      ) : (
-        <p className="np-meta">Series association unconfirmed.</p>
-      )}
+        <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
+          Open in Series
+        </TextLink>
+      ) : null}
     </div>
   );
 }
 export function ProfilePage({
   profile,
+  portraits,
   query,
   hideSpoilers,
 }: {
   profile: Profile;
+  portraits?: ChampionPortraits;
   query: BrowseQuery;
   hideSpoilers: boolean;
 }) {
@@ -99,7 +108,6 @@ export function ProfilePage({
       />
       <header className="ev-title">
         <div className="ev-profile-title">
-          <span className="np-overline">{identity.kind}</span>
           <h1 className="np-visually-hidden">{identity.name}</h1>
           {identity.kind === "team" ? (
             <TeamIdentity
@@ -111,34 +119,17 @@ export function ProfilePage({
           ) : (
             <PlayerIdentity
               handle={identity.name}
+              role={identity.role}
               {...(identity.imageUrl ? { portrait: identity.imageUrl } : {})}
             />
           )}
         </div>
       </header>
-      <details className="np-stack">
-        <summary>Identity Details</summary>
-        <p className="np-body-sm">{(profile.aliases ?? [identity.name]).join(" · ")}</p>
-        {(profile.resolution ?? []).map((evidence) => (
-          <p key={evidence.gameId} className="np-body-sm">
-            Linked using{" "}
-            {evidence.method === "fixtures"
-              ? `${evidence.matchedFixtures} corresponding fixtures against multiple opponents, including a`
-              : `${evidence.matchedPlayers} matching players and roles in a`}{" "}
-            <TextLink href={`/games/${encodeURIComponent(evidence.gameId)}`}>
-              Played Lineup
-            </TextLink>{" "}
-            played {dateTime(evidence.playedAt, query.timezone ?? "UTC")}. Roster observed{" "}
-            {dateTime(evidence.observedAt, query.timezone ?? "UTC")}. This is identity evidence, not
-            a contract timeline.
-          </p>
-        ))}
-      </details>
       <section className="np-stack">
-        <h2>Observed Current Roster</h2>
+        <h2>Current Roster</h2>
         {profile.roster.length ? (
           <Table
-            caption="Latest Roster Observation"
+            caption="Current Roster"
             getRowKey={(r) => `${r.team.id}:${r.player.id}`}
             rows={profile.roster}
             columns={[
@@ -150,7 +141,7 @@ export function ProfilePage({
                     handle={r.player.name}
                     href={identityHref(r.player)}
                     {...(r.player.imageUrl ? { portrait: r.player.imageUrl } : {})}
-                    {...(r.player.role ? { role: r.player.role } : {})}
+                    role={r.player.role}
                   />
                 ),
               },
@@ -175,10 +166,7 @@ export function ProfilePage({
             ]}
           />
         ) : (
-          <EmptyState
-            title="No Current Roster Observation"
-            description="Historical played lineups remain available through individual games."
-          />
+          <EmptyState title="No Current Roster" />
         )}
       </section>
       <section className="np-stack">
@@ -190,17 +178,21 @@ export function ProfilePage({
           <>
             <dl className="ev-summary">
               <div>
-                <dt>Eligible games</dt>
+                <dt>Eligible Games</dt>
                 <dd>{summary.eligibleGames}</dd>
               </div>
               <div>
-                <dt>Wins / result sample</dt>
+                <dt>Game Record</dt>
                 <dd>
-                  {summary.wins} / {summary.resultGames}
+                  <GameRecord
+                    wins={summary.wins}
+                    known={summary.resultGames}
+                    total={summary.eligibleGames}
+                  />
                 </dd>
               </div>
               <div>
-                <dt>Win rate</dt>
+                <dt>Win Rate</dt>
                 <dd>{summary.winRate === null ? "—" : `${(summary.winRate * 100).toFixed(1)}%`}</dd>
               </div>
               <div>
@@ -214,12 +206,18 @@ export function ProfilePage({
                 rows={summary.champions}
                 getRowKey={(r) => r.name}
                 columns={[
-                  { id: "name", header: "Champion", render: (r) => r.name },
+                  {
+                    id: "name",
+                    header: "Champion",
+                    render: (r) => <ChampionPortrait name={r.name} portraits={portraits} />,
+                  },
                   { id: "games", header: "Games", render: (r) => r.games },
                   {
                     id: "wins",
-                    header: "Wins / Results",
-                    render: (r) => `${r.wins} / ${r.resultGames}`,
+                    header: "Game Record",
+                    render: (r) => (
+                      <GameRecord wins={r.wins} known={r.resultGames} total={r.games} />
+                    ),
                   },
                 ]}
               />

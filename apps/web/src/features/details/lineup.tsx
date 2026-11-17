@@ -1,23 +1,32 @@
 "use client";
-import { Table, TeamIdentity, PlayerIdentity } from "@summonersnet/ui";
+import { Table, TeamIdentity, PlayerIdentity, RoleIcon } from "@summonersnet/ui";
 import type { Game } from "@summonersnet/data";
+import { ChampionPortrait, GameResult, type ChampionPortraits } from "../browse/visuals";
 import { identityHref } from "../browse/presentation";
 
 /** The played lineup of one game; champions and results stay hidden with spoilers. */
-export function LineupTable({ game, hidden }: { game: Game; hidden: boolean }) {
+export function LineupTable({
+  game,
+  hidden,
+  portraits,
+}: {
+  game: Game;
+  hidden: boolean;
+  portraits?: ChampionPortraits | undefined;
+}) {
   return (
     <Table
       caption="Historical Played Lineup"
       getRowKey={(p) => p.slot}
       rows={game.participants.filter((p) => p.player)}
       columns={[
-        { id: "side", header: "Side", render: (p) => p.side },
         {
           id: "team",
           header: "Team",
           render: (p) => (
             <TeamIdentity
               name={p.team.name}
+              side={p.side}
               shortName={p.team.name}
               size="compact"
               href={identityHref(p.team)}
@@ -25,7 +34,7 @@ export function LineupTable({ game, hidden }: { game: Game; hidden: boolean }) {
             />
           ),
         },
-        { id: "role", header: "Role", render: (p) => p.role },
+        { id: "role", header: "Role", render: (p) => <RoleIcon role={p.role} /> },
         {
           id: "player",
           header: "Player",
@@ -43,7 +52,8 @@ export function LineupTable({ game, hidden }: { game: Game; hidden: boolean }) {
         {
           id: "champion",
           header: "Champion",
-          render: (p) => (hidden ? "Hidden" : (p.champion ?? "—")),
+          render: (p) =>
+            hidden ? "Hidden" : <ChampionPortrait name={p.champion} portraits={portraits} />,
         },
         {
           id: "kda",
@@ -54,7 +64,7 @@ export function LineupTable({ game, hidden }: { game: Game; hidden: boolean }) {
         {
           id: "result",
           header: "Result",
-          render: (p) => (hidden ? "Hidden" : p.won === null ? "Unknown" : p.won ? "Win" : "Loss"),
+          render: (p) => (hidden ? "Hidden" : <GameResult won={p.won} />),
         },
       ]}
     />

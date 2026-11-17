@@ -636,6 +636,27 @@ export function queries(pool: Pool, clock: () => Date) {
         games: await games(input, identity.id),
       };
     },
+    /** Resolve historical display names against the locally synchronized champion catalog. */
+    async championIconsByName(names: (string | null)[], patch?: string | null) {
+      const requested = [...new Set(names.filter((name): name is string => Boolean(name)))];
+      if (requested.length === 0) return {};
+      const result = await pool.query<{ name: string; id: string; hash: string | null }>(
+        `SELECT DISTINCT ON (n.name) n.name,n.champion_id AS id,i.asset_hash AS hash
+         FROM oracle_champion_names n
+         JOIN catalog_champions c ON c.champion_id=n.champion_id
+         JOIN patches p ON p.patch_key=c.patch_key
+         LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
+         WHERE n.name=ANY($1::text[])
+         ORDER BY n.name,(i.asset_hash IS NOT NULL) DESC,(c.patch_key IS NOT DISTINCT FROM $2) DESC,p.release_order DESC`,
+        [requested, patch ?? null],
+      );
+      return Object.fromEntries(
+        result.rows.map(({ name, id, hash }) => [
+          name,
+          { id, imageUrl: hash ? `/api/images/${hash}` : null },
+        ]),
+      );
+    },
     async catalogIcons(input: CatalogIconQuery): Promise<CatalogIcon[]> {
       const q = catalogIconQuerySchema.parse(input);
       const result = await pool.query<{

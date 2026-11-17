@@ -71,7 +71,7 @@ it("shows both samples, signed changes and qualified directions, preserving filt
     "href",
     "/champions/Ahri?source=solo&patch=16.22&role=MIDDLE",
   );
-  expect(rows[2]).toHaveTextContent("Champion 999");
+  expect(within(rows[2]!).getByRole("img", { name: "Champion 999" })).toBeVisible();
   expect(rows[2]).toHaveTextContent("Unknown change · Comparison unavailable");
   expect(rows[2]).toHaveTextContent("Too Few Games");
   fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
@@ -108,7 +108,7 @@ it("explains missing preceding patches, sparse outcomes, neutral deltas and empt
   expect(screen.getByRole("status")).toHaveTextContent("No aggregate sample");
   expect(screen.getByText("0.0 pp · No significant signal")).toBeVisible();
   expect(screen.getByText(/Too few successes or failures/)).toBeVisible();
-  expect(screen.getByText(/Pro · All Roles/)).toBeVisible();
+  expect(screen.getByRole("button", { name: /Pro.*Source/ })).toBeVisible();
   view.rerender(<TrendingPage trends={null} error={null} />);
   expect(screen.getByText("No Champion Aggregates for This Selection")).toBeVisible();
   view.rerender(<TrendingPage trends={null} error="Invalid selection" />);

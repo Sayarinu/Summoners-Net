@@ -33,7 +33,7 @@ it("loads one paused player without a consent step, switches safely and offers a
 });
 it("keeps only recordings for finished matches, since a Twitch channel shows what is live now", () => {
   const [youtube, twitch] = match.broadcasts;
-  const vod = { ...twitch!, externalId: "v123" };
+  const vod = { ...twitch!, externalId: "v123", url: "https://www.twitch.tv/videos/123" };
   const broadcasts = [youtube!, twitch!, vod];
   expect(watchableBroadcasts({ state: "live", broadcasts })).toEqual(broadcasts);
   expect(watchableBroadcasts({ state: "final", broadcasts })).toEqual([youtube, vod]);

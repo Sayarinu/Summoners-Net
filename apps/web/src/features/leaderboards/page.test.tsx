@@ -49,11 +49,12 @@ it("shows ranks, samples, missing statistics and refresh failure without losing 
   render(<LeaderboardPage list={list} error={null} region="euw1" timezone="UTC" />);
   expect(screen.getByRole("heading", { name: "EUW1 leaderboard" })).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Showing the previous successful ladder");
-  expect(screen.getByText(/Last refreshed/)).toHaveTextContent("03/01/2026");
+  expect(screen.getByText(/Last Refreshed/)).toHaveTextContent("03/01/2026");
   const rows = within(screen.getByRole("table")).getAllByRole("row");
   expect(rows[1]).toHaveTextContent("Fixture#EUW");
   expect(rows[1]).toHaveTextContent("75.0% · 4 games");
-  expect(rows[1]).toHaveTextContent("Ahri · 2 games");
+  expect(screen.getByRole("img", { name: "Ahri" })).toBeVisible();
+  expect(rows[1]).toHaveTextContent("2 games");
   expect(rows[2]).toHaveTextContent("Unknown · 0 games");
   expect(rows[2]).toHaveTextContent("No sampled games");
   expect(rows[2]).toHaveTextContent("Riot ID not resolved");
@@ -88,6 +89,6 @@ it("shows empty and invalid states and fallback champion identity", () => {
       timezone="UTC"
     />,
   );
-  expect(screen.getByText("Champion 999 · 1 game")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Champion 999" })).toBeVisible();
   expect(screen.queryByRole("status")).toBeNull();
 });

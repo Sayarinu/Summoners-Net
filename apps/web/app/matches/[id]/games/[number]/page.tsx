@@ -23,7 +23,16 @@ export default async function Page({
         data().proGameWinProbability(game.gameId),
       ])
     : [null, null, null];
-  const prefs = await preferences();
+  const [prefs, portraits] = await Promise.all([
+    preferences(),
+    data().championIconsByName(
+      [
+        ...(archive?.participants.map((participant) => participant.champion) ?? []),
+        ...(detail?.draft.flatMap(({ picks, bans }) => [...picks, ...bans]) ?? []),
+      ],
+      archive?.patch,
+    ),
+  ]);
   return (
     <SeriesGamePage
       match={record}
@@ -31,6 +40,7 @@ export default async function Page({
       number={number}
       game={archive}
       detail={detail}
+      portraits={portraits}
       winProbability={winProbability}
       timezone={prefs.timezone}
       hideSpoilers={prefs.hideSpoilers}

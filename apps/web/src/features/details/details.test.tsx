@@ -78,12 +78,12 @@ it("shows played lineups with null statistics and explicit partial eligibility",
       hideSpoilers={false}
     />,
   );
-  expect(screen.getByText(/Partial record/)).toBeVisible();
-  expect(screen.getByText("Loss")).toBeVisible();
+  expect(screen.getByText(/Partial Record/)).toBeVisible();
+  expect(screen.getByRole("img", { name: "Loss" })).toBeVisible();
 });
 it("separates roster observations, filtered game pages and full-sample summaries", () => {
   const view = render(<ProfilePage profile={profile} query={{ timezone: "UTC" }} hideSpoilers />);
-  expect(screen.getByText("Latest Roster Observation")).toBeVisible();
+  expect(screen.getByRole("table", { name: "Current Roster" })).toBeVisible();
   expect(screen.queryByText("100.0%")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Summary Statistics" }));
   expect(screen.getByText("100.0%")).toBeVisible();
@@ -107,10 +107,10 @@ it("separates roster observations, filtered game pages and full-sample summaries
       hideSpoilers={false}
     />,
   );
-  expect(screen.getByText("No Current Roster Observation")).toBeVisible();
+  expect(screen.getByText("No Current Roster")).toBeVisible();
   expect(screen.getAllByText("—")).toHaveLength(2);
 });
-it("shows linked identity evidence, canonical destinations and portraits without altering historical names", () => {
+it("keeps canonical destinations and portraits while omitting alternate names", () => {
   const image = "/api/images/" + "a".repeat(64);
   const identity = {
     ...profile.identity,
@@ -135,33 +135,8 @@ it("shows linked identity evidence, canonical destinations and portraits without
   expect(
     screen.getAllByRole("img", { name: `${identity.name} portrait` })[0]!.querySelector("img"),
   ).toHaveAttribute("src", image);
-  fireEvent.click(screen.getByText("Identity Details"));
-  expect(screen.getByText(/Old handle/)).toBeVisible();
-  expect(screen.getByRole("link", { name: "Played Lineup" })).toHaveAttribute(
-    "href",
-    `/games/${encodeURIComponent(game.id)}`,
-  );
-  view.rerender(
-    <ProfilePage
-      profile={{
-        ...linked,
-        identity: { ...blue, imageUrl: image, sourceCount: 2 },
-        resolution: [
-          {
-            gameId: game.id,
-            playedAt: instant,
-            observedAt: instant,
-            matchedPlayers: 0,
-            method: "fixtures",
-            matchedFixtures: 2,
-          },
-        ],
-      }}
-      query={{}}
-      hideSpoilers={false}
-    />,
-  );
-  expect(screen.getByText(/2 corresponding fixtures/)).toBeVisible();
+  expect(screen.queryByText("Identity Details")).toBeNull();
+  expect(screen.queryByText(/Old handle/)).toBeNull();
   view.rerender(
     <GamePage
       game={{
@@ -212,7 +187,10 @@ it("shows a coarse checkpoint win probability only with revealed statistics", ()
   expect(
     screen.getByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
   ).toBeVisible();
-  expect(screen.getByText(/trained on 2025–2026 games; Brier score 0.200/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Model Diagnostics" })).toHaveAttribute(
+    "href",
+    "/models?model=2",
+  );
   view.rerender(
     <GamePage
       game={game}
@@ -262,7 +240,8 @@ it("moves between a series overview and its played games with spoilers kept", ()
 });
 
 it("shows a linked game's draft and lineup, and an honest gap for an unlinked game", () => {
-  const games = seriesGames();
+  const vodUrl = "https://www.youtube.com/watch?v=abcdefghijk";
+  const games = seriesGames().map((item) => (item.number === 1 ? { ...item, vodUrl } : item));
   const detail = {
     id: "oracle:archive:a",
     year: 2026,
@@ -317,12 +296,17 @@ it("shows a linked game's draft and lineup, and an honest gap for an unlinked ga
   );
   expect(within(steps).getByRole("link", { name: "Next: Game 2" })).toBeVisible();
   expect(screen.getByText("31:05")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Watch Game VOD" })).toHaveAttribute("href", vodUrl);
   // The draft and results stay hidden until revealed.
   expect(screen.queryByRole("heading", { name: "Draft" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(screen.getByRole("heading", { name: "Blue Side · Acceptance Blue · First Pick" }));
-  expect(screen.getByText("Ahri · —")).toBeVisible();
-  expect(screen.getByText("Azir")).toBeVisible();
+  expect(
+    within(screen.getByRole("heading", { name: /Blue Side/ }).parentElement!).getByRole("img", {
+      name: "Ahri",
+    }),
+  ).toBeVisible();
+  expect(screen.getByRole("img", { name: "Azir" })).toBeVisible();
   // Without a pick order, the red side lists the champions it played.
   expect(screen.getByText("Played")).toBeVisible();
   expect(screen.getByRole("table", { name: "Historical Played Lineup" })).toBeVisible();
@@ -344,6 +328,7 @@ it("shows a linked game's draft and lineup, and an honest gap for an unlinked ga
     />,
   );
   expect(screen.getByText("Game Details Not Available Yet")).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Watch Game VOD" })).toBeNull();
   expect(screen.getByRole("link", { name: "Previous: Game 1" })).toBeVisible();
   expect(screen.queryByRole("link", { name: /^Next/ })).toBeNull();
   expect(screen.getByText("Patch").nextElementSibling).toHaveTextContent("—");
@@ -363,5 +348,5 @@ it("links an archive game back to its confirmed series", () => {
     "/matches/pandascore%3Amatch%3A1/games/1",
   );
   view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
-  expect(screen.getByText("Series association unconfirmed.")).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Open in Series" })).toBeNull();
 });

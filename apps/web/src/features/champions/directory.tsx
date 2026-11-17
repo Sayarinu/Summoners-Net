@@ -1,14 +1,6 @@
 "use client";
-import { ChampionIcon, EmptyState, Table, TextLink } from "@summonersnet/ui";
+import { ChampionIcon, RoleIcon, EmptyState, Table, TextLink } from "@summonersnet/ui";
 import { matchupRoles, type ChampionDirectory } from "@summonersnet/data/contracts";
-
-const roles = {
-  TOP: "Top",
-  JUNGLE: "Jungle",
-  MIDDLE: "Mid",
-  BOTTOM: "Bot",
-  UTILITY: "Support",
-} as const;
 
 /** Every catalog champion, and the champion and matchup analytics reachable from here. */
 export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }) {
@@ -30,7 +22,7 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
         <ul>
           {matchupRoles.map((r) => (
             <li key={r}>
-              {roles[r]}: <TextLink href={`/matchups/${r}`}>Matchup Matrix</TextLink> ·{" "}
+              <RoleIcon role={r} /> <TextLink href={`/matchups/${r}`}>Matchup Matrix</TextLink> ·{" "}
               <TextLink href={`/matchups/${r}/counter-picks`}>Counter-Pick Values</TextLink>
             </li>
           ))}
@@ -52,8 +44,8 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
                     name={c.name}
                     imageUrl={c.imageUrl}
                     size="small"
+                    href={`/champions/${c.championId}`}
                   />
-                  <TextLink href={`/champions/${c.championId}`}>{c.name}</TextLink>
                 </span>
               ),
             },

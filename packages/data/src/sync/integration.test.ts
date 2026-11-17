@@ -4624,6 +4624,11 @@ it("caches all catalog icon kinds, bounds queries and retains successful images 
   instant = new Date(now.valueOf() + 86400001);
   await run({ kind: "metadata" });
   const url = `/api/images/${createHash("sha256").update(mapBytes).digest("hex")}`;
+  expect(await queries.championIconsByName([null, "Wukong", "Wukong", "Unknown"], "16.21")).toEqual(
+    {
+      Wukong: { id: "MonkeyKing", imageUrl: url },
+    },
+  );
   for (const [kind, id, name] of [
     ["champion", "MonkeyKing", "Wukong"],
     ["item", "1001", "Boots"],

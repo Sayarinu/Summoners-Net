@@ -52,9 +52,9 @@ it("ranks candidates with each part's sample and explains the score", () => {
   expect(screen.getByRole("status")).toHaveTextContent("ignored: Zzz");
   const table = screen.getByRole("table", { name: "Ranked candidates for Mid" });
   const rows = screen.getAllByRole("row").slice(1);
-  expect(rows[0]).toHaveTextContent(/^1.*Ahri\+4\.5 pts · 1 known\+4\.5 pts · n=10 games/);
+  expect(rows[0]).toHaveTextContent(/^1.*\+4\.5 pts · 1 known\+4\.5 pts · n=10 games/);
   expect(rows[0]).toHaveTextContent("Not used");
-  expect(rows[1]).toHaveTextContent(/^2.*Champion 999Unknown · 0 known/);
+  expect(rows[1]).toHaveTextContent(/^2.*Unknown · 0 known/);
   expect(table).toHaveTextContent("Unknown · n=0 games");
   expect(screen.getByRole("link", { name: "Ahri" })).toHaveAttribute(
     "href",
@@ -113,7 +113,7 @@ it("shows the draft win probability for your side and with each candidate", () =
     "/models?model=7",
   );
   const inputs = screen.getByRole("table", { name: "Draft Model Inputs" });
-  expect(inputs).toHaveTextContent("Champion StrengthRedMIDDLENunu & Willump+4.0 pts80");
+  expect(inputs).toHaveTextContent("Champion StrengthRedMidNunu & Willump+4.0 pts80");
   expect(screen.getByRole("table", { name: "Ranked candidates for Mid" })).toHaveTextContent(
     "53.0%",
   );

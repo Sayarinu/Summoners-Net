@@ -5,7 +5,6 @@ export default function Page() {
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">This browser</span>
           <h1>Saved Views</h1>
         </div>
       </header>

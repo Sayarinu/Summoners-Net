@@ -129,9 +129,6 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-xs);
 }
-.ev-outcome--win {
-  color: var(--color-status-success);
-}
 .ev-team-history-head {
   display: flex;
   justify-content: space-between;
@@ -203,12 +200,9 @@
   min-width: 0;
   max-width: 100%;
 }
-.ev-outcome--loss {
-  color: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-text-primary));
-}
 @media (min-width: 851px) {
   .ev-team-history .np-match-row {
-    grid-template-columns: minmax(115px, 14%) minmax(0, 1fr) 78px 88px;
+    grid-template-columns: minmax(115px, 14%) minmax(0, 1fr) max-content 88px;
   }
   .ev-team-history .np-match-team {
     min-width: 0;

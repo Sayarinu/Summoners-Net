@@ -30,15 +30,16 @@ it("shows the current lineup while hiding season statistics and each result unti
     />,
   );
   expect(screen.getByRole("heading", { name: "Current Roster" })).toBeVisible();
-  expect(screen.queryByText("Pick 0")).toBeNull();
+  expect(screen.queryByRole("img", { name: "Pick 0" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Statistics" }));
-  expect(screen.getByText("Pick 0")).toBeVisible();
-  expect(screen.queryByText("Pick 5")).toBeNull();
+  expect(screen.getByRole("img", { name: "Pick 0" })).toBeVisible();
+  expect(screen.queryByRole("img", { name: "Pick 5" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show All Champions" }));
-  expect(screen.getByText("Pick 5")).toBeVisible();
-  expect(screen.queryByText("Win", { exact: true })).toBeNull();
+  expect(screen.getByRole("img", { name: "Pick 5" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: /2 to 1/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
-  expect(screen.getByText("Win", { exact: true })).toBeVisible();
+  expect(screen.getByRole("link", { name: /2 to 1/ })).toBeVisible();
+  expect(screen.getAllByRole("img", { name: "Wins 1, losses 1" })[0]).toHaveTextContent("1 – 1");
   expect(screen.getByRole("link", { name: "Games" })).toHaveAttribute(
     "href",
     "?year=2026&view=games",

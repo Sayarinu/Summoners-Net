@@ -45,7 +45,7 @@ describe("esports identities and schedule", () => {
       </div>,
     );
     expect(screen.getByRole("link", { name: /Gen.G/ })).toHaveTextContent("Winner");
-    expect(screen.getByRole("link", { name: /Chovy/ })).toHaveTextContent("Mid");
+    expect(screen.getByRole("img", { name: "Mid" })).toBeVisible();
     expect(screen.getByRole("img", { name: "TBD logo" })).toBeVisible();
   });
 

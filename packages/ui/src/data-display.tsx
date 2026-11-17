@@ -46,7 +46,7 @@ export function StatePanel({
     >
       <div className="np-state-panel__body">
         <h3>{title}</h3>
-        <div>{children}</div>
+        {children ? <div>{children}</div> : null}
       </div>
       {action ? <div className="np-state-panel__action">{action}</div> : null}
     </section>
@@ -59,7 +59,7 @@ export function EmptyState({
   title = "Nothing Here Yet",
 }: {
   readonly action?: ReactNode;
-  readonly description: ReactNode;
+  readonly description?: ReactNode;
   readonly title?: string;
 }) {
   return (

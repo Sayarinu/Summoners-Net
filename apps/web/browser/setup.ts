@@ -70,7 +70,17 @@ export default async function setup() {
                 rawMatch(i + 1, {
                   status: i === 1 ? "not_started" : "finished",
                   begin_at: i === 1 ? "2026-03-02T01:00:00Z" : "2026-03-01T01:00:00Z",
-                  games: [{ id: 100 + i, position: 1, status: "finished", winner: { id: 10 } }],
+                  games: [
+                    {
+                      id: 100 + i,
+                      position: 1,
+                      status: "finished",
+                      winner: { id: 10 },
+                      ...(i === 0
+                        ? { video_url: "https://www.youtube.com/watch?v=AbCdEfGhIjK" }
+                        : {}),
+                    },
+                  ],
                 }),
               ),
         ),

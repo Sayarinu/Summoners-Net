@@ -46,6 +46,7 @@ export const matchGameSchema = z.object({
   startsAt: z.iso.datetime().nullable(),
   finishedAt: z.iso.datetime().nullable(),
   winnerId: z.string().nullable(),
+  vodUrl: z.url().optional(),
 });
 export const matchSchema = z.object({
   id: z.string(),
