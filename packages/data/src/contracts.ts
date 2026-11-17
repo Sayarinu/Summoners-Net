@@ -106,6 +106,8 @@ export type {
   TrackRangeQuery,
 } from "./domain/track-views.js";
 export type { TrackMovement, TrackZone } from "./domain/track-movements.js";
+export { accuracyThresholds } from "./domain/track-accuracy.js";
+export type { AccuracyReport, AccuracyStats, TrackAccuracy } from "./domain/track-accuracy.js";
 
 export { replayFileMaxBytes, replayPlatformSchema } from "./domain/replays.js";
 export { riotPlatforms } from "./domain/riot-platforms.js";

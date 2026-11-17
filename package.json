@@ -43,6 +43,7 @@
     "history:import-dir": "node --env-file-if-exists=.env packages/data/dist/cli.js import-dir",
     "history:backfill-all": "node --env-file-if-exists=.env packages/data/dist/cli.js backfill-all",
     "sync:status": "node --env-file-if-exists=.env packages/data/dist/cli.js status",
+    "tracks:accuracy": "node --env-file-if-exists=.env packages/data/dist/cli.js track-accuracy",
     "entities:sync": "node --env-file-if-exists=.env packages/data/dist/cli.js entities",
     "entities:resolve": "node --env-file-if-exists=.env packages/data/dist/cli.js resolve",
     "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",

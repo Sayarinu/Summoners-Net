@@ -4848,6 +4848,39 @@ describe("replay track imports", () => {
     ).toHaveLength(5);
     expect(await queries.matchTrackSummary("EUW1_1")).toBeNull();
   });
+  it("measures an imported track against the stored timeline and reproduces the fixture report", async () => {
+    const track = parseReplayTrackFile(
+      readFileSync(
+        new URL("../../tests/replay-tracks/accuracy-euw1.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect((await upload(track)).state).toBe("done");
+    // Not linked to a stored Riot match yet: nothing is measured.
+    expect(await queries.trackAccuracy(track.gameId)).toBeNull();
+    await storeRiot(track);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as unknown;
+    await saveTimeline(pool, parseRiotTimeline(timeline, track.gameId), now);
+    const measured = (await queries.trackAccuracy(track.gameId))!;
+    // The same numbers as the domain test on the committed fixtures.
+    expect(measured.report.overall).toEqual({
+      comparisons: 25,
+      missedMarks: 4,
+      unsampledMarks: 0,
+      mean: 315,
+      median: 320.2,
+      p95: 576.3,
+      observations: 1210,
+      nullObservations: 152,
+      nullShare: 0.1256,
+    });
+    expect(measured.report.champions[9]).toMatchObject({ participantIds: [10], nullShare: 1 });
+    expect(measured.verdict).toEqual({ pass: true, failures: [] });
+    expect(await queries.trackAccuracy("EUW1_1")).toBeNull();
+    await expect(queries.trackAccuracy("not a match")).rejects.toThrow();
+  });
   it("rolls back storage failures and keeps distinct pending uploads", async () => {
     const track = fixture();
     expect((await upload(track)).state).toBe("done");
