@@ -1,5 +1,6 @@
+import { matchupMatrix } from "./matchup-matrix.js";
 import { championMatchups } from "./matchups.js";
-import type { ChampionMatchupsQuery } from "../domain/matchups.js";
+import type { ChampionMatchupsQuery, MatchupMatrixQuery } from "../domain/matchups.js";
 import { patchOverview } from "./patch-overview.js";
 import { trending } from "./trending.js";
 import type { TrendingQuery } from "../domain/trending.js";
@@ -184,6 +185,7 @@ export function queries(pool: Pool, clock: () => Date) {
   return {
     ...historicalQueries(pool),
     ...draftQueries(pool),
+    matchupMatrix: (input: MatchupMatrixQuery) => matchupMatrix(pool, input),
     championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
     patchOverview: (patch: string) => patchOverview(pool, patch),
     trending: (input: TrendingQuery) => trending(pool, input),

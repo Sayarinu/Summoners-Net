@@ -5893,6 +5893,62 @@ describe("lane matchup aggregates", () => {
     expect(excluded).toMatchObject({ patch: "16.22", patches: ["16.22"], page: { items: [] } });
     expect(excluded?.exclusions.find((r) => r.role === "MIDDLE")?.games).toBe(2);
   });
+  it("pages both matrix axes in SQL while keeping the full baseline and sparse cells", async () => {
+    await catalog();
+    for (let n = 0; n < 10; n++) await game(20, n < 8, 100);
+    for (let n = 0; n < 10; n++) await game(62, n < 2, -50);
+    for (let n = 200; n < 208; n++) await game(n, false, 0);
+    await aggregate();
+    const calls = fetcher.mock.calls.length;
+    const matrix = await queries.matchupMatrix({ role: "MIDDLE" });
+    expect(matrix).toMatchObject({ patch: "16.22", patches: ["16.22"], total: 11, pageSize: 8 });
+    expect(matrix.rows.map((c) => c.championKey)).toEqual([103, 20, 62, 200, 201, 202, 203, 204]);
+    expect(matrix.columns).toEqual(matrix.rows);
+    expect(matrix.cells).toHaveLength(64);
+    const cell = matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 20)!;
+    expect(cell).toMatchObject({
+      games: 10,
+      estimate: { raw: 0.8, sampleCount: 10, baselineSampleCount: 28 },
+    });
+    expect(cell.estimate.baseline).toBeCloseTo(10 / 28);
+    expect(cell.estimate.shrunk).toBeCloseTo((8 + (50 * 10) / 28) / 60);
+    expect(
+      matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 200)?.estimate,
+    ).toMatchObject({ raw: null, shrunk: null, sampleCount: 1 });
+    expect(matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 103)).toMatchObject({
+      games: 0,
+      estimate: { raw: null, shrunk: null, sampleCount: 0 },
+    });
+    const second = await queries.matchupMatrix({
+      role: "MIDDLE",
+      page: 2,
+      columnPage: 2,
+      metric: "gold10",
+      value: "raw",
+    });
+    expect(second.rows.map((c) => c.championKey)).toEqual([205, 206, 207]);
+    expect(second.rows[0]).toMatchObject({ championId: null, name: null, imageUrl: null });
+    expect(second.cells).toHaveLength(9);
+    expect(await queries.matchupMatrix({ role: "MIDDLE", columnPage: 10000 })).toMatchObject({
+      total: 11,
+      columns: [],
+      cells: [],
+    });
+    expect(await queries.matchupMatrix({ role: "TOP" })).toMatchObject({
+      total: 0,
+      rows: [],
+      cells: [],
+    });
+    expect(await queries.matchupMatrix({ role: "MIDDLE", source: "pro" })).toMatchObject({
+      patch: null,
+      total: 0,
+    });
+    expect(await queries.matchupMatrix({ role: "MIDDLE", patch: "16.99" })).toMatchObject({
+      patch: null,
+      total: 0,
+    });
+    expect(fetcher.mock.calls.length).toBe(calls);
+  });
   it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {
     await catalog();
     const rows: string[] = [];

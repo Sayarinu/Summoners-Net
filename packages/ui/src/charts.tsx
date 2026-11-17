@@ -295,21 +295,19 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
         ) : null}
       </g>
       <g style={{ color: colorValue(color) }}>
-        {cells.map((cell) =>
-          known(cell.value) ? (
-            <rect
-              key={cell.id}
-              x={136 + columns.indexOf(cell.column) * width}
-              y={24 + rows.indexOf(cell.row) * height}
-              width={Math.max(0, width - 2)}
-              height={Math.max(0, height - 2)}
-              fill="currentColor"
-              fillOpacity={scale(cell.value, domain, 0.2, 1)}
-            >
-              <title>{`${cell.row}, ${cell.column}: ${cell.value}; samples: ${display(cell.sampleCount)}`}</title>
-            </rect>
-          ) : null,
-        )}
+        {cells.map((cell) => (
+          <rect
+            key={cell.id}
+            x={136 + columns.indexOf(cell.column) * width}
+            y={24 + rows.indexOf(cell.row) * height}
+            width={Math.max(0, width - 2)}
+            height={Math.max(0, height - 2)}
+            fill="currentColor"
+            fillOpacity={known(cell.value) ? scale(cell.value, domain, 0.2, 1) : 0}
+          >
+            <title>{`${cell.row}, ${cell.column}: ${display(cell.value)}; samples: ${display(cell.sampleCount)}`}</title>
+          </rect>
+        ))}
       </g>
     </ChartFrame>
   );

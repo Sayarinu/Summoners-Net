@@ -100,9 +100,11 @@ describe("SVG charts", () => {
     );
     const svg = screen.getByRole("img", { name: "Matchups" });
     const cells = svg.querySelectorAll("rect");
-    expect(cells).toHaveLength(2);
+    expect(cells).toHaveLength(3);
     expect(cells[0]).toHaveAttribute("fill-opacity", "0.2");
-    expect(cells[1]).toHaveAttribute("fill-opacity", "1");
+    expect(cells[1]).toHaveAttribute("fill-opacity", "0");
+    expect(cells[1]).toHaveTextContent("Top, B: Unknown; samples: 0");
+    expect(cells[2]).toHaveAttribute("fill-opacity", "1");
     expect(svg).toHaveTextContent("Top, A: 0; samples: 20");
     await user.click(screen.getByText("View data for Matchups"));
     expect(screen.getByRole("row", { name: "Top B Unknown 0" })).toBeVisible();

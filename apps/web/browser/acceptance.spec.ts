@@ -776,3 +776,52 @@ test("champion players explain their minimum sample and validate sort and page s
   await page.goto("/champions/Ahri?playersPage=0");
   await expect(page.getByRole("alert").filter({ hasText: "Choose filters" })).toBeVisible();
 });
+
+test("champion matchups show sampled metrics, switch values and validate selections", async ({
+  page,
+}) => {
+  await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
+  await page.getByRole("link", { name: "Lane matchups", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ahri matchups" })).toBeVisible();
+  const table = page.getByRole("table", { name: "Ahri lane opponents" });
+  await expect(table).toContainText("Unknown · n=1");
+  await expect(table).toContainText("Team first blood");
+  await expect(table).toContainText("XP Δ at 15");
+  await page.getByRole("button", { name: /Values$/ }).click();
+  await page.getByRole("option", { name: "Raw", exact: true }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/value=raw/);
+  await expect(table).toContainText("Unknown · n=1");
+  await page.goto("/champions/Ahri/matchups?patch=16.4&page=2");
+  await expect(table).toContainText("No matchup observations on this page");
+  await page.goto("/champions/Ahri/matchups?source=all");
+  await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
+  const missing = await page.goto("/champions/NoSuchChampion/matchups");
+  expect(missing?.status()).toBe(404);
+});
+test("role matchup matrices retain null-cell samples and expose a table alternative", async ({
+  page,
+}) => {
+  await page.goto("/matchups/MIDDLE?patch=16.4");
+  await expect(page.getByRole("heading", { name: "Mid matchup matrix" })).toBeVisible();
+  const grid = page.getByRole("img", { name: "Mid matchups: Win rate (%) · shrunk" });
+  await expect(grid.locator('rect[fill-opacity="0"]')).toHaveCount(4);
+  await expect(grid).toContainText("Unknown; samples: 1");
+  await page
+    .getByText("View data for Mid matchups: Win rate (%) · shrunk", { exact: true })
+    .click();
+  const table = page.getByRole("table", { name: "Mid matchups: Win rate (%) · shrunk data" });
+  await expect(table).toBeVisible();
+  await expect(table).toContainText("Unknown");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.getByRole("link", { name: "Ahri matchups", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ahri matchups" })).toBeVisible();
+  await page.goto("/matchups/MIDDLE?source=pro&patch=16.4&metric=gold10&value=raw&columnPage=2");
+  await expect(page.getByText("No observations available", { exact: true })).toBeVisible();
+  await page.goto("/matchups/MIDDLE?columnPage=0");
+  await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
+  const missing = await page.goto("/matchups/ALL");
+  expect(missing?.status()).toBe(404);
+});

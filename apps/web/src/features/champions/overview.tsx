@@ -42,6 +42,11 @@ export function ChampionOverviewPage({
           </div>
         </div>
       </header>
+      <TextLink
+        href={`/champions/${champion.id}/matchups?source=${q.source}&role=${q.role === "ALL" ? "MIDDLE" : q.role}${overview.patch ? `&patch=${overview.patch}` : ""}`}
+      >
+        Lane matchups
+      </TextLink>
       <ChampionFilters action={`/champions/${champion.id}`} query={q} facets={overview.facets} />
       {error ? (
         <p role="alert">{error}</p>

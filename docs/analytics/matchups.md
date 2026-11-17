@@ -61,3 +61,20 @@ dirty. Matchups and exclusions rebuild inside the existing source/patch transact
 timeline or Oracle ingestion marks it dirty. Replacement timelines replace the samples; repeated
 rebuilds do not duplicate them. Read queries make no provider requests. Live provider results have
 not been checked by hand for this change.
+
+## Browsing matchups
+
+`/champions/[championId]/matchups` lists lane opponents with all nine metrics and their own
+observation counts. Source, patch, role, raw/shrunk values, sorting, direction and page are URL
+filters. Sorting and pagination happen in SQL; missing values sort last. The champion overview links
+to this page. Team objective rates are labelled explicitly.
+
+`/matchups/[role]` shows the same aggregate observations in a HeatGrid with a table alternative.
+Roles use `TOP`, `JUNGLE`, `MIDDLE`, `BOTTOM` and `UTILITY` in the URL. The statistic selector
+includes every matchup metric. Rows and columns each page eight champions, ranked by total games
+with champion keys breaking ties. Both axes can advance independently, so every observed opponent
+remains reachable. Each row's baseline includes all its opponents before either axis is paged. Blank
+cells preserve null values and show their real sample count in the tooltip and table; an unobserved
+pair has zero observations. Rates use percentages; other metrics keep their original units. Pro and
+solo queue samples remain separate, and both routes validate inputs before reading the stored
+aggregates and local catalog metadata. No provider request is made by either page.
