@@ -138,7 +138,7 @@ export interface MatchDisplay {
   readonly timeConfirmed?: boolean;
 }
 
-function MatchLifecycleLabel({ lifecycle }: { readonly lifecycle: MatchLifecycle }) {
+export function MatchLifecycleLabel({ lifecycle }: { readonly lifecycle: MatchLifecycle }) {
   if (lifecycle === "live") return <LiveIndicator />;
   const label =
     lifecycle === "final"

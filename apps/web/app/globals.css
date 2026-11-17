@@ -723,10 +723,50 @@
 .ev-series-tabs {
   border-bottom: 1px solid var(--color-border-subtle);
 }
+.ev-main > .ev-series-page {
+  container-type: inline-size;
+  max-inline-size: 68rem;
+  margin-inline: auto;
+  gap: var(--space-4);
+}
+.ev-series-page .ev-title {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding-block: var(--space-1);
+}
+.ev-series-page .ev-title:has(> .ev-series-score, > .np-button) {
+  justify-content: start;
+}
+.ev-series-page .ev-title > .np-text-link {
+  white-space: nowrap;
+}
+.ev-series-title__team .np-avatar {
+  margin-inline-end: var(--space-2);
+  vertical-align: middle;
+}
+.ev-series-title__facts {
+  gap: var(--space-1) var(--space-3);
+}
+.ev-series-page > .np-button {
+  align-self: start;
+}
+.ev-series-score {
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+.ev-series-score__separator {
+  color: var(--color-text-muted);
+}
 .ev-series-games {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -739,9 +779,9 @@
 }
 .ev-series-game > :not(.ev-series-game__replay) {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   height: 100%;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   color: inherit;
   text-decoration: none;
 }
@@ -753,7 +793,7 @@
   color: var(--color-text-muted);
 }
 .ev-series-game__replay {
-  margin: 0 var(--space-4) var(--space-3);
+  margin: 0 var(--space-3) var(--space-2);
   justify-self: start;
 }
 .ev-series-game__number {
@@ -765,11 +805,27 @@
   align-items: start;
   gap: var(--space-4);
 }
+.ev-series-overview__games {
+  --np-stack-gap: var(--space-2);
+}
 
-.ev-compact-player,
-.ev-disclosure .ev-watch-player {
+.ev-compact-player {
   width: 100%;
   max-width: 560px;
+}
+
+.ev-series-overview .ev-watch-player {
+  --np-stack-gap: var(--space-2);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.ev-series-overview .np-stream-shell > header {
+  gap: var(--space-2);
+}
+
+.ev-series-overview .np-stream-shell--ready > header .np-status {
+  display: none;
 }
 
 .ev-disclosure {
@@ -814,20 +870,26 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
-@media (min-width: 1120px) {
+@container (min-width: 48rem) {
   .ev-series-overview:has(> .ev-disclosure[open]) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 580px);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+
+  .ev-series-overview:has(> .ev-disclosure[open]) .ev-series-games {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   }
 }
 
-.ev-game-meta {
-  padding-block: var(--space-2);
+@container (max-width: 25rem) {
+  .ev-series-tabs .ev-tab {
+    padding-inline: var(--space-2);
+  }
 }
 
 .ev-lineups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 395px), 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  gap: var(--space-3);
   align-items: start;
 }
 
@@ -839,9 +901,8 @@
 
 .ev-lineup-card__header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background: var(--color-bg-raised);
   border-top: 3px solid var(--np-team-side);
@@ -852,6 +913,7 @@
   color: var(--np-team-side);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  white-space: nowrap;
 }
 
 .ev-lineup-card[data-result="win"] {
@@ -868,42 +930,74 @@
 
 .ev-lineup-card .np-table {
   min-width: 0;
+  table-layout: fixed;
 }
 
 .ev-lineup-card .np-table :is(th, td) {
   padding-inline: var(--space-2);
 }
 
-.ev-lineup-card .np-identity--player .np-avatar {
-  width: 24px;
-  height: 24px;
+.ev-lineup-card .np-table th {
+  height: 30px;
 }
 
-.ev-lineup-card .np-identity__copy strong {
-  white-space: normal;
-  overflow-wrap: anywhere;
+.ev-lineup-card .np-table td {
+  height: var(--size-control);
+}
+
+.ev-lineup-card .np-table td > :is(.np-avatar, .np-role-icon, .np-text-link) {
+  vertical-align: middle;
+}
+
+.ev-lineup-card .np-identity,
+.ev-lineup-player {
+  min-width: 0;
+}
+
+.ev-lineup-player {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev-lineup-kda {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
 }
 
 .ev-draft-order {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   gap: var(--space-3);
 }
 
 .ev-draft-phase {
   display: grid;
   align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ev-draft-phase__row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-2);
 }
 
 .ev-draft-phase h3 {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
+  white-space: nowrap;
 }
 
 .ev-draft-phase ol {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 2.75rem));
   gap: var(--space-1);
   list-style: none;
 }
@@ -911,17 +1005,35 @@
 .ev-draft-phase li {
   display: grid;
   justify-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  padding: 2px 3px 3px;
   background: var(--color-bg-surface);
   border-top: 2px solid var(--np-team-side);
   border-radius: var(--radius-sm);
+}
+
+.ev-draft-phase li > .np-text-link {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+}
+
+.ev-draft-phase li .np-avatar {
+  width: min(100%, 36px);
+  height: auto;
+  aspect-ratio: 1;
 }
 
 .ev-draft-slot {
   color: var(--np-team-side);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
+}
+
+@container (max-width: 23rem) {
+  .ev-draft-phase__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
 }
 
 .ev-history-toolbar {

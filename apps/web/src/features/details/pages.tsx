@@ -19,7 +19,6 @@ import type {
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 import { dateTime, identityHref, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
-import { Disclosure } from "./disclosure";
 import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
@@ -33,6 +32,7 @@ export function GamePage({
   detail,
   portraits,
   vodUrl,
+  round,
   series = null,
 }: {
   game: Game;
@@ -41,6 +41,7 @@ export function GamePage({
   hideSpoilers: boolean;
   portraits?: ChampionPortraits;
   vodUrl?: string | null;
+  round?: string | null;
   /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
   winProbability?: ProGameWinProbability | null;
   /** The series this archive game is confirmed to belong to, if any. */
@@ -49,7 +50,7 @@ export function GamePage({
   const [hidden, setHidden] = useState(hideSpoilers);
   const teams = gameTeams(game);
   return (
-    <div className="np-stack">
+    <div className="np-stack ev-series-page">
       <Breadcrumb
         items={[
           { label: "Past Matches", href: "/history?view=games" },
@@ -58,7 +59,7 @@ export function GamePage({
       />
       <header className="ev-title">
         <div>
-          <span className="np-overline">{game.event}</span>
+          <span className="np-overline">{[game.event, round].filter(Boolean).join(" · ")}</span>
           <h1>
             {teams.map((team, index) => (
               <span key={team.id}>
@@ -82,13 +83,9 @@ export function GamePage({
         ) : null}
       </header>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
-      <LineupTable game={game} hidden={hidden} portraits={portraits} />
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-      {!hidden && winProbability ? (
-        <Disclosure title="Win Probability">
-          <ProWinProbability winProbability={winProbability} />
-        </Disclosure>
-      ) : null}
+      <LineupTable game={game} hidden={hidden} portraits={portraits} />
+      {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
           Open in Series

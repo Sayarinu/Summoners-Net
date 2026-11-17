@@ -64,12 +64,14 @@ export function WatchPlayer({
   mode = "live",
   showHeading = true,
   showPlayerActions = true,
+  showBroadcastSelect = true,
 }: {
   broadcasts: Broadcast[];
   defaultProvider?: Broadcast["provider"];
   mode?: "live" | "replay";
   showHeading?: boolean;
   showPlayerActions?: boolean;
+  showBroadcastSelect?: boolean;
 }) {
   const orderedBroadcasts = [...broadcasts].sort(
     (a, b) => Number(b.provider === "youtube") - Number(a.provider === "youtube"),
@@ -104,22 +106,26 @@ export function WatchPlayer({
     );
   return (
     <section className="np-stack ev-watch-player" aria-label="Watch Match">
-      <div className="np-split">
-        {showHeading ? <h2>{mode === "replay" ? "Watch Replay" : "Watch"}</h2> : null}
-        <Select
-          label="Broadcast"
-          value={selected}
-          onValueChange={(value) => {
-            setSelected(value);
-            setFailed(false);
-            setRefused(false);
-          }}
-          options={orderedBroadcasts.map((b, i) => ({
-            value: String(i),
-            label: providerLabel(b.provider),
-          }))}
-        />
-      </div>
+      {showHeading || showBroadcastSelect ? (
+        <div className="np-split">
+          {showHeading ? <h2>{mode === "replay" ? "Watch Replay" : "Watch"}</h2> : null}
+          {showBroadcastSelect ? (
+            <Select
+              label="Broadcast"
+              value={selected}
+              onValueChange={(value) => {
+                setSelected(value);
+                setFailed(false);
+                setRefused(false);
+              }}
+              options={orderedBroadcasts.map((b, i) => ({
+                value: String(i),
+                label: providerLabel(b.provider),
+              }))}
+            />
+          ) : null}
+        </div>
+      ) : null}
       <StreamEmbedShell
         provider={providerLabel(b.provider)}
         title="Match Player"
