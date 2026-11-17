@@ -10,6 +10,7 @@ async function openSettings(page: Page) {
 }
 
 test("browse filters, SQL pages, match details and spoiler control", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
@@ -102,9 +103,8 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Acceptance Blue vs Acceptance Red",
   );
-  // The replay player loads straight away but does not play until its play button is pressed.
-  await expect(page.locator("iframe")).toHaveCount(1);
-  await expect(page.locator("iframe")).toHaveAttribute("src", /autoplay=0/);
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await expect(page.locator("summary").filter({ hasText: /^Watch Replay$/ })).toBeVisible();
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
@@ -121,7 +121,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page).toHaveURL(/\/games\/1$/);
   await expect(tabs.getByRole("link", { name: "Game 1" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("Game Details Not Available Yet")).toBeVisible();
-  await page.getByRole("link", { name: "Series Overview" }).click();
+  await tabs.getByRole("link", { name: "Overview" }).click();
   await expect(page.getByRole("heading", { name: "Games", level: 2 })).toBeVisible();
   expect((await page.goto("/matches/pandascore%3Amatch%3A1/games/9"))?.status()).toBe(404);
 });
@@ -228,11 +228,21 @@ test("search, history, observed rosters and independently accessible played line
   await expect(page.getByRole("table", { name: "Current Roster" })).toBeVisible();
   await expect(page.getByText("100.0%")).toBeVisible();
   await page.getByRole("table", { name: "Historical Games" }).getByRole("link").first().click();
-  await expect(page.getByRole("table", { name: "Historical Played Lineup" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Acceptance Blue Lineup" })).toBeVisible();
   await expect(page.getByText("Hidden", { exact: true })).toHaveCount(0);
   await expect(page.getByText("5 / 2 / 7", { exact: true })).toHaveCount(10);
   await page.goto("/teams/pandascore%3Ateam%3A10");
   await expect(page.getByRole("link", { name: /Observed Player/ })).toBeVisible();
+  await page.goto("/history?view=games");
+  const recentGame = page.getByRole("table", { name: "Historical Games" }).getByRole("row").nth(1);
+  await expect(recentGame.getByText("vs", { exact: true })).toBeVisible();
+  await expect(recentGame.getByText("Winner", { exact: true })).toBeVisible();
+  if (page.viewportSize()!.width >= 1050) {
+    const bar = page.getByRole("navigation", { name: "Past Matches View" });
+    const filter = page.getByRole("searchbox", { name: "Filter Games" });
+    const [toggles, input] = await Promise.all([bar.boundingBox(), filter.boundingBox()]);
+    expect(Math.abs(toggles!.y + toggles!.height - input!.y - input!.height)).toBeLessThan(2);
+  }
   await page.goto("/history?year=2014");
   await expect(page.getByText("No Past Matches in This View")).toBeVisible();
   await page.getByRole("link", { name: "Games", exact: true }).click();
@@ -283,7 +293,9 @@ test("a finished match loads its paused replay and keeps an external fallback", 
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
   await page.goto("/matches/pandascore%3Amatch%3A1");
-  await expect(page.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
+  const replay = page.locator("summary").filter({ hasText: /^Watch Replay$/ });
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await replay.click();
   await expect(page.locator("iframe")).toHaveCount(1);
   await expect(page.locator("iframe")).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
   // The stored Twitch channel would show whatever is live now, so it is not offered.
@@ -606,6 +618,10 @@ test("a pro game shows the coarse checkpoint win probability section with reveal
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
   const reveal = page.getByRole("button", { name: "Reveal Game Statistics" });
   if (await reveal.isVisible()) await reveal.click();
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Win Probability$/ })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
   ).toBeVisible();
@@ -658,7 +674,11 @@ test("keyboard navigation, accessible names and responsive layout", async ({ pag
     fullPage: false,
   });
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
-  await expect(page.getByRole("table", { name: "Historical Played Lineup" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Acceptance Blue Lineup" })).toBeVisible();
+  const top = page
+    .getByRole("table", { name: "Acceptance Blue Lineup" })
+    .getByRole("img", { name: "Top", exact: true });
+  await expect(top).toHaveCSS("background-image", /url\(.*\.png/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

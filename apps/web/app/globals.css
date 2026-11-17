@@ -262,8 +262,8 @@
 .ev-inline-stream .ev-watch-player {
   display: grid;
   width: 100%;
-  max-width: 1100px;
-  grid-template-columns: minmax(0, 840px) minmax(160px, 200px);
+  max-width: 780px;
+  grid-template-columns: minmax(0, 560px) minmax(160px, 200px);
   grid-template-rows: auto 1fr;
   gap: var(--space-4);
   align-items: start;
@@ -454,7 +454,7 @@
     grid-row: 3;
   }
   .ev-inline-stream .ev-watch-player {
-    max-width: 720px;
+    max-width: 560px;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto;
   }
@@ -760,46 +760,226 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
 }
-.ev-series-steps {
-  display: flex;
-  justify-content: space-between;
+.ev-series-overview {
+  display: grid;
+  align-items: start;
   gap: var(--space-4);
 }
-.ev-series-draft {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-4);
+
+.ev-compact-player,
+.ev-disclosure .ev-watch-player {
+  width: 100%;
+  max-width: 560px;
 }
-.ev-series-draft__side {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+
+.ev-disclosure {
+  min-width: 0;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
 }
-.ev-series-draft__side[data-side] {
-  border-block-start: 3px solid var(--np-team-side);
+
+.ev-disclosure > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-control);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  font-weight: var(--font-weight-medium);
 }
-.ev-series-draft__side h3 {
-  font-size: var(--font-size-md);
+
+.ev-disclosure > summary::-webkit-details-marker {
+  display: none;
 }
-.ev-series-draft__side dl {
+
+.ev-disclosure > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-inline: var(--space-1);
+  border: solid currentColor;
+  border-width: 0 1px 1px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.ev-disclosure[open] > summary::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.ev-disclosure__body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+@media (min-width: 1120px) {
+  .ev-series-overview:has(> .ev-disclosure[open]) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 580px);
+  }
+}
+
+.ev-game-meta {
+  padding-block: var(--space-2);
+}
+
+.ev-lineups {
   display: grid;
-  gap: var(--space-1);
-  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 395px), 1fr));
+  gap: var(--space-4);
+  align-items: start;
 }
-.ev-series-draft__side dl > div {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: var(--space-2);
+
+.ev-lineup-card {
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.ev-lineup-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-raised);
+  border-top: 3px solid var(--np-team-side);
+  border-radius: inherit;
+}
+
+.ev-lineup-card__side {
+  color: var(--np-team-side);
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
-.ev-series-draft__side dt {
+
+.ev-lineup-card[data-result="win"] {
+  --ev-lineup-result: var(--color-status-success);
+}
+
+.ev-lineup-card[data-result="loss"] {
+  --ev-lineup-result: var(--color-status-danger);
+}
+
+.ev-lineup-card[data-result] tbody tr {
+  background: color-mix(in srgb, var(--ev-lineup-result) 10%, var(--color-bg-canvas));
+}
+
+.ev-lineup-card .np-table {
+  min-width: 0;
+}
+
+.ev-lineup-card .np-table :is(th, td) {
+  padding-inline: var(--space-2);
+}
+
+.ev-lineup-card .np-identity--player .np-avatar {
+  width: 24px;
+  height: 24px;
+}
+
+.ev-lineup-card .np-identity__copy strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ev-draft-order {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-3);
+}
+
+.ev-draft-phase {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.ev-draft-phase h3 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.ev-draft-phase ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.ev-draft-phase li {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--color-bg-surface);
+  border-top: 2px solid var(--np-team-side);
+  border-radius: var(--radius-sm);
+}
+
+.ev-draft-slot {
+  color: var(--np-team-side);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+}
+
+.ev-history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3) var(--space-6);
+  padding-block: var(--space-3);
+  border-block: 1px solid var(--color-border-subtle);
+}
+
+.ev-history-toolbar .ev-view-switch {
+  align-self: end;
+}
+
+.ev-history-toolbar > .ev-filters {
+  display: flex;
+  flex: 1 1 440px;
+  align-items: end;
+  padding: 0;
+  border: 0;
+}
+
+.ev-history-toolbar .ev-filters > .np-field:has(input[type="search"]) {
+  flex: 1 1 180px;
+  min-width: min(100%, 180px);
+  max-width: none;
+}
+
+.ev-history-toolbar .ev-filters > .np-select {
+  min-width: 140px;
+}
+
+.ev-game-versus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 300px;
+}
+
+.ev-game-versus .np-identity:first-child {
+  flex-direction: row-reverse;
+  justify-self: end;
+  padding-inline: 0 var(--space-2);
+  border-inline: 0 solid var(--np-team-side);
+  border-inline-end-width: 3px;
+  text-align: right;
+}
+
+.ev-game-versus .np-identity:last-child {
+  justify-self: start;
+}
+
+.ev-game-versus__sep {
   color: var(--color-text-muted);
-}
-.ev-series-draft__side dd {
-  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
 }
 
 .ev-stat-strip {

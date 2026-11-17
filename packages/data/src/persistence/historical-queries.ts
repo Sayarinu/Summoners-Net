@@ -1,3 +1,4 @@
+import { deriveDraft, recordedDraftSide } from "../domain/draft-order.js";
 import { z } from "zod";
 import type { Pool } from "pg";
 import { coveredLeague } from "../domain/coverage.js";
@@ -258,19 +259,12 @@ export function historicalQueries(pool: Pool) {
           ORDER BY side,position`,
         [id],
       );
-      const draft = (["blue", "red"] as const).map((side) => {
-        const values =
-          participants.rows.find((participant) => participant.side === side)?.draft ?? {};
-        return {
-          side,
-          firstPick:
-            values.firstpick == null
-              ? null
-              : values.firstpick === "1" || values.firstpick.toLowerCase() === "true",
-          picks: [1, 2, 3, 4, 5].map((n) => values[`pick${n}`] ?? null),
-          bans: [1, 2, 3, 4, 5].map((n) => values[`ban${n}`] ?? null),
-        };
-      });
+      const draft = (["blue", "red"] as const).map((side) =>
+        recordedDraftSide(side, participants.rows),
+      );
+      const draftOrder = deriveDraft(row.summary_eligible, participants.rows).events.sort(
+        (a, b) => a.phase - b.phase || a.action.localeCompare(b.action) || a.slot - b.slot,
+      );
       return {
         ...listItem(row),
         context: {
@@ -283,6 +277,7 @@ export function historicalQueries(pool: Pool) {
           durationSeconds: row.duration_seconds,
         },
         draft,
+        draftOrder,
         participants: participants.rows.map((participant) => ({
           slot: participant.slot,
           side: participant.side,

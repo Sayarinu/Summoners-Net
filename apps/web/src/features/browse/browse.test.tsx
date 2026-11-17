@@ -156,6 +156,16 @@ describe("browse presentation", () => {
       false,
     );
   });
+  it("shows both sides around vs and marks the game winner only when scores are visible", () => {
+    const props = { view: "games" as const, games: page([game]), query: {}, now: instant };
+    const view = render(<PastMatchesPage {...props} hideSpoilers />);
+    expect(screen.getByText("vs", { exact: true })).toBeVisible();
+    expect(screen.queryByText("Winner")).toBeNull();
+    view.rerender(<PastMatchesPage {...props} hideSpoilers={false} />);
+    const winner = screen.getByText("Winner");
+    expect(winner.closest("a")).toHaveTextContent(blue.name);
+    expect(winner.closest("a")).toHaveAttribute("data-side", "blue");
+  });
   it("labels the broadcast action Watch Live only while a match is live", () => {
     render(
       <MatchesPage

@@ -9,10 +9,18 @@ import {
   PlayerIdentity,
   EmptyState,
 } from "@summonersnet/ui";
-import type { Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
+import type {
+  Game,
+  HistoricalGameDetail,
+  Profile,
+  BrowseQuery,
+  ProGameWinProbability,
+} from "@summonersnet/data";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 import { dateTime, identityHref, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
+import { Disclosure } from "./disclosure";
+import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
 import { seriesGameHref } from "./series";
@@ -22,11 +30,13 @@ export function GamePage({
   timezone,
   hideSpoilers,
   winProbability,
+  detail,
   portraits,
   vodUrl,
   series = null,
 }: {
   game: Game;
+  detail?: HistoricalGameDetail | null;
   timezone: string;
   hideSpoilers: boolean;
   portraits?: ChampionPortraits;
@@ -73,7 +83,12 @@ export function GamePage({
       </header>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       <LineupTable game={game} hidden={hidden} portraits={portraits} />
-      {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
+      {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
+      {!hidden && winProbability ? (
+        <Disclosure title="Win Probability">
+          <ProWinProbability winProbability={winProbability} />
+        </Disclosure>
+      ) : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
           Open in Series
@@ -224,7 +239,11 @@ export function ProfilePage({
             )}
           </>
         )}
-        <GamesTable games={profile.games.items} timezone={query.timezone ?? "UTC"} />
+        <GamesTable
+          games={profile.games.items}
+          timezone={query.timezone ?? "UTC"}
+          hideSpoilers={hideSpoilers}
+        />
         <Pages data={profile.games} />
       </section>
     </div>

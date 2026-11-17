@@ -53,19 +53,13 @@ export function SummonerSpellIcon(props: CatalogIconProps) {
   return <CatalogIcon {...props} kind="spell" />;
 }
 
-const lanePaths = new Map([
-  ["all", { label: "All Roles", path: "M6 6h4v4H6zm8 0h4v4h-4zm-8 8h4v4H6zm8 0h4v4h-4z" }],
-  ["top", { label: "Top", path: "M3 16V3h13l-4 4H7v5z" }],
-  [
-    "jungle",
-    {
-      label: "Jungle",
-      path: "M12 21c-4-4-8-7-9-13 4 1 6 3 7 6L12 3l2 11c1-3 3-5 7-6-1 6-5 9-9 13z",
-    },
-  ],
-  ["mid", { label: "Mid", path: "M4 16 16 4h4v4L8 20H4z" }],
-  ["bottom", { label: "Bottom", path: "M21 8v13H8l4-4h5v-5z" }],
-  ["support", { label: "Support", path: "m12 3 3 5 7-2-3 6-4 1 1 4-4 4-4-4 1-4-4-1-3-6 7 2z" }],
+const laneLabels = new Map([
+  ["all", "All Roles"],
+  ["top", "Top"],
+  ["jungle", "Jungle"],
+  ["mid", "Mid"],
+  ["bottom", "Bottom"],
+  ["support", "Support"],
 ]);
 
 const roleAliases = new Map([
@@ -80,28 +74,17 @@ const roleAliases = new Map([
 
 export function RoleIcon({ role }: { readonly role: string | null | undefined }) {
   const key = role?.toLowerCase() ?? "";
-  const lane = lanePaths.get(roleAliases.get(key) ?? key);
-  if (!lane)
-    return (
-      <span title="Unknown Role" role="img" aria-label="Unknown Role">
-        —
-      </span>
-    );
+  const position = roleAliases.get(key) ?? key;
+  const label = laneLabels.get(position);
   return (
-    <svg
-      aria-label={lane.label}
+    <span
       className="np-role-icon"
-      fill="currentColor"
+      data-position={label ? position : undefined}
       role="img"
-      viewBox="0 0 24 24"
-      width="20"
-      height="20"
+      aria-label={label ?? "Unknown Role"}
+      title={label ?? "Unknown Role"}
     >
-      <title>{lane.label}</title>
-      {lane.label !== "Jungle" && lane.label !== "Support" && (
-        <path d="M3 3h18v18H3z" fill="none" stroke="currentColor" strokeOpacity=".35" />
-      )}
-      <path d={lane.path} />
-    </svg>
+      {label ? <span className="np-visually-hidden">{label}</span> : "—"}
+    </span>
   );
 }
