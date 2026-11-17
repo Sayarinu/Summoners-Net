@@ -15,6 +15,9 @@ export const championRoles = [
   "UNKNOWN",
   "ALL",
 ] as const;
+/** The five lane roles a champion's games are split across. */
+export const championLaneRoles = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
+export type ChampionLaneRole = (typeof championLaneRoles)[number];
 /** Filters for champion aggregates; the patch defaults to the newest with data. */
 export const championStatsQuerySchema = z
   .object({
@@ -138,8 +141,22 @@ export interface ChampionOverview {
   shrunkWinRate: SampledValue;
   baseline: number | null;
   tier: ChampionTier | null;
-  /** Oldest to newest; a patch without data has a null win rate and zero games. */
-  trend: { patch: string; winRate: SampledValue; games: number }[];
+  /**
+   * Oldest to newest; a patch without data has null rates and zero games. Pick and ban rates
+   * share each patch's slice of games as their sample.
+   */
+  trend: {
+    patch: string;
+    winRate: SampledValue;
+    pickRate: SampledValue;
+    banRate: SampledValue;
+    games: number;
+  }[];
+  /**
+   * The champion's games in each lane role on this patch and slice, most played first, with the
+   * share of its games across lane roles. Empty when it has no role-specific games.
+   */
+  roles: { role: ChampionLaneRole; games: number; share: SampledValue }[];
   facets: { patches: string[]; regions: string[]; tiers: string[] };
   /** Solo-queue builds from timelines; null for pro play, which has no item events. */
   builds: ChampionBuilds | null;

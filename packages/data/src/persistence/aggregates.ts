@@ -3,10 +3,12 @@ import { rebuildBlindability } from "./blindability.js";
 import { championPlayers } from "./champion-players.js";
 import type { Pool } from "pg";
 import {
+  championLaneRoles,
   championOverviewQuerySchema,
   championStatsQuerySchema,
   tierFromDelta,
   tierListQuerySchema,
+  type ChampionLaneRole,
   type ChampionOverview,
   type ChampionOverviewQuery,
   type TierList,
@@ -446,16 +448,52 @@ export async function championOverview(
   ).rows.map((r) => r.patch_key);
   const points = new Map(
     (
-      await db.query<{ patch_key: string; wins: number; result_games: number; games: number }>(
-        `SELECT patch_key,sum(wins)::integer AS wins,sum(result_games)::integer AS result_games,
-           sum(games)::integer AS games FROM champion_aggregates
-         WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
-           AND role=$4 AND champion_key=$5 AND patch_key=ANY($6::text[])
-         GROUP BY patch_key`,
+      await db.query<{
+        patch_key: string;
+        wins: number;
+        result_games: number;
+        games: number;
+        bans: number | null;
+        slice_games: number;
+      }>(
+        `WITH own AS (
+           SELECT patch_key,sum(wins)::integer AS wins,sum(result_games)::integer AS result_games,
+             sum(games)::integer AS games,sum(bans)::integer AS bans FROM champion_aggregates
+           WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
+             AND role=$4 AND champion_key=$5 AND patch_key=ANY($6::text[])
+           GROUP BY patch_key
+         ), slice AS (
+           SELECT patch_key,sum(n)::integer AS slice_games FROM (
+             SELECT DISTINCT patch_key,queue,region,tier,slice_games AS n FROM champion_aggregates
+             WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
+               AND patch_key=ANY($6::text[])) s
+           GROUP BY patch_key
+         ) SELECT own.*,coalesce(slice.slice_games,0) AS slice_games
+           FROM own LEFT JOIN slice USING (patch_key)`,
         [...filters, champion.champion_key, span],
       )
     ).rows.map((r) => [r.patch_key, r]),
   );
+  // Games in each lane role, for the role tabs and the default role of the matchup summary.
+  const roleGames = list.patch
+    ? (
+        await db.query<{ role: ChampionLaneRole; games: number }>(
+          `SELECT role,sum(games)::integer AS games FROM champion_aggregates
+           WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
+             AND role=ANY($4::text[]) AND champion_key=$5 AND patch_key=$6
+           GROUP BY role HAVING sum(games)>0 ORDER BY games DESC,role`,
+          [
+            q.source,
+            q.region ?? null,
+            q.tier ?? null,
+            [...championLaneRoles],
+            champion.champion_key,
+            list.patch,
+          ],
+        )
+      ).rows
+    : [];
+  const laneGames = roleGames.reduce((sum, r) => sum + r.games, 0);
   const winRate = wilsonInterval(own?.wins ?? null, own?.result_games ?? null);
   return {
     query: q,
@@ -491,8 +529,21 @@ export async function championOverview(
           value: p?.result_games ? p.wins / p.result_games : null,
           sampleCount: p?.result_games ?? 0,
         },
+        pickRate: {
+          value: p?.slice_games ? p.games / p.slice_games : null,
+          sampleCount: p?.slice_games ?? 0,
+        },
+        banRate: {
+          value: p?.slice_games && p.bans !== null ? p.bans / p.slice_games : null,
+          sampleCount: p?.slice_games && p.bans !== null ? p.slice_games : 0,
+        },
       };
     }),
+    roles: roleGames.map((r) => ({
+      role: r.role,
+      games: r.games,
+      share: { value: r.games / laneGames, sampleCount: laneGames },
+    })),
     facets: list.facets,
     builds:
       q.source === "solo" && list.patch

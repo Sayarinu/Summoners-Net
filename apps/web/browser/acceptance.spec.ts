@@ -332,20 +332,26 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/\/champions\/Ahri$/);
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   const stats = page.getByRole("region", { name: "Champion Statistics" });
-  await expect(stats).toContainText("Patch 16.4");
-  await expect(stats).toContainText("Win rate · 1 results");
+  await expect(page.getByText("Build, Runes and Counters · Patch 16.4")).toBeVisible();
+  await expect(stats).toContainText("1 Results100.0%");
   await expect(stats).toContainText("Tier");
-  await expect(page.getByText("Ahri win rate by patch").first()).toBeAttached();
+  await expect(page.getByRole("img", { name: "Ahri Pick Rate by Patch" })).toContainText("16.4");
   // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.
+  const build = page.getByRole("region", { name: "Most Common Build" });
+  await expect(build.getByRole("region", { name: "Starting Items" })).toContainText(
+    "Too Few Games (1)",
+  );
+  await expect(build.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  await page.getByText("All Builds, Runes and Skills").click();
   const start = page.getByRole("table", { name: "Starting Items" });
   await expect(start).toContainText("Doran's Ring");
-  await expect(start).toContainText("Too Few Games (1)");
   await expect(page.getByRole("table", { name: "Keystones" })).toContainText("Electrocute");
   await expect(page.getByRole("table", { name: "Summoner Spells" })).toContainText("Flash");
   // The seeded timeline levels Ahri's Q once: too few skill-ups to decide an order.
   await expect(page.getByText(/1 for the first levels, 1 for the max order/)).toBeVisible();
+  // One game is below the minimum sample for every bucket.
   await expect(page.getByRole("region", { name: "When It Wins" })).toContainText(
-    "30–35 min · 1 game",
+    "No bucket has enough results yet.",
   );
   // Ahri's four teammates from the seeded game; the catalog fixture names only a few champions.
   await expect(page.getByRole("table", { name: "Allies" })).toContainText("Champion 412");
@@ -357,14 +363,19 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/source=solo/);
   await expect(page.getByText("Bot-Lane Pairs: Win Rate (%)").first()).toBeAttached();
   // The seeded pro draft picks Ahri once.
-  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence · 1 games100.0%");
+  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence1 Games100.0%");
   await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
   await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
   await page.getByRole("button", { name: "Apply League" }).click();
   await expect(page).toHaveURL(/league=Draft\+acceptance/);
-  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / bans1 / 0");
+  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / BansDrafts1 / 0");
   await page.goto("/champions/Ahri?source=pro");
-  await expect(page.getByText("Pro play · All roles")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Source" }).locator('[aria-current="page"]'),
+  ).toHaveText("Pro Play");
+  await expect(
+    page.getByRole("navigation", { name: "Role" }).locator('[aria-current="page"]'),
+  ).toHaveText("All Roles");
   const missing = await page.goto("/champions/NotAChampion");
   expect(missing?.status()).toBe(404);
 });

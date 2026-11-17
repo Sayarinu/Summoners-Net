@@ -27,6 +27,8 @@ export interface ChartProps {
   readonly xLabel?: string;
   readonly yLabel?: string;
   readonly markers?: readonly ChartMarker[];
+  /** Labels for x values, such as patch names, drawn along the x-axis in place of its range. */
+  readonly xTicks?: readonly { readonly x: number; readonly label: string }[];
 }
 
 export interface HeatGridCell {
@@ -103,6 +105,7 @@ function CartesianChart({
   xLabel = "X",
   yLabel = "Value",
   markers = [],
+  xTicks,
   kind,
 }: ChartProps & { readonly kind: "line" | "bar" | "scatter" | "sparkline" }) {
   const compact = kind === "sparkline";
@@ -166,7 +169,28 @@ function CartesianChart({
           <text x={left} y={14}>
             {yLabel}
           </text>
-          {kind !== "bar" ? (
+          {kind !== "bar" && xTicks ? (
+            xTicks
+              .filter((tick) => known(tick.x))
+              .map((tick, index, ticks) => (
+                <text
+                  key={`${tick.x}:${tick.label}`}
+                  x={scale(tick.x, xDomain, left, right)}
+                  y={270}
+                  textAnchor={
+                    ticks.length === 1
+                      ? "middle"
+                      : index === 0
+                        ? "start"
+                        : index === ticks.length - 1
+                          ? "end"
+                          : "middle"
+                  }
+                >
+                  {tick.label}
+                </text>
+              ))
+          ) : kind !== "bar" ? (
             <>
               <text x={left} y={270}>
                 {display(xDomain[0])}

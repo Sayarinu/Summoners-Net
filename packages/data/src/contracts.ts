@@ -21,6 +21,7 @@ export { draftQuerySchema } from "./domain/drafts.js";
 export {
   championStatsQuerySchema,
   championRoles,
+  championLaneRoles,
   tierListQuerySchema,
   tierListSorts,
   championOverviewQuerySchema,
@@ -34,6 +35,7 @@ export type {
   ChampionOverview,
   ChampionOverviewQuery,
   ChampionTier,
+  ChampionLaneRole,
 } from "./domain/champion-stats.js";
 export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
 export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";

@@ -3,7 +3,9 @@ import {
   championOverviewQuerySchema,
   matchupRoles,
   tierListQuerySchema,
+  type MatchupRow,
 } from "@summonersnet/data/contracts";
+import type { MatchupSummary } from "../features/champions/presentation";
 import { data } from "./data";
 
 // "all" (and an empty value) means no filter for that field.
@@ -62,5 +64,56 @@ export async function loadChampionOverview(
           patch: overview.patch,
         })
       : null;
-  return { overview, draftValue, junglePaths, error: parsed.success ? null : filterError };
+  // Best and worst lane matchups: the selected role, or the champion's most played one.
+  const matchupRole = role ?? overview.roles[0]?.role;
+  const matchupSummary =
+    matchupRole && overview.patch
+      ? await loadMatchupSummary(overview.champion.id, {
+          source: overview.query.source,
+          patch: overview.patch,
+          role: matchupRole,
+        })
+      : null;
+  return {
+    overview,
+    draftValue,
+    junglePaths,
+    matchupSummary,
+    error: parsed.success ? null : filterError,
+  };
+}
+
+const summarySize = 5;
+/**
+ * The opponents with the highest and lowest shrunk win rates, among those with enough games for
+ * an estimate. Sorting and the minimum sample are applied in SQL.
+ */
+async function loadMatchupSummary(
+  champion: string,
+  scope: { source: "solo" | "pro"; patch: string; role: (typeof matchupRoles)[number] },
+): Promise<MatchupSummary | null> {
+  const page = (order: "asc" | "desc") =>
+    data().championMatchups({
+      ...scope,
+      champion,
+      sort: "winRate",
+      value: "shrunk",
+      order,
+      pageSize: summarySize,
+    });
+  const [best, worst] = await Promise.all([page("desc"), page("asc")]);
+  if (!best || !worst || best.patch !== scope.patch) return null;
+  const known = (rows: MatchupRow[]) => rows.filter((r) => r.metrics.winRate.shrunk !== null);
+  // An opponent is a strength above the champion's own win rate and a weakness below it.
+  const above = (r: MatchupRow) => r.metrics.winRate.shrunk! >= (r.metrics.winRate.baseline ?? 0.5);
+  const strong = known(best.page.items).filter(above);
+  const weak = known(worst.page.items).filter((r) => !above(r));
+  return {
+    role: scope.role,
+    source: scope.source,
+    patch: scope.patch,
+    opponents: best.page.total,
+    best: strong,
+    worst: weak,
+  };
 }
