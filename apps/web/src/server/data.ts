@@ -2,7 +2,7 @@ import "server-only";
 import { createQueries, querySchema, type BrowseQuery } from "@summonersnet/data";
 import { createSync } from "@summonersnet/data/sync";
 import { cookies } from "next/headers";
-import { parsePreferences } from "../features/preferences/model";
+import { parsePreferences, preferencesCookie } from "../features/preferences/model";
 const globalData = globalThis as typeof globalThis & {
   viewerQueries?: ReturnType<typeof createQueries>;
   viewerSync?: ReturnType<typeof createSync>;
@@ -19,7 +19,7 @@ export function synchronization() {
   return (globalData.viewerSync ??= createSync(connection()));
 }
 export async function preferencesState() {
-  const cookie = (await cookies()).get("viewer-preferences");
+  const cookie = (await cookies()).get(preferencesCookie);
   return {
     hasSavedPreferences: Boolean(cookie),
     value: parsePreferences(cookie?.value),

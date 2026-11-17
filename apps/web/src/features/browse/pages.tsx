@@ -4,7 +4,7 @@ import { MatchRow, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
 import { InlineMatchStream } from "./inline-stream";
-import { identityHref, localDate, matchDisplay } from "./presentation";
+import { identityHref, matchDisplay } from "./presentation";
 import { preferencesChangedEvent } from "../preferences/model";
 
 const matchSections = [
@@ -56,58 +56,50 @@ export function MatchesPage({
           (section.states as readonly string[]).includes(match.state),
         );
         if (!sectionItems.length) return null;
-        const groups = Object.groupBy(sectionItems, (match) =>
-          match.startsAt ? localDate(match.startsAt, timezone) : "Date to be confirmed",
-        );
         return (
           <section key={section.id} className="ev-match-section">
             <h2>{section.label}</h2>
-            {Object.entries(groups).map(([date, items]) => (
-              <section key={date} className="ev-match-group">
-                <h3>{date}</h3>
-                {items?.map((match) => {
-                  const streamOpen = openStreamId === match.id;
-                  const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
-                  const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-                  return (
-                    <div key={match.id}>
-                      <MatchRow
-                        match={matchDisplay(match, timezone, now)}
-                        spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
-                        onSpoilerReveal={() => setRevealed([...revealed, match.id])}
-                        streamAction={
-                          match.broadcasts.length > 0 ? (
-                            <button
-                              aria-controls={streamOpen ? streamPanelId : undefined}
-                              aria-expanded={streamOpen}
-                              aria-label={streamOpen ? "Close Stream" : watchLabel}
-                              className="ev-watch-toggle"
-                              onClick={() =>
-                                setOpenStreamId((current) =>
-                                  current === match.id ? null : match.id,
-                                )
-                              }
-                              type="button"
-                            >
-                              {watchLabel}
-                            </button>
-                          ) : undefined
-                        }
-                        expandedContent={
-                          streamOpen ? (
-                            <InlineMatchStream broadcasts={match.broadcasts} id={streamPanelId} />
-                          ) : undefined
-                        }
-                      />
-                      {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
-                        (match.state === "live" ? 300000 : 1200000) && (
-                        <p className="ev-row-note">Saved observation · refresh overdue</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </section>
-            ))}
+            <div className="ev-match-group">
+              {sectionItems.map((match) => {
+                const streamOpen = openStreamId === match.id;
+                const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
+                const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+                return (
+                  <div key={match.id}>
+                    <MatchRow
+                      match={matchDisplay(match, timezone, now)}
+                      spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
+                      onSpoilerReveal={() => setRevealed([...revealed, match.id])}
+                      streamAction={
+                        match.broadcasts.length > 0 ? (
+                          <button
+                            aria-controls={streamOpen ? streamPanelId : undefined}
+                            aria-expanded={streamOpen}
+                            aria-label={streamOpen ? "Close Stream" : watchLabel}
+                            className="ev-watch-toggle"
+                            onClick={() =>
+                              setOpenStreamId((current) => (current === match.id ? null : match.id))
+                            }
+                            type="button"
+                          >
+                            {watchLabel}
+                          </button>
+                        ) : undefined
+                      }
+                      expandedContent={
+                        streamOpen ? (
+                          <InlineMatchStream broadcasts={match.broadcasts} id={streamPanelId} />
+                        ) : undefined
+                      }
+                    />
+                    {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
+                      (match.state === "live" ? 300000 : 1200000) && (
+                      <p className="ev-row-note">Saved observation · refresh overdue</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
         );
       })}

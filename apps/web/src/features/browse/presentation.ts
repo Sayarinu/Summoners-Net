@@ -1,13 +1,5 @@
 import type { Match, Game, Identity } from "@summonersnet/data";
 import type { MatchDisplay, MatchTeam } from "@summonersnet/ui";
-export function localDate(iso: string, timezone: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
 export function dateTime(iso: string | null, timezone: string) {
   return iso
     ? new Intl.DateTimeFormat("en-US", {
