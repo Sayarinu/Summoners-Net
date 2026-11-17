@@ -80,12 +80,7 @@ export function DraftsPage({
       ) : !analytics || !query ? (
         <EmptyState
           title="No Draft Data Yet"
-          description={
-            <span>
-              Import Oracle’s Elixir games and refresh metadata in{" "}
-              <TextLink href="/sources">Sources</TextLink>. Draft analytics update after imports.
-            </span>
-          }
+          description="Draft analytics appear once pro games and champion metadata are stored."
         />
       ) : (
         <>

@@ -3,7 +3,6 @@ import { it, expect, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   cookie: undefined as string | undefined,
   createQueries: vi.fn().mockReturnValue({ matches: () => [] }),
-  createSync: vi.fn().mockReturnValue({ request: () => "1" }),
 }));
 vi.mock("next/headers", () => ({
   cookies: () =>
@@ -15,8 +14,7 @@ vi.mock("@summonersnet/data", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createQueries: mocks.createQueries,
 }));
-vi.mock("@summonersnet/data/sync", () => ({ createSync: mocks.createSync }));
-import { data, synchronization, preferences, browseQuery, sourceIdFromRoute } from "./data";
+import { data, preferences, browseQuery, sourceIdFromRoute } from "./data";
 import { defaultPreferences } from "../features/preferences/model";
 it("loads validated preferences and query filters without passing blank controls", async () => {
   expect(await preferences()).toMatchObject({
@@ -30,14 +28,12 @@ it("loads validated preferences and query filters without passing blank controls
   });
   await expect(browseQuery(Promise.resolve({ page: "bad" }))).rejects.toThrow();
 });
-it("requires server-only configuration and reuses query/queue clients", () => {
+it("requires server-only configuration and reuses the query client", () => {
   vi.stubEnv("DATABASE_URL", "");
   expect(() => data()).toThrow("Set DATABASE_URL");
   vi.stubEnv("DATABASE_URL", "postgresql://localhost/esportsviewer_test");
   expect(data()).toBe(data());
-  expect(synchronization()).toBe(synchronization());
   expect(mocks.createQueries).toHaveBeenCalledTimes(1);
-  expect(mocks.createSync).toHaveBeenCalledTimes(1);
   vi.unstubAllEnvs();
 });
 

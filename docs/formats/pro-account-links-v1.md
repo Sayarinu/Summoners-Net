@@ -1,11 +1,11 @@
 # Pro account links, version 1
 
-Import this UTF-8 JSON file from **Sources & imports → Import pro account links**. The browser
-uploads it only to the local application, which queues a worker job. The worker validates the entire
-file and resolves exact stored source IDs before one transaction writes any links. A malformed row,
-unknown player or conflicting target rejects the whole file. The job reports the failing field or
-one-based link number, and previous links remain unchanged. Field paths such as `links.0.evidence`
-use zero-based JSON array indexes.
+Import this UTF-8 JSON file with `pnpm queue pro-account-links /path/to/links.json`, which queues a
+worker job with the file's absolute path. The worker validates the entire file and resolves exact
+stored source IDs before one transaction writes any links. A malformed row, unknown player or
+conflicting target rejects the whole file. The job reports the failing field or one-based link
+number, and previous links remain unchanged. Field paths such as `links.0.evidence` use zero-based
+JSON array indexes.
 
 ## Shape
 

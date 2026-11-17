@@ -131,7 +131,7 @@ it("explains empty and invalid states and shows losses", () => {
     />,
   );
   expect(screen.getByText("No Linked Solo Queue Games")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("href", "/sources");
+  expect(screen.queryByRole("link", { name: "Sources" })).not.toBeInTheDocument();
   view.rerender(<ProFeedPage feed={null} error="Invalid filters" timezone="UTC" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid filters");
   view.rerender(

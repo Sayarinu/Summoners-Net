@@ -29,12 +29,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
       ) : !list?.patch ? (
         <EmptyState
           title="No Champion Statistics Yet"
-          description={
-            <span>
-              Statistics appear once games are ingested and aggregated. See{" "}
-              <TextLink href="/sources">Sources</TextLink>.
-            </span>
-          }
+          description="Statistics appear once games are stored and aggregated."
         />
       ) : (
         <section className="np-stack" aria-label="Tier List">

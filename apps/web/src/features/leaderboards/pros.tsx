@@ -71,13 +71,7 @@ export function ProFeedPage({
           {feed.page.total === 0 ? (
             <EmptyState
               title="No Linked Solo Queue Games"
-              description={
-                <span>
-                  No imported account links or matching ranked solo games are stored for these
-                  filters. Import evidence links and crawl games in{" "}
-                  <TextLink href="/sources">Sources</TextLink>, or clear the filters.
-                </span>
-              }
+              description="No pro account links or matching ranked solo games are stored for these filters yet. Try clearing the filters."
             />
           ) : (
             <>

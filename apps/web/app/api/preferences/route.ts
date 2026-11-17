@@ -1,2 +1,2 @@
-import { mutate } from "../../../src/server/http";
-export const POST = (request: Request) => mutate(request, "preferences");
+import { savePreferences } from "../../../src/server/http";
+export const POST = savePreferences;

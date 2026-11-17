@@ -1,33 +1,9 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { synchronization } from "./data";
 import {
   legacyPreferencesCookie,
   preferencesCookie,
   preferencesSchema,
 } from "../features/preferences/model";
-const refreshSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.enum([
-        "matches",
-        "running",
-        "rosters",
-        "metadata",
-        "entities",
-        "riot-key",
-        "riot-match-ids",
-        "wp-train",
-      ]),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("history"),
-      year: z.number().int().min(2014).max(2100),
-    })
-    .strict(),
-]);
 export function localRequest(request: Request) {
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
@@ -43,7 +19,7 @@ export function localRequest(request: Request) {
     return false;
   }
 }
-export async function mutate(request: Request, kind: "refresh" | "preferences") {
+export async function savePreferences(request: Request) {
   if (!localRequest(request))
     return NextResponse.json({ error: "Local same-origin requests only." }, { status: 403 });
   try {
@@ -53,18 +29,6 @@ export async function mutate(request: Request, kind: "refresh" | "preferences") 
     if (text.length > 4096)
       return NextResponse.json({ error: "Request too large." }, { status: 413 });
     const raw: unknown = JSON.parse(text);
-    if (kind === "refresh") {
-      const input = refreshSchema.parse(raw);
-      const current =
-        input.kind === "history" && input.year === new Date().getUTCFullYear()
-          ? process.env.ORACLE_CURRENT_FILE
-          : undefined;
-      const id = await synchronization().request({
-        ...input,
-        ...(current ? { file: current } : {}),
-      });
-      return NextResponse.json({ id, state: "queued" }, { status: 202 });
-    }
     const prefs = preferencesSchema.parse(raw);
     const response = NextResponse.json({ saved: true });
     response.cookies.delete(legacyPreferencesCookie);
@@ -75,18 +39,8 @@ export async function mutate(request: Request, kind: "refresh" | "preferences") 
       maxAge: 31536000,
     });
     return response;
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof z.ZodError || error instanceof SyntaxError
-            ? "Invalid request."
-            : "Local database unavailable.",
-      },
-      {
-        status: error instanceof z.ZodError || error instanceof SyntaxError ? 400 : 503,
-      },
-    );
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 }
 

@@ -76,10 +76,9 @@ fields or silently discard unknown-version data.
 
 ## Importing
 
-On Sources & imports, choose **Replay track JSON**, then **Queue track import**. The browser sends
-the original file bytes to the local upload endpoint; it does not parse frames, fetch providers or
-write track rows. Uploads are streamed with a 64 MiB file limit plus bounded multipart overhead,
-saved privately under a content hash, and queued for the worker.
+Run `pnpm queue replay-track /path/to/track.json`. The command queues a worker job with the file's
+absolute path; it does not parse frames, fetch providers or write track rows. The file limit is 64
+MiB.
 
 The worker reads bounded UTF-8 bytes, validates every sample using the schema, and stores the whole
 track in one transaction. Re-importing the same platform, game ID and format version replaces that

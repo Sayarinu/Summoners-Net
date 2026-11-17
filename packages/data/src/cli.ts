@@ -1,6 +1,7 @@
 import { keepReplayFilesSchema } from "./domain/replays.js";
 import { createSync } from "./sync/index.js";
 import { trainOnDemand } from "./sync/train-command.js";
+import { queueCommand } from "./sync/queue-command.js";
 import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -118,6 +119,12 @@ try {
       ...(file ? { file } : {}),
     });
     process.stdout.write(`Queued history job ${id}. Run pnpm sync:once or pnpm sync.\n`);
+  } else if (command === "queue") {
+    const id = await queueCommand(args, {
+      request: (request) => sync.request(request),
+      importDirectory: resolve(process.cwd(), ".local/imports"),
+    });
+    process.stdout.write(`Queued ${args[0]} job ${id}. Run pnpm sync:once or pnpm sync.\n`);
   } else if (command === "once" || command === "work") {
     let first = true;
     do {
@@ -140,7 +147,7 @@ try {
     }
   } else
     throw new Error(
-      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, status",
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, queue KIND [FILE], status",
     );
 } finally {
   await sync.close();
