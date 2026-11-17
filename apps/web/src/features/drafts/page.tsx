@@ -51,6 +51,7 @@ export function DraftsPage({
           <p>Pick and ban priority, role order and first-pick results.</p>
         </div>
       </header>
+      <TextLink href="/drafts/assistant">Draft assistant</TextLink>
       <form
         action="/drafts"
         method="get"

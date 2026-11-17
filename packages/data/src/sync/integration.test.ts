@@ -6153,6 +6153,77 @@ describe("lane matchup aggregates", () => {
     );
     expect(rows[0]!.n).toBe(5);
   });
+  it("ranks draft candidates from stored matchups, blindability and duos, excluding picks and bans", async () => {
+    await catalog();
+    for (let n = 0; n < 10; n++) await game(20, n < 8, 0);
+    for (let n = 0; n < 10; n++) await game(62, n < 2, 0);
+    for (let n = 0; n < 10; n++) await game(64, n < 5, 0);
+    for (let n = 0; n < 2; n++) await game(200, false, 0);
+    await aggregate();
+    const calls = fetcher.mock.calls.length;
+    // Ahri wins 15 of 32 across her lane opponents and 8 of 10 against Nunu.
+    const laneDraft = await queries.draftAssistant({
+      role: "MIDDLE",
+      red: "Nunu:MIDDLE",
+      bans: "MonkeyKing,Zzz",
+    });
+    expect(laneDraft).toMatchObject({
+      patch: "16.22",
+      unknownChampions: ["Zzz"],
+      laneOpponent: { championKey: 20, championId: "Nunu" },
+      synergyAllies: [],
+    });
+    expect(laneDraft.candidates.map((c) => c.champion.championKey)).toEqual([103, 64, 200]);
+    const [ahri, , unmet] = laneDraft.candidates;
+    expect(ahri).toMatchObject({
+      champion: { championId: "Ahri" },
+      blindability: null,
+      synergy: null,
+      parts: 1,
+    });
+    expect(ahri!.matchup!.sampleCount).toBe(10);
+    expect(ahri!.matchup!.value).toBeCloseTo((8 + (50 * 15) / 32) / 60 - 0.5, 12);
+    expect(ahri!.score).toBe(ahri!.matchup!.value);
+    // Never met the picked laner: zero observations and no score, rather than a zero score.
+    expect(unmet).toMatchObject({
+      matchup: { value: null, sampleCount: 0 },
+      score: null,
+      parts: 0,
+    });
+
+    // Blind, with Nunu as a jungle ally: blindability and synergy from seeded duo slices.
+    await pool.query(
+      `INSERT INTO champion_aggregates(source,patch_key,queue,region,tier,champion_key,role,games,
+        result_games,wins,bans,slice_games,win_rate,pick_rate,ban_rate,built_at)
+       VALUES ('solo','16.22','420','euw1','GOLD',20,'JUNGLE',40,40,22,0,100,0.55,0.4,0,$1)`,
+      [now],
+    );
+    await pool.query(
+      `INSERT INTO champion_duos(patch_key,queue,region,tier,champion_key,role,ally_key,ally_role,
+        games,result_games,wins,built_at)
+       VALUES ('16.22','420','euw1','GOLD',103,'MIDDLE',20,'JUNGLE',30,30,20,$1),
+         ('16.22','420','kr','GOLD',103,'MIDDLE',20,'JUNGLE',10,10,4,$1)`,
+      [now],
+    );
+    const { rows } = await pool.query<{ rate: number }>(
+      `SELECT sum(wins)::double precision/sum(result_games) AS rate FROM champion_aggregates
+       WHERE source='solo' AND patch_key='16.22' AND champion_key=103 AND role='MIDDLE'`,
+    );
+    const expected = rows[0]!.rate + 0.55 - 0.5;
+    const blind = await queries.draftAssistant({ role: "MIDDLE", blue: "Nunu:JUNGLE" });
+    expect(blind).toMatchObject({ laneOpponent: null, synergyAllies: [{ championKey: 20 }] });
+    const ahriBlind = blind.candidates.find((c) => c.champion.championKey === 103)!;
+    const synergy = ((24 / 40 - expected) * 40) / 90;
+    expect(ahriBlind.synergy).toEqual({ value: expect.closeTo(synergy, 12), sampleCount: 40 });
+    expect(ahriBlind.blindability!.sampleCount).toBe(30);
+    expect(ahriBlind.score).toBeCloseTo((ahriBlind.blindability!.value! + synergy) / 2, 12);
+    expect(blind.candidates.some((c) => c.champion.championKey === 20)).toBe(false);
+    // Pro play has no duo samples and no stored scores here.
+    expect(
+      await queries.draftAssistant({ role: "MIDDLE", source: "pro", blue: "Nunu:JUNGLE" }),
+    ).toMatchObject({ patch: null, synergyAllies: [], candidates: [] });
+    expect(fetcher.mock.calls.length).toBe(calls);
+  });
   it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {
     await catalog();
     const rows: string[] = [];

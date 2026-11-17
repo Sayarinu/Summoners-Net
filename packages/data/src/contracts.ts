@@ -174,3 +174,11 @@ export {
   type CounterPickReason,
   type CounterPickRow,
 } from "./domain/blindability.js";
+
+export {
+  draftAssistantQuerySchema,
+  type DraftAssistant,
+  type DraftAssistantQuery,
+  type DraftCandidate,
+  type DraftPart,
+} from "./domain/draft-assistant.js";

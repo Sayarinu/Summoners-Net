@@ -62,22 +62,29 @@ export async function rebuildBlindability(
     ]);
   }
   const scores = [...roles].flatMap(([role, { picks, samples }]) =>
-    [...roleDraftValues(samples, picks)].map(([championKey, value]) => ({
-      role,
-      championKey,
-      ...value,
-    })),
+    [...roleDraftValues(samples, picks)].map(([championKey, value]) => {
+      const matchups = samples.get(championKey)!;
+      const counted = matchups.filter((m) => m.winRate.total !== null);
+      return {
+        role,
+        championKey,
+        ...value,
+        winTotal: counted.length ? counted.reduce((s, m) => s + m.winRate.total!, 0) : null,
+        winCount: matchups.reduce((s, m) => s + m.winRate.count, 0),
+      };
+    }),
   );
   if (scores.length === 0) return 0;
   const column = <K extends keyof (typeof scores)[number]>(k: K) => scores.map((s) => s[k]);
   const inserted = await c.query(
     `INSERT INTO blindability_scores(source,patch_key,champion_key,role,games,sampled_opponents,
        covered_opponents,covered_picks,role_picks,expected,worst_case,worst_opponent_key,variance,
-       lower_tail,reason,counter_win_rate,counter_opponents,counter_picks,counter_reason,built_at)
-     SELECT $1,$2,*,$20 FROM unnest($3::integer[],$4::text[],$5::integer[],$6::integer[],$7::integer[],
+       lower_tail,reason,counter_win_rate,counter_opponents,counter_picks,counter_reason,win_total,
+       win_count,built_at)
+     SELECT $1,$2,*,$22 FROM unnest($3::integer[],$4::text[],$5::integer[],$6::integer[],$7::integer[],
        $8::integer[],$9::integer[],$10::double precision[],$11::double precision[],$12::integer[],
        $13::double precision[],$14::double precision[],$15::text[],$16::double precision[],
-       $17::integer[],$18::integer[],$19::text[])`,
+       $17::integer[],$18::integer[],$19::text[],$20::double precision[],$21::integer[])`,
     [
       source,
       patch,
@@ -98,6 +105,8 @@ export async function rebuildBlindability(
       column("counterOpponents"),
       column("counterPicks"),
       column("counterReason"),
+      column("winTotal"),
+      column("winCount"),
       now,
     ],
   );
