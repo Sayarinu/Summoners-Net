@@ -4754,6 +4754,100 @@ describe("replay track imports", () => {
     const matchedKey = await storeRiot(track);
     expect((await queries.replayTrack(matchedKey))!.matchId).toBe(track.gameId);
   });
+  it("serves a linked track's summary, detected movements and bounded sample ranges", async () => {
+    const track = fixture();
+    const match = parseRiotMatch(
+      JSON.parse(
+        readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+      ) as unknown,
+      "EUW1_7612345678",
+    );
+    track.gameId = match.matchId;
+    track.roster = match.participants.map((p) => ({
+      participantId: p.participantId,
+      championId: p.championId,
+      teamId: p.teamId,
+    }));
+    const at = (x: number, y: number) => ({
+      x,
+      y,
+      pixel: { x: ((x + 120) / 14990) * 512, y: ((14980 - y) / 15100) * 512 },
+    });
+    // One sample per second for a minute: participant 1 holds mid, then recalls at 0:31;
+    // participant 2 is seen at low confidence; everyone else is missing.
+    track.sampleRateHz = 1;
+    track.samples = Array.from({ length: 61 }, (_, t) => ({
+      timeMs: t * 1000,
+      positions: track.roster.map(({ participantId }) => ({
+        participantId,
+        position:
+          participantId === 1
+            ? t <= 30
+              ? at(7000, 7000)
+              : at(500, 500)
+            : participantId === 2
+              ? at(4000, 6500)
+              : null,
+        confidence: participantId === 1 ? 0.9 : participantId === 2 ? 0.2 : null,
+      })),
+    }));
+    expect((await upload(track)).state).toBe("done");
+    // Without the Riot match the summary is unlinked and no samples are served.
+    expect(await queries.matchTrackSummary(track.gameId)).toMatchObject({
+      linkState: "unavailable",
+    });
+    expect(
+      await queries.matchTrackRange({ matchId: track.gameId, fromMs: 0, toMs: 10000 }),
+    ).toBeNull();
+    await storeRiot(track);
+    expect(await queries.matchTrackSummary(track.gameId)).toEqual({
+      sampleRateHz: 1,
+      sampleCount: 61,
+      firstMs: 0,
+      lastMs: 60000,
+      importedAt: now.toISOString(),
+      linkState: "linked",
+      movements: [
+        {
+          kind: "recall",
+          startMs: 30000,
+          endMs: 31000,
+          teamId: 100,
+          participantIds: [1],
+          from: "mid",
+          to: "blue-base",
+        },
+      ],
+    });
+    const range = (await queries.matchTrackRange({
+      matchId: track.gameId,
+      fromMs: 29500,
+      toMs: 32000,
+    }))!;
+    expect(range.map((s) => s.timeMs)).toEqual([30000, 31000, 32000]);
+    expect(range[1]!.positions.slice(0, 3)).toEqual([
+      { participantId: 1, x: 500, y: 500, confidence: 0.9 },
+      { participantId: 2, x: 4000, y: 6500, confidence: 0.2 },
+      { participantId: 3, x: null, y: null, confidence: null },
+    ]);
+    for (const bad of [
+      { matchId: track.gameId, fromMs: 0, toMs: 120001 },
+      { matchId: track.gameId, fromMs: 5000, toMs: 4000 },
+      { matchId: "not a match", fromMs: 0, toMs: 1 },
+    ])
+      await expect(queries.matchTrackRange(bad)).rejects.toThrow();
+    // Re-importing replaces the stored samples with the new file's.
+    expect((await upload({ ...track, samples: track.samples.slice(0, 5) })).state).toBe("done");
+    expect(await queries.matchTrackSummary(track.gameId)).toMatchObject({
+      sampleCount: 5,
+      lastMs: 4000,
+      movements: [],
+    });
+    expect(
+      (await queries.matchTrackRange({ matchId: track.gameId, fromMs: 0, toMs: 60000 }))!,
+    ).toHaveLength(5);
+    expect(await queries.matchTrackSummary("EUW1_1")).toBeNull();
+  });
   it("rolls back storage failures and keeps distinct pending uploads", async () => {
     const track = fixture();
     expect((await upload(track)).state).toBe("done");

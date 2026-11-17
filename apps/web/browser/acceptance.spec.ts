@@ -448,6 +448,38 @@ test("the champion page shows inferred early jungle paths for the jungle role", 
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   await expect(page.getByRole("region", { name: "Early jungle paths" })).toHaveCount(0);
 });
+test("the game map switches to a linked replay track inside its interval and lists movements", async ({
+  page,
+}) => {
+  await page.goto("/solo-games/EUW1_7000000001/map");
+  const note = page.getByRole("note");
+  await expect(note).toContainText("Source at 0:00: Riot match timeline");
+  await expect(note).toContainText("An imported replay track covers 0:30 to 0:50.");
+  const movements = page.getByRole("table", { name: "Detected movements" });
+  await expect(movements).toContainText("Recall: Ahri");
+  await movements.getByRole("button", { name: "Go to 0:40" }).press("Enter");
+  await expect(note).toContainText("Source at 0:40: imported replay track, about 4 samples");
+  const positions = page.getByRole("table", { name: "Positions at 0:40" });
+  await expect(positions).toContainText("7000, 7000 (track sample, confidence 0.90)");
+  await expect(positions).toContainText("9000, 9000 (track sample, low confidence 0.20)");
+  await expect(page.locator(".np-minimap__point--low")).toHaveCount(1);
+  await expect(page.locator(".np-minimap__path").first()).toBeAttached();
+  // A quarter-second step at four samples per second reaches the recall.
+  await page.getByLabel(/^Game time/).press("ArrowRight");
+  await expect(page.getByRole("table", { name: /^Positions at 0:40/ })).toContainText(
+    "500, 500 (track sample, confidence 0.90)",
+  );
+  const range = await page.request.get(
+    "/api/solo-games/EUW1_7000000001/track?fromMs=35000&toMs=36000",
+  );
+  expect(range.status()).toBe(200);
+  const samples = (await range.json()) as { positions: { x: number | null }[] }[];
+  expect(samples).toHaveLength(5);
+  expect(samples.every((s) => s.positions[1]!.x === null)).toBe(true);
+  expect(
+    (await page.request.get("/api/solo-games/EUW1_7000000001/track?fromMs=0&toMs=200000")).status(),
+  ).toBe(400);
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {

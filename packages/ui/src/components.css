@@ -1232,6 +1232,11 @@
     stroke: var(--color-bg-canvas);
     stroke-width: var(--stroke-strong);
   }
+  .np-minimap__point--low {
+    fill-opacity: 0.3;
+    stroke: currentColor;
+    stroke-dasharray: 2 2;
+  }
   .np-minimap__event--objective,
   .np-minimap__event--ward {
     stroke: var(--color-bg-canvas);

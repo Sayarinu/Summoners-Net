@@ -94,6 +94,18 @@ export {
   replayTrackMaxBytes,
 } from "./domain/replay-tracks.js";
 export type { ReplayTrack, ReplayTrackSample } from "./domain/replay-tracks.js";
+export {
+  trackRangeLimitMs,
+  trackRangeQuerySchema,
+  trackRangeSampleLimit,
+} from "./domain/track-views.js";
+export type {
+  MatchTrackSummary,
+  TrackObservation,
+  TrackRange,
+  TrackRangeQuery,
+} from "./domain/track-views.js";
+export type { TrackMovement, TrackZone } from "./domain/track-movements.js";
 
 export { replayFileMaxBytes, replayPlatformSchema } from "./domain/replays.js";
 export { riotPlatforms } from "./domain/riot-platforms.js";

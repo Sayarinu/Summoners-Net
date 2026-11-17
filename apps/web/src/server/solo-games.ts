@@ -12,10 +12,11 @@ export async function loadSoloGame(matchId: string) {
 export async function loadSoloGameMap(matchId: string) {
   const id = soloMatchIdSchema.safeParse(matchId);
   if (!id.success) return null;
-  const [game, positions, events] = await Promise.all([
+  const [game, positions, events, track] = await Promise.all([
     data().soloGame(id.data),
     data().soloGamePositions(id.data),
     data().soloGameMapEvents(id.data),
+    data().matchTrackSummary(id.data),
   ]);
-  return game && positions && events ? { game, positions, events } : null;
+  return game && positions && events ? { game, positions, events, track } : null;
 }

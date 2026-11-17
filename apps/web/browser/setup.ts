@@ -173,6 +173,63 @@ export default async function setup() {
     await sync.request({ kind: "pro-account-links", file: proFile });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser pro links fixture failed");
+    // A partial replay track for the seeded game, 0:30-0:50 at four samples per second: Ahri
+    // holds mid and recalls at 0:40, participant 2 has a one-second gap, participant 6 is seen
+    // at low confidence and the rest are never seen.
+    const track = JSON.parse(
+      await readFile(
+        new URL("../../../packages/data/tests/replay-tracks/valid-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const at = (x: number, y: number) => ({
+      x,
+      y,
+      pixel: { x: ((x + 120) / 14990) * 512, y: ((14980 - y) / 15100) * 512 },
+    });
+    const roster = parseRiotMatch(match, "EUW1_7000000001").participants.map((p) => ({
+      participantId: p.participantId,
+      championId: p.championId,
+      teamId: p.teamId,
+    }));
+    const trackFile = resolve(folder, "replay-track.json");
+    await writeFile(
+      trackFile,
+      JSON.stringify({
+        ...track,
+        gameId: "EUW1_7000000001",
+        platform: "euw1",
+        patch: "16.4",
+        sampleRateHz: 4,
+        roster,
+        samples: Array.from({ length: 81 }, (_, i) => {
+          const timeMs = 30000 + i * 250;
+          return {
+            timeMs,
+            positions: roster.map(({ participantId }) => {
+              const position =
+                participantId === 1
+                  ? timeMs <= 40000
+                    ? at(7000, 7000)
+                    : at(500, 500)
+                  : participantId === 2 && (timeMs < 35000 || timeMs > 36000)
+                    ? at(4000, 6500)
+                    : participantId === 6
+                      ? at(9000, 9000)
+                      : null;
+              return {
+                participantId,
+                position,
+                confidence: position ? (participantId === 6 ? 0.2 : 0.9) : null,
+              };
+            }),
+          };
+        }),
+      }),
+    );
+    await sync.request({ kind: "replay-track", file: trackFile });
+    if ((await sync.runNext()).state !== "done")
+      throw new Error("Browser replay track fixture failed");
   } finally {
     await sync.close();
     await pool.end();
