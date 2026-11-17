@@ -4,6 +4,7 @@ import {
   championMatchupsQuerySchema,
   matchupMatrixQuerySchema,
   matchupMetrics,
+  type ChampionBlindability,
   type ChampionMatchups,
   type MatchupMatrix,
   type MatchupEstimate,
@@ -89,6 +90,64 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
   expect(table).toHaveTextContent("80.0% · n=10");
   expect(table).toHaveTextContent("+100.0 · n=10");
   expect(screen.getByText(/First blood and first tower describe team outcomes/)).toBeVisible();
+});
+const scored: ChampionBlindability = {
+  games: 158,
+  sampledOpponents: 4,
+  coveredOpponents: 3,
+  coveredPicks: 100,
+  rolePicks: 160,
+  coverage: 0.625,
+  expected: 0.515,
+  worstCase: 0.45,
+  worstOpponent: nunu,
+  variance: 0.001525,
+  lowerTail: 0.45,
+  score: 0.45,
+  reason: null,
+  builtAt: "2026-11-16T12:00:00.000Z",
+};
+it("shows the blindability score, its coverage and the method with the formula", () => {
+  const { rerender } = render(
+    <ChampionMatchupsPage matchups={matchups} blindability={scored} error={null} />,
+  );
+  const stats = screen.getByLabelText("Blindability statistics");
+  expect(stats).toHaveTextContent("Blindability score45.0%");
+  expect(stats).toHaveTextContent("Pick-weighted win rate51.5%");
+  expect(stats).toHaveTextContent("Counter-pick worst case45.0% · against Nunu & Willump");
+  expect(stats).toHaveTextContent("Lower-tail win rate (20% of picks)45.0%");
+  expect(stats).toHaveTextContent("Variance0.0015");
+  expect(stats).toHaveTextContent("Covered pick share62.5% · 100 of 160 opponent picks");
+  expect(screen.getByText(/3 of 4 sampled opponents meet the minimum/)).toBeVisible();
+  expect(screen.getByText("How blindability is calculated")).toBeVisible();
+  expect(screen.getByText(/E = Σ wᵢ·pᵢ \/ Σ wᵢ/)).toBeInTheDocument();
+  expect(screen.queryByRole("status")).toBeNull();
+  rerender(
+    <ChampionMatchupsPage
+      matchups={matchups}
+      blindability={{
+        ...scored,
+        rolePicks: 220,
+        coverage: 100 / 220,
+        expected: null,
+        worstCase: null,
+        worstOpponent: null,
+        variance: null,
+        lowerTail: null,
+        score: null,
+        reason: "low-coverage",
+      }}
+      error={null}
+    />,
+  );
+  expect(screen.getByLabelText("Blindability statistics")).toHaveTextContent(
+    "Blindability scoreUnknown",
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Score unavailable: Opponents with at least 10 win-rate observations cover less than 50% of opponent picks.",
+  );
+  rerender(<ChampionMatchupsPage matchups={matchups} blindability={null} error={null} />);
+  expect(screen.getByText(/No stored blindability score/)).toBeVisible();
 });
 it("explains empty selections and renders validation errors without data", () => {
   const { rerender } = render(

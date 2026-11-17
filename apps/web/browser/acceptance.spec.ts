@@ -812,6 +812,15 @@ test("champion matchups show sampled metrics, switch values and validate selecti
   await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
   await page.getByRole("link", { name: "Lane matchups", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ahri matchups" })).toBeVisible();
+  // One seeded lane game: the stored blindability score stays unknown, with its reason.
+  await expect(page.getByLabel("Blindability statistics")).toContainText(
+    "Blindability scoreUnknown",
+  );
+  await expect(page.getByRole("status").filter({ hasText: "Score unavailable" })).toContainText(
+    "Fewer than 3 opponents",
+  );
+  await page.getByText("How blindability is calculated").click();
+  await expect(page.getByText(/E = Σ wᵢ·pᵢ/)).toBeVisible();
   const table = page.getByRole("table", { name: "Ahri lane opponents" });
   await expect(table).toContainText("Unknown · n=1");
   await expect(table).toContainText("Team first blood");

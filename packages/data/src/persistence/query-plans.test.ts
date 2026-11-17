@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { database, migrate, type Executor } from "./database.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
+import { championBlindability } from "./blindability.js";
 
 // Query plan budgets for the aggregate reads. The tables are seeded at a realistic size for a
 // library with two years of pro data and four retained patches of solo queue, then every statement the reads run is
@@ -20,6 +21,7 @@ const largeTables = [
   "champion_duos",
   "pro_champion_stats",
   "wpa_aggregates",
+  "blindability_scores",
 ];
 /** Planner cost units; the seeded reads stay well below it when an index supports them. */
 const costBudget = 5000;
@@ -70,6 +72,12 @@ beforeAll(async () => {
   await seed(`INSERT INTO wpa_aggregates(model_id,patch_key,kind,subject,games,total,built_at)
     SELECT m.id,p.patch_key,'player','puuid-'||s,1+s%30,(s%17-8)::float/10,$1
     FROM wp_models m, (SELECT * FROM patches WHERE minor>20) p, generate_series(1,3000) s`);
+  await seed(`INSERT INTO blindability_scores(source,patch_key,champion_key,role,games,sampled_opponents,
+      covered_opponents,covered_picks,role_picks,expected,worst_case,worst_opponent_key,variance,lower_tail,
+      reason,built_at)
+    SELECT source,p.patch_key,c,role,200,40,30,9000,10000,0.51,0.42,1+c%170,0.002,0.46,NULL,$1
+    FROM (SELECT * FROM patches WHERE minor>20) p, generate_series(1,170) c,
+      unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) role, unnest(ARRAY['solo','pro']) source`);
   await pool.query(`ANALYZE ${largeTables.join(",")},catalog_champions,patches,wp_models`);
 }, 120_000);
 // Leave nothing behind for the suites that share the test database.
@@ -137,6 +145,11 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
   ],
   ["WPA leaderboard", (db) => wpaLeaderboard(db, { kind: "player", sort: "total", page: 4 })],
   ["WPA leaderboard, champions", (db) => wpaLeaderboard(db, { patch: "16.23" })],
+  [
+    "champion blindability",
+    (db) =>
+      championBlindability(db, { championKey: 42, source: "solo", patch: "16.24", role: "TOP" }),
+  ],
 ];
 
 it.each(reads)("%s stays within the plan budget on large aggregate tables", async (_, read) => {

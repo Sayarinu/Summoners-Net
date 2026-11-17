@@ -149,7 +149,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -5995,6 +5995,77 @@ describe("lane matchup aggregates", () => {
       total: 0,
     });
     expect(fetcher.mock.calls.length).toBe(calls);
+  });
+  it("stores blindability from shrunk matchups weighted by opponent picks, with null reasons", async () => {
+    await catalog();
+    for (let n = 0; n < 10; n++) await game(20, n < 8, 0);
+    for (let n = 0; n < 10; n++) await game(62, n < 2, 0);
+    for (let n = 0; n < 10; n++) await game(64, n < 5, 0);
+    for (let n = 0; n < 2; n++) await game(200, false, 0);
+    await aggregate();
+    const calls = fetcher.mock.calls.length;
+    // Ahri wins 15 of 32; each covered opponent has 10 picks, the small sample 2 of 32.
+    const shrunk = (wins: number) => (wins + (50 * 15) / 32) / 60;
+    const rates = [shrunk(8), shrunk(2), shrunk(5)];
+    const expected = rates.reduce((a, b) => a + b) / 3;
+    const ahri = await queries.championBlindability({
+      championKey: 103,
+      source: "solo",
+      patch: "16.22",
+      role: "MIDDLE",
+    });
+    expect(ahri).toMatchObject({
+      games: 32,
+      sampledOpponents: 4,
+      coveredOpponents: 3,
+      coveredPicks: 30,
+      rolePicks: 32,
+      reason: null,
+      worstOpponent: { championKey: 62, championId: "MonkeyKing" },
+      builtAt: now.toISOString(),
+    });
+    expect(ahri!.coverage).toBeCloseTo(30 / 32, 12);
+    expect(ahri!.expected).toBeCloseTo(expected, 12);
+    expect(ahri!.worstCase).toBeCloseTo(shrunk(2), 12);
+    expect(ahri!.variance).toBeCloseTo(rates.reduce((s, r) => s + (r - expected) ** 2, 0) / 3, 12);
+    // The lowest fifth of 30 picks is six of Wukong's ten.
+    expect(ahri!.lowerTail).toBeCloseTo(shrunk(2), 12);
+    expect(ahri!.score).toBe(ahri!.lowerTail);
+    // Nunu faced only Ahri (32 of the 54 other picks): too few opponents, counts kept, values unknown.
+    const nunu = await queries.championBlindability({
+      championKey: 20,
+      source: "solo",
+      patch: "16.22",
+      role: "MIDDLE",
+    });
+    expect(nunu).toMatchObject({
+      coveredOpponents: 1,
+      coveredPicks: 32,
+      rolePicks: 54,
+      expected: null,
+      worstCase: null,
+      worstOpponent: null,
+      variance: null,
+      lowerTail: null,
+      score: null,
+      reason: "few-opponents",
+    });
+    expect(nunu!.coverage).toBeCloseTo(32 / 54, 12);
+    expect(
+      await queries.championBlindability({
+        championKey: 103,
+        source: "solo",
+        patch: "16.22",
+        role: "TOP",
+      }),
+    ).toBeNull();
+    expect(fetcher.mock.calls.length).toBe(calls);
+    // Rebuilding replaces the stored scores without duplicating them.
+    expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
+    const { rows } = await pool.query<{ n: number }>(
+      "SELECT count(*)::integer AS n FROM blindability_scores WHERE source='solo' AND patch_key='16.22'",
+    );
+    expect(rows[0]!.n).toBe(5);
   });
   it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {
     await catalog();

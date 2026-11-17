@@ -1,4 +1,5 @@
 import { rebuildMatchups } from "./matchup-writer.js";
+import { rebuildBlindability } from "./blindability.js";
 import { championPlayers } from "./champion-players.js";
 import type { Pool } from "pg";
 import {
@@ -177,7 +178,13 @@ export async function rebuildPatch(
       source,
       patchKey,
     ]);
-    return (inserted.rowCount ?? 0) + builds + (await rebuildMatchups(c, source, patchKey, now));
+    const matchups = await rebuildMatchups(c, source, patchKey, now);
+    return (
+      (inserted.rowCount ?? 0) +
+      builds +
+      matchups +
+      (await rebuildBlindability(c, source, patchKey, now))
+    );
   });
 }
 
