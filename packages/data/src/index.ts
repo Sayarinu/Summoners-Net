@@ -69,8 +69,10 @@ export type {
   SoloGameMarker,
   SoloGamePositions,
   TimelinePositionFrame,
+  MapEvent,
+  SoloGameMapEvents,
 } from "./domain/solo-games.js";
-export { soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
+export { mapEventLimit, soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
 export { featureLabels, modelDiagnosticsQuerySchema } from "./domain/model-diagnostics.js";
 export type { ModelDiagnostics, ModelSummary } from "./domain/model-diagnostics.js";
 export type { ProGameWinProbability } from "./persistence/pro-wp.js";

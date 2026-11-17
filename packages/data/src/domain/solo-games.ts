@@ -70,3 +70,25 @@ export interface SoloGamePositions {
   truncated: boolean;
   tracks: { participantId: number; frames: TimelinePositionFrame[] }[];
 }
+
+/** At most this many map events are read for one game. */
+export const mapEventLimit = 1000;
+/** A kill, objective or ward placement from a game's timeline. Riot omits ward coordinates. */
+export interface MapEvent {
+  id: string;
+  kind: "kill" | "objective" | "ward";
+  timestampMs: number;
+  /** The side credited: the killer's, the objective taker's or the ward owner's. */
+  side: "blue" | "red" | null;
+  /** The killer or ward owner; null for a minion, tower or unknown actor. */
+  participantId: number | null;
+  victimId: number | null;
+  x: number | null;
+  y: number | null;
+  label: string;
+}
+export interface SoloGameMapEvents {
+  events: MapEvent[];
+  /** More than {@link mapEventLimit} events are stored; later ones were not read. */
+  truncated: boolean;
+}

@@ -392,6 +392,24 @@ test("a solo game's map replays timeline positions with keyboard controls and to
   const missing = await page.goto("/solo-games/EUW1_1/map");
   expect(missing?.status()).toBe(404);
 });
+test("the game map overlays timeline events and jumps to a selected event", async ({ page }) => {
+  await page.goto("/solo-games/EUW1_7000000001/map");
+  const list = page.getByRole("table", { name: "Events" });
+  // Riot records no coordinates for ward placements: listed, not drawn.
+  await expect(list.getByRole("row", { name: /Ward placed \(Yellow Trinket\)/ })).toContainText(
+    "Not drawn: no coordinates",
+  );
+  await expect(page.locator(".np-minimap__event")).toHaveCount(0);
+  await list.getByRole("button", { name: "Go to 1:38" }).press("Enter");
+  await expect(page.getByRole("table", { name: "Positions at 1:38" })).toBeVisible();
+  await expect(page.locator(".np-minimap__event--kill")).toHaveCount(1);
+  // The dragon (1:50) and the tower (2:05) are both within 30 seconds.
+  await expect(page.locator(".np-minimap__event--objective")).toHaveCount(2);
+  await expect(list).toContainText("7200, 7100 (drawn now)");
+  await page.getByRole("switch", { name: "Kills" }).press("Space");
+  await expect(page.locator(".np-minimap__event--kill")).toHaveCount(0);
+  await expect(list).not.toContainText("killed");
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {

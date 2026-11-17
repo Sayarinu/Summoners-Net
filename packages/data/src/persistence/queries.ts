@@ -38,7 +38,7 @@ import {
 import { draftQueries } from "./draft-queries.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { soloGame } from "./solo-games.js";
-import { soloGamePositions } from "./solo-game-positions.js";
+import { soloGameMapEvents, soloGamePositions } from "./solo-game-positions.js";
 import { proGameWinProbability } from "./pro-wp.js";
 import { modelDiagnostics } from "./model-diagnostics.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
@@ -204,6 +204,7 @@ export function queries(pool: Pool, clock: () => Date) {
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
     soloGamePositions: (matchId: string) => soloGamePositions(pool, matchId),
+    soloGameMapEvents: (matchId: string) => soloGameMapEvents(pool, matchId),
     proGameWinProbability: (gameId: string) => proGameWinProbability(pool, idSchema.parse(gameId)),
     modelDiagnostics: (selectedId?: number) => modelDiagnostics(pool, selectedId),
     wpaLeaderboard: (input?: WpaLeaderboardQuery) => wpaLeaderboard(pool, input),

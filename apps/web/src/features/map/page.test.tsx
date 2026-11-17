@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { SoloGame, SoloGamePositions } from "@summonersnet/data/contracts";
+import type { SoloGame, SoloGameMapEvents, SoloGamePositions } from "@summonersnet/data/contracts";
 import { GameMapPage } from "./page";
 
 const participant = (participantId: number, side: "blue" | "red", name: string, role: string) => ({
@@ -59,12 +59,50 @@ const positions: SoloGamePositions = {
     },
   ],
 };
+const events: SoloGameMapEvents = {
+  truncated: false,
+  events: [
+    {
+      id: "w",
+      kind: "ward",
+      timestampMs: 10000,
+      side: "blue",
+      participantId: 2,
+      victimId: null,
+      x: null,
+      y: null,
+      label: "Ward placed (Yellow Trinket)",
+    },
+    {
+      id: "k",
+      kind: "kill",
+      timestampMs: 98000,
+      side: "blue",
+      participantId: 1,
+      victimId: 6,
+      x: 7200,
+      y: 7100,
+      label: "Champion kill",
+    },
+    {
+      id: "d",
+      kind: "objective",
+      timestampMs: 110000,
+      side: null,
+      participantId: null,
+      victimId: null,
+      x: 9866,
+      y: 4414,
+      label: "Fire Dragon",
+    },
+  ],
+};
 const table = () => screen.getByRole("table", { name: /^Positions at / });
 const points = (container: HTMLElement) => container.querySelectorAll(".np-minimap__point");
 afterEach(() => vi.useRealTimers());
 
 it("scrubs to interpolated positions and shows missing frames as gaps", () => {
-  const { container } = render(<GameMapPage game={game} positions={positions} />);
+  const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
   expect(screen.getByText(/one position per champion per minute/)).toBeVisible();
   expect(points(container)).toHaveLength(3);
   expect(table()).toHaveTextContent("AhriBlueMid600, 500 (minute frame)");
@@ -80,7 +118,7 @@ it("scrubs to interpolated positions and shows missing frames as gaps", () => {
   );
 });
 it("toggles teams and roles", () => {
-  const { container } = render(<GameMapPage game={game} positions={positions} />);
+  const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
   const controls = screen.getByRole("group", { name: "Show champions" });
   fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
   expect(table()).not.toHaveTextContent("Garen");
@@ -94,7 +132,7 @@ it("toggles teams and roles", () => {
 });
 it("plays, pauses and stops at the last frame", () => {
   vi.useFakeTimers();
-  render(<GameMapPage game={game} positions={positions} />);
+  render(<GameMapPage game={game} positions={positions} events={events} />);
   const play = screen.getByRole("button", { name: "Play" });
   fireEvent.click(play);
   act(() => {
@@ -118,9 +156,51 @@ it("plays, pauses and stops at the last frame", () => {
 });
 it("explains a game without stored positions", () => {
   const empty = { ...positions, timelineState: "pending" as const, tracks: [] };
-  render(<GameMapPage game={game} positions={empty} />);
+  render(<GameMapPage game={game} positions={empty} events={events} />);
   expect(screen.getByRole("status")).toHaveTextContent("timeline has not been stored");
-  render(<GameMapPage game={game} positions={{ ...positions, truncated: true, tracks: [] }} />);
+  render(
+    <GameMapPage
+      game={game}
+      positions={{ ...positions, truncated: true, tracks: [] }}
+      events={events}
+    />,
+  );
   expect(screen.getByText("This game's timeline has no position frames.")).toBeVisible();
   expect(screen.getAllByText(/first 120 minutes/)).toHaveLength(1);
+});
+it("overlays nearby events, lists every event and jumps the scrubber to a selected one", () => {
+  const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
+  const list = screen.getByRole("table", { name: "Events" });
+  expect(list).toHaveTextContent("Ward placed (Yellow Trinket) by Lee Sin");
+  expect(list).toHaveTextContent("Not drawn: no coordinates");
+  expect(list).toHaveTextContent("Ahri killed Garen");
+  expect(list).toHaveTextContent("UnknownFire Dragon9866, 4414");
+  // Nothing drawable is within 30 seconds of the start; the ward has no coordinates.
+  expect(container.querySelectorAll(".np-minimap__event")).toHaveLength(0);
+  fireEvent.click(within(list).getByRole("button", { name: "Go to 1:38" }));
+  expect(screen.getByLabelText(/^Game time/)).toHaveValue("98000");
+  expect(container.querySelector(".np-minimap__event--kill")).not.toBeNull();
+  expect(container.querySelector(".np-minimap__event--objective")).toHaveAttribute(
+    "fill",
+    "var(--color-text-secondary)",
+  );
+  expect(list).toHaveTextContent("7200, 7100 (drawn now)");
+  const toggles = screen.getByRole("group", { name: "Show events" });
+  fireEvent.click(within(toggles).getByRole("switch", { name: "Kills" }));
+  expect(container.querySelector(".np-minimap__event--kill")).toBeNull();
+  expect(screen.getByRole("table", { name: "Events" })).not.toHaveTextContent("Ahri killed");
+  fireEvent.click(within(toggles).getByRole("switch", { name: "Objectives" }));
+  fireEvent.click(within(toggles).getByRole("switch", { name: "Wards" }));
+  expect(screen.getByRole("table", { name: "Events" })).toHaveTextContent(
+    "Every event is hidden by the event toggles.",
+  );
+});
+it("explains a game without stored events and a truncated event list", () => {
+  render(
+    <GameMapPage game={game} positions={positions} events={{ events: [], truncated: true }} />,
+  );
+  expect(screen.getByRole("table", { name: "Events" })).toHaveTextContent(
+    "No kills, objectives or ward placements are stored for this game.",
+  );
+  expect(screen.getByText(/first 1,000 events/)).toBeVisible();
 });
