@@ -106,11 +106,7 @@ export function TrendingPage({
       ) : !trends?.patch ? (
         <EmptyState
           title="No Champion Aggregates for This Selection"
-          description={
-            <span>
-              Refresh metadata and aggregates in <TextLink href="/sources">Sources</TextLink>.
-            </span>
-          }
+          description="Aggregates appear after the worker's next synchronization."
         />
       ) : (
         <>

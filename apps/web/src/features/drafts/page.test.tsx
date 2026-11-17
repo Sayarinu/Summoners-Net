@@ -89,5 +89,5 @@ it("explains missing data and invalid filters", () => {
   expect(screen.queryByText("No Draft Data Yet")).not.toBeInTheDocument();
   rerender(<DraftsPage query={null} analytics={null} error={null} />);
   expect(screen.getByText("No Draft Data Yet")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("href", "/sources");
+  expect(screen.queryByRole("link", { name: "Sources" })).not.toBeInTheDocument();
 });

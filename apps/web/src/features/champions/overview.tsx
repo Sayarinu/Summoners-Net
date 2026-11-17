@@ -173,9 +173,8 @@ export function ChampionOverviewPage({
           title="No Statistics for This Selection"
           description={
             <span>
-              Statistics appear once games are ingested and aggregated. See the{" "}
-              <TextLink href="/tier-list">tier list</TextLink> or{" "}
-              <TextLink href="/sources">Sources</TextLink>.
+              Statistics appear once games are stored and aggregated. See the{" "}
+              <TextLink href="/tier-list">tier list</TextLink>.
             </span>
           }
         />

@@ -131,7 +131,6 @@ export function HistoryPage({ data, query }: { data: Page<Game>; query: BrowseQu
             Played lineups and basic statistics, from 2014 onward where imported.
           </p>
         </div>
-        <TextLink href="/sources">Manage Imports</TextLink>
       </header>
       <Filters query={query} history />
       <GamesTable games={data.items} timezone={query.timezone ?? "UTC"} />
@@ -170,10 +169,7 @@ export function DirectoryPage({
         ))}
       </div>
       {!data.items.length && (
-        <EmptyState
-          title="No Identities Found"
-          description="Try another name or import historical games."
-        />
+        <EmptyState title="No Identities Found" description="Try another name." />
       )}
       <Pages data={data} />
     </div>

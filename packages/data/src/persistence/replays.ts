@@ -33,7 +33,7 @@ export async function importReplayMetadata(
     !(await lstat(file)).isFile()
   )
     throw new ReplayImportError(
-      "Replay import accepts only regular files staged by the local upload endpoint.",
+      "Replay import accepts only regular files staged by pnpm queue replay-metadata.",
     );
   let parsed: { metadata: ParsedReplayMetadata; sha256: string } | undefined;
   try {

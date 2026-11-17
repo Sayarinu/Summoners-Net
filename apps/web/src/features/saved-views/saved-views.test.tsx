@@ -25,7 +25,7 @@ it("validates every stored entry and drops only the invalid ones", () => {
   const store = memory([
     valid,
     { ...valid, id: "v-2", path: "https://example.com" },
-    { ...valid, id: "v-3", path: "/sources" },
+    { ...valid, id: "v-3", path: "/settings" },
     { ...valid, id: "v-4", query: "?a=1" },
     { ...valid, id: "v-5", name: "" },
     { ...valid, id: "v-6", extra: true },
@@ -45,7 +45,7 @@ it("validates every stored entry and drops only the invalid ones", () => {
 });
 
 it("saves the page's filters in browser storage and removes them", async () => {
-  const store = memory([valid, { ...valid, id: "bad", path: "/api/refresh" }]);
+  const store = memory([valid, { ...valid, id: "bad", path: "/api/preferences" }]);
   render(
     <SavedViewsPanel
       path="/compare/champions"

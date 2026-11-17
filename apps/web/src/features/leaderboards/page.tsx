@@ -40,12 +40,7 @@ export function LeaderboardPage({
       ) : !list?.lastSuccess ? (
         <EmptyState
           title="No Ladder Stored for This Region"
-          description={
-            <span>
-              Enable this region in the worker and refresh its ladder from{" "}
-              <TextLink href="/sources">Sources</TextLink>.
-            </span>
-          }
+          description="The ladder appears once the worker synchronizes this region."
         />
       ) : (
         <section className="np-stack" aria-label="Regional Ladder">
