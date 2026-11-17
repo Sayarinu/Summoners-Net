@@ -1,8 +1,13 @@
 "use client";
 import { PlayersSection } from "./players";
 import { ChampionIcon, EmptyState, Sparkline, TextLink } from "@summonersnet/ui";
-import type { ChampionBlindability, ChampionOverview } from "@summonersnet/data/contracts";
+import type {
+  ChampionBlindability,
+  ChampionJunglePaths,
+  ChampionOverview,
+} from "@summonersnet/data/contracts";
 import { CounterPickSummary } from "../matchups/pages";
+import { JunglePathsSection } from "./jungle-paths";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
@@ -21,10 +26,12 @@ export function ChampionOverviewPage({
   overview,
   draftValue = null,
   error,
+  junglePaths = null,
 }: {
   overview: ChampionOverview;
   draftValue?: ChampionBlindability | null;
   error: string | null;
+  junglePaths?: ChampionJunglePaths | null;
 }) {
   const { champion, query: q } = overview;
   return (
@@ -125,6 +132,9 @@ export function ChampionOverviewPage({
           <LoadoutsSection builds={overview.builds} />
           <ProSection overview={overview} />
           <BucketsSection buckets={overview.buckets} />
+          {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
+            <JunglePathsSection paths={junglePaths} champion={champion.name} />
+          ) : null}
           <SynergiesSection overview={overview} />
           <SkillsSection builds={overview.builds} />
           <BuildsSection builds={overview.builds} />

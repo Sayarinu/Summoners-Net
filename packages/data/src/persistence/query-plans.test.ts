@@ -6,6 +6,7 @@ import { wpaLeaderboard } from "./wpa-leaderboards.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
 import { heatmap } from "./heatmaps.js";
+import { championJunglePaths } from "./jungle-paths.js";
 
 // Query plan budgets for the aggregate reads. The tables are seeded at a realistic size for a
 // library with two years of pro data and four retained patches of solo queue, then every statement the reads run is
@@ -27,6 +28,7 @@ const largeTables = [
   "matchup_aggregates",
   "heatmap_samples",
   "heatmap_cells",
+  "jungle_path_clusters",
 ];
 /** Planner cost units; the seeded reads stay well below it when an index supports them. */
 const costBudget = 5000;
@@ -101,6 +103,12 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO heatmap_cells(patch_key,subject_kind,subject,kind,cell_x,cell_y,points)
     SELECT p.patch_key,s.kind,s.subject,k,i%16,i/16,1+i%5 FROM ${subjects},
       generate_series(0,255) i WHERE i<s.cells`);
+  await seed(`INSERT INTO jungle_path_clusters(patch_key,champion_key,start_side,route,gank_lane,games,
+      result_games,wins,path_x,path_y,built_at)
+    SELECT p.patch_key,c,s,r,g,5+c%20,5+c%20,2+c%7,ARRAY[3871,3783,6943],ARRAY[7901,6495,5422],$1
+    FROM patches p, generate_series(1,170) c, unnest(ARRAY['blue-buff','red-buff','invade','unknown']) s,
+      unnest(ARRAY['same-side','cross','invade','unknown']) r,
+      unnest(ARRAY['top','mid','bot','unknown']) g`);
   await pool.query(`ANALYZE ${largeTables.join(",")},catalog_champions,patches,wp_models`);
 }, 120_000);
 // Leave nothing behind for the suites that share the test database.
@@ -188,6 +196,7 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
     "counter-pick list, pro by score",
     (db) => counterPickList(db, { role: "TOP", source: "pro", patch: "16.23", sort: "score" }),
   ],
+  ["champion jungle paths", (db) => championJunglePaths(db, { championKey: 64, patch: "16.24" })],
   [
     "champion blindability",
     (db) =>

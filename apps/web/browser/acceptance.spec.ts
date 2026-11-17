@@ -433,6 +433,20 @@ test("heatmaps report their sample and are not drawn below the minimum", async (
   const missing = await page.goto("/heatmaps?subjectKind=champion&subject=NotAChampion");
   expect(missing?.status()).toBe(404);
 });
+test("the champion page shows inferred early jungle paths for the jungle role", async ({
+  page,
+}) => {
+  // The seeded game's jungler is not in the fixture catalog, so Ahri has no jungle games.
+  await page.goto("/champions/Ahri?role=JUNGLE");
+  const section = page.getByRole("region", { name: "Early jungle paths" });
+  await expect(section).toContainText("Inferred from 0 jungle games on patch 16.4");
+  await expect(section).toContainText("Red side is rotated onto blue side");
+  await expect(section.getByText("No jungle games")).toBeVisible();
+  // Outside the jungle role a champion without jungle games shows no section.
+  await page.goto("/champions/Ahri");
+  await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Early jungle paths" })).toHaveCount(0);
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {
