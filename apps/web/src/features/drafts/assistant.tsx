@@ -1,5 +1,6 @@
 "use client";
 import { Button, ChampionIcon, Input, Select, Table, TextLink } from "@summonersnet/ui";
+import { DraftWinProbabilitySection } from "./draft-win-probability";
 import {
   matchupMinimumSample,
   matchupRoles,
@@ -182,8 +183,34 @@ function Results({ assistant: a }: { assistant: DraftAssistant }) {
             render: (c) => part(c.blindability, "covered picks"),
           },
           { id: "games", header: "Lane games", render: (c) => c.games },
+          ...(a.draft?.model
+            ? [
+                {
+                  id: "wp",
+                  header: "Draft win probability if picked",
+                  render: (c: DraftCandidate) =>
+                    c.winProbability === null
+                      ? "Unknown"
+                      : `${(c.winProbability * 100).toFixed(1)}%`,
+                },
+              ]
+            : []),
         ]}
       />
+      {a.draft ? (
+        <DraftWinProbabilitySection
+          value={a.draft}
+          side={a.query.side}
+          name={(key) => {
+            const c =
+              a.candidates.find((x) => x.champion.championKey === key)?.champion ??
+              [a.laneOpponent, ...a.synergyAllies].find((x) => x?.championKey === key);
+            return c ? name(c) : `Champion ${key}`;
+          }}
+        />
+      ) : (
+        <p className="np-meta">The draft win probability model covers solo queue only.</p>
+      )}
     </section>
   );
 }

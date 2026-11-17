@@ -246,3 +246,5 @@ export {
   type DraftCandidate,
   type DraftPart,
 } from "./domain/draft-assistant.js";
+
+export { draftFeatures, type DraftInput, type DraftWinProbability } from "./domain/draft-model.js";

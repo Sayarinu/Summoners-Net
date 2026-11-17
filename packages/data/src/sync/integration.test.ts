@@ -49,6 +49,7 @@ import { championJunglePaths } from "../persistence/jungle-paths.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
+import { trainDraftModel } from "../persistence/draft-model.js";
 import { modelDiagnostics } from "../persistence/model-diagnostics.js";
 import { trainOnDemand } from "./train-command.js";
 import { firstTrainingDue } from "../persistence/wp-models.js";
@@ -2970,7 +2971,8 @@ describe("Champion aggregates", () => {
     const first = trainer(10);
     try {
       await first.request({ kind: "wp-train" });
-      expect(await first.runNext()).toMatchObject({ state: "done", records: 1 });
+      // The solo-queue model and the draft model, from the same 20 full games.
+      expect(await first.runNext()).toMatchObject({ state: "done", records: 2 });
     } finally {
       await first.close();
     }
@@ -3057,7 +3059,7 @@ describe("Champion aggregates", () => {
       await trainingGames(games(300, 5));
       await aggregateJob();
       expect(await queued()).toBe(1);
-      expect(await worker.runNext()).toMatchObject({ state: "done", records: 1 });
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 2 });
       expect((await activeWinProbabilityModel(pool))!.trainMatches).toBe(16);
       // With an active model, later runs leave training to the daily schedule.
       await aggregateJob();
@@ -3099,9 +3101,15 @@ describe("Champion aggregates", () => {
     expect(published.lines[2]).toBe(
       "Pro checkpoint model #2 rejected: Only 0 training games; at least 200 are needed. There is no active model yet.",
     );
+    expect(published.lines[3]).toMatch(
+      /^Draft model #3 published: 16 training games \(16 states\), Brier score 0\.\d{3}\.$/,
+    );
     const rejected = await command(100);
     expect(rejected.lines[1]).toBe(
-      "Solo queue model #3 rejected: Only 16 training matches; at least 100 are needed. The active model stays #1.",
+      "Solo queue model #4 rejected: Only 16 training matches; at least 100 are needed. The active model stays #1.",
+    );
+    expect(rejected.lines[3]).toBe(
+      "Draft model #6 rejected: Only 16 training games; at least 100 are needed. The active model stays #3.",
     );
     expect((await activeWinProbabilityModel(pool))!.id).toBe(1);
     // A busy queue reports that a running worker will train instead.
@@ -6554,6 +6562,107 @@ describe("lane matchup aggregates", () => {
     expect(
       await queries.draftAssistant({ role: "MIDDLE", source: "pro", blue: "Nunu:JUNGLE" }),
     ).toMatchObject({ patch: null, synergyAllies: [], candidates: [] });
+    expect(fetcher.mock.calls.length).toBe(calls);
+  });
+  it("trains a calibrated draft model on held-out games and scores games and drafts with it", async () => {
+    await catalog();
+    const positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+    // Five fixed blue teams and five red teams; blue teams with a lower index win more often.
+    async function fullGame(n: number) {
+      const raw = structuredClone(template),
+        matchId = `EUW1_${8800000000 + n}`;
+      raw.metadata.matchId = matchId;
+      raw.info.gameVersion = "16.22.1";
+      raw.info.queueId = 420;
+      const blueWin = n % 5 < 3;
+      raw.info.participants.forEach((p, i) => {
+        p.teamPosition = positions[i % 5]!;
+        p.championId = i < 5 ? 300 + (n % 3) * 10 + i : 400 + (n % 4) * 10 + (i - 5);
+        p.win = i < 5 ? blueWin : !blueWin;
+      });
+      await saveMatchIds(
+        pool,
+        { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+        [matchId],
+        1000,
+        now,
+      );
+      await saveRiotMatch(pool, parseRiotMatch(raw, matchId), raw, now);
+      return matchId;
+    }
+    const ids: string[] = [];
+    for (let n = 0; n < 60; n++) ids.push(await fullGame(n));
+    await aggregate();
+    await pool.query("UPDATE riot_retention SET kept_patches='{16.22}'");
+    const calls = fetcher.mock.calls.length;
+    // Too few training games: stored as rejected, with nothing active.
+    expect(await trainDraftModel(pool, now, { minimumGames: 1000, seed: 7 })).toMatchObject({
+      active: false,
+    });
+    expect((await queries.soloDraftWinProbability(ids[0]!))?.reason).toBe(
+      "No draft model is active yet.",
+    );
+    expect(await trainDraftModel(pool, now, { minimumGames: 10, seed: 7 })).toMatchObject({
+      active: true,
+    });
+    const { rows } = await pool.query<{
+      status: string;
+      train_matches: number;
+      eval_matches: number;
+      brier: number | null;
+      bins: { count: number }[];
+      coefficients: { features: string[] };
+      patch_window: string[];
+    }>("SELECT * FROM wp_models WHERE kind='draft' ORDER BY id");
+    expect(rows.map((r) => r.status)).toEqual(["rejected", "active"]);
+    // The 20% holdout split is by game and exact.
+    expect(rows[1]).toMatchObject({
+      train_matches: 48,
+      eval_matches: 12,
+      patch_window: ["16.22"],
+      coefficients: { features: ["strength", "lane", "synergy"] },
+    });
+    expect(rows[1]!.brier).toBeGreaterThanOrEqual(0);
+    expect(rows[1]!.brier).toBeLessThanOrEqual(1);
+    expect(rows[1]!.bins).toHaveLength(10);
+    expect(rows[1]!.bins.reduce((s, b) => s + b.count, 0)).toBe(12);
+    const diagnostics = await queries.modelDiagnostics();
+    expect(
+      diagnostics.models.find((m) => m.kind === "draft" && m.status === "active"),
+    ).toBeTruthy();
+
+    const game = await queries.soloDraftWinProbability(ids[0]!);
+    expect(game).toMatchObject({
+      reason: null,
+      model: { modelVersion: 1, evalGames: 12, patches: ["16.22"] },
+      coverage: {
+        strength: { total: 10 },
+        lane: { total: 5 },
+        synergy: { total: 20 },
+      },
+    });
+    expect(game!.blueWinProbability).toBeGreaterThan(0);
+    expect(game!.blueWinProbability).toBeLessThan(1);
+    // Every input keeps its sample: each champion played 20 or 15 games in its role.
+    const strength = game!.inputs.filter((i) => i.kind === "strength");
+    expect(strength.map((i) => i.sampleCount).sort()).toEqual([
+      15, 15, 15, 15, 15, 20, 20, 20, 20, 20,
+    ]);
+    expect(await queries.soloDraftWinProbability("EUW1_1")).toBeNull();
+
+    // The assistant scores the draft as it stands and with each candidate, for your side.
+    const assistant = await queries.draftAssistant({
+      side: "red",
+      role: "UTILITY",
+      blue: "300:TOP",
+      red: "400:TOP",
+    });
+    expect(assistant.unknownChampions).toEqual(["300", "400"]);
+    const drafted = await queries.draftAssistant({ side: "red", role: "UTILITY" });
+    expect(drafted.draft).toMatchObject({ reason: null, coverage: { strength: { total: 0 } } });
+    expect(drafted.candidates.length).toBeGreaterThan(0);
+    expect(drafted.candidates.every((c) => c.winProbability !== null)).toBe(true);
+    expect((await queries.draftAssistant({ source: "pro", role: "UTILITY" })).draft).toBeNull();
     expect(fetcher.mock.calls.length).toBe(calls);
   });
   it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {

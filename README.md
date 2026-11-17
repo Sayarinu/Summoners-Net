@@ -106,7 +106,8 @@ None of these settings reach the browser; only the worker reads them.
 The win probability model trains daily, and the first time as soon as enough solo-queue games with
 timelines are stored. To train now, run `pnpm wp:train` (it prints whether the model was published
 or rejected and why) or use **Queue training** on **Sources & imports**. A sample that is too small
-is stored as rejected and the active model stays. `/models` shows every stored model's calibration.
+is stored as rejected and the active model stays. The same job trains the pre-game
+[draft model](docs/analytics/draft-model.md). `/models` shows every stored model's calibration.
 
 Aggregate tables (tier list, trending, patch overview, WPA leaderboards, matchups, the role matrix,
 counter-pick values and pro drafts) have a **Download CSV** link. It streams the whole table with

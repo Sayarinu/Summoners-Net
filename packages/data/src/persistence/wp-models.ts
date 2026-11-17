@@ -14,7 +14,7 @@ import {
 } from "../domain/wp-model.js";
 import { transaction, type Executor } from "./database.js";
 
-export type ModelKind = "timeline" | "pro-checkpoints";
+export type ModelKind = "timeline" | "pro-checkpoints" | "draft";
 export interface WinProbabilityModel {
   id: number;
   kind: ModelKind;
@@ -35,7 +35,7 @@ export interface WinProbabilityModel {
 }
 
 /** The kept solo-queue patches, or else the newest three with features. */
-async function trainingWindow(db: Executor) {
+export async function trainingWindow(db: Executor) {
   const kept =
     (await db.query<{ kept_patches: string[] }>("SELECT kept_patches FROM riot_retention")).rows[0]
       ?.kept_patches ?? [];

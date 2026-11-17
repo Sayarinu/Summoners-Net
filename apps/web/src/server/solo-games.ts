@@ -20,3 +20,9 @@ export async function loadSoloGameMap(matchId: string) {
   ]);
   return game && positions && events ? { game, positions, events, track } : null;
 }
+
+/** The pre-game draft win probability for a stored solo game; null when not found. */
+export async function loadSoloDraftWinProbability(matchId: string) {
+  const id = soloMatchIdSchema.safeParse(matchId);
+  return id.success ? data().soloDraftWinProbability(id.data) : null;
+}
