@@ -109,6 +109,11 @@ or rejected and why) or use **Queue training** on **Sources & imports**. A sampl
 is stored as rejected and the active model stays. The same job trains the pre-game
 [draft model](docs/analytics/draft-model.md). `/models` shows every stored model's calibration.
 
+The navigation leads to **Champions** (every catalog champion, the role matchup matrices,
+counter-pick values and the draft assistant), the **Tier list**, **Leaderboards** (win probability
+added, pro accounts and regional ladders), **Patches**, **Drafts** and **Models**. Search also finds
+champions by name and sampled solo-queue players by Riot ID (`Name#TAG`).
+
 Aggregate tables (tier list, trending, patch overview, WPA leaderboards, matchups, the role matrix,
 counter-pick values and pro drafts) have a **Download CSV** link. It streams the whole table with
 the page's filters, up to 10,000 rows, from `/api/export/<table>`, with sample counts and Riot or

@@ -1046,6 +1046,49 @@ test("aggregate tables download as CSV with the page's filters", async ({ page }
   expect((await page.request.get("/api/export/unknown")).status()).toBe(404);
 });
 
+test("navigation reaches every analytics section and search finds champions", async ({ page }) => {
+  const nav = (name: string) => page.getByRole("link", { name, exact: true, includeHidden: true });
+  await page.goto("/champions");
+  await expect(page.getByRole("heading", { name: "Champions", exact: true })).toBeVisible();
+  await expect(nav("Champions")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Ahri lane matchups" })).toHaveAttribute(
+    "href",
+    "/champions/Ahri/matchups",
+  );
+  await expect(page.getByRole("link", { name: "Draft assistant" })).toHaveAttribute(
+    "href",
+    "/drafts/assistant",
+  );
+  await page.goto("/matchups/MIDDLE");
+  await expect(nav("Champions")).toHaveAttribute("aria-current", "page");
+  await page.goto("/patches");
+  await expect(nav("Patches")).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: "Patch 16.4" }).click();
+  await expect(page).toHaveURL(/\/patches\/16\.4$/);
+  await page.goto("/leaderboards");
+  await expect(nav("Leaderboards")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Win probability added" })).toHaveAttribute(
+    "href",
+    "/leaderboards/wpa",
+  );
+  for (const [name, href] of [
+    ["Tier list", "/tier-list"],
+    ["Drafts", "/drafts"],
+    ["Models", "/models"],
+  ] as const)
+    await expect(nav(name)).toHaveAttribute("href", href);
+  await page.goto("/search?q=ahri");
+  await expect(page.getByRole("link", { name: /champion\s*Ahri/ })).toHaveAttribute(
+    "href",
+    "/champions/Ahri",
+  );
+  await page.goto("/search?q=fixture%23euw");
+  await expect(page.getByRole("link", { name: /Ladder fixture#EUW/ })).toHaveAttribute(
+    "href",
+    `/summoners/${"a".repeat(78)}`,
+  );
+});
+
 test("role matchup matrices retain null-cell samples and expose a table alternative", async ({
   page,
 }) => {

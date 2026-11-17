@@ -1,0 +1,37 @@
+"use client";
+import { TextLink } from "@summonersnet/ui";
+import { riotPlatforms } from "@summonersnet/data/contracts";
+
+/** The leaderboards: win probability added, linked pro accounts and each regional ladder. */
+export function LeaderboardsPage() {
+  return (
+    <div className="np-stack">
+      <header className="ev-title">
+        <div>
+          <span className="np-overline">Solo queue and pro play</span>
+          <h1>Leaderboards</h1>
+        </div>
+      </header>
+      <ul>
+        <li>
+          <TextLink href="/leaderboards/wpa">Win probability added</TextLink>: champions, players
+          and roles ranked by the active model.
+        </li>
+        <li>
+          <TextLink href="/leaderboards/pros">Pro accounts</TextLink>: solo-queue accounts linked to
+          pro players.
+        </li>
+      </ul>
+      <section className="np-stack" aria-labelledby="ladders">
+        <h2 id="ladders">Regional solo-queue ladders</h2>
+        <ul>
+          {riotPlatforms.map((p) => (
+            <li key={p}>
+              <TextLink href={`/leaderboards/${p}`}>{p.toUpperCase()}</TextLink>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}

@@ -223,3 +223,4 @@ export {
 } from "./domain/draft-assistant.js";
 
 export { draftFeatures, type DraftInput, type DraftWinProbability } from "./domain/draft-model.js";
+export type { ChampionDirectory, PatchDirectory } from "./domain/directories.js";

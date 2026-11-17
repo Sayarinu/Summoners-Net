@@ -6665,6 +6665,44 @@ describe("lane matchup aggregates", () => {
     expect((await queries.draftAssistant({ source: "pro", role: "UTILITY" })).draft).toBeNull();
     expect(fetcher.mock.calls.length).toBe(calls);
   });
+  it("searches champions and solo-queue Riot IDs and lists champion and patch directories", async () => {
+    await catalog();
+    await saveAccount(pool, { puuid: "s".repeat(78), gameName: "Mid Ahri", tagLine: "EUW" }, now);
+    await saveAccount(pool, { puuid: "t".repeat(78), gameName: null, tagLine: null }, now);
+    // Two catalog patches, one champion hit with the newest name.
+    const champions = await queries.search({ q: "nunu" });
+    expect(champions).toMatchObject({ total: 1 });
+    expect(champions.items[0]).toMatchObject({
+      id: "Nunu",
+      kind: "champion",
+      name: "Nunu & Willump",
+      detail: "Champion",
+    });
+    // The metadata job cached the icon locally.
+    expect(champions.items[0]!.imageUrl).toMatch(/^\/api\/images\/[0-9a-f]{64}$/);
+    const both = await queries.search({ q: "Ahri" });
+    expect(both.items.map((i) => [i.kind, i.id])).toEqual([
+      ["champion", "Ahri"],
+      ["summoner", "s".repeat(78)],
+    ]);
+    expect((await queries.search({ q: "ahri#eu" })).items).toEqual([
+      { id: "s".repeat(78), kind: "summoner", name: "Mid Ahri#EUW", detail: "Solo queue player" },
+    ]);
+    expect((await queries.search({ q: "a", pageSize: 1 })).items).toHaveLength(1);
+    const directory = await queries.championDirectory();
+    expect(directory.patch).toBe("16.22");
+    expect(directory.champions.map((c) => [c.championKey, c.championId, c.name])).toEqual([
+      [103, "Ahri", "Ahri"],
+      [20, "Nunu", "Nunu & Willump"],
+      [62, "MonkeyKing", "Wukong"],
+    ]);
+    expect(await queries.patchDirectory()).toEqual({ patches: [] });
+    await game(20, true, 0);
+    await aggregate();
+    expect(await queries.patchDirectory()).toEqual({
+      patches: [{ patch: "16.22", solo: true, pro: false }],
+    });
+  });
   it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {
     await catalog();
     const rows: string[] = [];

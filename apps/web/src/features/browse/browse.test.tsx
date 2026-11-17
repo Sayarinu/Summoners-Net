@@ -163,11 +163,22 @@ describe("browse presentation", () => {
           },
           { id: match.id, kind: "match", name: match.name, detail: "LCK" },
           { id: game.id, kind: "game", name: game.sourceId, detail: "2026" },
+          { id: "Ahri", kind: "champion", name: "Ahri", detail: "Champion" },
+          { id: "puuid/1", kind: "summoner", name: "Mid Ahri#EUW", detail: "Solo queue player" },
         ])}
         query={{ q: "Acceptance" }}
       />,
     );
-    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(screen.getAllByRole("article")).toHaveLength(5);
+    expect(screen.getByRole("link", { name: /champion\s*Ahri/ })).toHaveAttribute(
+      "href",
+      "/champions/Ahri",
+    );
+    expect(screen.getByRole("link", { name: /Mid Ahri#EUW/ })).toHaveAttribute(
+      "href",
+      "/summoners/puuid%2F1",
+    );
+    expect(screen.getByText("Solo queue player")).toBeVisible();
     expect(screen.getByRole("link", { name: /acceptance-game/ })).toHaveAttribute(
       "href",
       `/games/${encodeURIComponent(game.id)}`,
