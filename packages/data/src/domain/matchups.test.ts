@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { matchupEstimate, championMatchupsQuerySchema } from "./matchups.js";
+import {
+  matchupEstimate,
+  championMatchupsQuerySchema,
+  matchupMatrixQuerySchema,
+} from "./matchups.js";
 it("shrinks rates and signed means toward the champion baseline while preserving separate samples", () => {
   expect(matchupEstimate({ total: 8, count: 10 }, { total: 10, count: 20 })).toEqual({
     raw: 0.8,
@@ -49,4 +53,21 @@ it("validates source roles and bounded SQL page and sort inputs", () => {
     { champion: "Ahri", page: 0 },
   ])
     expect(championMatchupsQuerySchema.safeParse(bad).success).toBe(false);
+});
+
+it("bounds both matrix axes and rejects arbitrary metrics and roles", () => {
+  expect(matchupMatrixQuerySchema.parse({ role: "TOP" })).toMatchObject({
+    page: 1,
+    columnPage: 1,
+    metric: "winRate",
+    value: "shrunk",
+  });
+  for (const input of [
+    { role: "ALL" },
+    { role: "TOP", columnPage: 0 },
+    { role: "TOP", page: 10001 },
+    { role: "TOP", metric: "SQL" },
+    { role: "TOP", pageSize: 100 },
+  ])
+    expect(matchupMatrixQuerySchema.safeParse(input).success).toBe(false);
 });

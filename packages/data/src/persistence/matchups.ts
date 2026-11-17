@@ -12,6 +12,17 @@ import {
 } from "../domain/matchups.js";
 import type { PatchChampion } from "../domain/patch-overview.js";
 import type { Executor } from "./database.js";
+// Both matchup queries bind source at $2 and the optional patch at $3.
+export const matchupPatchScope = `available AS (
+      SELECT p.patch_key FROM patches p
+      WHERE EXISTS (SELECT 1 FROM matchup_aggregates a WHERE a.source=$2 AND a.patch_key=p.patch_key)
+         OR EXISTS (SELECT 1 FROM matchup_exclusions e WHERE e.source=$2 AND e.patch_key=p.patch_key)
+    ), chosen AS (
+      SELECT p.patch_key FROM patches p WHERE p.patch_key=coalesce($3::text,(
+        SELECT a.patch_key FROM available a JOIN patches p USING(patch_key)
+        ORDER BY p.release_order DESC LIMIT 1))
+
+    )`;
 /** Aggregate-only, bounded opponent pages. The pooled baseline is computed before pagination. */
 export async function championMatchups(
   db: Executor,
@@ -33,20 +44,12 @@ export async function championMatchups(
       exclusions: MatchupExclusions[];
     }>(
       `
-    WITH available AS (
-      SELECT p.patch_key FROM patches p
-      WHERE EXISTS (SELECT 1 FROM matchup_aggregates a WHERE a.source=$2 AND a.patch_key=p.patch_key)
-         OR EXISTS (SELECT 1 FROM matchup_exclusions e WHERE e.source=$2 AND e.patch_key=p.patch_key)
-    ), champion AS (
+    WITH ${matchupPatchScope}, champion AS (
       SELECT c.champion_key AS "championKey",c.champion_id AS "championId",c.name,
         CASE WHEN i.asset_hash IS NULL THEN NULL ELSE '/api/images/'||i.asset_hash END AS "imageUrl"
       FROM catalog_champions c JOIN patches p USING(patch_key)
       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
       WHERE c.champion_id=$1 ORDER BY p.release_order DESC LIMIT 1
-    ), chosen AS (
-      SELECT p.patch_key FROM patches p WHERE p.patch_key=coalesce($3::text,(
-        SELECT a.patch_key FROM available a JOIN patches p USING(patch_key)
-        ORDER BY p.release_order DESC LIMIT 1))
     ), scoped AS (
       SELECT * FROM matchup_aggregates WHERE source=$2 AND patch_key=(SELECT patch_key FROM chosen)
         AND champion_key=(SELECT "championKey" FROM champion) AND role=$4

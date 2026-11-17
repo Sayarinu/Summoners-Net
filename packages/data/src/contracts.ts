@@ -133,6 +133,10 @@ export {
 } from "./domain/champion-players.js";
 
 export {
+  matchupMatrixQuerySchema,
+  matchupMatrixPageSize,
+  type MatchupMatrix,
+  type MatchupMatrixQuery,
   championMatchupsQuerySchema,
   matchupRoles,
   matchupMetrics,

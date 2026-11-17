@@ -158,7 +158,8 @@ pro presence leaders. See the [patch overview sample rules](docs/analytics/patch
 champion pages also list [sampled ladder players](docs/analytics/champion-players.md), with current
 stored ranks, pro identity links and a visible minimum sample.
 [Lane matchup aggregates](docs/analytics/matchups.md) pair opponents by role and retain raw samples
-alongside estimates shrunk toward each champion’s baseline.
+alongside estimates shrunk toward each champion’s baseline. Browse them from a champion’s lane
+matchups link or the paginated role matrix at `/matchups/MIDDLE`.
 
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 

@@ -84,3 +84,28 @@ export interface ChampionMatchups {
   page: Page<MatchupRow>;
   exclusions: MatchupExclusions[];
 }
+
+export const matchupMatrixPageSize = 8;
+export const matchupMatrixQuerySchema = championMatchupsQuerySchema
+  .pick({
+    source: true,
+    patch: true,
+    value: true,
+    page: true,
+  })
+  .extend({
+    role: z.enum(matchupRoles),
+    metric: z.enum(matchupMetrics).default("winRate"),
+    columnPage: z.coerce.number().int().min(1).max(10000).default(1),
+  });
+export type MatchupMatrixQuery = z.input<typeof matchupMatrixQuerySchema>;
+export interface MatchupMatrix {
+  query: z.output<typeof matchupMatrixQuerySchema>;
+  patch: string | null;
+  patches: string[];
+  total: number;
+  pageSize: number;
+  rows: PatchChampion[];
+  columns: PatchChampion[];
+  cells: { championKey: number; opponentKey: number; games: number; estimate: MatchupEstimate }[];
+}
