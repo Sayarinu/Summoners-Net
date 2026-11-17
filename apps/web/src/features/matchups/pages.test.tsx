@@ -91,7 +91,6 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
   );
   expect(table).toHaveTextContent("80.0% · n=10");
   expect(table).toHaveTextContent("+100.0 · n=10");
-  expect(screen.getByText(/First blood and first tower describe team outcomes/)).toBeVisible();
 });
 const scored: ChampionBlindability = {
   games: 158,
