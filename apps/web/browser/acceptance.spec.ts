@@ -8,13 +8,14 @@ import { historyCsv } from "../../../packages/data/tests/fixtures";
 async function openSettings(page: Page) {
   const openNavigation = page.getByRole("button", { name: "Open Navigation" });
   if (await openNavigation.isVisible()) await openNavigation.click();
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
 }
 
 test("browse filters, SQL pages, match details and spoiler control", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();
-  await expect(page.getByText("Result hidden")).toHaveCount(0);
+  await expect(page.getByText("Result Hidden")).toHaveCount(0);
   await page.getByRole("button", { name: /All Leagues/ }).click();
   await page.getByRole("option", { name: "LCK", exact: true }).click();
   await expect(page).toHaveURL(/league=LCK/);
@@ -92,7 +93,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByText(/1 records/)).toBeVisible();
   await page.goto("/?date=2026-02-28&league=LCK");
   await expect(page.getByText(/29 records/)).toBeVisible();
-  await expect(page.getByText("Result hidden")).toHaveCount(0);
+  await expect(page.getByText("Result Hidden")).toHaveCount(0);
   await page
     .getByRole("link", { name: /Acceptance Blue versus Acceptance Red/ })
     .first()
@@ -202,8 +203,7 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await page.getByRole("combobox", { name: "Timezone" }).fill("America/Phoenix");
   await page.getByRole("option", { name: "America/Phoenix" }).click();
   await page.getByRole("button", { name: "Save Timezone" }).click();
-  await expect(page.getByRole("combobox", { name: "Timezone" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Timezone saved." })).toBeVisible();
   await page.goto("/?date=2026-02-28");
   await expect(page.getByText(/29 records/)).toBeVisible();
   await expect(
@@ -213,8 +213,10 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
       .first(),
   ).toBeVisible();
   await openSettings(page);
-  await page.getByRole("switch", { name: "Hide results" }).press("Space");
-  await expect(page.getByText("Result hidden")).not.toHaveCount(0);
+  await page.getByRole("switch", { name: "Hide Results" }).press("Space");
+  await expect(page.getByRole("status").filter({ hasText: "Results are hidden." })).toBeVisible();
+  await page.goto("/?date=2026-02-28");
+  await expect(page.getByText("Result Hidden")).not.toHaveCount(0);
   await page.goto("/history");
   await expect(page.getByRole("link", { name: /02\/28\/2026/ })).toBeVisible();
 });

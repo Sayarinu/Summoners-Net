@@ -248,7 +248,7 @@ export function MatchRow({
           type="button"
         >
           <Icon icon={EyeOff} size="small" />
-          <span>Result hidden</span>
+          <span>Result Hidden</span>
         </button>
       ) : (
         <a
@@ -465,7 +465,7 @@ export function SpoilerControl({ hidden, onHiddenChange, onReveal }: SpoilerCont
   return (
     <div className="np-spoiler-control">
       <Switch onChange={onHiddenChange} selected={hidden}>
-        Hide results
+        Hide Results
       </Switch>
       {hidden && onReveal ? (
         <Button

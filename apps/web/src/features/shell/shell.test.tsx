@@ -28,6 +28,11 @@ it("keeps route navigation, skip link and local controls available", () => {
   expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("aria-current", "page");
   fireEvent.click(screen.getByRole("link", { name: "Players" }));
   expect(router.push).toHaveBeenCalledWith("/players");
+  // Settings is its own page, marked current like any other section.
+  path.value = "/settings";
+  view.rerender(<ShellHeader preferences={defaultPreferences} />);
+  expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+  expect(screen.queryByRole("combobox", { name: "Timezone" })).not.toBeInTheDocument();
 });
 
 it("opens and closes the mobile navigation overlay", () => {

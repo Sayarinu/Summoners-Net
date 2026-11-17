@@ -67,9 +67,9 @@ describe("browse presentation", () => {
     // Rows carry their own date; there are no per-day group headings.
     expect(screen.queryByRole("heading", { name: "02/28/2026" })).not.toBeInTheDocument();
     expect(screen.getByText(/^02\/28\/2026/)).toBeVisible();
-    expect(screen.getByText("Result hidden")).toBeVisible();
+    expect(screen.getByText("Result Hidden")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
-    expect(screen.queryByText("Result hidden")).not.toBeInTheDocument();
+    expect(screen.queryByText("Result Hidden")).not.toBeInTheDocument();
     expect(screen.getByText("Saved observation · refresh overdue")).toBeVisible();
   });
   it("renders honest empty states, filters and historical table links", () => {

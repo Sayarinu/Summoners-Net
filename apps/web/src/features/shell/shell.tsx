@@ -2,7 +2,7 @@
 import { Footer, Navigation, SkipLink } from "@summonersnet/ui";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PreferencesControl } from "../preferences/controls";
+import { TimezoneDetector } from "../preferences/controls";
 import type { Preferences } from "../preferences/model";
 /** Pages that live under a navigation entry without sharing its first path segment. */
 const sections: Record<string, string> = {
@@ -73,13 +73,15 @@ export function ShellHeader({
             onNavigate={(href) => router.push(href)}
           />
         </div>
-        <div className="ev-sidebar__settings">
-          <PreferencesControl
-            autoDetectTimezone={autoDetectTimezone}
-            initial={preferences}
-            showLabel
+        <div className="ev-sidebar__settings" onClick={() => setMobileOpen(false)}>
+          <Navigation
+            currentHref={current}
+            items={[{ href: "/settings", label: "Settings" }]}
+            label="Settings Navigation"
+            onNavigate={(href) => router.push(href)}
           />
         </div>
+        {autoDetectTimezone ? <TimezoneDetector initial={preferences} /> : null}
       </aside>
       <header className="ev-mobile-header">
         <button
