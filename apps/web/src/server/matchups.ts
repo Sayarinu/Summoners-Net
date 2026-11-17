@@ -17,7 +17,17 @@ export async function loadChampionMatchups(champion: string, params: Params) {
   if (!parsed.success || Object.values(params).some(Array.isArray))
     return { matchups: null, error };
   const matchups = await data().championMatchups({ ...parsed.data, champion });
-  return matchups ? { matchups, error: null } : null;
+  if (!matchups) return null;
+  // The stored score for the patch the matchup page resolved, so both describe the same sample.
+  const blindability = matchups.patch
+    ? await data().championBlindability({
+        championKey: matchups.champion.championKey,
+        source: parsed.data.source,
+        patch: matchups.patch,
+        role: parsed.data.role,
+      })
+    : null;
+  return { matchups, blindability, error: null };
 }
 export async function loadMatchupMatrix(role: string, params: Params) {
   const parsedRole = matchupMatrixQuerySchema.shape.role.safeParse(role);

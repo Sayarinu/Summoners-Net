@@ -149,3 +149,14 @@ export {
   type MatchupEstimate,
   type MatchupExclusions,
 } from "./domain/matchups.js";
+
+export {
+  championBlindabilityQuerySchema,
+  blindabilityMinimumCoverage,
+  blindabilityMinimumOpponents,
+  blindabilityTailShare,
+  blindabilityReasons,
+  type BlindabilityReason,
+  type ChampionBlindability,
+  type ChampionBlindabilityQuery,
+} from "./domain/blindability.js";

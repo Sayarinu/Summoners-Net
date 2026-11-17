@@ -1,5 +1,7 @@
 import { matchupMatrix } from "./matchup-matrix.js";
 import { championMatchups } from "./matchups.js";
+import { championBlindability } from "./blindability.js";
+import type { ChampionBlindabilityQuery } from "../domain/blindability.js";
 import type { ChampionMatchupsQuery, MatchupMatrixQuery } from "../domain/matchups.js";
 import { patchOverview } from "./patch-overview.js";
 import { trending } from "./trending.js";
@@ -187,6 +189,7 @@ export function queries(pool: Pool, clock: () => Date) {
     ...draftQueries(pool),
     matchupMatrix: (input: MatchupMatrixQuery) => matchupMatrix(pool, input),
     championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
+    championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
     patchOverview: (patch: string) => patchOverview(pool, patch),
     trending: (input: TrendingQuery) => trending(pool, input),
     proFeed: (input: ProFeedQuery) => proFeed(pool, input),

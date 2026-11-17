@@ -1,13 +1,27 @@
-import type { ChampionMatchupsQuery, MatchupMatrixQuery } from "@summonersnet/data/contracts";
+import type {
+  ChampionBlindabilityQuery,
+  ChampionMatchupsQuery,
+  MatchupMatrixQuery,
+} from "@summonersnet/data/contracts";
 import { beforeEach, expect, it, vi } from "vitest";
 const championMatchups =
-    vi.fn<(input: ChampionMatchupsQuery) => Promise<{ patch: string } | null>>(),
+    vi.fn<
+      (
+        input: ChampionMatchupsQuery,
+      ) => Promise<{ patch: string | null; champion: { championKey: number } } | null>
+    >(),
+  championBlindability = vi.fn<(input: ChampionBlindabilityQuery) => Promise<{ score: number }>>(),
   matchupMatrix = vi.fn<(input: MatchupMatrixQuery) => Promise<{ patch: string }>>();
 vi.mock("server-only", () => ({}));
-vi.mock("./data", () => ({ data: () => ({ championMatchups, matchupMatrix }) }));
+vi.mock("./data", () => ({
+  data: () => ({ championMatchups, championBlindability, matchupMatrix }),
+}));
 const { loadChampionMatchups, loadMatchupMatrix } = await import("./matchups");
 beforeEach(() => {
-  championMatchups.mockReset().mockResolvedValue({ patch: "16.22" });
+  championMatchups
+    .mockReset()
+    .mockResolvedValue({ patch: "16.22", champion: { championKey: 103 } });
+  championBlindability.mockReset().mockResolvedValue({ score: 0.46 });
   matchupMatrix.mockReset().mockResolvedValue({ patch: "16.22" });
 });
 it("validates routes, filters and both page axes before any data query", async () => {
@@ -38,6 +52,7 @@ it("validates routes, filters and both page axes before any data query", async (
       error: "Choose Solo queue or Pro, a catalog patch, a role, a statistic and a positive page.",
     });
   expect(championMatchups).not.toHaveBeenCalled();
+  expect(championBlindability).not.toHaveBeenCalled();
   expect(matchupMatrix).not.toHaveBeenCalled();
 });
 it("passes validated filters, normalizes only patch sentinels and preserves not found", async () => {
@@ -61,8 +76,22 @@ it("passes validated filters, normalizes only patch sentinels and preserves not 
     sort: "gold10",
     order: "asc",
   });
-  await loadChampionMatchups("Ahri", { patch: "all" });
+  expect(championBlindability).toHaveBeenCalledWith({
+    championKey: 103,
+    source: "pro",
+    patch: "16.22",
+    role: "TOP",
+  });
+  expect(await loadChampionMatchups("Ahri", { patch: "all" })).toMatchObject({
+    blindability: { score: 0.46 },
+    error: null,
+  });
   expect(championMatchups.mock.lastCall?.[0].patch).toBeUndefined();
+  // Without a resolved patch there is no stored score to read.
+  championBlindability.mockClear();
+  championMatchups.mockResolvedValueOnce({ patch: null, champion: { championKey: 103 } });
+  expect(await loadChampionMatchups("Ahri", {})).toMatchObject({ blindability: null });
+  expect(championBlindability).not.toHaveBeenCalled();
   championMatchups.mockResolvedValueOnce(null);
   expect(await loadChampionMatchups("Unknown", {})).toBeNull();
   expect(

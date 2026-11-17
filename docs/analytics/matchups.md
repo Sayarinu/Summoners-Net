@@ -78,3 +78,35 @@ cells preserve null values and show their real sample count in the tooltip and t
 pair has zero observations. Rates use percentages; other metrics keep their original units. Pro and
 solo queue samples remain separate, and both routes validate inputs before reading the stored
 aggregates and local catalog metadata. No provider request is made by either page.
+
+## Blindability
+
+A champion is safe to pick blind when it has few bad matchups that opponents actually pick.
+`queries.championBlindability` reads one stored score per source, patch, champion and role, and the
+champion matchup page shows it above the opponent table with the method and formula.
+
+Each aggregate rebuild scores every champion and role from the freshly rebuilt `matchup_aggregates`
+rows of that source and patch, inside the same transaction, and stores the result in
+`blindability_scores` (migration 0042). For champion `c`:
+
+- `pᵢ` is the shrunk win rate against opponent `i` (the matchup policy above). Opponents with fewer
+  than ten win-rate observations are excluded.
+- `wᵢ` is how often opponent `i` is picked in the role: its paired lane games in that role, patch
+  and source, against any champion.
+- Covered pick share is `Σ wᵢ` over included opponents divided by the picks of every champion in the
+  role other than `c`. The counts are stored and shown with it.
+
+```
+expected  E = Σ wᵢ·pᵢ / Σ wᵢ
+worst     min pᵢ   (the enemy counter-picks optimally)
+variance  Σ wᵢ·(pᵢ − E)² / Σ wᵢ
+tail      mean pᵢ over the worst 20% of Σ wᵢ, worst matchups first
+score     tail
+```
+
+The tail takes whole opponents from the worst matchup up and a fraction of the opponent that crosses
+the 20% boundary. Every statistic is null, with the reason stored and shown, when no opponent picks
+exist in the role (`no-opponent-picks`), fewer than three opponents meet the minimum
+(`few-opponents`), or the covered pick share is below 50% (`low-coverage`). Sample, opponent and
+pick counts are kept in every case. Like the matchups, the score describes stored samples and is not
+evidence of causation. The read makes no provider requests.

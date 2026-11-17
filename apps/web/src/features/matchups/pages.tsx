@@ -13,6 +13,11 @@ import {
   matchupRoles,
   matchupMinimumSample,
   matchupPriorGames,
+  blindabilityMinimumCoverage,
+  blindabilityMinimumOpponents,
+  blindabilityTailShare,
+  type BlindabilityReason,
+  type ChampionBlindability,
   type ChampionMatchups,
   type MatchupMatrix,
   type MatchupMetric,
@@ -145,11 +150,94 @@ function Pages({
     </div>
   );
 }
+const percent = (value: number | null) =>
+  value === null ? "Unknown" : `${(value * 100).toFixed(1)}%`;
+const blindabilityReasons: Record<BlindabilityReason, string> = {
+  "no-opponent-picks": "No opponent picks are recorded in this role and patch.",
+  "few-opponents": `Fewer than ${blindabilityMinimumOpponents} opponents have at least ${matchupMinimumSample} win-rate observations.`,
+  "low-coverage": `Opponents with at least ${matchupMinimumSample} win-rate observations cover less than ${blindabilityMinimumCoverage * 100}% of opponent picks.`,
+};
+function Blindability({ score: b }: { score: ChampionBlindability | null }) {
+  const tail = blindabilityTailShare * 100;
+  return (
+    <section className="np-stack" aria-labelledby="blindability">
+      <h2 id="blindability">Blindability</h2>
+      {!b ? (
+        <p className="np-meta">No stored blindability score for this role, source and patch.</p>
+      ) : (
+        <>
+          <dl className="ev-summary" aria-label="Blindability statistics">
+            <div>
+              <dt>Blindability score</dt>
+              <dd>{percent(b.score)}</dd>
+            </div>
+            <div>
+              <dt>Pick-weighted win rate</dt>
+              <dd>{percent(b.expected)}</dd>
+            </div>
+            <div>
+              <dt>Counter-pick worst case</dt>
+              <dd>
+                {percent(b.worstCase)}
+                {b.worstOpponent ? ` · against ${name(b.worstOpponent)}` : ""}
+              </dd>
+            </div>
+            <div>
+              <dt>Lower-tail win rate ({tail}% of picks)</dt>
+              <dd>{percent(b.lowerTail)}</dd>
+            </div>
+            <div>
+              <dt>Variance</dt>
+              <dd>{b.variance === null ? "Unknown" : b.variance.toFixed(4)}</dd>
+            </div>
+            <div>
+              <dt>Covered pick share</dt>
+              <dd>
+                {percent(b.coverage)} · {b.coveredPicks} of {b.rolePicks} opponent picks
+              </dd>
+            </div>
+          </dl>
+          {b.reason ? (
+            <p role="status">Score unavailable: {blindabilityReasons[b.reason]}</p>
+          ) : null}
+          <p className="np-meta">
+            {b.coveredOpponents} of {b.sampledOpponents} sampled opponents meet the minimum ·{" "}
+            {b.games} lane games
+          </p>
+        </>
+      )}
+      <details>
+        <summary>How blindability is calculated</summary>
+        <p className="np-body-sm">
+          A champion is safe to pick blind when it has few bad matchups that opponents actually
+          pick. Each opponent’s win rate is the shrunk matchup estimate shown below. Opponents with
+          fewer than {matchupMinimumSample} win-rate observations are left out, and the covered pick
+          share says how much of the role’s opponent picks remain. Each opponent is weighted by how
+          often it is picked in this role, patch and source (its paired lane games, w).
+        </p>
+        <pre className="np-body-sm">{`expected  E = Σ wᵢ·pᵢ / Σ wᵢ
+worst     min pᵢ   (the enemy counter-picks optimally)
+variance  Σ wᵢ·(pᵢ − E)² / Σ wᵢ
+tail      mean pᵢ over the worst ${tail}% of Σ wᵢ, worst matchups first
+score     tail`}</pre>
+        <p className="np-body-sm">
+          The score is the lower-tail win rate: what the champion can expect when the enemy picks
+          from its worst common matchups. It is unknown when fewer than{" "}
+          {blindabilityMinimumOpponents} opponents meet the minimum or they cover less than{" "}
+          {blindabilityMinimumCoverage * 100}% of opponent picks. Like the matchups, it describes
+          stored samples and is not evidence of causation.
+        </p>
+      </details>
+    </section>
+  );
+}
 export function ChampionMatchupsPage({
   matchups: m,
+  blindability = null,
   error,
 }: {
   matchups: ChampionMatchups | null;
+  blindability?: ChampionBlindability | null;
   error: string | null;
 }) {
   if (!m)
@@ -212,6 +300,7 @@ export function ChampionMatchupsPage({
         <input type="hidden" name="pageSize" value={q.pageSize} />
         <Button type="submit">Apply filters</Button>
       </form>
+      <Blindability score={m.patch ? blindability : null} />
       <Policy />
       <p className="np-meta">
         Patch {m.patch ?? "unavailable"} ·{" "}
