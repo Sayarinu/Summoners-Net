@@ -1,5 +1,6 @@
 import { keepReplayFilesSchema } from "./domain/replays.js";
 import { createSync } from "./sync/index.js";
+import { trainOnDemand } from "./sync/train-command.js";
 import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -53,6 +54,19 @@ try {
       const result = await sync.runNext();
       process.stdout.write(`${JSON.stringify(result)}\n`);
       if (result.state === "idle" || result.state === "busy" || result.id === id) break;
+    }
+  } else if (command === "wp-train") {
+    const queries = createQueries(connection);
+    try {
+      const done = await trainOnDemand(
+        sync,
+        queries,
+        (line) => process.stdout.write(`${line}\n`),
+        () => stop,
+      );
+      if (!done) process.exitCode = 1;
+    } finally {
+      await queries.close();
     }
   } else if (command === "backfill-all") {
     for (const year of archiveYears) {
@@ -111,7 +125,7 @@ try {
     }
   } else
     throw new Error(
-      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, status",
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, status",
     );
 } finally {
   await sync.close();

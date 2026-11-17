@@ -407,6 +407,20 @@ test("model diagnostics show versions, calibration and named weights", async ({ 
   await page.goto("/models?model=nope");
   await expect(page.getByText("Choose a model from the list.")).toBeVisible();
 });
+test("sources show the active win probability model and only queue training", async ({ page }) => {
+  await page.goto("/sources");
+  const section = page.getByRole("region", { name: "Win probability model" });
+  await expect(section).toContainText(/Model v1 \(#1\) is active/);
+  await section.getByRole("button", { name: "Queue training" }).click();
+  await expect(section.getByRole("status").filter({ hasText: "Queued." })).toBeVisible();
+  await page.goto("/sources");
+  await expect(page.getByText("wp-train", { exact: true })).toBeVisible();
+  const invalid = await page.request.post("/api/refresh", {
+    data: { kind: "wp-train", minimumMatches: 1 },
+    headers: { origin: "http://127.0.0.1:3100" },
+  });
+  expect(invalid.status()).toBe(400);
+});
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();

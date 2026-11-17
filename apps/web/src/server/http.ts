@@ -13,6 +13,7 @@ const refreshSchema = z.discriminatedUnion("kind", [
         "entities",
         "riot-key",
         "riot-match-ids",
+        "wp-train",
       ]),
     })
     .strict(),

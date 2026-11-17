@@ -50,6 +50,9 @@ describe("local HTTP entry points", () => {
     expect((await mutate(request({ kind: "riot-key" }), "refresh")).status).toBe(202);
     expect(mocks.request).toHaveBeenCalledWith({ kind: "riot-key" });
     expect((await mutate(request({ kind: "riot-match-ids" }), "refresh")).status).toBe(202);
+    expect((await mutate(request({ kind: "wp-train" }), "refresh")).status).toBe(202);
+    expect(mocks.request).toHaveBeenCalledWith({ kind: "wp-train" });
+    expect((await mutate(request({ kind: "wp-train", seed: 1 }), "refresh")).status).toBe(400);
     expect(
       (await mutate(request({ kind: "riot-match-ids", region: "euw1" }), "refresh")).status,
     ).toBe(400);

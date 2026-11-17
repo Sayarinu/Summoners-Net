@@ -5,6 +5,7 @@ import {
   modelFeatures,
   modelVersion,
   splitByMatch,
+  trainingMatchesFrom,
   train,
   vectorize,
   type Coefficients,
@@ -108,6 +109,34 @@ async function examples(db: Executor, window: readonly string[]): Promise<Exampl
   });
 }
 
+/**
+ * Whether the first solo-queue model should be trained now: none is active, the stored sample
+ * would give at least minimumMatches training matches, and the sample has grown since the last
+ * attempt (so a rejected attempt is not repeated on the same games).
+ */
+export async function firstTrainingDue(db: Executor, minimumMatches: number) {
+  if (await activeWinProbabilityModel(db)) return false;
+  const window = await trainingWindow(db);
+  const sample = Number(
+    (
+      await db.query<{ n: string }>(
+        `SELECT count(DISTINCT f.match_id) AS n FROM riot_wp_features f JOIN riot_matches m USING (match_id)
+         WHERE f.version=$1 AND m.patch_key=ANY($2::text[]) AND f.blue_win IS NOT NULL
+           AND m.remake IS NOT TRUE AND f.gold_diff IS NOT NULL AND f.xp_diff IS NOT NULL
+           AND f.cs_diff IS NOT NULL`,
+        [featureVersion, window],
+      )
+    ).rows[0]!.n,
+  );
+  if (trainingMatchesFrom(sample) < minimumMatches) return false;
+  const last = (
+    await db.query<{ n: number }>(
+      `SELECT train_matches+eval_matches AS n FROM wp_models WHERE kind='timeline'
+       ORDER BY id DESC LIMIT 1`,
+    )
+  ).rows[0];
+  return !last || last.n < sample;
+}
 /**
  * Trains a model on the current patch window and stores it. With fewer than minimumMatches
  * training matches it is stored as rejected and the active model stays; otherwise it becomes

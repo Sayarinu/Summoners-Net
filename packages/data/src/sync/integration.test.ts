@@ -47,6 +47,8 @@ import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
 import { modelDiagnostics } from "../persistence/model-diagnostics.js";
+import { trainOnDemand } from "./train-command.js";
+import { firstTrainingDue } from "../persistence/wp-models.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
@@ -3003,6 +3005,117 @@ describe("Champion aggregates", () => {
     expect((await activeWinProbabilityModel(pool))!.id).toBe(active.id);
     // The same seed and data reproduce the same coefficients.
     expect(rejected!.coefficients).toEqual(active.coefficients);
+  });
+  /** Stored matches with synthetic features: blue wins exactly the games where it leads in gold. */
+  async function trainingGames(ids: string[]) {
+    for (const id of ids) await ingest(id, challenger);
+    await pool.query(
+      `INSERT INTO riot_wp_features(match_id,version,minute,timestamp_ms,gold_diff,xp_diff,cs_diff,
+         blue_kills,red_kills,blue_towers,red_towers,blue_inhibitors,red_inhibitors,blue_barons,
+         red_barons,blue_elders,red_elders,blue_dragons,red_dragons,blue_soul,red_soul,blue_win,
+         computed_at)
+       SELECT m.id,1,minute,minute*60000,lead*minute,0,0,0,0,0,0,0,0,0,0,0,0,'{}','{}',false,false,
+         lead>0,$2
+       FROM unnest($1::text[]) WITH ORDINALITY AS m(id,n)
+       CROSS JOIN LATERAL (SELECT CASE WHEN n%2=0 THEN 400 ELSE -400 END AS lead) l
+       CROSS JOIN generate_series(1,10) minute`,
+      [ids, now],
+    );
+  }
+  const games = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => `EUW1_${from + i}`);
+  it("trains the first model as soon as the stored sample reaches the minimum", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      winProbability: { minimumMatches: 16, seed: 11 },
+    });
+    const queued = async () =>
+      Number(
+        (
+          await pool.query<{ n: string }>(
+            "SELECT count(*) AS n FROM sync_jobs WHERE request->>'kind'='wp-train' AND state='queued'",
+          )
+        ).rows[0]!.n,
+      );
+    const aggregateJob = async () => {
+      await worker.request({ kind: "aggregate" });
+      expect((await worker.runNext()).state).toBe("done");
+    };
+    try {
+      // 15 games leave 12 training matches after the holdout: not enough yet.
+      await trainingGames(games(200, 15));
+      await aggregateJob();
+      expect(await queued()).toBe(0);
+      // 20 games leave exactly 16: the aggregate run queues training.
+      await trainingGames(games(300, 5));
+      await aggregateJob();
+      expect(await queued()).toBe(1);
+      expect(await worker.runNext()).toMatchObject({ state: "done", records: 1 });
+      expect((await activeWinProbabilityModel(pool))!.trainMatches).toBe(16);
+      // With an active model, later runs leave training to the daily schedule.
+      await aggregateJob();
+      expect(await queued()).toBe(0);
+    } finally {
+      await worker.close();
+    }
+    // A rejected attempt is not repeated until the sample grows.
+    await pool.query("UPDATE wp_models SET status='rejected'");
+    expect(await firstTrainingDue(pool, 16)).toBe(false);
+    await trainingGames(games(400, 1));
+    expect(await firstTrainingDue(pool, 16)).toBe(true);
+    expect(await firstTrainingDue(pool, 18)).toBe(false);
+  });
+  it("trains on demand and reports each model published or rejected", async () => {
+    await savePatchCatalog(pool, ["16.22.1"], now);
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await trainingGames(games(500, 20));
+    const command = async (minimumMatches: number) => {
+      const worker = createSync(connection, {
+        clock: () => instant,
+        fetch: fetcher,
+        winProbability: { minimumMatches, seed: 11 },
+      });
+      const lines: string[] = [];
+      try {
+        const done = await trainOnDemand(worker, queries, (line) => lines.push(line));
+        return { done, lines };
+      } finally {
+        await worker.close();
+      }
+    };
+    const published = await command(10);
+    expect(published.done).toBe(true);
+    expect(published.lines[0]).toMatch(/^Queued wp-train job \d+\.$/);
+    expect(published.lines[1]).toMatch(
+      /^Solo queue model #1 published: 16 training games \(160 states\), Brier score 0\.\d{3}\.$/,
+    );
+    expect(published.lines[2]).toBe(
+      "Pro checkpoint model #2 rejected: Only 0 training games; at least 200 are needed. There is no active model yet.",
+    );
+    const rejected = await command(100);
+    expect(rejected.lines[1]).toBe(
+      "Solo queue model #3 rejected: Only 16 training matches; at least 100 are needed. The active model stays #1.",
+    );
+    expect((await activeWinProbabilityModel(pool))!.id).toBe(1);
+    // A busy queue reports that a running worker will train instead.
+    const lock = await pool.connect();
+    try {
+      await lock.query("SELECT pg_advisory_lock(9183275)");
+      const busy = await command(10);
+      expect(busy).toEqual({
+        done: false,
+        lines: [
+          expect.stringMatching(/^Queued wp-train job/) as string,
+          "Another worker is running; it will train the model when it reaches the job.",
+        ],
+      });
+    } finally {
+      await lock.query("SELECT pg_advisory_unlock(9183275)");
+      lock.release();
+    }
   });
   it("scores a solo game's win probability per minute with the active model, with gaps and markers", async () => {
     serveDataDragon(["16.22.1"]);

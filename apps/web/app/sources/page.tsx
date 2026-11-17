@@ -5,6 +5,7 @@ export default async function Page() {
     <SourcesPage
       status={await data().status()}
       entities={await data().entityStatus()}
+      models={await data().modelDiagnostics()}
       timezone={(await preferences()).timezone}
       year={new Date().getUTCFullYear()}
     />

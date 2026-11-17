@@ -32,7 +32,11 @@ import { claim, enqueue, jobKey, schedule } from "./queue.js";
 import { RiotConnectionError, riotClient } from "./riot-client.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
-import { activeWinProbabilityModel, trainWinProbabilityModel } from "../persistence/wp-models.js";
+import {
+  activeWinProbabilityModel,
+  trainWinProbabilityModel,
+  firstTrainingDue,
+} from "../persistence/wp-models.js";
 import { scorePendingWpa } from "../persistence/wpa.js";
 import { trainCheckpointModel } from "../persistence/pro-wp.js";
 import { rebuildWpaAggregates } from "../persistence/wpa-leaderboards.js";
@@ -590,13 +594,17 @@ export function worker(pool: Pool, options: WorkerOptions) {
     for (const { source, patchKey } of await dirtyPatches(pool, 200))
       rows += await rebuildPatch(pool, source, patchKey, clock());
     await scoreActiveWpa();
+    // Train the first model as soon as enough games are stored, not at the daily run.
+    if (await firstTrainingDue(pool, minimumMatches()))
+      await enqueue(pool, { kind: "wp-train" }, clock());
     return rows;
   }
+  const minimumMatches = () => options.winProbability?.minimumMatches ?? 500;
   async function perform(r: SyncRequest): Promise<number> {
     if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
     if (r.kind === "wp-train") {
       const trained = await trainWinProbabilityModel(pool, clock(), {
-        minimumMatches: options.winProbability?.minimumMatches ?? 500,
+        minimumMatches: minimumMatches(),
         seed: options.winProbability?.seed ?? 20261116,
       });
       // A newly active model scores events from the start; the aggregate job keeps it current.
