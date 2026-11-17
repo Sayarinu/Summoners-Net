@@ -734,6 +734,9 @@
   gap: var(--space-2) var(--space-4);
   padding-block: var(--space-1);
 }
+.ev-series-page .ev-title:has(> .ev-series-score, > .np-button) {
+  justify-content: start;
+}
 .ev-series-page .ev-title > .np-text-link {
   white-space: nowrap;
 }
@@ -817,6 +820,14 @@
   margin-inline: auto;
 }
 
+.ev-series-overview .np-stream-shell > header {
+  gap: var(--space-2);
+}
+
+.ev-series-overview .np-stream-shell--ready > header .np-status {
+  display: none;
+}
+
 .ev-disclosure {
   min-width: 0;
   background: var(--color-bg-raised);
@@ -865,7 +876,7 @@
   }
 
   .ev-series-overview:has(> .ev-disclosure[open]) .ev-series-games {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   }
 }
 
