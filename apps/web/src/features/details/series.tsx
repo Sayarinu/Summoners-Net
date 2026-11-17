@@ -8,7 +8,9 @@ import type {
   ProGameWinProbability,
   SeriesGame,
 } from "@summonersnet/data";
-import { dateTime, matchDisplay } from "../browse/presentation";
+import { gameReplayUrl, recordingUrl } from "@summonersnet/data/contracts";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
+import { dateTime, matchDisplay, gameTeams } from "../browse/presentation";
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { LineupTable } from "./lineup";
@@ -41,6 +43,7 @@ function SeriesShell({
   hidden,
   onReveal,
   children,
+  game,
 }: {
   match: Match;
   games: SeriesGame[];
@@ -50,10 +53,14 @@ function SeriesShell({
   hidden: boolean;
   onReveal: () => void;
   children: ReactNode;
+  game?: Game | null;
 }) {
   const display = matchDisplay(match, timezone, now);
   const title =
     match.teams.length > 0 ? display.teams.map((team) => team.name).join(" vs ") : match.name;
+  const sides = game
+    ? new Map(gameTeams(game).map((team) => [team.entityId ?? team.id, team.side]))
+    : null;
   const parent =
     match.state === "final"
       ? { label: "Past Matches", href: "/history" }
@@ -72,7 +79,25 @@ function SeriesShell({
           <span className="np-overline">
             {match.league} · Best of {match.bestOf}
           </span>
-          <h1>{title}</h1>
+          <h1>
+            {sides && match.teams.length > 0
+              ? match.teams.map((team, index) => {
+                  const side = sides.get(team.entityId ?? team.id);
+                  return (
+                    <span key={team.id}>
+                      {index ? " vs " : null}
+                      <span
+                        className="ev-side-name"
+                        data-side={side}
+                        title={side ? `${side} side` : undefined}
+                      >
+                        {team.name}
+                      </span>
+                    </span>
+                  );
+                })
+              : title}
+          </h1>
           <p className="np-body-sm">
             {match.event} · {dateTime(match.startsAt, timezone)}
           </p>
@@ -168,6 +193,7 @@ export function MatchPage({
           <h2>Games</h2>
           <ol className="ev-series-games">
             {games.map((game) => {
+              const vodUrl = gameReplayUrl(match, game);
               const body = (
                 <>
                   <span className="ev-series-game__number">Game {game.number}</span>
@@ -191,16 +217,24 @@ export function MatchPage({
                   ) : (
                     <div aria-disabled="true">{body}</div>
                   )}
+                  {vodUrl ? (
+                    <TextLink
+                      className="ev-series-game__replay"
+                      href={vodUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Watch Game ${game.number} VOD`}
+                    >
+                      Watch Game VOD
+                    </TextLink>
+                  ) : null}
                 </li>
               );
             })}
           </ol>
         </section>
       ) : (
-        <EmptyState
-          title="No Games Reported Yet"
-          description="Games appear here once the schedule provider reports them."
-        />
+        <EmptyState title="No Games Reported Yet" />
       )}
     </SeriesShell>
   );
@@ -210,9 +244,11 @@ function Draft({
   detail,
   teams,
   game,
+  portraits,
 }: {
   detail: HistoricalGameDetail;
   teams: Map<string, string>;
+  portraits?: ChampionPortraits | undefined;
   game: Game;
 }) {
   return (
@@ -220,7 +256,7 @@ function Draft({
       <h2>Draft</h2>
       <div className="ev-series-draft">
         {detail.draft.map((side) => (
-          <div key={side.side} className="ev-series-draft__side">
+          <div key={side.side} className="ev-series-draft__side" data-side={side.side}>
             <h3>
               {side.side === "blue" ? "Blue" : "Red"} Side · {teams.get(side.side) ?? "Unknown"}
               {side.firstPick ? " · First Pick" : ""}
@@ -229,23 +265,34 @@ function Draft({
               {side.picks.some((pick) => pick !== null) ? (
                 <div>
                   <dt>Picks</dt>
-                  <dd>{side.picks.map((pick) => pick ?? "—").join(" · ")}</dd>
+                  <dd className="np-cluster">
+                    {side.picks.map((pick, index) => (
+                      <ChampionPortrait key={index} name={pick} portraits={portraits} />
+                    ))}
+                  </dd>
                 </div>
               ) : (
                 // Without a recorded pick order, list the champions this side played instead.
                 <div>
                   <dt>Played</dt>
-                  <dd>
+                  <dd className="np-cluster">
                     {game.participants
                       .filter((p) => p.side === side.side && p.player)
-                      .map((p) => p.champion ?? "—")
-                      .join(" · ") || "—"}
+                      .map((p) => (
+                        <ChampionPortrait key={p.slot} name={p.champion} portraits={portraits} />
+                      ))}
                   </dd>
                 </div>
               )}
               <div>
                 <dt>Bans</dt>
-                <dd>{side.bans.map((ban) => ban ?? "—").join(" · ") || "—"}</dd>
+                <dd className="np-cluster">
+                  {side.bans.length
+                    ? side.bans.map((ban, index) => (
+                        <ChampionPortrait key={index} name={ban} portraits={portraits} />
+                      ))
+                    : "—"}
+                </dd>
               </div>
             </dl>
           </div>
@@ -261,6 +308,7 @@ export function SeriesGamePage({
   number,
   game,
   detail,
+  portraits,
   winProbability,
   timezone,
   hideSpoilers,
@@ -272,6 +320,7 @@ export function SeriesGamePage({
   /** The linked archive game, or null while no archive record is confirmed. */
   game: Game | null;
   detail: HistoricalGameDetail | null;
+  portraits?: ChampionPortraits;
   winProbability: ProGameWinProbability | null;
   timezone: string;
   hideSpoilers: boolean;
@@ -286,11 +335,13 @@ export function SeriesGamePage({
   const previous = playedGames[index - 1];
   const next = playedGames[index + 1];
   const seconds = detail?.context.durationSeconds ?? observedSeconds(current);
+  const vodUrl = gameReplayUrl(match, current) ?? recordingUrl(detail?.context.sourceUrl);
   return (
     <SeriesShell
       match={match}
       games={games}
       current={number}
+      game={game}
       timezone={timezone}
       now={now}
       hidden={hidden}
@@ -308,6 +359,11 @@ export function SeriesGamePage({
           <TextLink href={seriesGameHref(match, next.number)}>Next: Game {next.number}</TextLink>
         ) : null}
       </nav>
+      {vodUrl ? (
+        <TextLink href={vodUrl} target="_blank" rel="noreferrer">
+          Watch Game VOD
+        </TextLink>
+      ) : null}
       <dl className="ev-summary">
         <div>
           <dt>Started</dt>
@@ -337,24 +393,19 @@ export function SeriesGamePage({
             <Draft
               detail={detail}
               game={game}
+              portraits={portraits}
               teams={new Map(detail.teams.map((team) => [team.side, team.name]))}
             />
           ) : null}
           <section className="np-stack">
             <h2>Lineups</h2>
-            <LineupTable game={game} hidden={hidden} />
+            <LineupTable game={game} hidden={hidden} portraits={portraits} />
           </section>
           {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
-          <p className="np-meta">
-            Linked to the archive record through corroborated team identities.{" "}
-            <TextLink href={`/games/${encodeURIComponent(game.id)}`}>Open Archive Record</TextLink>
-          </p>
+          <TextLink href={`/games/${encodeURIComponent(game.id)}`}>Open Archive Record</TextLink>
         </>
       ) : (
-        <EmptyState
-          title="Game Details Not Available Yet"
-          description="The game archive has no confirmed record for this game yet. Lineups and the draft appear once it does."
-        />
+        <EmptyState title="Game Details Not Available Yet" />
       )}
     </SeriesShell>
   );

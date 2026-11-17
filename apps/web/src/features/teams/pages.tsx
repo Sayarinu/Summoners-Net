@@ -14,6 +14,7 @@ import { Breadcrumb, Button, EmptyState, PlayerIdentity, TeamIdentity } from "@s
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { MatchSection, useMatchRows } from "../browse/match-group";
 import { identityHref } from "../browse/presentation";
+import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 
 export function TeamFinder({
   data,
@@ -44,7 +45,7 @@ export function TeamFinder({
           ))}
         </ul>
       ) : (
-        <EmptyState title="No Teams Found" description="Try another name or league." />
+        <EmptyState title="No Teams Found" />
       )}
       {data.total > data.pageSize && <Pages data={data} />}
     </div>
@@ -52,13 +53,6 @@ export function TeamFinder({
 }
 
 const roles = ["top", "jungle", "mid", "bottom", "support"];
-const labels: Record<string, string> = {
-  top: "Top",
-  jungle: "Jungle",
-  mid: "Mid",
-  bottom: "Bot",
-  support: "Support",
-};
 function Roster({ roster }: { roster: Profile["roster"] }) {
   const players = roster
     .map((r) => ({ player: r.player, role: roleKey(r.player.role?.toLowerCase() ?? null) }))
@@ -78,7 +72,7 @@ function Roster({ roster }: { roster: Profile["roster"] }) {
               <PlayerIdentity
                 handle={player.name}
                 href={identityHref(player)}
-                role={(role && labels[role]) || player.role || "Role unknown"}
+                {...(role ? { role } : {})}
                 {...(player.imageUrl ? { portrait: player.imageUrl } : {})}
               />
             </li>
@@ -91,26 +85,13 @@ function Roster({ roster }: { roster: Profile["roster"] }) {
   );
 }
 
-function RecordValue({ wins, known, total }: { wins: number; known: number; total: number }) {
-  return (
-    <>
-      {known ? (
-        <>
-          <span className="ev-outcome--win">{wins}W</span>–
-          <span className="ev-outcome--loss">{known - wins}L</span>
-        </>
-      ) : (
-        "—"
-      )}
-      {total > known && (
-        <small>
-          {total - known} unknown {total - known === 1 ? "result" : "results"}
-        </small>
-      )}
-    </>
-  );
-}
-function ChampionPool({ champions }: { champions: Profile["summary"]["champions"] }) {
+function ChampionPool({
+  champions,
+  portraits,
+}: {
+  champions: Profile["summary"]["champions"];
+  portraits?: ChampionPortraits | undefined;
+}) {
   const [expanded, setExpanded] = useState(false);
   return (
     <section className="ev-team-panel">
@@ -118,9 +99,9 @@ function ChampionPool({ champions }: { champions: Profile["summary"]["champions"
       <ul className="ev-champ-pool">
         {(expanded ? champions : champions.slice(0, 5)).map((c) => (
           <li key={c.name}>
-            <strong>{c.name}</strong>
+            <ChampionPortrait name={c.name} portraits={portraits} />
             <span>
-              <RecordValue wins={c.wins} known={c.resultGames} total={c.games} />
+              <GameRecord wins={c.wins} known={c.resultGames} total={c.games} />
             </span>
           </li>
         ))}
@@ -136,6 +117,7 @@ function ChampionPool({ champions }: { champions: Profile["summary"]["champions"
 
 export function TeamProfile({
   profile,
+  portraits,
   seasons,
   query,
   series,
@@ -143,6 +125,7 @@ export function TeamProfile({
   hideSpoilers,
 }: {
   profile: Profile;
+  portraits?: ChampionPortraits;
   seasons: TeamSeason[];
   query: BrowseQuery;
   series: Page<Match> | null;
@@ -156,9 +139,6 @@ export function TeamProfile({
   const league = (
     seasons.find((s) => s.year === query.year) ?? (!query.year ? seasons[0] : undefined)
   )?.league;
-  const aliases = profile.aliases?.filter(
-    (name) => name.toLowerCase() !== identity.name.toLowerCase(),
-  );
   const year = typeof query.year === "number" ? String(query.year) : "all";
   const years = seasons.map((s) => s.year);
   if (typeof query.year === "number" && !years.includes(query.year)) years.push(query.year);
@@ -180,12 +160,6 @@ export function TeamProfile({
             {...(league ? { detail: league } : {})}
             {...(identity.imageUrl ? { logo: identity.imageUrl } : {})}
           />
-          {aliases?.length ? (
-            <details>
-              <summary>Other Names</summary>
-              {aliases.join(" · ")}
-            </details>
-          ) : null}
         </div>
         <Filters
           key={[year, view, query.q, query.league].join("-")}
@@ -209,7 +183,7 @@ export function TeamProfile({
               <div>
                 <dt>Game Record</dt>
                 <dd>
-                  <RecordValue
+                  <GameRecord
                     wins={summary.wins}
                     known={summary.resultGames}
                     total={summary.eligibleGames}
@@ -253,7 +227,6 @@ export function TeamProfile({
           series.items.length ? (
             <MatchSection
               title="Finished Series"
-              teamId={identity.id}
               matches={series.items}
               timezone={timezone}
               now={now}
@@ -270,7 +243,9 @@ export function TeamProfile({
         )}
         {(series ?? games).total > 5 && <Pages data={series ?? games} />}
       </section>
-      {!hidden && summary.champions.length > 0 && <ChampionPool champions={summary.champions} />}
+      {!hidden && summary.champions.length > 0 && (
+        <ChampionPool champions={summary.champions} portraits={portraits} />
+      )}
     </div>
   );
 }

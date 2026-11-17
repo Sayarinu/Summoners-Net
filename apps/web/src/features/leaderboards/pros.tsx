@@ -1,4 +1,5 @@
 "use client";
+import { GameResult } from "../browse/visuals";
 import { ChampionIcon, EmptyState, Pagination, Select, Table, TextLink } from "@summonersnet/ui";
 import type { ProFeed } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
@@ -28,15 +29,9 @@ export function ProFeedPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Linked pro accounts</span>
           <h1>Pros in Solo Queue</h1>
-          <p>Recent retained ranked solo games on accounts with imported evidence links.</p>
         </div>
       </header>
-      <p className="np-meta">
-        Team and league come from each player’s last stored complete pro appearance. They do not
-        establish current roster membership. Conflicting observations remain unknown.
-      </p>
       {error ? (
         <p role="alert">{error}</p>
       ) : feed ? (
@@ -121,14 +116,13 @@ export function ProFeedPage({
                           imageUrl={r.imageUrl}
                           size="small"
                         />
-                        {r.championName ?? `Champion ${r.championKey}`}
                       </span>
                     ),
                   },
                   {
                     id: "result",
                     header: "Result",
-                    render: (r) => (r.win === null ? "Unknown" : r.win ? "Win" : "Loss"),
+                    render: (r) => <GameResult won={r.win} />,
                   },
                   {
                     id: "time",

@@ -89,7 +89,7 @@ it("shows rate denominators, signed deltas, ordered cores and pro sample warning
   expect(screen.getByText("40.0% · n=50")).toBeVisible();
   expect(screen.getByText("+40.0 pp")).toBeVisible();
   expect(screen.getByText("-40.0 pp")).toBeVisible();
-  expect(screen.getByText("Champion 103")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Champion 103" })).toBeVisible();
   expect(screen.getByText("50 cores · 50.0% · n=100")).toBeVisible();
   expect(screen.getByText("Absent · n=60 cores")).toBeVisible();
   expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Known item");

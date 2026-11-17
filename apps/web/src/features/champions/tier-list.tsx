@@ -1,13 +1,6 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
-import {
-  ChampionIcon,
-  EmptyState,
-  Pagination,
-  StatusIndicator,
-  Table,
-  TextLink,
-} from "@summonersnet/ui";
+import { ChampionIcon, EmptyState, Pagination, StatusIndicator, Table } from "@summonersnet/ui";
 import type { TierList } from "@summonersnet/data/contracts";
 import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionFilters } from "./filters";
@@ -18,24 +11,18 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Champions</span>
           <h1>Tier List</h1>
-          <p>Win, pick and ban rates per patch, from stored aggregates.</p>
         </div>
       </header>
       <ChampionFilters action="/tier-list" query={q} facets={list?.facets} sortable />
       {error ? (
         <p role="alert">{error}</p>
       ) : !list?.patch ? (
-        <EmptyState
-          title="No Champion Statistics Yet"
-          description="Statistics appear once games are stored and aggregated."
-        />
+        <EmptyState title="No Champion Statistics Yet" />
       ) : (
         <section className="np-stack" aria-label="Tier List">
           <p className="np-meta">
-            Patch {list.patch} · {list.sliceGames} {list.sliceGames === 1 ? "game" : "games"} in
-            this selection. Win rates show a 95% interval; rows with few games are marked.
+            Patch {list.patch} · {list.sliceGames} {list.sliceGames === 1 ? "game" : "games"}
           </p>
           <ExportLink
             table="tier-list"
@@ -58,24 +45,15 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               {
                 id: "champion",
                 header: "Champion",
-                render: (r) => {
-                  const name = r.name ?? `Champion ${r.championKey}`;
-                  return (
-                    <span className="ev-champion">
-                      <ChampionIcon
-                        id={r.championId ?? String(r.championKey)}
-                        name={name}
-                        imageUrl={r.imageUrl}
-                        size="small"
-                      />
-                      {r.championId ? (
-                        <TextLink href={`/champions/${r.championId}`}>{name}</TextLink>
-                      ) : (
-                        name
-                      )}
-                    </span>
-                  );
-                },
+                render: (r) => (
+                  <ChampionIcon
+                    id={r.championId ?? String(r.championKey)}
+                    name={r.name ?? `Champion ${r.championKey}`}
+                    imageUrl={r.imageUrl}
+                    size="small"
+                    href={r.championId ? `/champions/${r.championId}` : undefined}
+                  />
+                ),
               },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },

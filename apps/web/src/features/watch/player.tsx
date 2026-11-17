@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, EmptyState, Select, StreamEmbedShell } from "@summonersnet/ui";
 import type { Broadcast, Match } from "@summonersnet/data";
+import { isRecording } from "@summonersnet/data/contracts";
 export function embedUrl(b: Broadcast, siteOrigin: string) {
   const origin = siteOrigin.includes("://") ? siteOrigin : `http://${siteOrigin}`;
   if (b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId)) {
@@ -27,10 +28,7 @@ export function embedUrl(b: Broadcast, siteOrigin: string) {
  * a VOD) and Twitch videos.
  */
 export function watchableBroadcasts(match: Pick<Match, "broadcasts" | "state">) {
-  if (match.state !== "final") return match.broadcasts;
-  return match.broadcasts.filter(
-    (b) => b.provider === "youtube" || (b.provider === "twitch" && /^v\d+$/.test(b.externalId)),
-  );
+  return match.state === "final" ? match.broadcasts.filter(isRecording) : match.broadcasts;
 }
 
 /**
@@ -102,14 +100,7 @@ export function WatchPlayer({
   }, [listensForErrors, src]);
   if (!b)
     return (
-      <EmptyState
-        title={mode === "replay" ? "No Replay Available" : "No Broadcast Supplied"}
-        description={
-          mode === "replay"
-            ? "This match has no recorded YouTube or Twitch video."
-            : "This match has no available Twitch or YouTube link."
-        }
-      />
+      <EmptyState title={mode === "replay" ? "No Replay Available" : "No Broadcast Supplied"} />
     );
   return (
     <section className="np-stack ev-watch-player" aria-label="Watch Match">

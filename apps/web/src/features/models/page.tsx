@@ -24,7 +24,6 @@ export function ModelsPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Win probability</span>
           <h1>Model Diagnostics</h1>
           <p>
             Whether the win probability models can be trusted: how they were trained, how well their

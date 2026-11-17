@@ -5,6 +5,7 @@ import { analyticsData, Avatar, cx, Icon } from "./internal.js";
 import type { AnalyticsProps } from "./internal.js";
 import { Button, LiveIndicator, StatusIndicator, TextLink } from "./primitives.js";
 import { Switch } from "./forms.js";
+import { RoleIcon } from "./catalog-icons.js";
 
 export interface TeamIdentityProps {
   readonly detail?: string;
@@ -13,6 +14,7 @@ export interface TeamIdentityProps {
   readonly name: string;
   readonly shortName: string;
   readonly size?: "compact" | "large" | "medium";
+  readonly side?: "blue" | "red";
   readonly winner?: boolean;
 }
 
@@ -23,6 +25,7 @@ export function TeamIdentity({
   name,
   shortName,
   size = "medium",
+  side,
   winner = false,
 }: TeamIdentityProps) {
   const content = (
@@ -38,16 +41,19 @@ export function TeamIdentity({
         <strong>{name}</strong>
         {detail ? <small>{detail}</small> : null}
       </span>
+      {side ? <span className="np-visually-hidden">{side} side</span> : null}
       {winner ? <span className="np-identity__winner">Winner</span> : null}
     </>
   );
 
   return href ? (
-    <a className={cx("np-identity", `np-identity--${size}`)} href={href}>
+    <a className={cx("np-identity", `np-identity--${size}`)} data-side={side} href={href}>
       {content}
     </a>
   ) : (
-    <div className={cx("np-identity", `np-identity--${size}`)}>{content}</div>
+    <div className={cx("np-identity", `np-identity--${size}`)} data-side={side}>
+      {content}
+    </div>
   );
 }
 
@@ -57,7 +63,7 @@ export interface PlayerIdentityProps {
   readonly handle: string;
   readonly href?: string;
   readonly portrait?: string;
-  readonly role?: string;
+  readonly role?: string | null | undefined;
 }
 
 export function PlayerIdentity({
@@ -68,7 +74,7 @@ export function PlayerIdentity({
   portrait,
   role,
 }: PlayerIdentityProps) {
-  const detail = [fullName, role, country].filter(Boolean).join(" · ");
+  const detail = [fullName, country].filter(Boolean).join(" · ");
   const content = (
     <>
       <Avatar
@@ -82,6 +88,7 @@ export function PlayerIdentity({
         <strong>{handle}</strong>
         {detail ? <small>{detail}</small> : null}
       </span>
+      {role ? <RoleIcon role={role} /> : null}
     </>
   );
 
@@ -171,6 +178,15 @@ function MatchTeams({
     <div className={cx("np-match-teams", compact && "np-match-teams--compact")}>
       {match.teams.map((team, teamIndex) => {
         const tbd = team.name === "TBD";
+        const opponent = match.teams[1 - teamIndex];
+        const result =
+          match.lifecycle === "final" && team.score !== undefined && opponent?.score !== undefined
+            ? team.score > opponent.score
+              ? "win"
+              : team.score < opponent.score
+                ? "loss"
+                : undefined
+            : undefined;
         return (
           <Fragment key={`${match.id}-team-${teamIndex}`}>
             <div
@@ -193,12 +209,16 @@ function MatchTeams({
               )}
               <span className="np-match-team__name">{compact ? team.shortName : team.name}</span>
               {!hideScores && team.score !== undefined ? (
-                <strong className="np-score">{team.score}</strong>
+                <strong className="np-score" data-result={result}>
+                  {team.score}
+                </strong>
               ) : null}
             </div>
             {teamIndex === 0 ? (
               <span aria-hidden="true" className="np-match-vs">
-                vs
+                {!hideScores && match.teams.every((entry) => entry.score !== undefined)
+                  ? " – "
+                  : "vs"}
               </span>
             ) : null}
           </Fragment>
@@ -229,6 +249,11 @@ export function MatchRow({
   streamAction,
 }: MatchRowProps) {
   const hasActions = Boolean(match.streamAvailable || actions || streamAction);
+  const [first, second] = match.teams;
+  const score =
+    first.score === undefined || second.score === undefined
+      ? ""
+      : `, ${first.score} to ${second.score}`;
   return (
     <article
       {...analyticsData(analyticsId)}
@@ -254,7 +279,7 @@ export function MatchRow({
         </button>
       ) : (
         <a
-          aria-label={`${match.teams[0].name} versus ${match.teams[1].name}, ${match.scheduledLabel}`}
+          aria-label={`${match.teams[0].name} versus ${match.teams[1].name}, ${match.scheduledLabel}${score}`}
           className="np-match-row__primary"
           href={match.href}
         >
@@ -298,6 +323,7 @@ export interface SearchResultProps {
   readonly name: string;
   readonly shortName: string;
   readonly type: SearchEntityType;
+  readonly showType?: boolean;
 }
 
 export function SearchResult({
@@ -307,6 +333,7 @@ export function SearchResult({
   meta,
   name,
   shortName,
+  showType = true,
   type,
 }: SearchResultProps) {
   return (
@@ -320,7 +347,7 @@ export function SearchResult({
           src={image}
         />
         <span className="np-search-result__copy">
-          <span className="np-eyebrow">{type}</span>
+          {showType ? <span className="np-eyebrow">{type}</span> : null}
           <strong>{name}</strong>
           {description ? <small>{description}</small> : null}
         </span>

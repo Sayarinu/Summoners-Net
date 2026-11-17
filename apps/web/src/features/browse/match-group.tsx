@@ -25,7 +25,6 @@ export function useSpoilerPreference(hideSpoilers: boolean) {
 /** A titled group of flat match rows, shared by the schedule and past matches. */
 export function MatchSection({
   title,
-  teamId,
   matches,
   timezone,
   now,
@@ -36,7 +35,6 @@ export function MatchSection({
   onStreamToggle,
 }: {
   title: string;
-  teamId?: string;
   matches: Match[];
   timezone: string;
   now: string;
@@ -52,58 +50,39 @@ export function MatchSection({
       <div className="ev-match-group">
         {matches.map((match) => {
           const streamOpen = openStreamId === match.id;
-          const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
+          const watchLabel =
+            match.state === "final"
+              ? "Watch Replay"
+              : match.state === "live"
+                ? "Watch Live"
+                : "Watch Stream";
+          const canWatch = watchableBroadcasts(match).length > 0;
           const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-          const team = teamId
-            ? match.teams.find((t) => (t.entityId ?? t.id) === teamId)
-            : undefined;
-          const opponent = match.teams.find((t) => t !== team);
           const hidden = spoilersHidden && !revealed.includes(match.id);
-          const outcome =
-            !hidden && team?.score != null && opponent?.score != null
-              ? team.score > opponent.score
-                ? "Win"
-                : team.score < opponent.score
-                  ? "Loss"
-                  : "Draw"
-              : null;
           return (
-            <div key={match.id}>
-              <MatchRow
-                match={matchDisplay(match, timezone, now)}
-                spoilerHidden={hidden}
-                statusLabel={
-                  outcome && (
-                    <strong className={`ev-outcome ev-outcome--${outcome.toLowerCase()}`}>
-                      {outcome}
-                    </strong>
-                  )
-                }
-                onSpoilerReveal={() => onReveal(match.id)}
-                streamAction={
-                  watchableBroadcasts(match).length > 0 ? (
-                    <button
-                      aria-controls={streamOpen ? streamPanelId : undefined}
-                      aria-expanded={streamOpen}
-                      aria-label={streamOpen ? "Close Stream" : watchLabel}
-                      className="ev-watch-toggle"
-                      onClick={() => onStreamToggle(match.id)}
-                      type="button"
-                    >
-                      {watchLabel}
-                    </button>
-                  ) : undefined
-                }
-                expandedContent={
-                  streamOpen ? <InlineMatchStream match={match} id={streamPanelId} /> : undefined
-                }
-              />
-              {!teamId &&
-                new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
-                  (match.state === "live" ? 300000 : 1200000) && (
-                  <p className="ev-row-note">Saved observation · refresh overdue</p>
-                )}
-            </div>
+            <MatchRow
+              key={match.id}
+              match={{ ...matchDisplay(match, timezone, now), streamAvailable: canWatch }}
+              spoilerHidden={hidden}
+              onSpoilerReveal={() => onReveal(match.id)}
+              streamAction={
+                canWatch ? (
+                  <button
+                    aria-controls={streamOpen ? streamPanelId : undefined}
+                    aria-expanded={streamOpen}
+                    aria-label={streamOpen ? "Close Stream" : watchLabel}
+                    className="ev-watch-toggle"
+                    onClick={() => onStreamToggle(match.id)}
+                    type="button"
+                  >
+                    {watchLabel}
+                  </button>
+                ) : undefined
+              }
+              expandedContent={
+                streamOpen ? <InlineMatchStream match={match} id={streamPanelId} /> : undefined
+              }
+            />
           );
         })}
       </div>

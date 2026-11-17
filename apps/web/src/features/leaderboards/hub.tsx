@@ -8,7 +8,6 @@ export function LeaderboardsPage() {
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Solo queue and pro play</span>
           <h1>Leaderboards</h1>
         </div>
       </header>

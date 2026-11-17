@@ -1,5 +1,5 @@
 "use client";
-import { Button, ChampionIcon, Input, Select, Table, TextLink } from "@summonersnet/ui";
+import { RoleIcon, Button, ChampionIcon, Input, Select, Table, TextLink } from "@summonersnet/ui";
 import { DraftWinProbabilitySection } from "./draft-win-probability";
 import {
   matchupMinimumSample,
@@ -38,7 +38,6 @@ export function DraftAssistantPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Read-only · nothing is saved</span>
           <h1>Draft Assistant</h1>
         </div>
       </header>
@@ -75,7 +74,11 @@ export function DraftAssistantPage({
           label="Role to Fill"
           name="role"
           defaultValue={q?.role ?? "MIDDLE"}
-          options={matchupRoles.map((r) => ({ value: r, label: roles[r] }))}
+          options={matchupRoles.map((r) => ({
+            value: r,
+            label: roles[r],
+            icon: <RoleIcon role={r} />,
+          }))}
         />
         <Input
           label="Blue Picks"
@@ -151,23 +154,17 @@ function Results({ assistant: a }: { assistant: DraftAssistant }) {
             id: "champion",
             header: "Champion",
             render: (c: DraftCandidate) => (
-              <span className="ev-champion">
-                <ChampionIcon
-                  id={c.champion.championId ?? String(c.champion.championKey)}
-                  name={name(c.champion)}
-                  imageUrl={c.champion.imageUrl}
-                  size="small"
-                />
-                {c.champion.championId ? (
-                  <TextLink
-                    href={`/champions/${c.champion.championId}/matchups?source=${a.query.source}${a.patch ? `&patch=${a.patch}` : ""}&role=${a.query.role}`}
-                  >
-                    {name(c.champion)}
-                  </TextLink>
-                ) : (
-                  name(c.champion)
-                )}
-              </span>
+              <ChampionIcon
+                id={c.champion.championId ?? String(c.champion.championKey)}
+                name={name(c.champion)}
+                imageUrl={c.champion.imageUrl}
+                size="small"
+                href={
+                  c.champion.championId
+                    ? `/champions/${c.champion.championId}/matchups?source=${a.query.source}${a.patch ? `&patch=${a.patch}` : ""}&role=${a.query.role}`
+                    : undefined
+                }
+              />
             ),
           },
           {

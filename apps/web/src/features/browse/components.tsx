@@ -207,6 +207,7 @@ export function GamesTable({ games, timezone }: { games: Game[]; timezone: strin
                 <TeamIdentity
                   key={t.id}
                   name={t.name}
+                  side={t.side}
                   shortName={t.name}
                   size="compact"
                   href={identityHref(t)}

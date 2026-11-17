@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   championMatchupsQuerySchema,
   counterPickListQuerySchema,
@@ -77,12 +77,16 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
   expect(table).toHaveTextContent("-20.0 · n=10");
   expect(table).toHaveTextContent("Unknown · n=9");
   expect(table).toHaveTextContent("Team First Blood");
-  expect(table).toHaveTextContent("Champion 999");
+  expect(within(table).getByRole("img", { name: "Champion 999" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Nunu & Willump" })).toHaveAttribute(
     "href",
     "/champions/Nunu/matchups?source=solo&value=shrunk&patch=16.22&role=MIDDLE",
   );
-  expect(screen.getByRole("table", { name: "Unpairable Roles" })).toHaveTextContent("Unknown Role");
+  expect(
+    within(screen.getByRole("table", { name: "Unpairable Roles" })).getByRole("img", {
+      name: "Unknown Role",
+    }),
+  ).toBeVisible();
   rerender(
     <ChampionMatchupsPage
       matchups={{ ...matchups, query: { ...matchups.query, value: "raw", source: "pro" } }}

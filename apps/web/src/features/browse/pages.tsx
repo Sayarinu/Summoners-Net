@@ -1,5 +1,5 @@
 "use client";
-import { EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
+import { ChampionIcon, EmptyState, SearchResult, TextLink, RoleIcon } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
 import { identityHref } from "./presentation";
@@ -32,9 +32,7 @@ export function MatchesPage({
     <div className="ev-matches-page np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Schedule</span>
           <h1>Matches</h1>
-          <p className="np-body-sm">Live, upcoming and recent series.</p>
         </div>
       </header>
       <Filters query={query} />
@@ -54,19 +52,11 @@ export function MatchesPage({
           />
         );
       })}
-      {!data.items.length && (
-        <EmptyState
-          title="No Matches in This View"
-          description="Try another date, league or status."
-        />
-      )}
+      {!data.items.length && <EmptyState title="No Matches in This View" />}
       <Pages data={data} />
-      <p className="np-body-sm">
-        Looking further back?{" "}
-        <TextLink href="/history" variant="accent">
-          Browse Past Matches
-        </TextLink>
-      </p>
+      <TextLink href="/history" variant="accent">
+        Browse Past Matches
+      </TextLink>
     </div>
   );
 }
@@ -118,13 +108,7 @@ export function PastMatchesPage({
     <div className="ev-matches-page np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Results</span>
           <h1>Past Matches</h1>
-          <p className="np-body-sm">
-            {view === "series"
-              ? "Finished series, newest first. Open a series to see each game."
-              : "Played lineups from the game archive, including games without a known series."}
-          </p>
         </div>
       </header>
       <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
@@ -152,12 +136,7 @@ export function PastMatchesPage({
               {...rows}
             />
           ))}
-          {!series.items.length && (
-            <EmptyState
-              title="No Past Matches in This View"
-              description="Try another league or year, or switch to games."
-            />
-          )}
+          {!series.items.length && <EmptyState title="No Past Matches in This View" />}
           <Pages data={series} />
         </>
       ) : null}
@@ -183,7 +162,6 @@ export function DirectoryPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Directory</span>
           <h1>{kind === "team" ? "Teams" : "Players"}</h1>
         </div>
       </header>
@@ -195,14 +173,14 @@ export function DirectoryPage({
             name={i.name}
             shortName={i.name}
             type={i.kind}
+            showType={false}
+            {...(i.role ? { meta: <RoleIcon role={i.role} /> } : {})}
             href={identityHref(i)}
             {...(i.imageUrl ? { image: i.imageUrl } : {})}
           />
         ))}
       </div>
-      {!data.items.length && (
-        <EmptyState title="No Identities Found" description="Try another name." />
-      )}
+      {!data.items.length && <EmptyState title="No Identities Found" />}
       <Pages data={data} />
     </div>
   );
@@ -212,35 +190,39 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Find Anything</span>
           <h1>Search</h1>
         </div>
       </header>
       <Filters query={query} search />
-      {data.items.map((i) => (
-        <SearchResult
-          key={i.id}
-          name={i.name}
-          shortName={i.name}
-          type={i.kind === "game" ? "match" : i.kind}
-          description={i.detail}
-          href={
-            i.kind === "team" || i.kind === "player"
-              ? identityHref({ ...i, kind: i.kind })
-              : i.kind === "champion"
-                ? `/champions/${encodeURIComponent(i.id)}`
+      {data.items.map((i) =>
+        i.kind === "champion" ? (
+          <ChampionIcon
+            key={i.id}
+            id={i.id}
+            name={i.name}
+            imageUrl={i.imageUrl ?? null}
+            href={`/champions/${encodeURIComponent(i.id)}`}
+          />
+        ) : (
+          <SearchResult
+            key={i.id}
+            name={i.name}
+            shortName={i.name}
+            type={i.kind === "game" ? "match" : i.kind}
+            showType={false}
+            href={
+              i.kind === "team" || i.kind === "player"
+                ? identityHref({ ...i, kind: i.kind })
                 : i.kind === "summoner"
                   ? `/summoners/${encodeURIComponent(i.id)}`
                   : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
-          }
-          {...(i.imageUrl ? { image: i.imageUrl } : {})}
-        />
-      ))}
+            }
+            {...(i.imageUrl ? { image: i.imageUrl } : {})}
+          />
+        ),
+      )}
       {!data.items.length && (
-        <EmptyState
-          title={query.q ? "No Results" : "Find a Team, Player or Match"}
-          description="Search a team, player, champion, solo-queue Riot ID (Name#TAG), match or historical game ID."
-        />
+        <EmptyState title={query.q ? "No Results" : "Find a Team, Player or Match"} />
       )}
       <Pages data={data} />
     </div>

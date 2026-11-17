@@ -26,6 +26,24 @@
     height: var(--size-icon-large, 24px);
   }
 
+  [data-side="blue"] {
+    --np-team-side: var(--color-side-blue);
+  }
+
+  [data-side="red"] {
+    --np-team-side: var(--color-side-red);
+  }
+
+  .np-identity[data-side] {
+    border-inline-start: 3px solid var(--np-team-side);
+    padding-inline-start: var(--space-2);
+  }
+
+  .np-role-icon {
+    flex: none;
+    vertical-align: middle;
+  }
+
   .np-avatar {
     position: relative;
     display: inline-grid;

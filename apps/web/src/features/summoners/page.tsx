@@ -1,4 +1,5 @@
 "use client";
+import { ChampionPortrait, GameResult, type ChampionPortraits } from "../browse/visuals";
 import { ChampionIcon, EmptyState, LineChart, Pagination, Table, TextLink } from "@summonersnet/ui";
 import { riotPlatforms, type SummonerProfile } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
@@ -8,11 +9,13 @@ export function SummonerPage({
   error,
   puuid,
   timezone,
+  portraits,
 }: {
   profile: SummonerProfile | null;
   error: string | null;
   puuid: string;
   timezone: string;
+  portraits?: ChampionPortraits;
 }) {
   const router = useRouter();
   const base = `/summoners/${encodeURIComponent(puuid)}`;
@@ -33,12 +36,7 @@ export function SummonerPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Solo queue player</span>
           <h1>{name}</h1>
-          <p>
-            Results and champion pool from retained ranked solo games. Missing statistics stay
-            unknown.
-          </p>
           <TextLink href={`/heatmaps?subjectKind=player&subject=${encodeURIComponent(puuid)}`}>
             Heatmaps
           </TextLink>
@@ -85,12 +83,17 @@ export function SummonerPage({
                 {
                   id: "champion",
                   header: "Champion",
-                  render: (r) => r.championName ?? `Champion ${r.championKey}`,
+                  render: (r) => (
+                    <ChampionPortrait
+                      name={r.championName ?? `Champion ${r.championKey}`}
+                      portraits={portraits}
+                    />
+                  ),
                 },
                 {
                   id: "result",
                   header: "Result",
-                  render: (r) => (r.win === null ? "Unknown" : r.win ? "Win" : "Loss"),
+                  render: (r) => <GameResult won={r.win} />,
                 },
                 {
                   id: "kda",
@@ -134,7 +137,6 @@ export function SummonerPage({
                         imageUrl={r.imageUrl}
                         size="small"
                       />
-                      {r.name ?? `Champion ${r.championKey}`}
                     </span>
                   ),
                 },
@@ -166,15 +168,6 @@ export function SummonerPage({
           </section>
           <section className="np-stack" aria-label="Ladder History">
             <h2>LP and Rank History</h2>
-            <p>
-              Last 30 UTC days ({profile.historyFrom} to {profile.historyTo}). Each point uses the
-              day's latest observed ladder position; the sample count is that day's observations.
-              Missing days are gaps. Lower rank numbers are better.
-            </p>
-            <p className="np-meta">
-              History starts with successful ladder refreshes after snapshot recording was enabled.
-              Players outside the sampled apex ladder have no recorded position.
-            </p>
             {profile.history.length ? (
               profile.history.map((h) => (
                 <div key={h.platform} className="np-stack">

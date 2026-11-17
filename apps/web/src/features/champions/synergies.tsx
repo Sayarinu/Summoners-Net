@@ -1,12 +1,12 @@
 "use client";
 import {
+  RoleIcon,
   Button,
   ChampionIcon,
   HeatGrid,
   Pagination,
   Select,
   Table,
-  TextLink,
 } from "@summonersnet/ui";
 import {
   synergySorts,
@@ -14,7 +14,7 @@ import {
   type ChampionOverview,
   type Synergies,
 } from "@summonersnet/data/contracts";
-import { percent, roleLabels } from "./presentation";
+import { percent } from "./presentation";
 
 const sortLabels = { games: "Games", winRate: "Win Rate", delta: "Delta" } as const;
 const signed = (value: number | null) =>
@@ -91,22 +91,20 @@ function AlliesTable({ synergies }: { synergies: Synergies }) {
           render: (r) => {
             const name = championName(r.allyKey, r.allyName);
             return (
-              <span className="ev-champion">
-                <ChampionIcon
-                  id={r.allyId ?? String(r.allyKey)}
-                  name={name}
-                  imageUrl={r.allyImageUrl}
-                  size="small"
-                />
-                {r.allyId ? <TextLink href={`/champions/${r.allyId}`}>{name}</TextLink> : name}
-              </span>
+              <ChampionIcon
+                id={r.allyId ?? String(r.allyKey)}
+                name={name}
+                imageUrl={r.allyImageUrl}
+                size="small"
+                href={r.allyId ? `/champions/${r.allyId}` : undefined}
+              />
             );
           },
         },
         {
           id: "role",
           header: "Role",
-          render: (r) => roleLabels[r.allyRole as keyof typeof roleLabels] ?? r.allyRole,
+          render: (r) => <RoleIcon role={r.allyRole} />,
         },
         { id: "games", header: "Games", align: "end", render: (r) => r.games },
         { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },

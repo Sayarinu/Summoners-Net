@@ -49,5 +49,7 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
   };
 }
 export function gameTeams(game: Game) {
-  return [...new Map(game.participants.map((p) => [p.team.id, p.team])).values()];
+  return [
+    ...new Map(game.participants.map((p) => [p.team.id, { ...p.team, side: p.side }])).values(),
+  ];
 }

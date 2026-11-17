@@ -118,13 +118,22 @@
   align-items: center;
   gap: var(--space-2);
 }
-.ev-row-note {
+.ev-outcome--win,
+.np-score[data-result="win"] {
+  color: var(--color-status-success);
+}
+.ev-outcome--loss,
+.np-score[data-result="loss"] {
+  color: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-text-primary));
+}
+.ev-summary .ev-unknown-results {
+  display: block;
   font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
 }
-.ev-row-note {
-  padding: 0 var(--space-4) var(--space-2);
+.ev-side-name[data-side] {
+  box-shadow: inset 0 -3px var(--np-team-side);
 }
+
 .ev-match-section > h2 {
   padding: var(--space-4) var(--space-5);
   background: var(--color-bg-raised);
@@ -132,7 +141,7 @@
   font-size: var(--font-size-lg);
 }
 .ev-match-group .np-match-row {
-  grid-template-columns: 224px minmax(0, 1fr) 112px 112px;
+  grid-template-columns: minmax(100px, 14%) minmax(0, 1fr) max-content 104px;
   grid-template-rows: minmax(54px, auto);
   min-height: 78px;
   padding: var(--space-3) var(--space-5);
@@ -172,23 +181,27 @@
 }
 /* Each team reads outward from the score: name, logo, score · vs · score, logo, name. */
 .ev-match-group .np-match-team {
-  width: max-content;
-  min-width: max-content;
+  width: 100%;
+  min-width: 0;
   gap: var(--space-3);
   font-size: var(--font-size-md);
 }
 .ev-match-group .np-match-team:first-child {
-  grid-template-columns: max-content 36px 40px;
+  grid-template-columns: minmax(0, 1fr) 36px 24px;
   justify-self: end;
 }
 .ev-match-group .np-match-team:last-child {
-  grid-template-columns: 40px 36px max-content;
+  grid-template-columns: 24px 36px minmax(0, 1fr);
   justify-self: start;
 }
 .ev-match-group .np-match-teams {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: var(--space-4);
   align-items: center;
+}
+.ev-match-group .np-match-team__name {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .ev-match-group .np-match-team > * {
   grid-row: 1;
@@ -230,6 +243,7 @@
   color: var(--color-text-secondary);
   font: inherit;
   cursor: pointer;
+  white-space: nowrap;
   background: transparent;
   border: 0;
 }
@@ -426,13 +440,14 @@
     grid-column: 1;
   }
   .ev-match-group .np-match-row__primary {
-    grid-column: 2;
+    grid-column: 2 / -1;
   }
   .ev-match-group .np-match-row__meta {
     grid-row: 2;
     grid-column: 2;
   }
   .ev-match-group .np-row-actions {
+    grid-row: 2;
     grid-column: 3;
   }
   .ev-match-group .np-match-row__expanded {
@@ -716,24 +731,30 @@
   padding: 0;
   list-style: none;
 }
-.ev-series-game > a,
-.ev-series-game > div {
+.ev-series-game {
+  display: grid;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+.ev-series-game > :not(.ev-series-game__replay) {
   display: grid;
   gap: var(--space-2);
   height: 100%;
   padding: var(--space-3) var(--space-4);
   color: inherit;
   text-decoration: none;
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
 }
-.ev-series-game > a:hover,
-.ev-series-game > a:focus-visible {
+.ev-series-game:hover,
+.ev-series-game:focus-within {
   border-color: var(--color-border-accent);
 }
 .ev-series-game > div {
   color: var(--color-text-muted);
+}
+.ev-series-game__replay {
+  margin: 0 var(--space-4) var(--space-3);
+  justify-self: start;
 }
 .ev-series-game__number {
   font-size: var(--font-size-sm);
@@ -756,6 +777,9 @@
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
+}
+.ev-series-draft__side[data-side] {
+  border-block-start: 3px solid var(--np-team-side);
 }
 .ev-series-draft__side h3 {
   font-size: var(--font-size-md);
@@ -983,13 +1007,6 @@
   width: 56px;
   height: 56px;
   border-radius: var(--radius-md);
-}
-.ev-opponent__name {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ev-opponent__delta {
   font-family: var(--font-family-mono);

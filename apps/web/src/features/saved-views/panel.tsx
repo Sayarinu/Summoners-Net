@@ -71,11 +71,7 @@ export function SavedViewsPanel({
   return (
     <section className="np-stack" aria-labelledby="saved-views-heading">
       <h2 id="saved-views-heading">Saved Views</h2>
-      <p className="np-meta">
-        Saved views keep a page and its filters in this browser&apos;s local storage only. They are
-        not sent to the server and do not follow you to another browser.{" "}
-        {path !== undefined ? <TextLink href="/saved-views">All Saved Views</TextLink> : null}
-      </p>
+      {path !== undefined ? <TextLink href="/saved-views">All Saved Views</TextLink> : null}
       {canSave ? (
         <form
           className="ev-filters"

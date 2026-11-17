@@ -1,4 +1,4 @@
-import { EmptyState, Minimap, TextLink } from "@summonersnet/ui";
+import { RoleIcon, EmptyState, Minimap, TextLink } from "@summonersnet/ui";
 import {
   heatmapKinds,
   heatmapRoles,
@@ -40,6 +40,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
       ? (roleLabels[h.subject] ?? h.subject)
       : (h.label ?? (h.subjectKind === "player" ? "Riot ID not resolved" : h.subject));
   const selected = h.patch ?? undefined;
+  const kind = kindLabels[h.kind].toLowerCase();
   return (
     <div className="np-stack">
       <header className="ev-title">
@@ -48,8 +49,8 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
             Solo queue heatmap · {subjectLabels[h.subjectKind]}
             {h.patch ? ` · Patch ${h.patch}` : ""}
           </span>
-          <h1>
-            {name}: {kindLabels[h.kind].toLowerCase()}
+          <h1 aria-label={h.subjectKind === "role" ? `${name}: ${kind}` : undefined}>
+            {h.subjectKind === "role" ? <RoleIcon role={h.subject} /> : name}: {kind}
           </h1>
         </div>
       </header>
@@ -84,21 +85,12 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
             href={href({ subjectKind: "role", subject: r }, h.kind, selected)}
             aria-current={h.subjectKind === "role" && h.subject === r ? "page" : undefined}
           >
-            {roleLabels[r]}
+            <RoleIcon role={r} />
           </TextLink>
         ))}
       </nav>
-      <p className="np-meta">
-        Positions are each minute frame from minute 1 (minute 0 is the fountain); deaths and kills
-        are where champion kills happened. Red side is rotated half a turn about the map centre, so
-        every heatmap reads from blue side: the player&apos;s own base is bottom left. Points are
-        counted on a fixed 16 by 16 grid, and points outside the map are skipped.
-      </p>
       {!h.patch || !h.patches.some((p) => p.patch === h.patch) ? (
-        <EmptyState
-          title="No Heatmap Yet"
-          description="Heatmaps are built by the aggregate job from solo-queue games with stored timelines."
-        />
+        <EmptyState title="No Heatmap Yet" />
       ) : (
         <>
           <p role="status">
@@ -112,7 +104,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
             />
           ) : (
             <Minimap
-              title={`${name} ${kindLabels[h.kind].toLowerCase()} heatmap, patch ${h.patch}`}
+              title={`${name} ${kind} heatmap, patch ${h.patch}`}
               heat={h.cells.map((c) => ({
                 id: `${c.cellX}:${c.cellY}`,
                 label: `Cell ${c.cellX + 1}, ${c.cellY + 1}`,

@@ -1,5 +1,14 @@
 "use client";
-import { Button, EmptyState, Input, Table, TextLink } from "@summonersnet/ui";
+import {
+  ChampionIcon,
+  RoleIcon,
+  Select,
+  Button,
+  EmptyState,
+  Input,
+  Table,
+  TextLink,
+} from "@summonersnet/ui";
 import type {
   ChampionOverview,
   ChampionStats,
@@ -9,14 +18,14 @@ import type {
 import { SavedViewsPanel } from "../saved-views/panel";
 
 const roles = ["ALL", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
-const roleLabels: Record<string, string> = {
+const roleLabels = {
   ALL: "All Roles",
   TOP: "Top",
   JUNGLE: "Jungle",
   MIDDLE: "Mid",
   BOTTOM: "Bot",
   UTILITY: "Support",
-};
+} satisfies Record<string, string>;
 const percent = (v: SampledValue) =>
   v.value === null ? "Unknown" : `${(v.value * 100).toFixed(1)}%`;
 const value = (v: SampledValue | null) => (v ? percent(v) : "Not stored");
@@ -48,16 +57,16 @@ function Filters({
           <option value="pro">Pro play</option>
         </select>
       </label>
-      <label className="np-field">
-        <span>Role</span>
-        <select name="role" defaultValue={extra?.role ?? "ALL"}>
-          {roles.map((r) => (
-            <option key={r} value={r}>
-              {roleLabels[r]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Role"
+        name="role"
+        defaultValue={extra?.role ?? "ALL"}
+        options={roles.map((role) => ({
+          label: roleLabels[role],
+          value: role,
+          ...(role === "ALL" ? {} : { icon: <RoleIcon role={role} /> }),
+        }))}
+      />
       {extra?.patch !== undefined ? (
         <Input name="patch" label="Patch (Optional)" defaultValue={extra.patch} />
       ) : null}
@@ -118,13 +127,8 @@ export function ChampionComparePage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Compare</span>
           <h1>Champion Against Champion</h1>
-          <p>
-            Two champions on the same source, role and patch, from stored aggregates. Each value
-            shows the sample it comes from.{" "}
-            <TextLink href="/compare/patches">Compare Patches</TextLink>
-          </p>
+          <TextLink href="/compare/patches">Compare Patches</TextLink>
         </div>
       </header>
       <Filters
@@ -138,7 +142,7 @@ export function ChampionComparePage({
       {error ? <p role="alert">{error}</p> : null}
       {comparison ? (
         <Table
-          caption={`${name(comparison.a, comparison.query.a)} and ${name(comparison.b, comparison.query.b)}, ${roleLabels[comparison.query.role]}`}
+          caption={`${name(comparison.a, comparison.query.a)} and ${name(comparison.b, comparison.query.b)}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
           rows={rows}
           getRowKey={(r) => r.metric}
           columns={[
@@ -199,11 +203,7 @@ export function PatchComparePage({
         <div>
           <span className="np-overline">Compare</span>
           <h1>Patch Against Patch</h1>
-          <p>
-            Champions ordered by games on the first patch, with the same champions&apos; statistics
-            on the second. Each value shows its sample.{" "}
-            <TextLink href="/compare/champions">Compare Champions</TextLink>
-          </p>
+          <TextLink href="/compare/champions">Compare Champions</TextLink>
         </div>
       </header>
       <Filters
@@ -229,21 +229,22 @@ export function PatchComparePage({
             </p>
           ) : null}
           <Table
-            caption={`Patch ${comparison.query.a} and patch ${comparison.query.b}, ${roleLabels[comparison.query.role]}`}
+            caption={`Patch ${comparison.query.a} and patch ${comparison.query.b}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
             rows={rows}
             getRowKey={(r) => `${r.championKey}:${r.role}`}
             columns={[
               {
                 id: "champion",
                 header: "Champion",
-                render: (r) =>
-                  r.championId ? (
-                    <TextLink href={`/champions/${r.championId}`}>
-                      {r.name ?? r.championId}
-                    </TextLink>
-                  ) : (
-                    `Champion ${r.championKey}`
-                  ),
+                render: (r) => (
+                  <ChampionIcon
+                    id={r.championId ?? String(r.championKey)}
+                    name={r.name ?? r.championId ?? `Champion ${r.championKey}`}
+                    imageUrl={r.imageUrl}
+                    size="small"
+                    href={r.championId ? `/champions/${r.championId}` : undefined}
+                  />
+                ),
               },
               {
                 id: "aWin",

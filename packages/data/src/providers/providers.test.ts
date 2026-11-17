@@ -1,3 +1,4 @@
+import { gameReplayUrl } from "../domain/broadcasts.js";
 import { describe, expect, it } from "vitest";
 import { coveredLeague, sourceIdentity } from "../domain/coverage.js";
 import { querySchema, syncRequestSchema } from "../domain/models.js";
@@ -104,6 +105,29 @@ describe("PandaScore free context", () => {
       )[0]!.broadcasts,
     ).toEqual([]);
     expect(() => parseMatches([{ id: "bad" }], now)).toThrow();
+  });
+  it("uses a per-game recording and falls back to the series recording only in a best-of-one", () => {
+    const [match] = parseMatches(
+      [
+        rawMatch(1, {
+          games: [
+            {
+              id: 10,
+              position: 1,
+              status: "finished",
+              video_url: "https://www.twitch.tv/videos/123",
+            },
+            { id: 11, position: 2, status: "finished", video_url: "https://www.twitch.tv/v123" },
+          ],
+        }),
+      ],
+      now,
+    );
+    const [first, second] = match!.games;
+    expect(gameReplayUrl(match!, first!)).toBe("https://www.twitch.tv/videos/123");
+    expect(gameReplayUrl(match!, second!)).toBeNull();
+    expect(gameReplayUrl({ ...match!, bestOf: 1 }, second!)).toBe(match!.broadcasts[0]!.url);
+    expect(gameReplayUrl(match!, { ...first!, state: "running" })).toBeNull();
   });
   it("only accepts HTTPS broadcast hosts and safe embed identifiers", () => {
     for (const url of [

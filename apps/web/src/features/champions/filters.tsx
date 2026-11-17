@@ -1,5 +1,5 @@
 "use client";
-import { Button, Select } from "@summonersnet/ui";
+import { RoleIcon, Button, Select } from "@summonersnet/ui";
 import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/contracts";
 import { roleLabels, sortLabels } from "./presentation";
 
@@ -67,7 +67,11 @@ export function ChampionFilters({
           label="Role"
           name="role"
           defaultValue={query?.role ?? "ALL"}
-          options={championRoles.map((r) => ({ label: roleLabels[r], value: r }))}
+          options={championRoles.map((r) => ({
+            label: roleLabels[r],
+            value: r,
+            icon: <RoleIcon role={r} />,
+          }))}
         />
       )}
       <Select

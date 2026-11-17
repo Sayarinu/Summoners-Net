@@ -1,4 +1,6 @@
 "use client";
+import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
+import { RoleIcon } from "@summonersnet/ui";
 import { ExportLink } from "../shell/export-link";
 import { Button, EmptyState, Input, Pagination, Table, TextLink } from "@summonersnet/ui";
 import type { DraftAnalytics, ParsedDraftQuery, SampledValue } from "@summonersnet/data/contracts";
@@ -38,18 +40,18 @@ export function DraftsPage({
   query,
   analytics,
   error,
+  portraits,
 }: {
   query: ParsedDraftQuery | null;
   analytics: DraftAnalytics | null;
   error: string | null;
+  portraits?: ChampionPortraits;
 }) {
   return (
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Oracle’s Elixir</span>
           <h1>Pro Drafts</h1>
-          <p>Pick and ban priority, role order and first-pick results.</p>
         </div>
       </header>
       <TextLink href="/drafts/assistant">Draft Assistant</TextLink>
@@ -139,7 +141,11 @@ export function DraftsPage({
               getRowKey={(r) => `${r.champion}:${r.action}:${r.phase}:${r.slot ?? "phase"}`}
               emptyMessage="No draft priority observations match these filters."
               columns={[
-                { id: "champion", header: "Champion", render: (r) => r.champion },
+                {
+                  id: "champion",
+                  header: "Champion",
+                  render: (r) => <ChampionPortrait name={r.champion} portraits={portraits} />,
+                },
                 { id: "action", header: "Action", render: (r) => r.action },
                 { id: "phase", header: "Phase", render: (r) => r.phase },
                 { id: "slot", header: "Slot", render: (r) => r.slot ?? "Phase Total" },
@@ -160,8 +166,12 @@ export function DraftsPage({
               getRowKey={(r) => `${r.champion}:${r.role}`}
               emptyMessage="No role draft observations match these filters."
               columns={[
-                { id: "champion", header: "Champion", render: (r) => r.champion },
-                { id: "role", header: "Role", render: (r) => r.role },
+                {
+                  id: "champion",
+                  header: "Champion",
+                  render: (r) => <ChampionPortrait name={r.champion} portraits={portraits} />,
+                },
+                { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
                 { id: "games", header: "Games", render: (r) => r.games },
                 { id: "blind", header: "Blind Rate and Sample", render: (r) => rate(r.blindRate) },
                 {

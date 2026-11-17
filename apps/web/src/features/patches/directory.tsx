@@ -8,7 +8,6 @@ export function PatchesPage({ directory: d }: { directory: PatchDirectory }) {
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Stored aggregates</span>
           <h1>Patches</h1>
         </div>
       </header>

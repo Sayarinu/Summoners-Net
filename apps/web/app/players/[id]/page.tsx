@@ -24,6 +24,9 @@ export default async function Page({
   return (
     <ProfilePage
       profile={profile}
+      portraits={await data().championIconsByName(
+        profile.summary.champions.map((champion) => champion.name),
+      )}
       query={query}
       hideSpoilers={(await preferences()).hideSpoilers}
     />

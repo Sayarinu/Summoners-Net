@@ -19,9 +19,7 @@ export function LeaderboardPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Solo queue</span>
           <h1>{region.toUpperCase()} leaderboard</h1>
-          <p>Challenger, Grandmaster and Master, ordered by tier and LP.</p>
         </div>
       </header>
       <nav aria-label="Ladder Regions" className="ev-filters">
@@ -44,10 +42,7 @@ export function LeaderboardPage({
         />
       ) : (
         <section className="np-stack" aria-label="Regional Ladder">
-          <p className="np-meta">
-            Last refreshed {dateTime(list.lastSuccess, timezone)}. Champion samples cover retained
-            ranked solo games in this region, across patches; they are not the full season.
-          </p>
+          <p className="np-meta">Last Refreshed {dateTime(list.lastSuccess, timezone)}</p>
           {list.refreshFailed ? (
             <p role="status">
               The last refresh failed
@@ -104,8 +99,7 @@ export function LeaderboardPage({
                             imageUrl={c.imageUrl}
                             size="small"
                           />
-                          {c.name ?? `Champion ${c.championKey}`} · {c.games}{" "}
-                          {c.games === 1 ? "game" : "games"}
+                          {c.games} {c.games === 1 ? "game" : "games"}
                         </span>
                       ))}
                       <span className="np-meta">{r.sampledGames} sampled games</span>

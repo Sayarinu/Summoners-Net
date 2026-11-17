@@ -1,6 +1,7 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
 import {
+  RoleIcon,
   Button,
   ChampionIcon,
   HeatGrid,
@@ -65,15 +66,13 @@ function counterPicksHref(role: string, source: string, patch: string | null) {
 }
 function Champion({ champion: c, href }: { champion: PatchChampion; href?: string }) {
   return (
-    <span className="ev-champion">
-      <ChampionIcon
-        id={c.championId ?? String(c.championKey)}
-        name={name(c)}
-        imageUrl={c.imageUrl}
-        size="small"
-      />
-      {href ? <TextLink href={href}>{name(c)}</TextLink> : name(c)}
-    </span>
+    <ChampionIcon
+      id={c.championId ?? String(c.championKey)}
+      name={name(c)}
+      imageUrl={c.imageUrl}
+      size="small"
+      href={href}
+    />
   );
 }
 function Filters({
@@ -335,7 +334,11 @@ export function ChampionMatchupsPage({
           label="Role"
           name="role"
           defaultValue={q.role}
-          options={matchupRoles.map((r) => ({ value: r, label: roles[r] }))}
+          options={matchupRoles.map((r) => ({
+            value: r,
+            label: roles[r],
+            icon: <RoleIcon role={r} />,
+          }))}
         />
         <Select
           label="Sort Opponents By"
@@ -428,8 +431,7 @@ export function ChampionMatchupsPage({
               {
                 id: "role",
                 header: "Role",
-                render: (r) =>
-                  r.role === "UNKNOWN" ? "Unknown Role" : roles[r.role as keyof typeof roles],
+                render: (r) => <RoleIcon role={r.role} />,
               },
               { id: "games", header: "Games", render: (r) => r.games },
               { id: "players", header: "Participants", render: (r) => r.participants },
@@ -487,7 +489,7 @@ export function MatchupMatrixPage({
       <nav aria-label="Matchup Roles">
         {matchupRoles.map((r) => (
           <TextLink key={r} href={`/matchups/${r}?${params}`}>
-            {roles[r]}{" "}
+            <RoleIcon role={r} />{" "}
           </TextLink>
         ))}
       </nav>
@@ -579,7 +581,7 @@ export function CounterPickListPage({
       <nav aria-label="Counter-Pick Roles">
         {matchupRoles.map((r) => (
           <TextLink key={r} href={`/matchups/${r}/counter-picks`}>
-            {roles[r]}{" "}
+            <RoleIcon role={r} />{" "}
           </TextLink>
         ))}
       </nav>

@@ -189,7 +189,7 @@ it("shows rates with samples, the interval, the tier and its basis, and the tren
   expect(screen.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   // Source and role are tabs; each role shows the share of the champion's games.
   const roles = screen.getByRole("navigation", { name: "Role" });
-  expect(within(roles).getByRole("link", { current: "page" })).toHaveTextContent("Mid85.0%");
+  expect(within(roles).getByRole("link", { current: "page" })).toHaveAccessibleName("Mid 85.0%");
   expect(within(roles).getByRole("link", { name: /Top/ })).toHaveAttribute(
     "href",
     "/champions/Ahri?source=solo&role=TOP&tier=CHALLENGER",
@@ -297,7 +297,8 @@ it("charts win rate by game length with gaps and a data table", () => {
 it("lists allies with expected rates and deltas, keeps filters when sorting, and maps bot lanes", () => {
   const { container } = render(<ChampionOverviewPage overview={overview} error={null} />);
   const allies = screen.getByRole("table", { name: "Allies" });
-  expect(allies).toHaveTextContent(/Thresh.*Support.*80.*60\.0%.*55\.0%.*\+3\.1 pts/);
+  expect(within(allies).getByRole("img", { name: "Thresh" })).toBeVisible();
+  expect(allies).toHaveTextContent(/Support.*80.*60\.0%.*55\.0%.*\+3\.1 pts/);
   expect(screen.getByRole("link", { name: "Thresh" })).toHaveAttribute("href", "/champions/Thresh");
   const hidden = [...container.querySelectorAll<HTMLInputElement>("input[type=hidden]")].map(
     (i) => `${i.name}=${i.value}`,
@@ -381,12 +382,12 @@ it("shows the best and worst lane opponents as cards with signed differences", (
       }}
     />,
   );
-  const cards = screen.getByRole("region", { name: "Matchups as Ahri · Mid" });
+  const cards = screen.getByRole("region", { name: "Matchups Mid" });
   expect(within(cards).getByRole("region", { name: "Good Against" })).toHaveTextContent(
-    "Zed+5.6%80 Games",
+    "+5.6%80 Games",
   );
   expect(within(cards).getByRole("region", { name: "Bad Against" })).toHaveTextContent(
-    "Annie-3.0%64 Games",
+    "-3.0%64 Games",
   );
   expect(within(cards).getByRole("link", { name: /Zed/ })).toHaveAttribute(
     "href",
@@ -410,5 +411,5 @@ it("shows the best and worst lane opponents as cards with signed differences", (
       }}
     />,
   );
-  expect(screen.queryByRole("region", { name: /Matchups as Ahri/ })).toBeNull();
+  expect(screen.queryByRole("region", { name: /Matchups Mid/ })).toBeNull();
 });

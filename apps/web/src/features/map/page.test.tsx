@@ -110,12 +110,16 @@ it("scrubs to interpolated positions and shows missing frames as gaps", () => {
   const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
   expect(screen.getByText(/one position per champion per minute/)).toBeVisible();
   expect(points(container)).toHaveLength(3);
-  expect(table()).toHaveTextContent("AhriBlueMid600, 500 (minute frame)");
+  expect(within(table()).getByRole("row", { name: /Ahri/ })).toHaveTextContent(
+    "600, 500 (minute frame)",
+  );
   fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "30000" } });
   expect(screen.getByRole("table", { name: "Positions at 0:30" })).toBeVisible();
-  expect(table()).toHaveTextContent("AhriBlueMid900, 800 (estimated between frames)");
+  expect(within(table()).getByRole("row", { name: /Ahri/ })).toHaveTextContent(
+    "900, 800 (estimated between frames)",
+  );
   // Lee Sin's minute 1 frame is missing: no point and a gap, never the map origin.
-  expect(table()).toHaveTextContent("Lee SinBlueJungleGap: no frame");
+  expect(within(table()).getByRole("row", { name: /Lee Sin/ })).toHaveTextContent("Gap: no frame");
   expect(points(container)).toHaveLength(2);
   expect(screen.getByRole("link", { name: "Back to the Game" })).toHaveAttribute(
     "href",
@@ -126,14 +130,14 @@ it("toggles teams and roles", () => {
   const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
   const controls = screen.getByRole("group", { name: "Show Champions" });
   fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
-  expect(table()).not.toHaveTextContent("Garen");
+  expect(within(table()).queryByRole("img", { name: "Garen" })).toBeNull();
   fireEvent.click(within(controls).getByRole("switch", { name: "Jungle" }));
-  expect(table()).not.toHaveTextContent("Lee Sin");
+  expect(within(table()).queryByRole("img", { name: "Lee Sin" })).toBeNull();
   expect(points(container)).toHaveLength(1);
   fireEvent.click(within(controls).getByRole("switch", { name: "Mid" }));
   expect(table()).toHaveTextContent("Every champion is hidden");
   fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
-  expect(table()).toHaveTextContent("Garen");
+  expect(within(table()).getByRole("img", { name: "Garen" })).toBeVisible();
 });
 it("plays, pauses and stops at the last frame", () => {
   vi.useFakeTimers();
@@ -282,15 +286,19 @@ it("uses a linked track: latest samples, trails, low-confidence points, gaps and
     "/api/solo-games/EUW1_1/track?fromMs=60000&toMs=119999",
   ]);
   await waitFor(() =>
-    expect(table()).toHaveTextContent("AhriBlueMid7000, 7000 (track sample, confidence 0.90)"),
+    expect(within(table()).getByRole("row", { name: /Ahri/ })).toHaveTextContent(
+      "7000, 7000 (track sample, confidence 0.90)",
+    ),
   );
-  expect(table()).toHaveTextContent("GarenRedTop9000, 9000 (track sample, low confidence 0.20)");
+  expect(within(table()).getByRole("row", { name: /Garen/ })).toHaveTextContent(
+    "9000, 9000 (track sample, low confidence 0.20)",
+  );
   expect(container.querySelectorAll(".np-minimap__point--low")).toHaveLength(1);
   // The track runs past the last timeline frame.
   expect(screen.getByLabelText(/^Game time/)).toHaveAttribute("max", "130000");
   expect(screen.getByLabelText(/^Game time/)).toHaveAttribute("step", "500");
   fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "1000" } });
-  expect(table()).toHaveTextContent("Lee SinBlueJungleGap: no sample");
+  expect(within(table()).getByRole("row", { name: /Lee Sin/ })).toHaveTextContent("Gap: no sample");
   expect(container.querySelectorAll(".np-minimap__path").length).toBeGreaterThan(0);
   const movements = screen.getByRole("table", { name: "Detected Movements" });
   expect(movements).toHaveTextContent("Recall: Ahri");
@@ -316,7 +324,9 @@ it("uses the timeline outside a partial track's sampled interval", () => {
   expect(screen.getByRole("note")).toHaveTextContent(
     "An imported replay track covers 1:00 to 1:30.",
   );
-  expect(table()).toHaveTextContent("AhriBlueMid600, 500 (minute frame)");
+  expect(within(table()).getByRole("row", { name: /Ahri/ })).toHaveTextContent(
+    "600, 500 (minute frame)",
+  );
   expect(fetcher).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "60000" } });
   expect(screen.getByRole("note")).toHaveTextContent("Source at 1:00: imported replay track");

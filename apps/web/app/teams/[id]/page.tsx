@@ -34,6 +34,9 @@ export default async function Page({
     <TeamProfile
       key={profile.identity.id}
       profile={profile}
+      portraits={await data().championIconsByName(
+        profile.summary.champions.map((champion) => champion.name),
+      )}
       seasons={context.seasons}
       series={series}
       query={scoped}

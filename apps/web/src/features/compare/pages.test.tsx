@@ -83,7 +83,8 @@ it("shows two patches side by side with samples and paging", () => {
     />,
   );
   const table = screen.getByRole("table", { name: "Patch 16.22 and patch 16.21, Mid" });
-  expect(table).toHaveTextContent("Ahri50.0% (40)45.0% (20)10.0% (400)5.0% (400)");
+  expect(within(table).getByRole("img", { name: "Ahri" })).toBeVisible();
+  expect(table).toHaveTextContent("50.0% (40)45.0% (20)10.0% (400)5.0% (400)");
   expect(screen.getByRole("link", { name: "Next Page" })).toHaveAttribute(
     "href",
     "/compare/patches?a=16.22&b=16.21&role=MIDDLE&page=2",

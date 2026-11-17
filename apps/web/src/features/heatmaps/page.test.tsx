@@ -28,7 +28,6 @@ it("draws a heatmap with its sample, side normalization and navigation", () => {
   expect(screen.getByRole("status")).toHaveTextContent(
     "Sample: 12 games and 3 points on patch 16.22.",
   );
-  expect(screen.getByText(/Red side is rotated half a turn/)).toBeVisible();
   expect(container.querySelectorAll(".np-minimap circle")).toHaveLength(2);
   const types = screen.getByRole("navigation", { name: "Heatmap Type" });
   expect(within(types).getByRole("link", { name: "Kills" })).toHaveAttribute(

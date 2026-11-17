@@ -109,6 +109,7 @@ export function Input({
 }
 
 export interface SelectOption {
+  readonly icon?: ReactNode;
   readonly description?: string;
   readonly label: string;
   readonly value: string;
@@ -169,9 +170,17 @@ export function Select({
           {({ isPlaceholder, selectedItems }) => {
             const selected = selectedItems[0];
             if (isPlaceholder || !selected) return placeholder;
-            return selected.description
+            const label = selected.description
               ? `${selected.label} - ${selected.description}`
               : selected.label;
+            return selected.icon ? (
+              <>
+                <span aria-hidden="true">{selected.icon}</span>
+                <span className="np-visually-hidden">{label}</span>
+              </>
+            ) : (
+              label
+            );
           }}
         </SelectValue>
         <Icon icon={ChevronDown} size="small" />
@@ -187,7 +196,10 @@ export function Select({
           {(option) => (
             <ListBoxItem className="np-listbox__item" id={option.value} textValue={option.label}>
               <span>
-                <strong>{option.label}</strong>
+                {option.icon ? <span aria-hidden="true">{option.icon}</span> : null}
+                <strong className={option.icon ? "np-visually-hidden" : undefined}>
+                  {option.label}
+                </strong>
                 {option.description ? <small>{option.description}</small> : null}
               </span>
               <span className="np-listbox__check">

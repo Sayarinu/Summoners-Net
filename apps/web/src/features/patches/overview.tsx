@@ -1,6 +1,6 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
-import { ChampionIcon, ItemIcon, Table, TextLink } from "@summonersnet/ui";
+import { RoleIcon, ChampionIcon, ItemIcon, Table, TextLink } from "@summonersnet/ui";
 import type {
   PatchOverview,
   PatchChampion,
@@ -21,21 +21,13 @@ function Champion({
 }) {
   const name = c.name ?? c.championId ?? `Champion ${c.championKey}`;
   return (
-    <span className="ev-champion">
-      <ChampionIcon
-        id={c.championId ?? String(c.championKey)}
-        name={name}
-        imageUrl={c.imageUrl}
-        size="small"
-      />
-      {c.championId ? (
-        <TextLink href={`/champions/${c.championId}?source=${source}&patch=${patch}`}>
-          {name}
-        </TextLink>
-      ) : (
-        name
-      )}
-    </span>
+    <ChampionIcon
+      id={c.championId ?? String(c.championKey)}
+      name={name}
+      imageUrl={c.imageUrl}
+      size="small"
+      href={c.championId ? `/champions/${c.championId}?source=${source}&patch=${patch}` : undefined}
+    />
   );
 }
 function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; patch: string }) {
@@ -83,25 +75,11 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Patch overview</span>
           <h1>Patch {o.patch}</h1>
-          <p>
-            Stored samples from this patch, compared with{" "}
-            {o.previousPatch ?? "no preceding catalog patch"}.
-          </p>
+          {o.previousPatch ? <p>Previous Patch {o.previousPatch}</p> : null}
         </div>
       </header>
-      <p>
-        Solo queue trends combine all roles, regions and tiers in ranked solo games. Up to ten
-        qualifying changes per direction, ranked by absolute percentage-point change.
-      </p>
-      <p>
-        Both patches need at least 50 observations and five successes and failures. Trends use the
-        same significance policy as{" "}
-        <TextLink href={`/trending?patch=${o.patch}`}>Trending Champions</TextLink>, where source
-        and role filters are available. These exploratory signals are not adjusted for multiple
-        comparisons.
-      </p>
+      <TextLink href={`/trending?patch=${o.patch}`}>Trending Champions</TextLink>
       {!o.previousPatch ? (
         <p role="status">
           No preceding catalog patch is stored. Trends and new builds cannot be established.
@@ -111,12 +89,6 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
       <Trends title="Biggest Fallers" rows={o.fallers} patch={o.patch} />
       <section className="np-stack">
         <h2>New Popular Builds</h2>
-        <p>
-          Ranked solo three-item cores in purchase order, grouped by champion and role. A path needs
-          at least 50 observations now and no observations among at least 50 cores for that champion
-          and role in the preceding patch. Newly observed does not mean first ever used. Shares
-          describe captured complete cores, not all games.
-        </p>
         <ExportLink table="patch-builds" filters={{ patch: o.patch }} />
         <Table
           caption="Newly Observed Three-Item Cores"
@@ -129,7 +101,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
               header: "Champion",
               render: (r) => <Champion champion={r} patch={o.patch} />,
             },
-            { id: "role", header: "Role", render: (r) => r.role },
+            { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
             {
               id: "items",
               header: "Purchase Order",
@@ -164,10 +136,6 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
       </section>
       <section className="np-stack">
         <h2>Pro Presence Leaders</h2>
-        <p>
-          Picks plus bans across stored complete pro drafts. At least ten drafts are required;
-          samples below 50 are flagged. Up to ten champions.
-        </p>
         <ExportLink table="patch-pro" filters={{ patch: o.patch }} />
         <Table
           caption="Pro Pick and Ban Presence"

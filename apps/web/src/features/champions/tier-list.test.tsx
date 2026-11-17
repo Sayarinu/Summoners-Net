@@ -55,8 +55,10 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
   render(<TierListPage list={list} error={null} />);
   const table = screen.getByRole("table", { name: "Champion Tier List" });
   const [ahri, unknown] = within(table).getAllByRole("row").slice(1);
-  expect(ahri).toHaveTextContent("Ahri6055.0%42.0–67.0%50.0%10.0%60 results");
-  expect(unknown).toHaveTextContent("Champion 9500Unknown");
+  expect(within(ahri!).getByRole("img", { name: "Ahri" })).toBeVisible();
+  expect(ahri).toHaveTextContent("6055.0%42.0–67.0%50.0%10.0%60 results");
+  expect(within(unknown!).getByRole("img", { name: "Champion 950" })).toBeVisible();
+  expect(unknown).toHaveTextContent("0Unknown");
   expect(unknown).toHaveTextContent("0.0%");
   expect(unknown).toHaveTextContent("Too Few Games");
   const trigger = (label: string) =>

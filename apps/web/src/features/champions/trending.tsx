@@ -1,14 +1,7 @@
 "use client";
+import { RoleIcon } from "@summonersnet/ui";
 import { ExportLink } from "../shell/export-link";
-import {
-  Button,
-  ChampionIcon,
-  EmptyState,
-  Pagination,
-  Select,
-  Table,
-  TextLink,
-} from "@summonersnet/ui";
+import { Button, ChampionIcon, EmptyState, Pagination, Select, Table } from "@summonersnet/ui";
 import {
   championRoles,
   trendMinimumSample,
@@ -55,9 +48,7 @@ export function TrendingPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Patch comparison</span>
           <h1>Trending Champions</h1>
-          <p>Pick and win rate changes from the preceding patch, with samples for both.</p>
         </div>
       </header>
       <form action="/trending" method="get" className="ev-filters" key={JSON.stringify(q)}>
@@ -83,7 +74,11 @@ export function TrendingPage({
           label="Role"
           name="role"
           defaultValue={q?.role ?? "ALL"}
-          options={championRoles.map((r) => ({ value: r, label: roleLabels[r] }))}
+          options={championRoles.map((r) => ({
+            value: r,
+            label: roleLabels[r],
+            icon: <RoleIcon role={r} />,
+          }))}
         />
         <Button type="submit">Apply Filters</Button>
       </form>
@@ -111,12 +106,12 @@ export function TrendingPage({
       ) : (
         <>
           <p>
-            {q?.source === "pro" ? "Pro" : "Solo Queue"} · {roleLabels[q!.role]} · Patch{" "}
-            {trends.patch} vs {trends.previousPatch ?? "no preceding catalog patch"}
+            Patch {trends.patch}
+            {trends.previousPatch ? ` vs ${trends.previousPatch}` : ""}
           </p>
           <p className="np-meta">
             Current: {trends.currentGames} stored games · Previous: {trends.previousGames} stored
-            games. Rates describe the retained samples.
+            games
           </p>
           {!trends.previousPatch ? (
             <p role="status">No preceding catalog patch is stored. Changes are unknown.</p>
@@ -139,26 +134,20 @@ export function TrendingPage({
                 id: "champion",
                 header: "Champion",
                 render: (r) => (
-                  <span className="ev-champion">
-                    <ChampionIcon
-                      id={r.championId ?? String(r.championKey)}
-                      name={r.name ?? `Champion ${r.championKey}`}
-                      imageUrl={r.imageUrl}
-                      size="small"
-                    />
-                    {r.championId ? (
-                      <TextLink
-                        href={`/champions/${r.championId}?source=${q!.source}&patch=${trends.patch}&role=${r.role}`}
-                      >
-                        {r.name ?? r.championId}
-                      </TextLink>
-                    ) : (
-                      (r.name ?? `Champion ${r.championKey}`)
-                    )}
-                  </span>
+                  <ChampionIcon
+                    id={r.championId ?? String(r.championKey)}
+                    name={r.name ?? `Champion ${r.championKey}`}
+                    imageUrl={r.imageUrl}
+                    size="small"
+                    href={
+                      r.championId
+                        ? `/champions/${r.championId}?source=${q!.source}&patch=${trends.patch}&role=${r.role}`
+                        : undefined
+                    }
+                  />
                 ),
               },
-              { id: "role", header: "Role", render: (r) => roleLabels[r.role] },
+              { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
               {
                 id: "pick",
                 header: "Pick Rate Change",
