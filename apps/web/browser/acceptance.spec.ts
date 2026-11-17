@@ -13,6 +13,9 @@ async function openSettings(page: Page) {
 }
 
 test("browse filters, SQL pages, match details and spoiler control", async ({ page }) => {
+  await page.route("https://www.youtube-nocookie.com/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
+  );
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Matches", exact: true })).toBeVisible();
   await expect(page.getByText("Result Hidden")).toHaveCount(0);
@@ -65,8 +68,10 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(watchButtons.first()).toHaveText("Watch");
   await expect(page.locator(".np-match-row__expanded")).toHaveCount(1);
   await expect(page.locator(".ev-inline-stream")).toHaveCSS("position", "static");
+  // A finished match opens its YouTube recording, loaded but paused, with no consent step.
+  // The first row is an upcoming match, which opens its live Twitch channel, loaded but paused.
   await expect(page.getByRole("button", { name: /Broadcast/ })).toContainText("Twitch");
-  await page.getByRole("button", { name: "Load Stream" }).click();
+  await expect(page.getByRole("button", { name: "Load Stream" })).toHaveCount(0);
   const streamBox = await page.locator(".ev-inline-stream .np-stream-shell").boundingBox();
   expect(streamBox?.width).toBeLessThanOrEqual(840);
   const broadcastBox = await page.getByRole("button", { name: /Broadcast/ }).boundingBox();
@@ -79,7 +84,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(watchButtons.first()).toHaveAttribute("aria-expanded", "false");
   await expect(watchButtons.nth(1)).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("region", { name: "Watch Match" })).toHaveCount(1);
-  await expect(page.locator(".ev-inline-stream iframe")).toHaveCount(0);
+  await expect(page.locator(".ev-inline-stream iframe")).toHaveCount(1);
   await watchButtons.nth(1).click();
   await expect(page.getByRole("region", { name: "Watch Match" })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Filter Matches" }).fill("Acceptance Blue");
@@ -102,7 +107,9 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
     "Acceptance Blue vs Acceptance Red",
   );
   await expect(page.getByRole("table", { name: "Game Context" })).toBeVisible();
-  await expect(page.locator("iframe")).toHaveCount(0);
+  // The replay player loads straight away but does not play until its play button is pressed.
+  await expect(page.locator("iframe")).toHaveCount(1);
+  await expect(page.locator("iframe")).toHaveAttribute("src", /autoplay=0/);
 });
 
 test.describe("players navigation", () => {
@@ -220,27 +227,26 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await page.goto("/history");
   await expect(page.getByRole("link", { name: /02\/28\/2026/ })).toBeVisible();
 });
-test("single consented player and external fallback survive a blocked embed", async ({ page }) => {
+test("a finished match loads its paused replay and keeps an external fallback", async ({
+  page,
+}) => {
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
-  await page.route("https://player.twitch.tv/**", (route) => route.abort());
   await page.goto("/matches/pandascore%3Amatch%3A1");
-  await expect(page.locator("iframe")).toHaveCount(0);
-  await page.getByRole("button", { name: "Load Stream" }).click();
+  await expect(page.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
   await expect(page.locator("iframe")).toHaveCount(1);
+  await expect(page.locator("iframe")).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
+  // The stored Twitch channel would show whatever is live now, so it is not offered.
   await page.getByRole("button", { name: /Broadcast/ }).click();
-  await page.getByRole("option", { name: /Twitch/ }).click();
-  await expect(page.locator("iframe")).toHaveCount(0);
-  await page.getByRole("button", { name: "Load Stream" }).click();
-  await expect(page.locator("iframe")).toHaveCount(1);
+  await expect(page.getByRole("option", { name: /Twitch/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Player Not Working" }).click();
   await expect(page.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open on Twitch" }).last()).toHaveAttribute(
+  await expect(page.getByRole("link", { name: /Open on YouTube/ }).last()).toHaveAttribute(
     "href",
-    "https://twitch.tv/test_channel",
+    /youtube\.com/,
   );
-  await page.getByRole("button", { name: "Unload Player" }).click();
   await expect(page.locator("iframe")).toHaveCount(0);
 });
 test("manual refresh and CSV uploads join the durable queue", async ({ page }) => {

@@ -2,13 +2,19 @@ import { it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MatchPage, GamePage, ProfilePage } from "./pages";
 import { match, game, profile, blue, instant, page } from "../../../tests/fixtures";
-it("prioritizes match identity and consented watching while retaining game context", () => {
+it("prioritizes match identity and loads a paused replay while retaining game context", () => {
   const view = render(<MatchPage match={match} timezone="UTC" hideSpoilers now={instant} />);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
   );
   expect(screen.getByText("Game Context")).toBeVisible();
-  expect(document.querySelector("iframe")).toBeNull();
+  // A finished match offers its YouTube recording, loaded but not playing.
+  expect(screen.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
+  expect(screen.getByTitle("Match Broadcast")).toHaveAttribute(
+    "src",
+    expect.stringMatching(/youtube-nocookie\.com.*autoplay=0/),
+  );
+  expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
@@ -20,6 +26,17 @@ it("prioritizes match identity and consented watching while retaining game conte
     />,
   );
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(match.name);
+  view.rerender(
+    <MatchPage
+      match={{ ...match, broadcasts: match.broadcasts.slice(1) }}
+      timezone="UTC"
+      hideSpoilers={false}
+      now={instant}
+    />,
+  );
+  // Only a live Twitch channel is stored, which would show an unrelated broadcast.
+  expect(screen.getByText("No Replay Available")).toBeVisible();
+  expect(document.querySelector("iframe")).toBeNull();
   view.rerender(
     <MatchPage
       match={{ ...match, state: "scheduled", games: [] }}
