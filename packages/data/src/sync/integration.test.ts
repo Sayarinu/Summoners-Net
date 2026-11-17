@@ -1442,6 +1442,119 @@ describe("Riot match details", () => {
       await worker.close();
     }
   });
+  describe("draining the queue", () => {
+    const backlog = Array.from({ length: 7 }, (_, i) => `EUW1_80000000${i}`);
+    const queue = () =>
+      saveMatchIds(
+        pool,
+        { puuid: "b".repeat(78), platform: "euw1", region: "europe", patchKey: "16.22" },
+        backlog,
+        10,
+        now,
+      );
+    const worker = (riotRun: { maxItems?: number; maxMs?: number }) =>
+      createSync(connection, {
+        clock: () => instant,
+        fetch: fetcher,
+        pause: () => Promise.resolve(),
+        riot: { key, kind: "development" },
+        riotRun,
+      });
+    const fetched = async () => Object.values(await states()).filter((s) => s === "fetched").length;
+    const jobs = async () =>
+      (
+        await pool.query<{ kind: string; state: string }>(
+          "SELECT request->>'kind' AS kind,state FROM sync_jobs WHERE request->>'kind'<>'riot-key' ORDER BY id",
+        )
+      ).rows.map((r) => `${r.kind}:${r.state}`);
+    beforeEach(async () => {
+      await savePatchCatalog(pool, ["16.22.1"], now);
+      await queue();
+      serveMatches(Object.fromEntries(backlog.map((id) => [id, variant(id)])));
+    });
+    it("drains a backlog in bounded runs that requeue behind other due jobs", async () => {
+      const w = worker({ maxItems: 3 });
+      try {
+        await w.request({ kind: "riot-match" });
+        await w.request({ kind: "aggregate" });
+        expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
+        expect(await fetched()).toBe(3);
+        // Aggregates for the ingested games are rebuilt with the run.
+        expect(
+          (await pool.query("SELECT 1 FROM champion_aggregates WHERE source='solo' LIMIT 1"))
+            .rowCount,
+        ).toBe(1);
+        // The run yielded: the aggregate job queued before the continuation runs first.
+        expect(await jobs()).toEqual(["riot-match:done", "aggregate:queued", "riot-match:queued"]);
+        while ((await w.runNext()).state !== "idle");
+        // Two more bounded runs drained the rest; the last found nothing left and did not requeue.
+        expect(await jobs()).toEqual([
+          "riot-match:done",
+          "aggregate:done",
+          "riot-match:done",
+          "riot-match:done",
+        ]);
+        expect(await fetched()).toBe(7);
+      } finally {
+        await w.close();
+      }
+    });
+    it("yields after the time limit by the injected clock", async () => {
+      const served = fetcher.getMockImplementation()!;
+      fetcher.mockImplementation((input, init) => {
+        instant = new Date(instant.valueOf() + 100_000);
+        return served(input, init);
+      });
+      const w = worker({ maxMs: 250_000 });
+      try {
+        await w.request({ kind: "riot-match" });
+        expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
+        expect(await jobs()).toEqual(["riot-match:done", "riot-match:queued"]);
+      } finally {
+        await w.close();
+      }
+    });
+    it("keeps items fetched before a mid-run deferral and resumes when capacity frees up", async () => {
+      const served = fetcher.getMockImplementation()!;
+      let calls = 0;
+      // Count match requests only; the worker's key check makes its own.
+      fetcher.mockImplementation((input, init) =>
+        endpoint(input).includes("/lol/match/v5/") && ++calls === 3
+          ? Promise.resolve(
+              new Response("", {
+                status: 429,
+                headers: { "Retry-After": "120", "X-Rate-Limit-Type": "application" },
+              }),
+            )
+          : served(input, init),
+      );
+      const w = worker({});
+      try {
+        await w.request({ kind: "riot-match" });
+        expect((await w.runNext()).state).toBe("queued");
+        expect(await fetched()).toBe(2);
+        expect(
+          (await pool.query("SELECT 1 FROM champion_aggregates WHERE source='solo' LIMIT 1"))
+            .rowCount,
+        ).toBe(1);
+        const job = (
+          await pool.query<{ available_at: Date }>(
+            "SELECT available_at FROM sync_jobs WHERE state='queued' AND request->>'kind'='riot-match'",
+          )
+        ).rows[0]!;
+        // Nothing more is sent until the paused window ends.
+        expect(job.available_at.valueOf()).toBeGreaterThanOrEqual(instant.valueOf() + 100_000);
+        expect(calls).toBe(3);
+        while ((await w.runNext()).state !== "idle");
+        expect(calls).toBe(3);
+        instant = new Date(job.available_at);
+        expect(await w.runNext()).toMatchObject({ state: "done", records: 5 });
+        expect(await fetched()).toBe(7);
+      } finally {
+        await w.close();
+      }
+    });
+  });
 });
 describe("Riot match timelines", () => {
   const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
