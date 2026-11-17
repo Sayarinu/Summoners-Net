@@ -39,10 +39,22 @@
   box-shadow: none;
 }
 .ev-sidebar__settings {
-  position: relative;
   margin-top: auto;
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border-subtle);
+}
+.ev-settings {
+  max-width: 640px;
+}
+.ev-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+.ev-settings__row > .np-combobox {
+  flex: 1;
+  min-width: 220px;
 }
 .ev-shell-footer {
   margin-left: 240px;
@@ -294,70 +306,10 @@
 .ev-refresh [role="status"] {
   max-width: 240px;
 }
-.ev-preferences {
-  position: relative;
-  font-size: var(--font-size-xs);
-}
-.ev-preferences summary {
-  width: 48px;
-  height: 48px;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  list-style: none;
-}
-.ev-preferences summary::-webkit-details-marker {
-  display: none;
-}
-.ev-preferences__icon {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xl);
-  line-height: 1;
-}
-.ev-preferences__label {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-}
-.ev-sidebar .ev-preferences {
-  width: 100%;
-}
-.ev-sidebar .ev-preferences summary {
-  width: 100%;
-  height: 44px;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-md);
-}
-.ev-sidebar .ev-preferences summary:hover,
-.ev-sidebar .ev-preferences summary:focus-visible {
-  background: var(--color-bg-interactive);
-}
-.ev-preferences-panel {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  left: 0;
-  width: min(300px, calc(100vw - 32px));
-  background: var(--color-bg-raised);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  box-shadow: var(--shadow-md);
-}
-.ev-sidebar .ev-preferences-panel {
-  top: auto;
-  bottom: 0;
-  left: calc(100% + var(--space-2));
-}
 .np-select__popover {
   width: min(var(--trigger-width), 300px);
   max-height: min(280px, calc(100svh - 96px));
   overflow-y: auto;
-}
-.ev-preferences-panel .np-combobox {
-  min-width: 0;
 }
 .ev-summary {
   display: flex;
@@ -446,12 +398,6 @@
     cursor: default;
     background: var(--color-bg-overlay);
     border: 0;
-  }
-  .ev-sidebar .ev-preferences-panel {
-    top: auto;
-    right: auto;
-    bottom: calc(100% + var(--space-2));
-    left: 0;
   }
   .ev-main,
   .ev-shell-footer {

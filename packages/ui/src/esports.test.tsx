@@ -71,7 +71,7 @@ describe("esports identities and schedule", () => {
     expect(screen.getAllByText("Live").length).toBeGreaterThan(0);
     expect(screen.getByText("Postponed")).toBeVisible();
     expect(screen.getByText("Cancelled")).toBeVisible();
-    expect(screen.getAllByText("Result hidden")).toHaveLength(1);
+    expect(screen.getAllByText("Result Hidden")).toHaveLength(1);
   });
 });
 
@@ -156,7 +156,7 @@ describe("advanced esports patterns", () => {
     const { rerender } = render(
       <SpoilerControl hidden onHiddenChange={hiddenChange} onReveal={reveal} />,
     );
-    await user.click(screen.getByRole("switch", { name: "Hide results" }));
+    await user.click(screen.getByRole("switch", { name: "Hide Results" }));
     await user.click(screen.getByRole("button", { name: "Show Once" }));
     expect(hiddenChange).toHaveBeenCalledWith(false);
     expect(reveal).toHaveBeenCalledOnce();
