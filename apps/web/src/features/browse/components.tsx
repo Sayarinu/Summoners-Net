@@ -84,7 +84,7 @@ export function Filters({
             defaultValue={query.league ?? "all"}
             onValueChange={scheduleSubmit}
             options={[
-              { value: "all", label: "All leagues" },
+              { value: "all", label: "All Leagues" },
               ...regions.map((r) => ({ value: r, label: r })),
             ]}
           />
@@ -120,7 +120,7 @@ export function Filters({
                 defaultValue={query.state ?? "all"}
                 onValueChange={scheduleSubmit}
                 options={[
-                  { value: "all", label: "All statuses" },
+                  { value: "all", label: "All Statuses" },
                   ...["scheduled", "live", "final", "postponed", "cancelled"].map((s) => ({
                     value: s,
                     label: s === "final" ? "Results" : s.charAt(0).toUpperCase() + s.slice(1),
@@ -155,7 +155,7 @@ export function Pages({ data }: { data: Page<unknown> }) {
 export function GamesTable({ games, timezone }: { games: Game[]; timezone: string }) {
   return (
     <Table
-      caption="Historical games"
+      caption="Historical Games"
       rows={games}
       getRowKey={(g) => g.id}
       emptyMessage="No games match these filters."

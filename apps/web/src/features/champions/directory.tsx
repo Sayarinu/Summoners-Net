@@ -20,25 +20,25 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
           <h1>Champions</h1>
         </div>
       </header>
-      <nav aria-label="Champion analytics" className="np-stack">
+      <nav aria-label="Champion Analytics" className="np-stack">
         <p>
-          <TextLink href="/tier-list">Tier list</TextLink> ·{" "}
-          <TextLink href="/trending">Trending champions</TextLink> ·{" "}
-          <TextLink href="/drafts/assistant">Draft assistant</TextLink>
+          <TextLink href="/tier-list">Tier List</TextLink> ·{" "}
+          <TextLink href="/trending">Trending Champions</TextLink> ·{" "}
+          <TextLink href="/drafts/assistant">Draft Assistant</TextLink>
         </p>
-        <h2>Matchups by role</h2>
+        <h2>Matchups by Role</h2>
         <ul>
           {matchupRoles.map((r) => (
             <li key={r}>
-              {roles[r]}: <TextLink href={`/matchups/${r}`}>matchup matrix</TextLink> ·{" "}
-              <TextLink href={`/matchups/${r}/counter-picks`}>counter-pick values</TextLink>
+              {roles[r]}: <TextLink href={`/matchups/${r}`}>Matchup Matrix</TextLink> ·{" "}
+              <TextLink href={`/matchups/${r}/counter-picks`}>Counter-Pick Values</TextLink>
             </li>
           ))}
         </ul>
       </nav>
       {d.champions.length ? (
         <Table
-          caption="Champions in the catalog"
+          caption="Champions in the Catalog"
           rows={d.champions}
           getRowKey={(c) => c.championId}
           columns={[
@@ -59,7 +59,7 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
             },
             {
               id: "matchups",
-              header: "Lane matchups",
+              header: "Lane Matchups",
               render: (c) => (
                 <TextLink
                   href={`/champions/${c.championId}/matchups`}
@@ -73,7 +73,7 @@ export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }
         />
       ) : (
         <EmptyState
-          title="No champion catalog yet"
+          title="No Champion Catalog Yet"
           description={
             <span>
               The catalog arrives with the first metadata sync. See{" "}

@@ -23,7 +23,7 @@ function Change({ value }: { value: ProportionTrend }) {
   const rate = (r: ProportionTrend["current"]) => `${percent(r)} · n=${r.sampleCount}`;
   const reason = {
     missing: "Comparison unavailable",
-    "small-sample": "Too few games",
+    "small-sample": "Too Few Games",
     "sparse-outcomes": "Too few successes or failures",
     "not-significant": "No significant signal",
     significant: value.direction === "rising" ? "Rising" : "Falling",
@@ -56,7 +56,7 @@ export function TrendingPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Patch comparison</span>
-          <h1>Trending champions</h1>
+          <h1>Trending Champions</h1>
           <p>Pick and win rate changes from the preceding patch, with samples for both.</p>
         </div>
       </header>
@@ -66,7 +66,7 @@ export function TrendingPage({
           name="source"
           defaultValue={q?.source ?? "solo"}
           options={[
-            { value: "solo", label: "Solo queue" },
+            { value: "solo", label: "Solo Queue" },
             { value: "pro", label: "Pro" },
           ]}
         />
@@ -75,7 +75,7 @@ export function TrendingPage({
           name="patch"
           defaultValue={q?.patch ?? "all"}
           options={[
-            { value: "all", label: "Newest with data" },
+            { value: "all", label: "Newest with Data" },
             ...patches.map((p) => ({ value: p, label: p })),
           ]}
         />
@@ -85,10 +85,10 @@ export function TrendingPage({
           defaultValue={q?.role ?? "ALL"}
           options={championRoles.map((r) => ({ value: r, label: roleLabels[r] }))}
         />
-        <Button type="submit">Apply filters</Button>
+        <Button type="submit">Apply Filters</Button>
       </form>
       <details>
-        <summary>How a trend qualifies</summary>
+        <summary>How a Trend Qualifies</summary>
         <p>
           Both patches need at least {trendMinimumSample} observations and {trendMinimumOutcomes}{" "}
           successes and failures each. A pooled two-proportion test must exceed |z| ={" "}
@@ -105,7 +105,7 @@ export function TrendingPage({
         <p role="alert">{error}</p>
       ) : !trends?.patch ? (
         <EmptyState
-          title="No champion aggregates for this selection"
+          title="No Champion Aggregates for This Selection"
           description={
             <span>
               Refresh metadata and aggregates in <TextLink href="/sources">Sources</TextLink>.
@@ -115,7 +115,7 @@ export function TrendingPage({
       ) : (
         <>
           <p>
-            {q?.source === "pro" ? "Pro" : "Solo queue"} · {roleLabels[q!.role]} · Patch{" "}
+            {q?.source === "pro" ? "Pro" : "Solo Queue"} · {roleLabels[q!.role]} · Patch{" "}
             {trends.patch} vs {trends.previousPatch ?? "no preceding catalog patch"}
           </p>
           <p className="np-meta">
@@ -134,7 +134,7 @@ export function TrendingPage({
             filters={{ source: trends.query.source, patch: trends.patch, role: trends.query.role }}
           />
           <Table
-            caption="Champion changes between patches"
+            caption="Champion Changes Between Patches"
             rows={trends.page.items}
             getRowKey={(r) => String(r.championKey)}
             emptyMessage="No champion aggregates for this role and page."
@@ -165,10 +165,10 @@ export function TrendingPage({
               { id: "role", header: "Role", render: (r) => roleLabels[r.role] },
               {
                 id: "pick",
-                header: "Pick rate change",
+                header: "Pick Rate Change",
                 render: (r) => <Change value={r.pickRate} />,
               },
-              { id: "win", header: "Win rate change", render: (r) => <Change value={r.winRate} /> },
+              { id: "win", header: "Win Rate Change", render: (r) => <Change value={r.winRate} /> },
             ]}
           />
           <div className="ev-pagination">
@@ -176,7 +176,7 @@ export function TrendingPage({
               {trends.page.total} champions · Page {trends.page.page}
             </span>
             <Pagination
-              label="Champion trend pages"
+              label="Champion Trend Pages"
               currentPage={trends.page.page}
               totalPages={Math.max(1, Math.ceil(trends.page.total / trends.page.pageSize))}
               onPageChange={(page) =>

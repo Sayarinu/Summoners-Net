@@ -47,7 +47,7 @@ export function ChampionOverviewPage({
           />
           <div>
             <span className="np-overline">
-              {q.source === "pro" ? "Pro play" : "Solo queue"} · {roleLabels[q.role]}
+              {q.source === "pro" ? "Pro Play" : "Solo Queue"} · {roleLabels[q.role]}
             </span>
             <h1>{champion.name}</h1>
           </div>
@@ -56,7 +56,7 @@ export function ChampionOverviewPage({
       <TextLink
         href={`/champions/${champion.id}/matchups?source=${q.source}&role=${q.role === "ALL" ? "MIDDLE" : q.role}${overview.patch ? `&patch=${overview.patch}` : ""}`}
       >
-        Lane matchups
+        Lane Matchups
       </TextLink>
       <TextLink
         href={`/heatmaps?subjectKind=champion&subject=${champion.id}${q.source === "solo" && overview.patch ? `&patch=${overview.patch}` : ""}`}
@@ -68,7 +68,7 @@ export function ChampionOverviewPage({
         <p role="alert">{error}</p>
       ) : !overview.patch ? (
         <EmptyState
-          title="No statistics for this selection"
+          title="No Statistics for This Selection"
           description={
             <span>
               Statistics appear once games are ingested and aggregated. See the{" "}
@@ -78,7 +78,7 @@ export function ChampionOverviewPage({
           }
         />
       ) : (
-        <section className="np-stack" aria-label="Champion statistics">
+        <section className="np-stack" aria-label="Champion Statistics">
           <p className="np-meta">
             Patch {overview.patch} · {overview.games} {overview.games === 1 ? "game" : "games"} of{" "}
             {overview.sliceGames} in this selection.
@@ -112,7 +112,7 @@ export function ChampionOverviewPage({
           </p>
           <Sparkline
             title={`${champion.name} win rate by patch`}
-            yLabel="Win rate"
+            yLabel="Win Rate"
             points={overview.trend.map((t, i) => ({
               id: t.patch,
               label: `Patch ${t.patch}`,
@@ -123,7 +123,7 @@ export function ChampionOverviewPage({
           />
           {draftValue ? (
             <section className="np-stack" aria-labelledby="counter-pick-value">
-              <h2 id="counter-pick-value">Counter-pick value</h2>
+              <h2 id="counter-pick-value">Counter-Pick Value</h2>
               <CounterPickSummary
                 value={draftValue}
                 listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}

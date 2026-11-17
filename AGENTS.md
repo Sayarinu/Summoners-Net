@@ -11,6 +11,10 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
 - Every value shown comes from a real source. Preserve source identifiers. When a provider fails,
   keep the last successful data and its timestamps. Missing statistics stay `null`, with explicit
   sample counts; never turn unknown values into zero.
+- Buttons, headings, navigation entries, tabs, field and option labels, and table column headers use
+  title case: "Solo Queue", "Apply Filters", "Win Rate by Game Length". Short articles, conjunctions
+  and prepositions (a, and, by, of, the, vs, …) stay lowercase unless they come first. Descriptions
+  and other body text stay in sentence case.
 - The browser reads PostgreSQL through the application. All provider fetches belong to the
   coordinated worker in `packages/data`; a browser action may only queue a job.
 

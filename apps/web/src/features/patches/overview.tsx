@@ -45,7 +45,7 @@ function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; pat
       <ExportLink
         table="patch-trends"
         filters={{ patch }}
-        label="Download risers and fallers as CSV"
+        label="Download Risers and Fallers as CSV"
       />
       <Table
         caption={`${title} in solo queue`}
@@ -61,10 +61,10 @@ function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; pat
           {
             id: "metric",
             header: "Rate",
-            render: (r) => (r.metric === "pick" ? "Pick rate" : "Win rate"),
+            render: (r) => (r.metric === "pick" ? "Pick Rate" : "Win Rate"),
           },
-          { id: "current", header: "Current patch", render: (r) => rate(r.change.current) },
-          { id: "previous", header: "Previous patch", render: (r) => rate(r.change.previous) },
+          { id: "current", header: "Current Patch", render: (r) => rate(r.change.current) },
+          { id: "previous", header: "Previous Patch", render: (r) => rate(r.change.previous) },
           {
             id: "change",
             header: "Change",
@@ -98,7 +98,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
       <p>
         Both patches need at least 50 observations and five successes and failures. Trends use the
         same significance policy as{" "}
-        <TextLink href={`/trending?patch=${o.patch}`}>Trending champions</TextLink>, where source
+        <TextLink href={`/trending?patch=${o.patch}`}>Trending Champions</TextLink>, where source
         and role filters are available. These exploratory signals are not adjusted for multiple
         comparisons.
       </p>
@@ -107,10 +107,10 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
           No preceding catalog patch is stored. Trends and new builds cannot be established.
         </p>
       ) : null}
-      <Trends title="Biggest risers" rows={o.risers} patch={o.patch} />
-      <Trends title="Biggest fallers" rows={o.fallers} patch={o.patch} />
+      <Trends title="Biggest Risers" rows={o.risers} patch={o.patch} />
+      <Trends title="Biggest Fallers" rows={o.fallers} patch={o.patch} />
       <section className="np-stack">
-        <h2>New popular builds</h2>
+        <h2>New Popular Builds</h2>
         <p>
           Ranked solo three-item cores in purchase order, grouped by champion and role. A path needs
           at least 50 observations now and no observations among at least 50 cores for that champion
@@ -119,7 +119,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
         </p>
         <ExportLink table="patch-builds" filters={{ patch: o.patch }} />
         <Table
-          caption="Newly observed three-item cores"
+          caption="Newly Observed Three-Item Cores"
           rows={o.builds}
           getRowKey={(r) => `${r.championKey}-${r.role}-${r.items.map((i) => i.id).join(",")}`}
           emptyMessage="No qualifying new builds. Both patches need enough complete core observations."
@@ -132,7 +132,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
             { id: "role", header: "Role", render: (r) => r.role },
             {
               id: "items",
-              header: "Purchase order",
+              header: "Purchase Order",
               render: (r) => (
                 <ol>
                   {r.items.map((i) => (
@@ -151,26 +151,26 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
             },
             {
               id: "share",
-              header: "Current observations",
+              header: "Current Observations",
               render: (r) => `${r.games} cores · ${rate(r.share)}`,
             },
             {
               id: "previous",
-              header: "Previous observations",
+              header: "Previous Observations",
               render: (r) => `Absent · n=${r.previousSample} cores`,
             },
           ]}
         />
       </section>
       <section className="np-stack">
-        <h2>Pro presence leaders</h2>
+        <h2>Pro Presence Leaders</h2>
         <p>
           Picks plus bans across stored complete pro drafts. At least ten drafts are required;
           samples below 50 are flagged. Up to ten champions.
         </p>
         <ExportLink table="patch-pro" filters={{ patch: o.patch }} />
         <Table
-          caption="Pro pick and ban presence"
+          caption="Pro Pick and Ban Presence"
           rows={o.pro}
           getRowKey={(r) => String(r.championKey)}
           emptyMessage="Too little pro draft data for presence leaders."

@@ -63,7 +63,7 @@ describe("browse presentation", () => {
         now={instant}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Past games" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Past Games" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "02/28/2026" })).toBeVisible();
     expect(screen.getByText("Result hidden")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
@@ -74,7 +74,7 @@ describe("browse presentation", () => {
     const view = render(
       <MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />,
     );
-    expect(screen.getByText("No matches in this view")).toBeVisible();
+    expect(screen.getByText("No Matches in This View")).toBeVisible();
     view.rerender(<MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />);
     view.rerender(
       <HistoryPage
@@ -82,7 +82,7 @@ describe("browse presentation", () => {
         query={{ year: 2026, league: "LCK" }}
       />,
     );
-    expect(screen.getByRole("table", { name: "Historical games" })).toBeVisible();
+    expect(screen.getByRole("table", { name: "Historical Games" })).toBeVisible();
     expect(screen.getByText("Partial")).toBeVisible();
     expect(screen.getByLabelText("Year")).toHaveValue(2026);
     view.rerender(<Filters query={{ state: "final", date: "2026-03-01", q: "Blue" }} />);
@@ -120,22 +120,22 @@ describe("browse presentation", () => {
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
     const watchButtons = screen.getAllByRole("button", { name: "Watch" });
     fireEvent.click(watchButtons[0]!);
-    await waitFor(() => expect(screen.getByRole("region", { name: "Watch match" })).toBeVisible());
+    await waitFor(() => expect(screen.getByRole("region", { name: "Watch Match" })).toBeVisible());
     expect(watchButtons[0]).toHaveTextContent("Watch");
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("Twitch");
     fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
     expect(document.querySelector("iframe")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Unload player" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Player not working" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unload Player" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Player Not Working" })).not.toBeInTheDocument();
     fireEvent.click(watchButtons[1]!);
     await waitFor(() => {
-      expect(screen.getAllByRole("region", { name: "Watch match" })).toHaveLength(1);
+      expect(screen.getAllByRole("region", { name: "Watch Match" })).toHaveLength(1);
       expect(document.querySelector("iframe")).not.toBeInTheDocument();
     });
     fireEvent.click(watchButtons[1]!);
     await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Watch match" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("region", { name: "Watch Match" })).not.toBeInTheDocument(),
     );
   });
   it("links identities and global results", () => {
@@ -151,7 +151,7 @@ describe("browse presentation", () => {
       identityHref(blue),
     );
     view.rerender(<DirectoryPage kind="player" data={page([])} query={{ q: "none" }} />);
-    expect(screen.getByText("No identities found")).toBeVisible();
+    expect(screen.getByText("No Identities Found")).toBeVisible();
     view.rerender(
       <SearchPage
         data={page([
@@ -184,15 +184,15 @@ describe("browse presentation", () => {
       `/games/${encodeURIComponent(game.id)}`,
     );
     view.rerender(<SearchPage data={page([])} query={{ q: "none" }} />);
-    expect(screen.getByText("No results")).toBeVisible();
+    expect(screen.getByText("No Results")).toBeVisible();
     view.rerender(<SearchPage data={page([])} query={{}} />);
-    expect(screen.getByRole("heading", { name: "Find a team, player or match" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Find a Team, Player or Match" })).toBeVisible();
   });
   it("supports bounded pagination controls", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<Pages data={{ ...page([]), total: 100, pageSize: 25 }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
+    expect(screen.getByRole("button", { name: "Previous Page" })).toBeDisabled();
     error.mockRestore();
   });
 });

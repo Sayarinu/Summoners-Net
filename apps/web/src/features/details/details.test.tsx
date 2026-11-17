@@ -7,7 +7,7 @@ it("prioritizes match identity and consented watching while retaining game conte
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
   );
-  expect(screen.getByText("Game context")).toBeVisible();
+  expect(screen.getByText("Game Context")).toBeVisible();
   expect(document.querySelector("iframe")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Hidden")).toBeNull();
@@ -33,7 +33,7 @@ it("prioritizes match identity and consented watching while retaining game conte
 it("shows played lineups with null statistics and explicit partial eligibility", () => {
   const view = render(<GamePage game={game} timezone="UTC" hideSpoilers />);
   expect(screen.getAllByText("Hidden")).toHaveLength(6);
-  fireEvent.click(screen.getByRole("button", { name: "Reveal game statistics" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(screen.getByText("5 / 2 / 7")).toBeVisible();
   expect(screen.getByText("— / — / —")).toBeVisible();
   expect(screen.getByText("Unknown")).toBeVisible();
@@ -58,12 +58,12 @@ it("shows played lineups with null statistics and explicit partial eligibility",
 });
 it("separates roster observations, filtered game pages and full-sample summaries", () => {
   const view = render(<ProfilePage profile={profile} query={{ timezone: "UTC" }} hideSpoilers />);
-  expect(screen.getByText("Latest roster observation")).toBeVisible();
+  expect(screen.getByText("Latest Roster Observation")).toBeVisible();
   expect(screen.queryByText("100.0%")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Reveal summary statistics" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reveal Summary Statistics" }));
   expect(screen.getByText("100.0%")).toBeVisible();
   expect(screen.getByText("6.00")).toBeVisible();
-  expect(screen.getByText("Champion usage")).toBeVisible();
+  expect(screen.getByText("Champion Usage")).toBeVisible();
   view.rerender(
     <ProfilePage
       profile={{
@@ -82,7 +82,7 @@ it("separates roster observations, filtered game pages and full-sample summaries
       hideSpoilers={false}
     />,
   );
-  expect(screen.getByText("No current roster observation")).toBeVisible();
+  expect(screen.getByText("No Current Roster Observation")).toBeVisible();
   expect(screen.getAllByText("—")).toHaveLength(2);
 });
 it("shows linked identity evidence, canonical destinations and portraits without altering historical names", () => {
@@ -110,9 +110,9 @@ it("shows linked identity evidence, canonical destinations and portraits without
   expect(
     screen.getAllByRole("img", { name: `${identity.name} portrait` })[0]!.querySelector("img"),
   ).toHaveAttribute("src", image);
-  fireEvent.click(screen.getByText("Identity details"));
+  fireEvent.click(screen.getByText("Identity Details"));
   expect(screen.getByText(/Old handle/)).toBeVisible();
-  expect(screen.getByRole("link", { name: "played lineup" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Played Lineup" })).toHaveAttribute(
     "href",
     `/games/${encodeURIComponent(game.id)}`,
   );
@@ -181,10 +181,10 @@ it("shows a coarse checkpoint win probability only with revealed statistics", ()
   const view = render(
     <GamePage game={game} timezone="UTC" hideSpoilers winProbability={winProbability} />,
   );
-  expect(screen.queryByText("Win probability (coarse, 4 checkpoints)")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Reveal game statistics" }));
+  expect(screen.queryByText("Win Probability (Coarse, 4 Checkpoints)")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(
-    screen.getByRole("heading", { name: "Win probability (coarse, 4 checkpoints)" }),
+    screen.getByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
   ).toBeVisible();
   expect(screen.getByText(/trained on 2025–2026 games; Brier score 0.200/)).toBeVisible();
   view.rerender(

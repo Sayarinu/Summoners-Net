@@ -32,10 +32,10 @@ it("keeps route navigation, skip link and local controls available", () => {
 
 it("opens and closes the mobile navigation overlay", () => {
   render(<ShellHeader preferences={defaultPreferences} />);
-  fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
-  expect(screen.getAllByRole("button", { name: "Close navigation" })).toHaveLength(2);
-  fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[0]!);
-  expect(screen.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+  fireEvent.click(screen.getByRole("button", { name: "Open Navigation" }));
+  expect(screen.getAllByRole("button", { name: "Close Navigation" })).toHaveLength(2);
+  fireEvent.click(screen.getAllByRole("button", { name: "Close Navigation" })[0]!);
+  expect(screen.getByRole("button", { name: "Open Navigation" })).toHaveAttribute(
     "aria-expanded",
     "false",
   );
@@ -46,7 +46,7 @@ it("links every analytics section and marks the one a page belongs to", () => {
   const view = render(<ShellHeader preferences={defaultPreferences} />);
   for (const [name, href] of [
     ["Champions", "/champions"],
-    ["Tier list", "/tier-list"],
+    ["Tier List", "/tier-list"],
     ["Leaderboards", "/leaderboards"],
     ["Patches", "/patches"],
     ["Drafts", "/drafts"],

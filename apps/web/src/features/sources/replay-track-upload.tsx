@@ -13,9 +13,7 @@ export function ReplayTrackUpload() {
         body: new FormData(form),
       });
       if (!response.ok) throw new Error();
-      setMessage(
-        "Track import queued. The local worker will validate it; reload status after it runs.",
-      );
+      setMessage("Track import queued. The worker will validate it; reload status after it runs.");
     } catch {
       setMessage("Track import could not be queued. Choose a JSON track file up to 64 MiB.");
     } finally {
@@ -24,7 +22,7 @@ export function ReplayTrackUpload() {
   }
   return (
     <section className="np-stack">
-      <h2>Import a replay track</h2>
+      <h2>Import a Replay Track</h2>
       <p className="np-body-sm">
         Choose a version 1 track JSON from a completed replay. Re-importing replaces that game's
         track version; other games are kept. Invalid files leave saved tracks intact. Captured
@@ -39,14 +37,14 @@ export function ReplayTrackUpload() {
       >
         <input type="hidden" name="kind" value="replay-track" />
         <Input
-          label="Replay track JSON"
+          label="Replay Track JSON"
           type="file"
           name="file"
           accept=".json,application/json"
           required
         />
         <Button type="submit" variant="primary" loading={pending} disabled={pending}>
-          Queue track import
+          Queue Track Import
         </Button>
       </form>
       <p role="status">{message}</p>

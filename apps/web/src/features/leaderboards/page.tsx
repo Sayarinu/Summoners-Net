@@ -24,7 +24,7 @@ export function LeaderboardPage({
           <p>Challenger, Grandmaster and Master, ordered by tier and LP.</p>
         </div>
       </header>
-      <nav aria-label="Ladder regions" className="ev-filters">
+      <nav aria-label="Ladder Regions" className="ev-filters">
         {riotPlatforms.map((r) => (
           <TextLink
             key={r}
@@ -39,16 +39,16 @@ export function LeaderboardPage({
         <p role="alert">{error}</p>
       ) : !list?.lastSuccess ? (
         <EmptyState
-          title="No ladder stored for this region"
+          title="No Ladder Stored for This Region"
           description={
             <span>
-              Enable this region in the local worker and refresh its ladder from{" "}
+              Enable this region in the worker and refresh its ladder from{" "}
               <TextLink href="/sources">Sources</TextLink>.
             </span>
           }
         />
       ) : (
-        <section className="np-stack" aria-label="Regional ladder">
+        <section className="np-stack" aria-label="Regional Ladder">
           <p className="np-meta">
             Last refreshed {dateTime(list.lastSuccess, timezone)}. Champion samples cover retained
             ranked solo games in this region, across patches; they are not the full season.
@@ -84,7 +84,7 @@ export function LeaderboardPage({
               { id: "losses", header: "Losses", align: "end", render: (r) => r.losses },
               {
                 id: "rate",
-                header: "Win rate",
+                header: "Win Rate",
                 align: "end",
                 render: (r) => (
                   <span>
@@ -97,7 +97,7 @@ export function LeaderboardPage({
               },
               {
                 id: "champions",
-                header: "Most played",
+                header: "Most Played",
                 render: (r) =>
                   r.champions.length ? (
                     <div className="np-stack">
@@ -126,7 +126,7 @@ export function LeaderboardPage({
               {list.page.total} players · Page {list.page.page}
             </span>
             <Pagination
-              label="Ladder pages"
+              label="Ladder Pages"
               currentPage={list.page.page}
               totalPages={Math.max(1, Math.ceil(list.page.total / list.page.pageSize))}
               onPageChange={(page) =>

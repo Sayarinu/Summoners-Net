@@ -70,11 +70,11 @@ export function SavedViewsPanel({
   };
   return (
     <section className="np-stack" aria-labelledby="saved-views-heading">
-      <h2 id="saved-views-heading">Saved views</h2>
+      <h2 id="saved-views-heading">Saved Views</h2>
       <p className="np-meta">
         Saved views keep a page and its filters in this browser&apos;s local storage only. They are
         not sent to the server and do not follow you to another browser.{" "}
-        {path !== undefined ? <TextLink href="/saved-views">All saved views</TextLink> : null}
+        {path !== undefined ? <TextLink href="/saved-views">All Saved Views</TextLink> : null}
       </p>
       {canSave ? (
         <form
@@ -85,17 +85,17 @@ export function SavedViewsPanel({
           }}
         >
           <Input
-            label="View name"
+            label="View Name"
             value={name}
             maxLength={60}
             onChange={(e) => setName(e.currentTarget.value)}
           />
-          <Button type="submit">Save this view</Button>
+          <Button type="submit">Save This View</Button>
         </form>
       ) : null}
       {status ? <p role="status">{status}</p> : null}
       {views.length ? (
-        <ul aria-label="Saved views">
+        <ul aria-label="Saved Views">
           {views.map((v) => (
             <li key={v.id}>
               <TextLink href={viewHref(v)}>{v.name}</TextLink>{" "}

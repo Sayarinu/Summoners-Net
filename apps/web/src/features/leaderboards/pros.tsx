@@ -29,7 +29,7 @@ export function ProFeedPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Linked pro accounts</span>
-          <h1>Pros in solo queue</h1>
+          <h1>Pros in Solo Queue</h1>
           <p>Recent retained ranked solo games on accounts with imported evidence links.</p>
         </div>
       </header>
@@ -46,7 +46,7 @@ export function ProFeedPage({
               label="Team"
               value={feed.query.team || "all"}
               options={[
-                { value: "all", label: "All teams" },
+                { value: "all", label: "All Teams" },
                 ...feed.teams.map((t) => ({ value: t.id, label: t.name })),
                 ...(feed.query.team && !feed.teams.some((t) => t.id === feed.query.team)
                   ? [{ value: feed.query.team, label: feed.query.team }]
@@ -58,7 +58,7 @@ export function ProFeedPage({
               label="League"
               value={feed.query.league || "all"}
               options={[
-                { value: "all", label: "All leagues" },
+                { value: "all", label: "All Leagues" },
                 ...feed.leagues.map((l) => ({ value: l, label: l })),
                 ...(feed.query.league && !feed.leagues.includes(feed.query.league)
                   ? [{ value: feed.query.league, label: feed.query.league }]
@@ -66,11 +66,11 @@ export function ProFeedPage({
               ]}
               onValueChange={(v) => navigate({ league: v === "all" ? "" : v })}
             />
-            <TextLink href="/leaderboards/pros">Clear filters</TextLink>
+            <TextLink href="/leaderboards/pros">Clear Filters</TextLink>
           </div>
           {feed.page.total === 0 ? (
             <EmptyState
-              title="No linked solo queue games"
+              title="No Linked Solo Queue Games"
               description={
                 <span>
                   No imported account links or matching ranked solo games are stored for these
@@ -82,7 +82,7 @@ export function ProFeedPage({
           ) : (
             <>
               <Table
-                caption="Recent pro solo queue games"
+                caption="Recent Pro Solo Queue Games"
                 rows={feed.page.items}
                 getRowKey={(r) => `${r.matchId}:${r.participantId}`}
                 emptyMessage="No games on this page."
@@ -94,14 +94,14 @@ export function ProFeedPage({
                       <div className="np-stack">
                         <TextLink href={identityHref(r.player)}>{r.player.name}</TextLink>
                         <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}`}>
-                          Solo queue profile
+                          Solo Queue Profile
                         </TextLink>
                       </div>
                     ),
                   },
                   {
                     id: "team",
-                    header: "Last pro team",
+                    header: "Last Pro Team",
                     render: (r) =>
                       r.team ? (
                         <TextLink href={identityHref(r.team)}>{r.team.name}</TextLink>
@@ -109,10 +109,10 @@ export function ProFeedPage({
                         "Unknown"
                       ),
                   },
-                  { id: "league", header: "Last pro league", render: (r) => r.league ?? "Unknown" },
+                  { id: "league", header: "Last Pro League", render: (r) => r.league ?? "Unknown" },
                   {
                     id: "observed",
-                    header: "Pro appearance",
+                    header: "Pro Appearance",
                     render: (r) =>
                       r.proObservedAt ? dateTime(r.proObservedAt, timezone) : "Unknown",
                   },
@@ -138,7 +138,7 @@ export function ProFeedPage({
                   },
                   {
                     id: "time",
-                    header: "Game time",
+                    header: "Game Time",
                     render: (r) => dateTime(r.occurredAt, timezone),
                   },
                 ]}
@@ -148,7 +148,7 @@ export function ProFeedPage({
                   {feed.page.total} player games · Page {feed.page.page}
                 </span>
                 <Pagination
-                  label="Pro solo queue pages"
+                  label="Pro Solo Queue Pages"
                   currentPage={feed.page.page}
                   totalPages={Math.max(1, Math.ceil(feed.page.total / feed.page.pageSize))}
                   onPageChange={(page) => navigate({ page: String(page) })}

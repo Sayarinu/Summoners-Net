@@ -26,24 +26,24 @@ export function RiotCrawlerSection({
   const when = (iso: string | null) => (iso ? dateTime(iso, timezone) : "Never");
   return (
     <section className="np-stack" aria-labelledby="riot-crawler-heading">
-      <h2 id="riot-crawler-heading">Riot crawler</h2>
+      <h2 id="riot-crawler-heading">Riot Crawler</h2>
       <p className="np-body-sm">
-        The local worker crawls ranked solo queue from the apex ladders. Queuing a crawl only adds a
-        job; this page never contacts Riot.
+        The worker crawls ranked solo queue from the apex ladders. Queuing a crawl only adds a job;
+        this page never contacts Riot.
       </p>
-      <RefreshButton kind="riot-match-ids" label="Queue crawl" />
+      <RefreshButton kind="riot-match-ids" label="Queue Crawl" />
       {crawl.progress.length ? (
         <Table
-          caption="Crawl progress by region and patch"
+          caption="Crawl Progress by Region and Patch"
           rows={crawl.progress}
           getRowKey={(p) => `${p.region}:${p.patchKey}`}
           columns={[
             { id: "region", header: "Region", render: (p) => p.region },
             { id: "patch", header: "Patch", render: (p) => p.patchKey },
-            { id: "players", header: "Ladder players", render: (p) => p.ladderPlayers },
-            { id: "ids", header: "Match ids found", render: (p) => p.matchIds },
-            { id: "matches", header: "Matches ingested", render: (p) => p.matches },
-            { id: "timelines", header: "Timelines ingested", render: (p) => p.timelines },
+            { id: "players", header: "Ladder Players", render: (p) => p.ladderPlayers },
+            { id: "ids", header: "Match IDs Found", render: (p) => p.matchIds },
+            { id: "matches", header: "Matches Ingested", render: (p) => p.matches },
+            { id: "timelines", header: "Timelines Ingested", render: (p) => p.timelines },
           ]}
         />
       ) : (
@@ -51,13 +51,13 @@ export function RiotCrawlerSection({
       )}
       {crawl.jobs.length > 0 && (
         <Table
-          caption="Riot jobs"
+          caption="Riot Jobs"
           rows={crawl.jobs}
           getRowKey={(j) => j.kind}
           columns={[
             { id: "job", header: "Job", render: (j) => jobLabels[j.kind] ?? j.kind },
-            { id: "success", header: "Last success", render: (j) => when(j.lastSuccess) },
-            { id: "error", header: "Last error", render: (j) => when(j.lastErrorAt) },
+            { id: "success", header: "Last Success", render: (j) => when(j.lastSuccess) },
+            { id: "error", header: "Last Error", render: (j) => when(j.lastErrorAt) },
             {
               id: "detail",
               header: "Status",
@@ -73,7 +73,7 @@ export function RiotCrawlerSection({
       )}
       {crawl.quota.length > 0 ? (
         <Table
-          caption="Riot request quota"
+          caption="Riot Request Quota"
           rows={crawl.quota}
           getRowKey={(q) => `${q.region}:${q.method}`}
           columns={[
@@ -81,7 +81,7 @@ export function RiotCrawlerSection({
             { id: "method", header: "Method", render: (q) => methodLabel(q.method) },
             {
               id: "use",
-              header: "Use per window",
+              header: "Use per Window",
               render: (q) =>
                 q.windows.length
                   ? q.windows
@@ -91,7 +91,7 @@ export function RiotCrawlerSection({
             },
             {
               id: "paused",
-              header: "Paused until",
+              header: "Paused Until",
               render: (q) => (q.pausedUntil ? dateTime(q.pausedUntil, timezone) : "—"),
             },
           ]}

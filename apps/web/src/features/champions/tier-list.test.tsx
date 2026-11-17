@@ -53,12 +53,12 @@ const list: TierList = {
 };
 it("shows rates, intervals and samples, with unknown values never shown as zero", () => {
   render(<TierListPage list={list} error={null} />);
-  const table = screen.getByRole("table", { name: "Champion tier list" });
+  const table = screen.getByRole("table", { name: "Champion Tier List" });
   const [ahri, unknown] = within(table).getAllByRole("row").slice(1);
   expect(ahri).toHaveTextContent("Ahri6055.0%42.0–67.0%50.0%10.0%60 results");
   expect(unknown).toHaveTextContent("Champion 9500Unknown");
   expect(unknown).toHaveTextContent("0.0%");
-  expect(unknown).toHaveTextContent("Too few games");
+  expect(unknown).toHaveTextContent("Too Few Games");
   const trigger = (label: string) =>
     screen
       .getAllByRole("button")
@@ -69,7 +69,7 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
           b.closest(".np-select")?.textContent?.startsWith(label),
       );
   expect(trigger("Tier")).toHaveTextContent("CHALLENGER");
-  expect(trigger("Sort by")).toHaveTextContent("Win rate");
+  expect(trigger("Sort By")).toHaveTextContent("Win Rate");
   expect(trigger("Region")).toHaveTextContent("All");
   expect(screen.getByText(/Patch 16.22 · 120 games/)).toBeVisible();
 });
@@ -80,7 +80,7 @@ it("shows an empty state without data and an error for an invalid query", () => 
       error={null}
     />,
   );
-  expect(screen.getByText("No champion statistics yet")).toBeVisible();
+  expect(screen.getByText("No Champion Statistics Yet")).toBeVisible();
   view.rerender(<TierListPage list={null} error="Choose filters from the lists" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Choose filters from the lists");
 });

@@ -32,7 +32,7 @@ export function ChampionFilters({
         name="source"
         defaultValue={query?.source ?? "solo"}
         options={[
-          { label: "Solo queue", value: "solo" },
+          { label: "Solo Queue", value: "solo" },
           { label: "Pro", value: "pro" },
         ]}
       />
@@ -66,7 +66,7 @@ export function ChampionFilters({
       {sortable && (
         <>
           <Select
-            label="Sort by"
+            label="Sort By"
             name="sort"
             defaultValue={query?.sort ?? "games"}
             options={tierListSorts.map((s) => ({ label: sortLabels[s], value: s }))}
@@ -76,13 +76,13 @@ export function ChampionFilters({
             name="order"
             defaultValue={query?.order ?? "desc"}
             options={[
-              { label: "Highest first", value: "desc" },
-              { label: "Lowest first", value: "asc" },
+              { label: "Highest First", value: "desc" },
+              { label: "Lowest First", value: "asc" },
             ]}
           />
         </>
       )}
-      <Button type="submit">Apply filters</Button>
+      <Button type="submit">Apply Filters</Button>
     </form>
   );
 }

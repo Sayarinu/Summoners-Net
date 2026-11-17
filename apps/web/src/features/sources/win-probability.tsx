@@ -16,7 +16,7 @@ export function WinProbabilitySection({
   const latest = solo[0];
   return (
     <section className="np-stack" aria-labelledby="win-probability-heading">
-      <h2 id="win-probability-heading">Win probability model</h2>
+      <h2 id="win-probability-heading">Win Probability Model</h2>
       {active ? (
         <p className="np-body-sm">
           Model v{active.modelVersion} (#{active.id}) is active, trained{" "}
@@ -37,11 +37,11 @@ export function WinProbabilitySection({
         <p className="np-meta">Last attempt rejected: {latest.reason}</p>
       ) : null}
       <p className="np-meta">
-        Training runs daily. Queuing it only adds a job for the local worker; a sample that is too
-        small is stored as rejected and the active model stays.{" "}
-        <TextLink href="/models">Model diagnostics</TextLink>.
+        Training runs daily. Queuing it only adds a job for the worker; a sample that is too small
+        is stored as rejected and the active model stays.{" "}
+        <TextLink href="/models">Model Diagnostics</TextLink>.
       </p>
-      <RefreshButton kind="wp-train" label="Queue training" />
+      <RefreshButton kind="wp-train" label="Queue Training" />
     </section>
   );
 }

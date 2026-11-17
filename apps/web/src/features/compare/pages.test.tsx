@@ -29,15 +29,15 @@ it("shows two champions side by side with each value's sample", () => {
   );
   const table = screen.getByRole("table", { name: "Ahri and Zed (unknown), Mid" });
   const row = (name: string) => within(table).getByRole("row", { name: new RegExp(`^${name}`) });
-  expect(row("Win rate 52")).toHaveTextContent("Win rate52.5%118Not stored0");
-  expect(row("Ban rate")).toHaveTextContent("Ban rateUnknown0Not stored0");
+  expect(row("Win Rate 52")).toHaveTextContent("Win Rate52.5%118Not stored0");
+  expect(row("Ban Rate")).toHaveTextContent("Ban RateUnknown0Not stored0");
   expect(row("Games")).toHaveTextContent("Games120120Not stored0");
   expect(screen.getByLabelText("First champion id")).toHaveValue("Ahri");
-  expect(screen.getByRole("button", { name: "Save this view" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Save This View" })).toBeVisible();
 });
 it("prompts for champions and shows validation errors", () => {
   const { unmount } = render(<ChampionComparePage comparison={null} error={null} />);
-  expect(screen.getByText("Choose two champions")).toBeVisible();
+  expect(screen.getByText("Choose Two Champions")).toBeVisible();
   unmount();
   render(<ChampionComparePage comparison={null} error="Choose two champion ids." />);
   expect(screen.getByRole("alert")).toHaveTextContent("Choose two champion ids.");
@@ -84,7 +84,7 @@ it("shows two patches side by side with samples and paging", () => {
   );
   const table = screen.getByRole("table", { name: "Patch 16.22 and patch 16.21, Mid" });
   expect(table).toHaveTextContent("Ahri50.0% (40)45.0% (20)10.0% (400)5.0% (400)");
-  expect(screen.getByRole("link", { name: "Next page" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Next Page" })).toHaveAttribute(
     "href",
     "/compare/patches?a=16.22&b=16.21&role=MIDDLE&page=2",
   );

@@ -117,14 +117,14 @@ it("scrubs to interpolated positions and shows missing frames as gaps", () => {
   // Lee Sin's minute 1 frame is missing: no point and a gap, never the map origin.
   expect(table()).toHaveTextContent("Lee SinBlueJungleGap: no frame");
   expect(points(container)).toHaveLength(2);
-  expect(screen.getByRole("link", { name: "Back to the game" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Back to the Game" })).toHaveAttribute(
     "href",
     "/solo-games/EUW1_1",
   );
 });
 it("toggles teams and roles", () => {
   const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
-  const controls = screen.getByRole("group", { name: "Show champions" });
+  const controls = screen.getByRole("group", { name: "Show Champions" });
   fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
   expect(table()).not.toHaveTextContent("Garen");
   fireEvent.click(within(controls).getByRole("switch", { name: "Jungle" }));
@@ -190,7 +190,7 @@ it("overlays nearby events, lists every event and jumps the scrubber to a select
     "var(--color-text-secondary)",
   );
   expect(list).toHaveTextContent("7200, 7100 (drawn now)");
-  const toggles = screen.getByRole("group", { name: "Show events" });
+  const toggles = screen.getByRole("group", { name: "Show Events" });
   fireEvent.click(within(toggles).getByRole("switch", { name: "Kills" }));
   expect(container.querySelector(".np-minimap__event--kill")).toBeNull();
   expect(screen.getByRole("table", { name: "Events" })).not.toHaveTextContent("Ahri killed");
@@ -292,7 +292,7 @@ it("uses a linked track: latest samples, trails, low-confidence points, gaps and
   fireEvent.change(screen.getByLabelText(/^Game time/), { target: { value: "1000" } });
   expect(table()).toHaveTextContent("Lee SinBlueJungleGap: no sample");
   expect(container.querySelectorAll(".np-minimap__path").length).toBeGreaterThan(0);
-  const movements = screen.getByRole("table", { name: "Detected movements" });
+  const movements = screen.getByRole("table", { name: "Detected Movements" });
   expect(movements).toHaveTextContent("Recall: Ahri");
   expect(movements).toHaveTextContent("Rotation: Garen to bot");
   fireEvent.click(within(movements).getByRole("button", { name: "Go to 1:01" }));

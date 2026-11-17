@@ -58,14 +58,13 @@ export function MatchPage({
       ) : null}
       {gamesWithStatistics.length > 0 ? (
         <section className="np-stack">
-          <h2>Game information</h2>
+          <h2>Game Information</h2>
           <Table
-            caption="Game context"
+            caption="Game Context"
             rows={gamesWithStatistics}
             getRowKey={(g) => g.sourceId}
             columns={[
               { id: "number", header: "Game", render: (g) => g.number },
-              { id: "state", header: "Status", render: (g) => g.state },
               {
                 id: "start",
                 header: "Started",
@@ -123,9 +122,9 @@ export function GamePage({
           ? "Eligible for basic statistics."
           : "Partial record · excluded from summary statistics."}
       </p>
-      {hidden ? <Button onPress={() => setHidden(false)}>Reveal game statistics</Button> : null}
+      {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       <Table
-        caption="Historical played lineup"
+        caption="Historical Played Lineup"
         getRowKey={(p) => p.slot}
         rows={game.participants.filter((p) => p.player)}
         columns={[
@@ -224,7 +223,7 @@ export function ProfilePage({
         </div>
       </header>
       <details className="np-stack">
-        <summary>Identity details</summary>
+        <summary>Identity Details</summary>
         <p className="np-body-sm">{(profile.aliases ?? [identity.name]).join(" · ")}</p>
         {(profile.resolution ?? []).map((evidence) => (
           <p key={evidence.gameId} className="np-body-sm">
@@ -233,7 +232,7 @@ export function ProfilePage({
               ? `${evidence.matchedFixtures} corresponding fixtures against multiple opponents, including a`
               : `${evidence.matchedPlayers} matching players and roles in a`}{" "}
             <TextLink href={`/games/${encodeURIComponent(evidence.gameId)}`}>
-              played lineup
+              Played Lineup
             </TextLink>{" "}
             played {dateTime(evidence.playedAt, query.timezone ?? "UTC")}. Roster observed{" "}
             {dateTime(evidence.observedAt, query.timezone ?? "UTC")}. This is identity evidence, not
@@ -242,10 +241,10 @@ export function ProfilePage({
         ))}
       </details>
       <section className="np-stack">
-        <h2>Observed current roster</h2>
+        <h2>Observed Current Roster</h2>
         {profile.roster.length ? (
           <Table
-            caption="Latest roster observation"
+            caption="Latest Roster Observation"
             getRowKey={(r) => `${r.team.id}:${r.player.id}`}
             rows={profile.roster}
             columns={[
@@ -283,16 +282,16 @@ export function ProfilePage({
           />
         ) : (
           <EmptyState
-            title="No current roster observation"
+            title="No Current Roster Observation"
             description="Historical played lineups remain available through individual games."
           />
         )}
       </section>
       <section className="np-stack">
-        <h2>Historical appearances</h2>
+        <h2>Historical Appearances</h2>
         <Filters query={query} history />
         {hidden ? (
-          <Button onPress={() => setHidden(false)}>Reveal summary statistics</Button>
+          <Button onPress={() => setHidden(false)}>Reveal Summary Statistics</Button>
         ) : (
           <>
             <dl className="ev-summary">
@@ -317,7 +316,7 @@ export function ProfilePage({
             </dl>
             {summary.champions.length > 0 && (
               <Table
-                caption="Champion usage"
+                caption="Champion Usage"
                 rows={summary.champions}
                 getRowKey={(r) => r.name}
                 columns={[
@@ -325,7 +324,7 @@ export function ProfilePage({
                   { id: "games", header: "Games", render: (r) => r.games },
                   {
                     id: "wins",
-                    header: "Wins / results",
+                    header: "Wins / Results",
                     render: (r) => `${r.wins} / ${r.resultGames}`,
                   },
                 ]}

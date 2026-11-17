@@ -73,24 +73,24 @@ const profile: SummonerProfile = {
 it("shows stored identity, unknown statistics and gap-preserving charts with data tables", () => {
   render(<SummonerPage profile={profile} error={null} puuid={puuid} timezone="UTC" />);
   expect(screen.getByRole("heading", { name: "Fixture#EUW" })).toBeVisible();
-  const games = screen.getByRole("table", { name: "Recent ranked solo games" });
+  const games = screen.getByRole("table", { name: "Recent Ranked Solo Games" });
   expect(games).toHaveTextContent("? / 2 / 3");
   expect(games).toHaveTextContent("Unknown");
-  expect(screen.getByRole("table", { name: "Sampled champion pool" })).toHaveTextContent("Unknown");
+  expect(screen.getByRole("table", { name: "Sampled Champion Pool" })).toHaveTextContent("Unknown");
   expect(screen.getByRole("img", { name: "EUW1 LP history" })).toBeVisible();
   fireEvent.click(screen.getByText("View data for EUW1 LP history"));
   const data = screen.getByRole("table", { name: "EUW1 LP history data" });
   expect(data).toHaveTextContent("Unknown");
   expect(data).toHaveTextContent("100");
   fireEvent.click(
-    within(screen.getByRole("navigation", { name: "Recent game pages" })).getByRole("button", {
-      name: "Next page",
+    within(screen.getByRole("navigation", { name: "Recent Game Pages" })).getByRole("button", {
+      name: "Next Page",
     }),
   );
   expect(push).toHaveBeenLastCalledWith(`/summoners/${puuid}?page=2&championPage=1&region=euw1`);
   fireEvent.click(
-    within(screen.getByRole("navigation", { name: "Champion pool pages" })).getByRole("button", {
-      name: "Next page",
+    within(screen.getByRole("navigation", { name: "Champion Pool Pages" })).getByRole("button", {
+      name: "Next Page",
     }),
   );
   expect(push).toHaveBeenLastCalledWith(`/summoners/${puuid}?page=1&championPage=2&region=euw1`);
@@ -132,13 +132,13 @@ it("shows empty history, source fallbacks, known results and invalid input", () 
   const view = render(
     <SummonerPage profile={alternate} error={null} puuid={puuid} timezone="UTC" />,
   );
-  expect(screen.getByText("No ladder snapshots in this window")).toBeVisible();
+  expect(screen.getByText("No Ladder Snapshots in This Window")).toBeVisible();
   expect(screen.getByText("50.0%")).toBeVisible();
   expect(screen.getByRole("heading", { name: "Riot ID not resolved" })).toBeVisible();
-  expect(screen.getByRole("table", { name: "Recent ranked solo games" })).toHaveTextContent("20.0");
+  expect(screen.getByRole("table", { name: "Recent Ranked Solo Games" })).toHaveTextContent("20.0");
   fireEvent.click(
-    within(screen.getByRole("navigation", { name: "Recent game pages" })).getByRole("button", {
-      name: "Next page",
+    within(screen.getByRole("navigation", { name: "Recent Game Pages" })).getByRole("button", {
+      name: "Next Page",
     }),
   );
   expect(push).toHaveBeenLastCalledWith(`/summoners/${puuid}?page=2&championPage=1`);

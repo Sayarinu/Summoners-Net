@@ -44,7 +44,7 @@ export function ShellHeader({
     { href: "/teams", label: "Teams" },
     { href: "/players", label: "Players" },
     { href: "/champions", label: "Champions" },
-    { href: "/tier-list", label: "Tier list" },
+    { href: "/tier-list", label: "Tier List" },
     { href: "/leaderboards", label: "Leaderboards" },
     { href: "/patches", label: "Patches" },
     { href: "/drafts", label: "Drafts" },
@@ -56,13 +56,13 @@ export function ShellHeader({
       <SkipLink />
       {mobileOpen ? (
         <button
-          aria-label="Close navigation"
+          aria-label="Close Navigation"
           className="ev-mobile-menu-backdrop"
           onClick={() => setMobileOpen(false)}
           type="button"
         />
       ) : null}
-      <aside aria-label="Application navigation" className="ev-sidebar" id="app-navigation">
+      <aside aria-label="Application Navigation" className="ev-sidebar" id="app-navigation">
         <a className="ev-brand" href="/" onClick={() => setMobileOpen(false)}>
           SummonersNet
         </a>
@@ -85,7 +85,7 @@ export function ShellHeader({
         <button
           aria-controls="app-navigation"
           aria-expanded={mobileOpen}
-          aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+          aria-label={mobileOpen ? "Close Navigation" : "Open Navigation"}
           className="ev-mobile-menu-button"
           onClick={() => setMobileOpen(!mobileOpen)}
           type="button"
@@ -102,7 +102,7 @@ export function ShellHeader({
 export function ShellFooter() {
   return (
     <div className="ev-shell-footer">
-      <Footer copyright="SummonersNet · Local library" />
+      <Footer copyright="SummonersNet" />
     </div>
   );
 }

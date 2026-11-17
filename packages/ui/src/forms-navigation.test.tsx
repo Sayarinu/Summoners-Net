@@ -130,16 +130,16 @@ describe("navigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("/live");
     expect(screen.getByRole("link", { name: "Skip to main content" })).toBeVisible();
     expect(screen.getByRole("contentinfo")).toHaveTextContent("Operational");
-    await user.click(screen.getByRole("button", { name: "Previous page" }));
-    await user.click(screen.getByRole("button", { name: "Next page" }));
+    await user.click(screen.getByRole("button", { name: "Previous Page" }));
+    await user.click(screen.getByRole("button", { name: "Next Page" }));
     await user.click(screen.getByRole("button", { name: "Page 4" }));
     expect(onPage).toHaveBeenNthCalledWith(1, 1);
     expect(onPage).toHaveBeenNthCalledWith(2, 3);
     expect(onPage).toHaveBeenNthCalledWith(3, 4);
 
     rerender(<Pagination currentPage={1} onPageChange={onPage} totalPages={1} />);
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Previous Page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next Page" })).toBeDisabled();
   });
 
   it("omits an empty footer navigation landmark", () => {

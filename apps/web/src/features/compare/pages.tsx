@@ -10,7 +10,7 @@ import { SavedViewsPanel } from "../saved-views/panel";
 
 const roles = ["ALL", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
 const roleLabels: Record<string, string> = {
-  ALL: "All roles",
+  ALL: "All Roles",
   TOP: "Top",
   JUNGLE: "Jungle",
   MIDDLE: "Mid",
@@ -59,7 +59,7 @@ function Filters({
         </select>
       </label>
       {extra?.patch !== undefined ? (
-        <Input name="patch" label="Patch (optional)" defaultValue={extra.patch} />
+        <Input name="patch" label="Patch (Optional)" defaultValue={extra.patch} />
       ) : null}
       <Button type="submit" variant="primary">
         Compare
@@ -96,14 +96,14 @@ export function ChampionComparePage({
         [
           ["Patch", (o) => o?.patch ?? "None", () => ""],
           ["Games", (o) => (o ? String(o.games) : "Not stored"), (o) => String(o?.games ?? 0)],
-          ["Win rate", (o) => value(o?.winRate ?? null), (o) => sample(o?.winRate ?? null)],
+          ["Win Rate", (o) => value(o?.winRate ?? null), (o) => sample(o?.winRate ?? null)],
           [
             "Win rate pulled toward the baseline",
             (o) => value(o?.shrunkWinRate ?? null),
             (o) => sample(o?.shrunkWinRate ?? null),
           ],
-          ["Pick rate", (o) => value(o?.pickRate ?? null), (o) => sample(o?.pickRate ?? null)],
-          ["Ban rate", (o) => value(o?.banRate ?? null), (o) => sample(o?.banRate ?? null)],
+          ["Pick Rate", (o) => value(o?.pickRate ?? null), (o) => sample(o?.pickRate ?? null)],
+          ["Ban Rate", (o) => value(o?.banRate ?? null), (o) => sample(o?.banRate ?? null)],
           ["Tier", (o) => o?.tier ?? "Unknown", (o) => sample(o?.shrunkWinRate ?? null)],
         ] satisfies Metric[]
       ).map(([metric, show, count]) => ({
@@ -119,11 +119,11 @@ export function ChampionComparePage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Compare</span>
-          <h1>Champion against champion</h1>
+          <h1>Champion Against Champion</h1>
           <p>
             Two champions on the same source, role and patch, from stored aggregates. Each value
             shows the sample it comes from.{" "}
-            <TextLink href="/compare/patches">Compare patches</TextLink>
+            <TextLink href="/compare/patches">Compare Patches</TextLink>
           </p>
         </div>
       </header>
@@ -151,7 +151,7 @@ export function ChampionComparePage({
         />
       ) : !error ? (
         <EmptyState
-          title="Choose two champions"
+          title="Choose Two Champions"
           description="Enter two Data Dragon champion ids, such as Ahri and Zed."
         />
       ) : null}
@@ -198,11 +198,11 @@ export function PatchComparePage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Compare</span>
-          <h1>Patch against patch</h1>
+          <h1>Patch Against Patch</h1>
           <p>
             Champions ordered by games on the first patch, with the same champions&apos; statistics
             on the second. Each value shows its sample.{" "}
-            <TextLink href="/compare/champions">Compare champions</TextLink>
+            <TextLink href="/compare/champions">Compare Champions</TextLink>
           </p>
         </div>
       </header>
@@ -276,13 +276,13 @@ export function PatchComparePage({
           {page && page.total > page.pageSize ? (
             <nav aria-label="Pages" className="ev-filters">
               {page.page > 1 ? (
-                <TextLink href={pageHref(page.page - 1)}>Previous page</TextLink>
+                <TextLink href={pageHref(page.page - 1)}>Previous Page</TextLink>
               ) : null}
               <span className="np-meta">
                 Page {page.page} of {Math.ceil(page.total / page.pageSize)}
               </span>
               {page.page * page.pageSize < page.total ? (
-                <TextLink href={pageHref(page.page + 1)}>Next page</TextLink>
+                <TextLink href={pageHref(page.page + 1)}>Next Page</TextLink>
               ) : null}
             </nav>
           ) : null}
@@ -290,7 +290,7 @@ export function PatchComparePage({
       ) : null}
       {!comparison && !error ? (
         <EmptyState
-          title="Choose two patches"
+          title="Choose Two Patches"
           description="Enter two patches with stored statistics, such as 16.21 and 16.22."
         />
       ) : null}

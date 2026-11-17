@@ -53,7 +53,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
           </h1>
         </div>
       </header>
-      <nav aria-label="Heatmap type" className="ev-filters">
+      <nav aria-label="Heatmap Type" className="ev-filters">
         {heatmapKinds.map((k) => (
           <TextLink
             key={k}
@@ -77,7 +77,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
           ))}
         </nav>
       ) : null}
-      <nav aria-label="Role heatmaps" className="ev-filters">
+      <nav aria-label="Role Heatmaps" className="ev-filters">
         {heatmapRoles.map((r) => (
           <TextLink
             key={r}
@@ -96,7 +96,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
       </p>
       {!h.patch || !h.patches.some((p) => p.patch === h.patch) ? (
         <EmptyState
-          title="No heatmap yet"
+          title="No Heatmap Yet"
           description="Heatmaps are built by the aggregate job from solo-queue games with stored timelines."
         />
       ) : (
@@ -107,7 +107,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
           </p>
           {h.games < h.minimumGames ? (
             <EmptyState
-              title="Too few games to draw"
+              title="Too Few Games to Draw"
               description={`A heatmap is drawn from ${h.minimumGames} games; this one has ${h.games}.`}
             />
           ) : (

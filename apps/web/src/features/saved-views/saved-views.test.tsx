@@ -55,9 +55,9 @@ it("saves the page's filters in browser storage and removes them", async () => {
       now={() => new Date("2026-11-17T01:00:00.000Z")}
     />,
   );
-  const list = await screen.findByRole("list", { name: "Saved views" });
+  const list = await screen.findByRole("list", { name: "Saved Views" });
   expect(within(list).getAllByRole("listitem")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: "Save this view" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
   expect(screen.getByRole("status")).toHaveTextContent('Saved "Ahri vs Zed" in this browser.');
   expect(screen.getByRole("link", { name: "Ahri vs Zed" })).toHaveAttribute(
     "href",
@@ -71,14 +71,14 @@ it("saves the page's filters in browser storage and removes them", async () => {
   ]);
   fireEvent.click(screen.getByRole("button", { name: "Remove Mid tier list" }));
   expect(screen.queryByRole("link", { name: "Mid tier list" })).toBeNull();
-  fireEvent.change(screen.getByLabelText("View name"), { target: { value: "  " } });
-  fireEvent.click(screen.getByRole("button", { name: "Save this view" }));
+  fireEvent.change(screen.getByLabelText("View Name"), { target: { value: "  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
   expect(screen.getByRole("status")).toHaveTextContent("Name the view first.");
 });
 
 it("lists without saving off filter pages, and reports a full or refusing store", async () => {
   const { unmount } = render(<SavedViewsPanel storage={() => memory()} />);
-  expect(screen.queryByRole("button", { name: "Save this view" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Save This View" })).toBeNull();
   expect(screen.getByText("No views are saved in this browser.")).toBeVisible();
   unmount();
   const full = memory(
@@ -88,7 +88,7 @@ it("lists without saving off filter pages, and reports a full or refusing store"
     <SavedViewsPanel path="/tier-list" defaultName="x" storage={() => full} />,
   );
   await screen.findAllByRole("listitem");
-  fireEvent.click(screen.getByRole("button", { name: "Save this view" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
   expect(screen.getByRole("status")).toHaveTextContent("At most 50 views can be saved");
   close();
   const refusing = {
@@ -98,6 +98,6 @@ it("lists without saving off filter pages, and reports a full or refusing store"
     },
   };
   render(<SavedViewsPanel path="/heatmaps" query="" defaultName="x" storage={() => refusing} />);
-  fireEvent.click(screen.getByRole("button", { name: "Save this view" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
   expect(screen.getByRole("status")).toHaveTextContent("This browser would not store the view.");
 });

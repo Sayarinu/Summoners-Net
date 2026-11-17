@@ -25,16 +25,16 @@ it("lists catalog champions and links every champion and matchup page", () => {
     "href",
     "/champions/Ahri/matchups",
   );
-  expect(screen.getByRole("link", { name: "Draft assistant" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Draft Assistant" })).toHaveAttribute(
     "href",
     "/drafts/assistant",
   );
-  expect(screen.getAllByRole("link", { name: "counter-pick values" })[4]).toHaveAttribute(
+  expect(screen.getAllByRole("link", { name: "Counter-Pick Values" })[4]).toHaveAttribute(
     "href",
     "/matchups/UTILITY/counter-picks",
   );
   view.rerender(<ChampionsPage directory={{ patch: null, champions: [] }} />);
-  expect(screen.getByText("No champion catalog yet")).toBeVisible();
+  expect(screen.getByText("No Champion Catalog Yet")).toBeVisible();
 });
 
 it("lists patches with their sources and the leaderboards", () => {
@@ -52,13 +52,13 @@ it("lists patches with their sources and the leaderboards", () => {
     "href",
     "/patches/16.22",
   );
-  expect(screen.getByRole("table", { name: "Patches with champion statistics" })).toHaveTextContent(
+  expect(screen.getByRole("table", { name: "Patches with Champion Statistics" })).toHaveTextContent(
     "Patch 16.21Pro",
   );
   view.rerender(<PatchesPage directory={{ patches: [] }} />);
-  expect(screen.getByText("No patch statistics yet")).toBeVisible();
+  expect(screen.getByText("No Patch Statistics Yet")).toBeVisible();
   view.rerender(<LeaderboardsPage />);
-  expect(screen.getByRole("link", { name: "Win probability added" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Win Probability Added" })).toHaveAttribute(
     "href",
     "/leaderboards/wpa",
   );

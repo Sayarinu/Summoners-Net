@@ -46,8 +46,8 @@ it("ranks candidates with each part's sample and explains the score", () => {
       error={null}
     />,
   );
-  expect(screen.getByRole("heading", { name: "Draft assistant" })).toBeVisible();
-  expect(screen.getByLabelText("Red picks")).toHaveValue("Nunu:MIDDLE");
+  expect(screen.getByRole("heading", { name: "Draft Assistant" })).toBeVisible();
+  expect(screen.getByLabelText("Red Picks")).toHaveValue("Nunu:MIDDLE");
   expect(screen.getByText(/Lane opponent: Nunu & Willump/)).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("ignored: Zzz");
   const table = screen.getByRole("table", { name: "Ranked candidates for Mid" });
@@ -60,7 +60,7 @@ it("ranks candidates with each part's sample and explains the score", () => {
     "href",
     "/champions/Ahri/matchups?source=solo&patch=16.22&role=MIDDLE",
   );
-  expect(screen.getByText("How candidates are ranked")).toBeVisible();
+  expect(screen.getByText("How Candidates Are Ranked")).toBeVisible();
   expect(screen.getByText(/score = mean of the known parts/)).toBeInTheDocument();
 });
 it("shows validation errors without results and keeps the typed draft", () => {
@@ -72,7 +72,7 @@ it("shows validation errors without results and keeps the typed draft", () => {
     />,
   );
   expect(screen.getByRole("alert")).toHaveTextContent("Enter picks");
-  expect(screen.getByLabelText("Blue picks")).toHaveValue("Ahri,Ahri");
+  expect(screen.getByLabelText("Blue Picks")).toHaveValue("Ahri,Ahri");
   expect(screen.queryByRole("table")).toBeNull();
 });
 it("shows the draft win probability for your side and with each candidate", () => {
@@ -103,17 +103,17 @@ it("shows the draft win probability for your side and with each candidate", () =
       error={null}
     />,
   );
-  const summary = screen.getByLabelText("Draft win probability by side");
+  const summary = screen.getByLabelText("Draft Win Probability by Side");
   expect(summary).toHaveTextContent("Red side55.0%");
   expect(summary).toHaveTextContent("Blue side45.0%");
-  expect(summary).toHaveTextContent("Champion strength coverage1 of 1");
+  expect(summary).toHaveTextContent("Champion Strength coverage1 of 1");
   expect(screen.getByText(/Brier score on 120 held-out games: 0.241/)).toBeVisible();
   expect(screen.getByRole("link", { name: "Calibration" })).toHaveAttribute(
     "href",
     "/models?model=7",
   );
-  const inputs = screen.getByRole("table", { name: "Draft model inputs" });
-  expect(inputs).toHaveTextContent("Champion strengthRedMIDDLENunu & Willump+4.0 pts80");
+  const inputs = screen.getByRole("table", { name: "Draft Model Inputs" });
+  expect(inputs).toHaveTextContent("Champion StrengthRedMIDDLENunu & Willump+4.0 pts80");
   expect(screen.getByRole("table", { name: "Ranked candidates for Mid" })).toHaveTextContent(
     "53.0%",
   );
@@ -140,7 +140,7 @@ it("explains a missing draft model and pro play", () => {
     />,
   );
   expect(screen.getByText("No draft model is active yet.")).toBeVisible();
-  expect(screen.queryByText("Draft win probability if picked")).toBeNull();
+  expect(screen.queryByText("Draft Win Probability if Picked")).toBeNull();
   rerender(
     <DraftAssistantPage
       assistant={assistant}

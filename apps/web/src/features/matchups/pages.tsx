@@ -34,15 +34,15 @@ const roles = {
   UTILITY: "Support",
 } as const;
 const metrics: Record<MatchupMetric, string> = {
-  winRate: "Win rate",
+  winRate: "Win Rate",
   gold10: "Gold Δ at 10",
   gold15: "Gold Δ at 15",
   xp10: "XP Δ at 10",
   xp15: "XP Δ at 15",
   cs10: "CS Δ at 10",
   cs15: "CS Δ at 15",
-  firstBlood: "Team first blood",
-  firstTower: "Team first tower",
+  firstBlood: "Team First Blood",
+  firstTower: "Team First Tower",
 };
 const isRate = (metric: MatchupMetric) => ["winRate", "firstBlood", "firstTower"].includes(metric);
 const display = (value: number | null, metric: MatchupMetric) =>
@@ -93,7 +93,7 @@ function Filters({
         name="source"
         defaultValue={q.source}
         options={[
-          { value: "solo", label: "Solo queue" },
+          { value: "solo", label: "Solo Queue" },
           { value: "pro", label: "Pro" },
         ]}
       />
@@ -102,7 +102,7 @@ function Filters({
         name="patch"
         defaultValue={patch ?? "all"}
         options={[
-          { value: "all", label: "Latest available" },
+          { value: "all", label: "Latest Available" },
           ...choices.map((p) => ({ value: p, label: p })),
         ]}
       />
@@ -173,7 +173,7 @@ export function CounterPickSummary({
 }) {
   return (
     <div className="np-stack">
-      <dl className="ev-summary" aria-label="Counter-pick statistics">
+      <dl className="ev-summary" aria-label="Counter-Pick Statistics">
         <div>
           <dt>Blind win rate</dt>
           <dd>{percent(v.expected)}</dd>
@@ -198,7 +198,7 @@ export function CounterPickSummary({
         <p role="status">Counter-pick value unavailable: {counterPickReasons[v.counterReason]}</p>
       ) : null}
       <p className="np-body-sm">
-        <TextLink href={listHref}>Compare the role</TextLink>
+        <TextLink href={listHref}>Compare the Role</TextLink>
       </p>
     </div>
   );
@@ -218,7 +218,7 @@ function Blindability({
         <p className="np-meta">No stored blindability score for this role, source and patch.</p>
       ) : (
         <>
-          <dl className="ev-summary" aria-label="Blindability statistics">
+          <dl className="ev-summary" aria-label="Blindability Statistics">
             <div>
               <dt>Blindability score</dt>
               <dd>{percent(b.score)}</dd>
@@ -256,12 +256,12 @@ function Blindability({
             {b.coveredOpponents} of {b.sampledOpponents} sampled opponents meet the minimum ·{" "}
             {b.games} lane games
           </p>
-          <h3>Counter-pick value</h3>
+          <h3>Counter-Pick Value</h3>
           <CounterPickSummary value={b} listHref={listHref} />
         </>
       )}
       <details>
-        <summary>How blindability is calculated</summary>
+        <summary>How Blindability Is Calculated</summary>
         <p className="np-body-sm">
           A champion is safe to pick blind when it has few bad matchups that opponents actually
           pick. Each opponent’s win rate is the shrunk matchup estimate shown below. Opponents with
@@ -297,7 +297,7 @@ export function ChampionMatchupsPage({
   if (!m)
     return (
       <div className="np-stack">
-        <h1>Champion matchups</h1>
+        <h1>Champion Matchups</h1>
         <p role="alert">{error}</p>
       </div>
     );
@@ -309,24 +309,24 @@ export function ChampionMatchupsPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">
-            {q.source === "solo" ? "Solo queue" : "Pro"} · {roles[q.role]}
+            {q.source === "solo" ? "Solo Queue" : "Pro"} · {roles[q.role]}
           </span>
           <h1>{name(m.champion)} matchups</h1>
         </div>
       </header>
-      <nav aria-label="Matchup views">
+      <nav aria-label="Matchup Views">
         <TextLink
           href={`/champions/${q.champion}?source=${q.source}${m.patch ? `&patch=${m.patch}` : ""}&role=${q.role}`}
         >
-          Champion overview
+          Champion Overview
         </TextLink>
         {" · "}
         <TextLink href={`/matchups/${q.role}?${selection(q, m.patch)}`}>
-          Role matchup matrix
+          Role Matchup Matrix
         </TextLink>
         {" · "}
         <TextLink href={counterPicksHref(q.role, q.source, m.patch)}>
-          Role counter-pick values
+          Role Counter-Pick Values
         </TextLink>
       </nav>
       <form className="ev-filters" method="get" action={`/champions/${q.champion}/matchups`}>
@@ -338,7 +338,7 @@ export function ChampionMatchupsPage({
           options={matchupRoles.map((r) => ({ value: r, label: roles[r] }))}
         />
         <Select
-          label="Sort opponents by"
+          label="Sort Opponents By"
           name="sort"
           defaultValue={q.sort}
           options={[
@@ -356,7 +356,7 @@ export function ChampionMatchupsPage({
           ]}
         />
         <input type="hidden" name="pageSize" value={q.pageSize} />
-        <Button type="submit">Apply filters</Button>
+        <Button type="submit">Apply Filters</Button>
       </form>
       <Blindability
         score={m.patch ? blindability : null}
@@ -408,7 +408,7 @@ export function ChampionMatchupsPage({
         ]}
       />
       <Pages
-        label="Opponent pages"
+        label="Opponent Pages"
         field="page"
         page={q.page}
         total={m.page.total}
@@ -416,12 +416,12 @@ export function ChampionMatchupsPage({
       />
       {m.exclusions.length > 0 ? (
         <section className="np-stack">
-          <h2>Excluded role observations</h2>
+          <h2>Excluded Role Observations</h2>
           <p>
             A game can occur in more than one row; these game counts must not be added together.
           </p>
           <Table
-            caption="Unpairable roles"
+            caption="Unpairable Roles"
             rows={m.exclusions}
             getRowKey={(r) => r.role}
             columns={[
@@ -429,14 +429,14 @@ export function ChampionMatchupsPage({
                 id: "role",
                 header: "Role",
                 render: (r) =>
-                  r.role === "UNKNOWN" ? "Unknown role" : roles[r.role as keyof typeof roles],
+                  r.role === "UNKNOWN" ? "Unknown Role" : roles[r.role as keyof typeof roles],
               },
               { id: "games", header: "Games", render: (r) => r.games },
               { id: "players", header: "Participants", render: (r) => r.participants },
-              { id: "unknown", header: "Unknown role", render: (r) => r.unknownRole },
-              { id: "ambiguous", header: "Ambiguous role", render: (r) => r.ambiguousRole },
-              { id: "missing", header: "Missing opponent", render: (r) => r.missingOpponent },
-              { id: "unmapped", header: "Unmapped champion", render: (r) => r.unmappedChampion },
+              { id: "unknown", header: "Unknown Role", render: (r) => r.unknownRole },
+              { id: "ambiguous", header: "Ambiguous Role", render: (r) => r.ambiguousRole },
+              { id: "missing", header: "Missing Opponent", render: (r) => r.missingOpponent },
+              { id: "unmapped", header: "Unmapped Champion", render: (r) => r.unmappedChampion },
             ]}
           />
         </section>
@@ -454,7 +454,7 @@ export function MatchupMatrixPage({
   if (!m)
     return (
       <div className="np-stack">
-        <h1>Role matchups</h1>
+        <h1>Role Matchups</h1>
         <p role="alert">{error}</p>
       </div>
     );
@@ -480,11 +480,11 @@ export function MatchupMatrixPage({
     <div className="np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">{q.source === "solo" ? "Solo queue" : "Pro"}</span>
+          <span className="np-overline">{q.source === "solo" ? "Solo Queue" : "Pro"}</span>
           <h1>{roles[q.role]} matchup matrix</h1>
         </div>
       </header>
-      <nav aria-label="Matchup roles">
+      <nav aria-label="Matchup Roles">
         {matchupRoles.map((r) => (
           <TextLink key={r} href={`/matchups/${r}?${params}`}>
             {roles[r]}{" "}
@@ -502,7 +502,7 @@ export function MatchupMatrixPage({
           defaultValue={q.metric}
           options={matchupMetrics.map((metric) => ({ value: metric, label: metrics[metric] }))}
         />
-        <Button type="submit">Apply filters</Button>
+        <Button type="submit">Apply Filters</Button>
       </form>
       <p>
         Patch {m.patch ?? "unavailable"}. Rows are champions; columns are their opponents. Both axes
@@ -512,27 +512,27 @@ export function MatchupMatrixPage({
       <ExportLink
         table="matchup-matrix"
         filters={{ source: q.source, patch: m.patch, role: q.role, metric: q.metric }}
-        label="Download every pair as CSV"
+        label="Download Every Pair as CSV"
       />
       <HeatGrid
         title={`${roles[q.role]} matchups: ${metrics[q.metric]}${isRate(q.metric) ? " (%)" : ""} · ${q.value}`}
         cells={cells}
       />
       <Pages
-        label="Champion row pages"
+        label="Champion Row Pages"
         field="page"
         page={q.page}
         total={m.total}
         size={m.pageSize}
       />
       <Pages
-        label="Opponent column pages"
+        label="Opponent Column Pages"
         field="columnPage"
         page={q.columnPage}
         total={m.total}
         size={m.pageSize}
       />
-      <nav aria-label="Champion matchup tables">
+      <nav aria-label="Champion Matchup Tables">
         {m.rows
           .filter((c) => c.championId)
           .map((c) => {
@@ -553,9 +553,9 @@ export function MatchupMatrixPage({
 const counterPickSortLabels: Record<(typeof counterPickSorts)[number], string> = {
   difference: "Counter-pick value",
   counter: "Counter-pick win rate",
-  blind: "Blind win rate",
-  score: "Blindability score",
-  games: "Lane games",
+  blind: "Blind Win Rate",
+  score: "Blindability Score",
+  games: "Lane Games",
 };
 export function CounterPickListPage({
   list: l,
@@ -571,12 +571,12 @@ export function CounterPickListPage({
       <header className="ev-title">
         <div>
           {l ? (
-            <span className="np-overline">{l.query.source === "solo" ? "Solo queue" : "Pro"}</span>
+            <span className="np-overline">{l.query.source === "solo" ? "Solo Queue" : "Pro"}</span>
           ) : null}
           <h1>{roles[role]} counter-pick values</h1>
         </div>
       </header>
-      <nav aria-label="Counter-pick roles">
+      <nav aria-label="Counter-Pick Roles">
         {matchupRoles.map((r) => (
           <TextLink key={r} href={`/matchups/${r}/counter-picks`}>
             {roles[r]}{" "}
@@ -593,7 +593,7 @@ export function CounterPickListPage({
               name="source"
               defaultValue={l.query.source}
               options={[
-                { value: "solo", label: "Solo queue" },
+                { value: "solo", label: "Solo Queue" },
                 { value: "pro", label: "Pro" },
               ]}
             />
@@ -602,7 +602,7 @@ export function CounterPickListPage({
               name="patch"
               defaultValue={l.patch ?? "all"}
               options={[
-                { value: "all", label: "Latest available" },
+                { value: "all", label: "Latest Available" },
                 ...[...new Set([...(l.patch ? [l.patch] : []), ...l.patches])].map((p) => ({
                   value: p,
                   label: p,
@@ -610,7 +610,7 @@ export function CounterPickListPage({
               ]}
             />
             <Select
-              label="Sort by"
+              label="Sort By"
               name="sort"
               defaultValue={l.query.sort}
               options={counterPickSorts.map((s) => ({ value: s, label: counterPickSortLabels[s] }))}
@@ -625,7 +625,7 @@ export function CounterPickListPage({
               ]}
             />
             <input type="hidden" name="pageSize" value={l.query.pageSize} />
-            <Button type="submit">Apply filters</Button>
+            <Button type="submit">Apply Filters</Button>
           </form>
           <p className="np-meta">
             Patch {l.patch ?? "unavailable"} · {l.page.total} champions
@@ -660,15 +660,15 @@ export function CounterPickListPage({
                   />
                 ),
               },
-              { id: "games", header: "Lane games", render: (r) => r.games },
-              { id: "blind", header: "Blind win rate", render: (r) => percent(r.blind) },
-              { id: "counter", header: "Counter-pick win rate", render: (r) => percent(r.counter) },
+              { id: "games", header: "Lane Games", render: (r) => r.games },
+              { id: "blind", header: "Blind Win Rate", render: (r) => percent(r.blind) },
+              { id: "counter", header: "Counter-Pick Win Rate", render: (r) => percent(r.counter) },
               {
                 id: "difference",
-                header: "Counter-pick value",
+                header: "Counter-Pick Value",
                 render: (r) => points(r.difference),
               },
-              { id: "score", header: "Blindability score", render: (r) => percent(r.score) },
+              { id: "score", header: "Blindability Score", render: (r) => percent(r.score) },
               {
                 id: "coverage",
                 header: "Coverage",
@@ -676,12 +676,12 @@ export function CounterPickListPage({
               },
               {
                 id: "responses",
-                header: "Best response to",
+                header: "Best Response To",
                 render: (r) => `${r.counterOpponents} · ${r.counterPicks} picks`,
               },
               {
                 id: "reason",
-                header: "Unknown because",
+                header: "Unknown Because",
                 render: (r) =>
                   r.reason
                     ? blindabilityReasons[r.reason]
@@ -692,7 +692,7 @@ export function CounterPickListPage({
             ]}
           />
           <Pages
-            label="Champion pages"
+            label="Champion Pages"
             field="page"
             page={l.query.page}
             total={l.page.total}

@@ -39,17 +39,17 @@ export function DraftAssistantPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Read-only · nothing is saved</span>
-          <h1>Draft assistant</h1>
+          <h1>Draft Assistant</h1>
         </div>
       </header>
-      <TextLink href="/drafts">Pro draft analytics</TextLink>
+      <TextLink href="/drafts">Pro Draft Analytics</TextLink>
       <form className="ev-filters" method="get" action="/drafts/assistant">
         <Select
           label="Source"
           name="source"
           defaultValue={q?.source ?? "solo"}
           options={[
-            { value: "solo", label: "Solo queue" },
+            { value: "solo", label: "Solo Queue" },
             { value: "pro", label: "Pro" },
           ]}
         />
@@ -58,12 +58,12 @@ export function DraftAssistantPage({
           name="patch"
           defaultValue={a?.patch ?? "all"}
           options={[
-            { value: "all", label: "Latest available" },
+            { value: "all", label: "Latest Available" },
             ...(a?.patches ?? []).map((p) => ({ value: p, label: p })),
           ]}
         />
         <Select
-          label="Your side"
+          label="Your Side"
           name="side"
           defaultValue={q?.side ?? "blue"}
           options={[
@@ -72,20 +72,20 @@ export function DraftAssistantPage({
           ]}
         />
         <Select
-          label="Role to fill"
+          label="Role to Fill"
           name="role"
           defaultValue={q?.role ?? "MIDDLE"}
           options={matchupRoles.map((r) => ({ value: r, label: roles[r] }))}
         />
         <Input
-          label="Blue picks"
+          label="Blue Picks"
           name="blue"
           defaultValue={input.blue}
           placeholder="Ahri:MIDDLE, LeeSin:JUNGLE"
         />
-        <Input label="Red picks" name="red" defaultValue={input.red} placeholder="Nunu:JUNGLE" />
+        <Input label="Red Picks" name="red" defaultValue={input.red} placeholder="Nunu:JUNGLE" />
         <Input label="Bans" name="bans" defaultValue={input.bans} placeholder="Zed, Yasuo" />
-        <Button type="submit">Rank candidates</Button>
+        <Button type="submit">Rank Candidates</Button>
       </form>
       <p className="np-body-sm">
         Enter champion IDs separated by commas, with an optional role after a colon (TOP, JUNGLE,
@@ -95,7 +95,7 @@ export function DraftAssistantPage({
       {error ? <p role="alert">{error}</p> : null}
       {a ? <Results assistant={a} /> : null}
       <details>
-        <summary>How candidates are ranked</summary>
+        <summary>How Candidates Are Ranked</summary>
         <p className="np-body-sm">
           Each part is measured in win-rate points above 50% and needs at least{" "}
           {matchupMinimumSample} observations; otherwise it is unknown.
@@ -129,7 +129,7 @@ part  = win rate − 50%`}</pre>
 function Results({ assistant: a }: { assistant: DraftAssistant }) {
   return (
     <section className="np-stack" aria-labelledby="candidates">
-      <h2 id="candidates">Candidates for {roles[a.query.role]}</h2>
+      <h2 id="candidates">Candidates For {roles[a.query.role]}</h2>
       <p className="np-meta">
         Patch {a.patch ?? "unavailable"} ·{" "}
         {a.laneOpponent ? `Lane opponent: ${name(a.laneOpponent)}` : "Lane opponent unknown"} ·{" "}
@@ -138,7 +138,7 @@ function Results({ assistant: a }: { assistant: DraftAssistant }) {
           : "No allies with a role for synergy"}
       </p>
       {a.unknownChampions.length ? (
-        <p role="status">Not in the local catalog, ignored: {a.unknownChampions.join(", ")}</p>
+        <p role="status">Not in the champion catalog, ignored: {a.unknownChampions.join(", ")}</p>
       ) : null}
       <Table
         caption={`Ranked candidates for ${roles[a.query.role]}`}
@@ -182,12 +182,12 @@ function Results({ assistant: a }: { assistant: DraftAssistant }) {
             header: "Blindability",
             render: (c) => part(c.blindability, "covered picks"),
           },
-          { id: "games", header: "Lane games", render: (c) => c.games },
+          { id: "games", header: "Lane Games", render: (c) => c.games },
           ...(a.draft?.model
             ? [
                 {
                   id: "wp",
-                  header: "Draft win probability if picked",
+                  header: "Draft Win Probability if Picked",
                   render: (c: DraftCandidate) =>
                     c.winProbability === null
                       ? "Unknown"

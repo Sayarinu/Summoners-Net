@@ -48,11 +48,11 @@ export function DraftsPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Oracle’s Elixir</span>
-          <h1>Pro drafts</h1>
+          <h1>Pro Drafts</h1>
           <p>Pick and ban priority, role order and first-pick results.</p>
         </div>
       </header>
-      <TextLink href="/drafts/assistant">Draft assistant</TextLink>
+      <TextLink href="/drafts/assistant">Draft Assistant</TextLink>
       <form
         action="/drafts"
         method="get"
@@ -70,16 +70,16 @@ export function DraftsPage({
           label="League"
           name="league"
           defaultValue={query?.league ?? ""}
-          placeholder="All leagues"
+          placeholder="All Leagues"
           maxLength={100}
         />
-        <Button type="submit">Apply filters</Button>
+        <Button type="submit">Apply Filters</Button>
       </form>
       {error ? (
         <p role="alert">{error}</p>
       ) : !analytics || !query ? (
         <EmptyState
-          title="No draft data yet"
+          title="No Draft Data Yet"
           description={
             <span>
               Import Oracle’s Elixir games and refresh metadata in{" "}
@@ -89,7 +89,7 @@ export function DraftsPage({
         />
       ) : (
         <>
-          <section aria-label="Draft coverage" className="np-stack">
+          <section aria-label="Draft Coverage" className="np-stack">
             <p>
               {analytics.includedGames} included · {analytics.excludedGames} excluded ·{" "}
               {analytics.pendingGames} awaiting aggregation · {analytics.games} total games
@@ -111,7 +111,7 @@ export function DraftsPage({
             ))}
           </section>
           <details>
-            <summary>How these rates are measured</summary>
+            <summary>How These Rates Are Measured</summary>
             <div className="np-stack">
               <p>
                 Only complete ten-ban drafts with both first-pick flags, ten unique picks, ten
@@ -133,13 +133,13 @@ export function DraftsPage({
               </p>
             </div>
           </details>
-          <section className="np-stack" aria-label="Draft priority">
+          <section className="np-stack" aria-label="Draft Priority">
             <ExportLink
               table="draft-priorities"
               filters={{ patch: query.patch, league: query.league }}
             />
             <Table
-              caption="Pick and ban priority"
+              caption="Pick and Ban Priority"
               rows={analytics.priorities.items}
               getRowKey={(r) => `${r.champion}:${r.action}:${r.phase}:${r.slot ?? "phase"}`}
               emptyMessage="No draft priority observations match these filters."
@@ -147,20 +147,20 @@ export function DraftsPage({
                 { id: "champion", header: "Champion", render: (r) => r.champion },
                 { id: "action", header: "Action", render: (r) => r.action },
                 { id: "phase", header: "Phase", render: (r) => r.phase },
-                { id: "slot", header: "Slot", render: (r) => r.slot ?? "Phase total" },
+                { id: "slot", header: "Slot", render: (r) => r.slot ?? "Phase Total" },
                 { id: "games", header: "Games", render: (r) => r.games },
-                { id: "rate", header: "Rate and sample", render: (r) => rate(r.rate) },
+                { id: "rate", header: "Rate and Sample", render: (r) => rate(r.rate) },
               ]}
             />
-            <Pages data={analytics.priorities} parameter="priorityPage" label="Priority pages" />
+            <Pages data={analytics.priorities} parameter="priorityPage" label="Priority Pages" />
           </section>
-          <section className="np-stack" aria-label="Role draft order">
+          <section className="np-stack" aria-label="Role Draft Order">
             <ExportLink
               table="draft-roles"
               filters={{ patch: query.patch, league: query.league }}
             />
             <Table
-              caption="Blind and counter picks by role"
+              caption="Blind and Counter Picks by Role"
               rows={analytics.roles.items}
               getRowKey={(r) => `${r.champion}:${r.role}`}
               emptyMessage="No role draft observations match these filters."
@@ -168,15 +168,15 @@ export function DraftsPage({
                 { id: "champion", header: "Champion", render: (r) => r.champion },
                 { id: "role", header: "Role", render: (r) => r.role },
                 { id: "games", header: "Games", render: (r) => r.games },
-                { id: "blind", header: "Blind rate and sample", render: (r) => rate(r.blindRate) },
+                { id: "blind", header: "Blind Rate and Sample", render: (r) => rate(r.blindRate) },
                 {
                   id: "counter",
-                  header: "Counter rate and sample",
+                  header: "Counter Rate and Sample",
                   render: (r) => rate(r.counterRate),
                 },
               ]}
             />
-            <Pages data={analytics.roles} parameter="rolePage" label="Role pages" />
+            <Pages data={analytics.roles} parameter="rolePage" label="Role Pages" />
           </section>
         </>
       )}

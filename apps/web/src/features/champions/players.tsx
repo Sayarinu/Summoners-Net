@@ -18,7 +18,7 @@ export function PlayersSection({
   if (!players) return null;
   return (
     <section className="np-stack" aria-labelledby="champion-players-heading">
-      <h2 id="champion-players-heading">Top sampled ladder players</h2>
+      <h2 id="champion-players-heading">Top Sampled Ladder Players</h2>
       <p>
         At least {championPlayerMinimumGames} retained ranked solo games on this champion in the
         selected patch and role. Win rate needs {championPlayerMinimumGames} known results; its
@@ -43,18 +43,18 @@ export function PlayersSection({
             <input key={key} type="hidden" name={key} value={value} />
           ))}
         <Select
-          label="Sort players by"
+          label="Sort Players By"
           name="playersSort"
           defaultValue={players.sort}
           options={championPlayerSorts.map((value) => ({
             value,
-            label: value === "games" ? "Games" : "Win rate",
+            label: value === "games" ? "Games" : "Win Rate",
           }))}
         />
-        <Button type="submit">Sort players</Button>
+        <Button type="submit">Sort Players</Button>
       </form>
       <Table
-        caption="Sampled champion players"
+        caption="Sampled Champion Players"
         rows={players.page.items}
         getRowKey={(r) => `${r.platform}:${r.puuid}`}
         emptyMessage="No current ladder players have enough sampled games for this selection."
@@ -71,15 +71,15 @@ export function PlayersSection({
               </div>
             ),
           },
-          { id: "games", header: "Sampled games", render: (r) => r.games },
+          { id: "games", header: "Sampled Games", render: (r) => r.games },
           {
             id: "win",
-            header: "Win rate",
+            header: "Win Rate",
             render: (r) => `${percent(r.winRate)} · n=${r.winRate.sampleCount} known results`,
           },
           {
             id: "rank",
-            header: "Current stored rank",
+            header: "Current Stored Rank",
             render: (r) => (
               <div className="np-stack">
                 <span>
@@ -98,7 +98,7 @@ export function PlayersSection({
           {players.page.total} player accounts · Page {players.page.page}
         </span>
         <Pagination
-          label="Champion player pages"
+          label="Champion Player Pages"
           currentPage={players.page.page}
           totalPages={Math.max(1, Math.ceil(players.page.total / players.page.pageSize))}
           onPageChange={(page) => {

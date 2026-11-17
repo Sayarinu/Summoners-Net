@@ -14,10 +14,10 @@ import { staleAfterMs, trackPositionAt, trailAt, useTrackSamples } from "./track
 
 /** Game milliseconds advanced per real second. */
 const speeds = [
-  { value: "30000", label: "30× (half a minute per second)" },
-  { value: "60000", label: "60× (one minute per second)" },
-  { value: "120000", label: "120× (two minutes per second)" },
-  { value: "240000", label: "240× (four minutes per second)" },
+  { value: "30000", label: "30× (Half a Minute per Second)" },
+  { value: "60000", label: "60× (One Minute per Second)" },
+  { value: "120000", label: "120× (Two Minutes per Second)" },
+  { value: "240000", label: "240× (Four Minutes per Second)" },
 ];
 const tickMs = 100;
 const roleLabels: Record<string, string> = {
@@ -29,7 +29,7 @@ const roleLabels: Record<string, string> = {
 };
 const roleOrder = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "unknown"];
 const roleKey = (role: string | null) => (role && role in roleLabels ? role : "unknown");
-const roleLabel = (key: string) => roleLabels[key] ?? "Unknown role";
+const roleLabel = (key: string) => roleLabels[key] ?? "Unknown Role";
 /** Events this close to the scrubber time are drawn on the map. */
 const eventWindowMs = 30000;
 const eventKinds: { kind: MapEvent["kind"]; label: string }[] = [
@@ -160,10 +160,10 @@ export function GameMapPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Solo queue · {game.matchId}</span>
-          <h1>Game map</h1>
+          <h1>Game Map</h1>
           <p className="np-meta">
             {game.patch ? `Patch ${game.patch}` : "Unknown patch"} ·{" "}
-            <TextLink href={gameHref}>Back to the game</TextLink>
+            <TextLink href={gameHref}>Back to the Game</TextLink>
           </p>
         </div>
       </header>
@@ -209,7 +209,7 @@ export function GameMapPage({
               {playing ? "Pause" : "Play"}
             </Button>
             <Select
-              label="Playback speed"
+              label="Playback Speed"
               options={speeds}
               value={speed}
               onValueChange={setSpeed}
@@ -233,7 +233,7 @@ export function GameMapPage({
               />
             </div>
           </div>
-          <div className="ev-map-controls" role="group" aria-label="Show champions">
+          <div className="ev-map-controls" role="group" aria-label="Show Champions">
             <Switch selected={!hiddenSides.has("blue")} onChange={toggle(setHiddenSides, "blue")}>
               Blue team
             </Switch>
@@ -246,7 +246,7 @@ export function GameMapPage({
               </Switch>
             ))}
           </div>
-          <div className="ev-map-controls" role="group" aria-label="Show events">
+          <div className="ev-map-controls" role="group" aria-label="Show Events">
             {eventKinds.map(({ kind, label }) => (
               <Switch
                 key={kind}
@@ -315,7 +315,7 @@ export function GameMapPage({
               { id: "role", header: "Role", render: (c) => roleLabel(c.roleKey) },
               {
                 id: "position",
-                header: "Position (x, y)",
+                header: "Position (X, Y)",
                 render: (c) =>
                   c.position
                     ? `${c.position.x}, ${c.position.y} (${c.position.label})`
@@ -330,7 +330,7 @@ export function GameMapPage({
           {useTrack ? (
             track.movements ? (
               <Table
-                caption="Detected movements"
+                caption="Detected Movements"
                 compact
                 rows={track.movements}
                 getRowKey={(m) => `${m.kind}:${m.startMs}:${m.participantIds.join(",")}`}
@@ -360,7 +360,7 @@ export function GameMapPage({
                   { id: "movement", header: "Movement", render: movementLabel },
                   {
                     id: "until",
-                    header: "Confirmed at",
+                    header: "Confirmed At",
                     align: "end",
                     render: (m) => clock(m.endMs),
                   },
@@ -404,7 +404,7 @@ export function GameMapPage({
               { id: "event", header: "Event", render: describe },
               {
                 id: "map",
-                header: "On the map",
+                header: "On the Map",
                 render: (e) =>
                   !drawn(e)
                     ? "Not drawn: no coordinates"

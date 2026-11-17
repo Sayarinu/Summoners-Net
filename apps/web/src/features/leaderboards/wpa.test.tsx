@@ -39,7 +39,7 @@ it("ranks rows with the model version, links players and marks small samples", (
   expect(screen.getByText(/Patch 16.22 · model v1 \(#3, Brier 0.180\)/)).toBeVisible();
   const table = screen.getByRole("table", { name: "Players by win probability added" });
   expect(table).toHaveTextContent("1Top Laner#NA140+3.00 pts+120.0 pts");
-  expect(table).toHaveTextContent("2Unresolved player4Too few gamesUnknown");
+  expect(table).toHaveTextContent("2Unresolved player4Too Few GamesUnknown");
   expect(screen.getByRole("link", { name: "Top Laner#NA1" })).toHaveAttribute(
     "href",
     "/summoners/p1",
@@ -85,9 +85,9 @@ it("shows champion and role boards, the no-model state and errors", () => {
     "Support",
   );
   view.rerender(<WpaLeaderboardPage board={{ ...board, model: null, patch: null }} error={null} />);
-  expect(screen.getByText("No win probability model yet")).toBeVisible();
+  expect(screen.getByText("No Win Probability Model Yet")).toBeVisible();
   view.rerender(<WpaLeaderboardPage board={{ ...board, patch: null }} error={null} />);
-  expect(screen.getByText("No scored games yet")).toBeVisible();
+  expect(screen.getByText("No Scored Games Yet")).toBeVisible();
   view.rerender(<WpaLeaderboardPage board={null} error="Choose a board" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Choose a board");
 });

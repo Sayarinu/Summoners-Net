@@ -19,7 +19,7 @@ const roleLabels: Record<string, string> = {
   MIDDLE: "Mid",
   BOTTOM: "Bot",
   UTILITY: "Support",
-  UNKNOWN: "Unknown role",
+  UNKNOWN: "Unknown Role",
 };
 const points = (value: number | null, digits = 2) =>
   value === null ? "Unknown" : `${value >= 0 ? "+" : ""}${value.toFixed(digits)} pts`;
@@ -51,7 +51,7 @@ export function WpaLeaderboardPage({
       <header className="ev-title">
         <div>
           <span className="np-overline">Solo queue</span>
-          <h1>Win probability added</h1>
+          <h1>Win Probability Added</h1>
           <p>
             Who moved games: each kill and objective&apos;s change in win probability, shared by the
             players involved and summed per game.
@@ -75,27 +75,27 @@ export function WpaLeaderboardPage({
           ]}
         />
         <Select
-          label="Sort by"
+          label="Sort By"
           name="sort"
           defaultValue={q?.sort ?? "perGame"}
           options={Object.entries(sortLabels).map(([value, label]) => ({ label, value }))}
         />
-        <Button type="submit">Apply filters</Button>
+        <Button type="submit">Apply Filters</Button>
       </form>
       {error ? (
         <p role="alert">{error}</p>
       ) : !board?.model ? (
         <EmptyState
-          title="No win probability model yet"
+          title="No Win Probability Model Yet"
           description="Leaderboards appear once a model is published from enough stored games."
         />
       ) : !board.patch ? (
         <EmptyState
-          title="No scored games yet"
+          title="No Scored Games Yet"
           description="Games are scored with the active model as they are ingested."
         />
       ) : (
-        <section className="np-stack" aria-label="Win probability added leaderboard">
+        <section className="np-stack" aria-label="Win Probability Added Leaderboard">
           <p className="np-meta">
             Patch {board.patch} · model v{board.model.modelVersion} (#{board.model.id}
             {board.model.brier === null ? "" : `, Brier ${board.model.brier.toFixed(3)}`}). Values
@@ -126,11 +126,11 @@ export function WpaLeaderboardPage({
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               {
                 id: "perGame",
-                header: "Per game",
+                header: "Per Game",
                 align: "end",
                 render: (r) =>
                   r.perGame.value === null ? (
-                    <StatusIndicator label="Too few games" tone="warning" />
+                    <StatusIndicator label="Too Few Games" tone="warning" />
                   ) : (
                     points(r.perGame.value)
                   ),
@@ -148,7 +148,7 @@ export function WpaLeaderboardPage({
               {board.page.total} rows · Page {board.page.page}
             </span>
             <Pagination
-              label="Leaderboard pages"
+              label="Leaderboard Pages"
               currentPage={board.page.page}
               totalPages={Math.max(1, Math.ceil(board.page.total / board.page.pageSize))}
               onPageChange={(page) => {

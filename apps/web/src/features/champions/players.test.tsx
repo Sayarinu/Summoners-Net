@@ -76,7 +76,7 @@ it("shows sampled rates, current stored rank, public pro links and preserved pag
   expect(screen.getByRole("link", { name: "b".repeat(78) })).toBeVisible();
   expect(screen.getByText("Unknown · n=1 known results")).toBeVisible();
   expect(screen.getByText("50.0% · n=12 known results")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   const target = String(push.mock.calls.at(-1)?.[0]);
   expect(target).toContain("/champions/Ahri?");
   const params = new URL(target, "http://localhost").searchParams;
@@ -87,9 +87,9 @@ it("shows sampled rates, current stored rank, public pro links and preserved pag
   expect(form).toHaveAttribute("action", "/champions/Ahri");
   expect(form.querySelector('input[name="playersPage"]')).toBeNull();
   expect(form.querySelector('input[name="patch"]')).toHaveValue("16.22");
-  fireEvent.click(screen.getByRole("button", { name: /Sort players by$/ }));
-  fireEvent.click(screen.getByRole("option", { name: "Win rate" }));
-  expect(within(form).getByRole("button", { name: /Win rate/ })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Sort Players By$/ }));
+  fireEvent.click(screen.getByRole("option", { name: "Win Rate" }));
+  expect(within(form).getByRole("button", { name: /Win Rate/ })).toBeVisible();
 });
 it("explains insufficient samples and hides the section when solo data is unavailable", () => {
   const view = render(
@@ -103,7 +103,7 @@ it("explains insufficient samples and hides the section when solo data is unavai
   expect(
     screen.getByText("No current ladder players have enough sampled games for this selection."),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Next Page" })).toBeDisabled();
   view.rerender(<PlayersSection overview={{ ...overview, players: null }} />);
   expect(screen.queryByRole("heading")).toBeNull();
 });

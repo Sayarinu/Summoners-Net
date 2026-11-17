@@ -57,13 +57,13 @@ export function WatchPlayer({
   if (!b)
     return (
       <EmptyState
-        title="No broadcast supplied"
+        title="No Broadcast Supplied"
         description="This match has no available Twitch or YouTube link."
       />
     );
   const src = consented ? embedUrl(b, window.location.origin) : null;
   return (
-    <section className="np-stack ev-watch-player" aria-label="Watch match">
+    <section className="np-stack ev-watch-player" aria-label="Watch Match">
       <div className="np-split">
         {showHeading ? <h2>Watch</h2> : null}
         <Select
@@ -86,7 +86,7 @@ export function WatchPlayer({
         <>
           <StreamEmbedShell
             provider={providerLabel(b.provider)}
-            title="Match player"
+            title="Match Player"
             state={failed || !src ? "failed" : "ready"}
             fallbackHref={b.url}
             onRetry={() => setFailed(false)}
@@ -95,7 +95,7 @@ export function WatchPlayer({
               <iframe
                 key={src}
                 src={src}
-                title="Match broadcast"
+                title="Match Broadcast"
                 allow="fullscreen; picture-in-picture"
                 allowFullScreen
                 referrerPolicy="no-referrer-when-downgrade"
@@ -104,9 +104,9 @@ export function WatchPlayer({
           </StreamEmbedShell>
           {showPlayerActions ? (
             <div className="np-cluster">
-              <Button onPress={() => setConsented(false)}>Unload player</Button>
+              <Button onPress={() => setConsented(false)}>Unload Player</Button>
               <Button variant="ghost" onPress={() => setFailed(true)}>
-                Player not working
+                Player Not Working
               </Button>
             </div>
           ) : null}
