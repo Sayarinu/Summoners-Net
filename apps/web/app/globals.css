@@ -941,7 +941,11 @@
   height: 30px;
 }
 
-.ev-lineup-card .np-table td :is(.np-avatar, .np-role-icon) {
+.ev-lineup-card .np-table td {
+  height: var(--size-control);
+}
+
+.ev-lineup-card .np-table td > :is(.np-avatar, .np-role-icon, .np-text-link) {
   vertical-align: middle;
 }
 
