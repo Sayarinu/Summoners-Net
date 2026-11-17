@@ -13,7 +13,7 @@ import {
 import type { Match, Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
 import { dateTime, identityHref, matchDisplay, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
-import { WatchPlayer } from "../watch/player";
+import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { ProWinProbability } from "./pro-win-probability";
 export function MatchPage({
   match,
@@ -54,7 +54,10 @@ export function MatchPage({
         onSpoilerReveal={() => setHidden(false)}
       />
       {canWatch && match.broadcasts.length > 0 ? (
-        <WatchPlayer broadcasts={match.broadcasts} />
+        <WatchPlayer
+          broadcasts={watchableBroadcasts(match)}
+          mode={match.state === "final" ? "replay" : "live"}
+        />
       ) : null}
       {gamesWithStatistics.length > 0 ? (
         <section className="np-stack">

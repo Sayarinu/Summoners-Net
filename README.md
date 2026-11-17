@@ -4,10 +4,10 @@
 
 **A local-first League of Legends esports viewer.**
 
-Schedules, results, more than a decade of historical games, team and player profiles and consented
-live watching for the major leagues, in a fast web app that runs on your own machine. No accounts,
-no telemetry, and no made-up data: everything you see comes from PostgreSQL, filled by one
-coordinated worker.
+Schedules, results, more than a decade of historical games, team and player profiles, live streams
+and replays for the major leagues, in a fast web app that runs on your own machine. No accounts, no
+telemetry, and no made-up data: everything you see comes from PostgreSQL, filled by one coordinated
+worker.
 
 [![Latest release](https://img.shields.io/github/v/release/Sayarinu/Summoners-Net?label=release&sort=semver)](https://github.com/Sayarinu/Summoners-Net/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)

@@ -125,19 +125,47 @@ describe("browse presentation", () => {
     await waitFor(() => expect(screen.getByRole("region", { name: "Watch Match" })).toBeVisible());
     expect(watchButtons[0]).toHaveTextContent("Watch");
     expect(screen.queryByRole("heading", { name: "Watch" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("Twitch");
-    fireEvent.click(screen.getByRole("button", { name: "Load Stream" }));
-    expect(document.querySelector("iframe")).toBeInTheDocument();
+    // Finished matches open their YouTube recording; the live Twitch channel is not offered.
+    expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("YouTube");
+    expect(screen.queryByRole("button", { name: "Load Stream" })).not.toBeInTheDocument();
+    expect(document.querySelector("iframe")).toHaveAttribute(
+      "src",
+      expect.stringContaining("autoplay=0"),
+    );
     expect(screen.queryByRole("button", { name: "Unload Player" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Player Not Working" })).not.toBeInTheDocument();
     fireEvent.click(watchButtons[1]!);
     await waitFor(() => {
       expect(screen.getAllByRole("region", { name: "Watch Match" })).toHaveLength(1);
-      expect(document.querySelector("iframe")).not.toBeInTheDocument();
+      expect(document.querySelectorAll("iframe")).toHaveLength(1);
     });
     fireEvent.click(watchButtons[1]!);
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Watch Match" })).not.toBeInTheDocument(),
+    );
+    expect(document.querySelector("iframe")).not.toBeInTheDocument();
+  });
+  it("opens live matches on Twitch and hides Watch when a finished match has no recording", async () => {
+    render(
+      <MatchesPage
+        data={page([
+          { ...match, id: "live-match", state: "live", updatedAt: instant },
+          { ...match, id: "channel-only", broadcasts: match.broadcasts.slice(1) },
+        ])}
+        query={{ timezone: "UTC" }}
+        hideSpoilers={false}
+        now={instant}
+      />,
+    );
+    const watch = screen.getAllByRole("button", { name: /^Watch/ });
+    expect(watch).toHaveLength(1);
+    fireEvent.click(watch[0]!);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Broadcast/ })).toHaveTextContent("Twitch"),
+    );
+    expect(document.querySelector("iframe")).toHaveAttribute(
+      "src",
+      expect.stringContaining("autoplay=false"),
     );
   });
   it("links identities and global results", () => {

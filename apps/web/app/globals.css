@@ -559,3 +559,48 @@
   width: 100%;
   accent-color: var(--color-border-accent);
 }
+/* A replay its channel will not embed: a thumbnail that opens the video on its provider. */
+.ev-replay-link {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  background: var(--color-bg-canvas);
+}
+.ev-replay-link > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+}
+.ev-replay-link__copy {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: center;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 85%);
+}
+.ev-replay-link__play {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-text-accent);
+  color: var(--color-bg-canvas);
+  font-size: var(--font-size-xl);
+}
+.ev-replay-link:hover .ev-replay-link__play,
+.ev-replay-link:focus-visible .ev-replay-link__play {
+  transform: scale(1.06);
+}
+.ev-replay-link small {
+  color: var(--color-text-secondary);
+}

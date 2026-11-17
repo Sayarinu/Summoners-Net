@@ -4,6 +4,7 @@ import { MatchRow, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
 import { InlineMatchStream } from "./inline-stream";
+import { watchableBroadcasts } from "../watch/player";
 import { identityHref, matchDisplay } from "./presentation";
 import { preferencesChangedEvent } from "../preferences/model";
 
@@ -71,7 +72,7 @@ export function MatchesPage({
                       spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
                       onSpoilerReveal={() => setRevealed([...revealed, match.id])}
                       streamAction={
-                        match.broadcasts.length > 0 ? (
+                        watchableBroadcasts(match).length > 0 ? (
                           <button
                             aria-controls={streamOpen ? streamPanelId : undefined}
                             aria-expanded={streamOpen}
@@ -88,7 +89,7 @@ export function MatchesPage({
                       }
                       expandedContent={
                         streamOpen ? (
-                          <InlineMatchStream broadcasts={match.broadcasts} id={streamPanelId} />
+                          <InlineMatchStream match={match} id={streamPanelId} />
                         ) : undefined
                       }
                     />
