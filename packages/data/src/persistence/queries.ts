@@ -1,4 +1,5 @@
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
+import { championDirectory, patchDirectory } from "./directories.js";
 import { championMatchups } from "./matchups.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
@@ -123,7 +124,7 @@ async function page<T>(
 }
 export interface SearchHit {
   id: string;
-  kind: "team" | "player" | "match" | "game";
+  kind: "team" | "player" | "match" | "game" | "champion" | "summoner";
   name: string;
   detail: string;
   imageUrl?: string | null;
@@ -200,6 +201,8 @@ export function queries(pool: Pool, clock: () => Date) {
     ...historicalQueries(pool),
     ...draftQueries(pool),
     matchupMatrix: (input: MatchupMatrixQuery) => matchupMatrix(pool, input),
+    championDirectory: () => championDirectory(pool),
+    patchDirectory: () => patchDirectory(pool),
     matchupPairs: (input: MatchupPairsQuery) => matchupPairs(pool, input),
     championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
     championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
@@ -366,6 +369,36 @@ export function queries(pool: Pool, clock: () => Date) {
               )
             FROM games
             WHERE lower(source_id) LIKE $1
+            UNION ALL
+            SELECT * FROM (
+              SELECT DISTINCT ON (c.champion_id)
+                c.champion_id,
+                c.name,
+                jsonb_build_object(
+                  'id', c.champion_id,
+                  'kind', 'champion',
+                  'name', c.name,
+                  'detail', 'Champion',
+                  'imageUrl', CASE WHEN i.asset_hash IS NULL THEN NULL ELSE '/api/images/'||i.asset_hash END
+                )
+              FROM catalog_champions c JOIN patches p USING (patch_key)
+              LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
+              WHERE lower(c.name) LIKE $1
+              ORDER BY c.champion_id,p.release_order DESC
+            ) champions
+            UNION ALL
+            SELECT
+              puuid,
+              game_name||'#'||tag_line,
+              jsonb_build_object(
+                'id', puuid,
+                'kind', 'summoner',
+                'name', game_name||'#'||tag_line,
+                'detail', 'Solo queue player'
+              )
+            FROM riot_accounts
+            WHERE game_name IS NOT NULL AND tag_line IS NOT NULL
+              AND lower(game_name||'#'||tag_line) LIKE $1
           ) hits`,
         "true",
         [pattern],

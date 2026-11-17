@@ -1,6 +1,6 @@
 import { it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ShellHeader, ShellFooter } from "./shell";
+import { ShellHeader, ShellFooter, sectionOf } from "./shell";
 import { defaultPreferences } from "../preferences/model";
 const path = vi.hoisted(() => ({ value: "/matches/1" }));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
@@ -39,4 +39,44 @@ it("opens and closes the mobile navigation overlay", () => {
     "aria-expanded",
     "false",
   );
+});
+
+it("links every analytics section and marks the one a page belongs to", () => {
+  path.value = "/champions/Ahri/matchups";
+  const view = render(<ShellHeader preferences={defaultPreferences} />);
+  for (const [name, href] of [
+    ["Champions", "/champions"],
+    ["Tier list", "/tier-list"],
+    ["Leaderboards", "/leaderboards"],
+    ["Patches", "/patches"],
+    ["Drafts", "/drafts"],
+    ["Models", "/models"],
+  ] as const)
+    expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+  expect(screen.getByRole("link", { name: "Champions" })).toHaveAttribute("aria-current", "page");
+  path.value = "/leaderboards/wpa";
+  view.rerender(<ShellHeader preferences={defaultPreferences} />);
+  expect(screen.getByRole("link", { name: "Leaderboards" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(
+    [
+      "/matchups/TOP/counter-picks",
+      "/trending",
+      "/summoners/x",
+      "/solo-games/EUW1_1/map",
+      "/drafts/assistant",
+      "/patches/16.22",
+      "/",
+    ].map(sectionOf),
+  ).toEqual([
+    "/champions",
+    "/patches",
+    "/leaderboards",
+    "/leaderboards",
+    "/drafts",
+    "/patches",
+    "/",
+  ]);
 });

@@ -208,10 +208,15 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
           name={i.name}
           shortName={i.name}
           type={i.kind === "game" ? "match" : i.kind}
+          description={i.detail}
           href={
             i.kind === "team" || i.kind === "player"
               ? identityHref({ ...i, kind: i.kind })
-              : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
+              : i.kind === "champion"
+                ? `/champions/${encodeURIComponent(i.id)}`
+                : i.kind === "summoner"
+                  ? `/summoners/${encodeURIComponent(i.id)}`
+                  : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
           }
           {...(i.imageUrl ? { image: i.imageUrl } : {})}
         />
@@ -219,7 +224,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
       {!data.items.length && (
         <EmptyState
           title={query.q ? "No results" : "Find a team, player or match"}
-          description="Search a team, player, match or historical game ID."
+          description="Search a team, player, champion, solo-queue Riot ID (Name#TAG), match or historical game ID."
         />
       )}
       <Pages data={data} />

@@ -286,7 +286,7 @@ export function MatchRow({
   );
 }
 
-export type SearchEntityType = "event" | "match" | "player" | "team";
+export type SearchEntityType = "champion" | "event" | "match" | "player" | "summoner" | "team";
 
 export interface SearchResultProps {
   readonly description?: string;

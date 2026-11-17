@@ -4,6 +4,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PreferencesControl } from "../preferences/controls";
 import type { Preferences } from "../preferences/model";
+/** Pages that live under a navigation entry without sharing its first path segment. */
+const sections: Record<string, string> = {
+  matches: "/",
+  games: "/history",
+  matchups: "/champions",
+  trending: "/patches",
+  summoners: "/leaderboards",
+  "solo-games": "/leaderboards",
+};
+/** The navigation entry a path belongs to, so it can be marked as the current page. */
+export function sectionOf(path: string) {
+  const first = path.split("/")[1] ?? "";
+  return sections[first] ?? `/${first}`;
+}
+
 export function ShellHeader({
   autoDetectTimezone = false,
   preferences,
@@ -14,11 +29,7 @@ export function ShellHeader({
   const path = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const current = path.startsWith("/matches")
-    ? "/"
-    : path.startsWith("/games")
-      ? "/history"
-      : "/" + (path.split("/")[1] ?? "");
+  const current = sectionOf(path);
   useEffect(() => {
     if (!mobileOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -32,7 +43,12 @@ export function ShellHeader({
     { href: "/history", label: "History" },
     { href: "/teams", label: "Teams" },
     { href: "/players", label: "Players" },
+    { href: "/champions", label: "Champions" },
     { href: "/tier-list", label: "Tier list" },
+    { href: "/leaderboards", label: "Leaderboards" },
+    { href: "/patches", label: "Patches" },
+    { href: "/drafts", label: "Drafts" },
+    { href: "/models", label: "Models" },
     { href: "/search", label: "Search" },
   ];
   return (
