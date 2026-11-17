@@ -288,7 +288,7 @@ it("shows a linked game's draft and lineup, and an honest gap for an unlinked ga
     },
     draft: [
       { side: "blue" as const, firstPick: true, picks: ["Ahri", null], bans: [] },
-      { side: "red" as const, firstPick: false, picks: ["Orianna"], bans: ["Azir"] },
+      { side: "red" as const, firstPick: false, picks: [null], bans: ["Azir"] },
     ],
     participants: [],
   };
@@ -323,6 +323,8 @@ it("shows a linked game's draft and lineup, and an honest gap for an unlinked ga
   expect(screen.getByRole("heading", { name: "Blue Side · Acceptance Blue · First Pick" }));
   expect(screen.getByText("Ahri · —")).toBeVisible();
   expect(screen.getByText("Azir")).toBeVisible();
+  // Without a pick order, the red side lists the champions it played.
+  expect(screen.getByText("Played")).toBeVisible();
   expect(screen.getByRole("table", { name: "Historical Played Lineup" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Open Archive Record" })).toHaveAttribute(
     "href",

@@ -206,7 +206,15 @@ export function MatchPage({
   );
 }
 
-function Draft({ detail, teams }: { detail: HistoricalGameDetail; teams: Map<string, string> }) {
+function Draft({
+  detail,
+  teams,
+  game,
+}: {
+  detail: HistoricalGameDetail;
+  teams: Map<string, string>;
+  game: Game;
+}) {
   return (
     <section className="np-stack">
       <h2>Draft</h2>
@@ -218,10 +226,23 @@ function Draft({ detail, teams }: { detail: HistoricalGameDetail; teams: Map<str
               {side.firstPick ? " · First Pick" : ""}
             </h3>
             <dl>
-              <div>
-                <dt>Picks</dt>
-                <dd>{side.picks.map((pick) => pick ?? "—").join(" · ") || "—"}</dd>
-              </div>
+              {side.picks.some((pick) => pick !== null) ? (
+                <div>
+                  <dt>Picks</dt>
+                  <dd>{side.picks.map((pick) => pick ?? "—").join(" · ")}</dd>
+                </div>
+              ) : (
+                // Without a recorded pick order, list the champions this side played instead.
+                <div>
+                  <dt>Played</dt>
+                  <dd>
+                    {game.participants
+                      .filter((p) => p.side === side.side && p.player)
+                      .map((p) => p.champion ?? "—")
+                      .join(" · ") || "—"}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Bans</dt>
                 <dd>{side.bans.map((ban) => ban ?? "—").join(" · ") || "—"}</dd>
@@ -315,6 +336,7 @@ export function SeriesGamePage({
           {detail && !hidden ? (
             <Draft
               detail={detail}
+              game={game}
               teams={new Map(detail.teams.map((team) => [team.side, team.name]))}
             />
           ) : null}
