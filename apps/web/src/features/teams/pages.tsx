@@ -102,7 +102,11 @@ function RecordValue({ wins, known, total }: { wins: number; known: number; tota
       ) : (
         "—"
       )}
-      {total > known && <small>{total - known} unknown</small>}
+      {total > known && (
+        <small>
+          {total - known} unknown {total - known === 1 ? "result" : "results"}
+        </small>
+      )}
     </>
   );
 }
@@ -198,6 +202,8 @@ export function TeamProfile({
           <h2>Season Performance</h2>
           {hidden ? (
             <Button onPress={() => setRevealed(true)}>Reveal Statistics</Button>
+          ) : summary.eligibleGames === 0 ? (
+            <p>No eligible games in this selection.</p>
           ) : (
             <dl className="ev-team-stats">
               <div>

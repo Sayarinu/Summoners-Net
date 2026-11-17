@@ -72,7 +72,7 @@ export function MatchSection({
               <MatchRow
                 match={matchDisplay(match, timezone, now)}
                 spoilerHidden={hidden}
-                actions={
+                statusLabel={
                   outcome && (
                     <strong className={`ev-outcome ev-outcome--${outcome.toLowerCase()}`}>
                       {outcome}
