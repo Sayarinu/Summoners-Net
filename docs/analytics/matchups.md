@@ -132,3 +132,32 @@ counter-pick win rates and the difference. `/matchups/[role]/counter-picks` list
 with every value, coverage and reason. It sorts by counter-pick value, either win rate, blindability
 score or lane games in SQL, with unknown values last, and pages 25 rows by default (at most 100).
 `queries.counterPickList` validates its input; the `(source, patch_key, role)` index supports it.
+
+## Draft assistant
+
+`/drafts/assistant` ranks candidates for one role from a partial draft. The draft lives only in the
+URL: `source`, `patch`, `side`, the `role` to fill, `blue` and `red` picks (comma-separated champion
+IDs, each with an optional role, such as `Ahri:MIDDLE`) and `bans`. Both the route and
+`queries.draftAssistant` validate it: at most five picks per side and ten bans, each champion once,
+each role once per side, and a role to fill that the user's side has not picked. Unknown champion
+IDs are listed and ignored. Nothing is stored, and only stored aggregates are read.
+
+Candidates are the champions with a stored blindability row for the source, patch and role, minus
+every pick and ban. Each part is in win-rate points above 50% and needs at least ten observations:
+
+- **Matchup**: the shrunk lane win rate against the enemy picked in the role to fill. The shrinkage
+  uses the candidate's pooled win-rate counts, stored with its blindability score (migration 0044).
+- **Synergy**: the mean shrunk duo delta with each ally whose role is known. This is the champion
+  page's synergy rule: duo win rate minus the rate expected from both champions' own role win rates,
+  times `n / (n + 50)`. Solo queue only, since duos are recorded there.
+- **Blindability**: the stored lower-tail score, used only while the lane opponent is unknown.
+
+```
+score = mean of the known parts
+part  = win rate − 50%
+```
+
+Unknown parts are left out of the mean rather than counted as zero, and every part keeps its sample
+count. Candidates with no known part rank last, and ties go to more lane games, then the lower
+champion key. Ranking runs over the bounded set of champions in one role. The reads use the
+`(source, patch_key, role)` indexes and are in the query plan budget test.

@@ -855,6 +855,25 @@ test("champion matchups show sampled metrics, switch values and validate selecti
   const missing = await page.goto("/champions/NoSuchChampion/matchups");
   expect(missing?.status()).toBe(404);
 });
+test("the draft assistant ranks stored candidates from the URL and excludes picks and bans", async ({
+  page,
+}) => {
+  await page.goto("/drafts");
+  await page.getByRole("link", { name: "Draft assistant", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Draft assistant" })).toBeVisible();
+  await page.getByLabel("Bans").fill("Zzz");
+  await page.getByRole("button", { name: "Rank candidates" }).click();
+  await expect(page).toHaveURL(/bans=Zzz/);
+  const table = page.getByRole("table", { name: "Ranked candidates for Mid" });
+  await expect(table).toContainText("Ahri");
+  await expect(page.getByRole("status").filter({ hasText: "ignored" })).toContainText("Zzz");
+  await page.goto("/drafts/assistant?patch=16.4&blue=Ahri:TOP");
+  await expect(table).not.toContainText("Ahri");
+  await page.goto("/drafts/assistant?blue=Ahri,Ahri");
+  await expect(page.getByRole("alert").filter({ hasText: "Enter picks" })).toBeVisible();
+  await expect(page.getByLabel("Blue picks")).toHaveValue("Ahri,Ahri");
+});
+
 test("role counter-pick values list stored values with reasons and validate filters", async ({
   page,
 }) => {

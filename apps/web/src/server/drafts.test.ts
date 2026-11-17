@@ -1,13 +1,15 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
-import { loadDrafts } from "./drafts";
+import { loadDraftAssistant, loadDrafts } from "./drafts";
 const latestDraftPatch = vi.hoisted(() => vi.fn());
 const draftAnalytics = vi.hoisted(() => vi.fn());
-vi.mock("./data", () => ({ data: () => ({ latestDraftPatch, draftAnalytics }) }));
+const draftAssistant = vi.hoisted(() => vi.fn());
+vi.mock("./data", () => ({ data: () => ({ latestDraftPatch, draftAnalytics, draftAssistant }) }));
 beforeEach(() => {
   vi.clearAllMocks();
   latestDraftPatch.mockResolvedValue("16.4");
   draftAnalytics.mockResolvedValue({ games: 0 });
+  draftAssistant.mockResolvedValue({ candidates: [] });
 });
 it("validates external filters before reading data", async () => {
   for (const params of [
@@ -38,4 +40,28 @@ it("preserves explicit patch and league filters", async () => {
     priorityPage: 3,
     rolePage: 1,
   });
+});
+it("validates the draft assistant URL before reading stored aggregates", async () => {
+  for (const params of [
+    { blue: "Ahri,Ahri" },
+    { blue: "Ahri:MIDDLE", role: "MIDDLE" },
+    { red: "Ahri:SUPPORT" },
+    { bans: ["Zed"] },
+    { side: "purple" },
+    { unexpected: "value" },
+  ])
+    expect(await loadDraftAssistant(params)).toMatchObject({
+      assistant: null,
+      error:
+        "Enter picks as champion IDs with an optional role (Ahri:MIDDLE), at most five per side and ten bans, each champion once, and a role to fill that your side has not picked.",
+    });
+  expect(draftAssistant).not.toHaveBeenCalled();
+  expect(
+    await loadDraftAssistant({ patch: "all", role: "TOP", red: "Nunu:TOP", bans: "", blue: "" }),
+  ).toEqual({
+    assistant: { candidates: [] },
+    input: { blue: "", red: "Nunu:TOP", bans: "" },
+    error: null,
+  });
+  expect(draftAssistant).toHaveBeenCalledWith({ role: "TOP", red: "Nunu:TOP" });
 });
