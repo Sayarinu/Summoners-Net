@@ -4,14 +4,22 @@ const tierList = vi.fn();
 const championOverview = vi.fn();
 const championBlindability = vi.fn();
 const championJunglePaths = vi.fn().mockResolvedValue(null);
+const championMatchups = vi.fn().mockResolvedValue(null);
 vi.mock("server-only", () => ({}));
 vi.mock("./data", () => ({
-  data: () => ({ tierList, championOverview, championBlindability, championJunglePaths }),
+  data: () => ({
+    tierList,
+    championOverview,
+    championBlindability,
+    championJunglePaths,
+    championMatchups,
+  }),
 }));
-const ahri = (role = "MIDDLE", patch: string | null = "16.22") => ({
+const ahri = (role = "MIDDLE", patch: string | null = "16.22", roles: { role: string }[] = []) => ({
   champion: { id: "Ahri", key: 103 },
   query: { role, source: "solo" },
   patch,
+  roles,
 });
 const { loadChampionOverview, loadTierList } = await import("./champions");
 beforeEach(() => {
@@ -47,6 +55,7 @@ it("validates champion ids and filters, and returns null for unknown champions",
     overview: ahri(),
     draftValue: { counterDifference: 0.05 },
     junglePaths: null,
+    matchupSummary: null,
     error: null,
   });
   expect(championBlindability).toHaveBeenLastCalledWith({
@@ -101,6 +110,7 @@ it("reads jungle paths for the overview's champion and patch in solo queue only"
     champion: { id: "LeeSin", key: 64 },
     patch,
     query: { source },
+    roles: [],
   });
   championOverview.mockReset().mockResolvedValueOnce(overview("solo", "16.22"));
   expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toEqual({ games: 3 });
@@ -110,4 +120,41 @@ it("reads jungle paths for the overview's champion and patch in solo queue only"
   championOverview.mockResolvedValueOnce(overview("solo", null));
   expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toBeNull();
   expect(championJunglePaths).toHaveBeenCalledTimes(1);
+});
+
+it("summarizes the best and worst opponents for the role, or the most played one", async () => {
+  const row = (key: number, shrunk: number | null) => ({
+    opponent: { championKey: key },
+    metrics: { winRate: { shrunk, baseline: 0.5 } },
+  });
+  championMatchups.mockReset().mockImplementation(({ order }: { order: string }) =>
+    Promise.resolve({
+      patch: "16.22",
+      page: {
+        total: 9,
+        items:
+          order === "desc"
+            ? [row(1, 0.58), row(2, 0.52), row(3, 0.48)]
+            : [row(4, 0.41), row(3, 0.48), row(2, 0.52)],
+      },
+    }),
+  );
+  championOverview.mockReset().mockResolvedValue(ahri("ALL", "16.22", [{ role: "TOP" }]));
+  const result = await loadChampionOverview("Ahri", {});
+  expect(championMatchups).toHaveBeenCalledWith(
+    expect.objectContaining({ champion: "Ahri", role: "TOP", sort: "winRate", order: "asc" }),
+  );
+  // Above-average opponents are strengths and below-average ones weaknesses, each listed once.
+  expect(result?.matchupSummary).toMatchObject({ role: "TOP", patch: "16.22", opponents: 9 });
+  expect(result?.matchupSummary?.best.map((r) => r.opponent.championKey)).toEqual([1, 2]);
+  expect(result?.matchupSummary?.worst.map((r) => r.opponent.championKey)).toEqual([4, 3]);
+  // No lane role played and no role selected: no summary is read.
+  championMatchups.mockClear();
+  championOverview.mockReset().mockResolvedValue(ahri("ALL"));
+  expect((await loadChampionOverview("Ahri", {}))?.matchupSummary).toBeNull();
+  expect(championMatchups).not.toHaveBeenCalled();
+  // A summary resolved to another patch would describe a different sample.
+  championMatchups.mockResolvedValue({ patch: "16.21", page: { total: 0, items: [] } });
+  championOverview.mockReset().mockResolvedValue(ahri("MIDDLE"));
+  expect((await loadChampionOverview("Ahri", {}))?.matchupSummary).toBeNull();
 });

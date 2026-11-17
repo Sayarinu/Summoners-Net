@@ -11,24 +11,29 @@ const charts: { kind: BucketKind; title: string; xLabel: string }[] = [
 ];
 export function BucketsSection({ buckets }: { buckets: ChampionBuckets | null }) {
   if (!buckets) return null;
+  // Charts without a single known rate are left out rather than drawn empty.
+  const shown = charts.filter(({ kind }) => buckets[kind].some((b) => b.winRate.value !== null));
   return (
     <section className="np-stack" aria-labelledby="buckets-heading">
       <h2 id="buckets-heading">When It Wins</h2>
-      {charts.map(({ kind, title, xLabel }) => (
-        <BarChart
-          key={kind}
-          title={title}
-          xLabel={xLabel}
-          yLabel="Win Rate"
-          points={buckets[kind].map((b) => ({
-            id: `${kind}:${b.index}`,
-            label: `${b.label} · ${b.games} ${b.games === 1 ? "game" : "games"}`,
-            x: b.index,
-            y: b.winRate.value,
-            sampleCount: b.winRate.sampleCount,
-          }))}
-        />
-      ))}
+      {shown.length ? null : <p className="np-meta">No bucket has enough results yet.</p>}
+      <div className="ev-chart-grid">
+        {shown.map(({ kind, title, xLabel }) => (
+          <BarChart
+            key={kind}
+            title={title}
+            xLabel={xLabel}
+            yLabel="Win Rate"
+            points={buckets[kind].map((b) => ({
+              id: `${kind}:${b.index}`,
+              label: `${b.label} · ${b.games} ${b.games === 1 ? "game" : "games"}`,
+              x: b.index,
+              y: b.winRate.value,
+              sampleCount: b.winRate.sampleCount,
+            }))}
+          />
+        ))}
+      </div>
     </section>
   );
 }

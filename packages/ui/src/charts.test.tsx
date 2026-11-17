@@ -36,6 +36,21 @@ describe("SVG charts", () => {
     },
   );
 
+  it("labels the x-axis with named ticks instead of its numeric range", () => {
+    render(
+      <LineChart
+        title="Trend"
+        points={points}
+        xLabel="Patch"
+        xTicks={points.map((point) => ({ x: point.x, label: `16.${20 + point.x}` }))}
+      />,
+    );
+    const axes = screen.getByRole("img", { name: "Trend" }).querySelector(".np-chart__axes")!;
+    const labels = [...axes.querySelectorAll("text")].map((text) => text.textContent);
+    expect(labels).toEqual(expect.arrayContaining(["16.20", "16.21", "16.22", "16.23"]));
+    expect(labels).not.toContain("0");
+  });
+
   it("draws negative and positive bars on opposite sides of zero without filling unknown values", () => {
     render(<BarChart title="Bars" points={points} color="red" />);
     const svg = screen.getByRole("img", { name: "Bars" });

@@ -2382,10 +2382,30 @@ describe("Champion aggregates", () => {
     expect(ahri.tier).toBe(tierFromDelta(ahri.shrunkWinRate.value! - ahri.baseline!));
     // 16.20 is in the catalog but has no games: a gap, not zero.
     expect(ahri.trend).toEqual([
-      { patch: "16.20", games: 0, winRate: { value: null, sampleCount: 0 } },
-      { patch: "16.21", games: 1, winRate: { value: 1, sampleCount: 1 } },
-      { patch: "16.22", games: 3, winRate: { value: 0.5, sampleCount: 2 } },
+      {
+        patch: "16.20",
+        games: 0,
+        winRate: { value: null, sampleCount: 0 },
+        pickRate: { value: null, sampleCount: 0 },
+        banRate: { value: null, sampleCount: 0 },
+      },
+      {
+        patch: "16.21",
+        games: 1,
+        winRate: { value: 1, sampleCount: 1 },
+        pickRate: { value: 1, sampleCount: 1 },
+        banRate: { value: 0, sampleCount: 1 },
+      },
+      {
+        patch: "16.22",
+        games: 3,
+        winRate: { value: 0.5, sampleCount: 2 },
+        pickRate: { value: 1, sampleCount: 3 },
+        banRate: { value: 0, sampleCount: 3 },
+      },
     ]);
+    // Every game was in the mid lane.
+    expect(ahri.roles).toEqual([{ role: "MIDDLE", games: 3, share: { value: 1, sampleCount: 3 } }]);
     // Filters apply to the rates, the prior and the trend alike.
     const master16 = (await championOverview(pool, {
       champion: "Ahri",
@@ -2407,6 +2427,7 @@ describe("Champion aggregates", () => {
     // No pro data yet: unknown rather than zero; an unknown champion is not found.
     expect(await queries.championOverview({ champion: "Ahri", source: "pro" })).toMatchObject({
       patch: null,
+      roles: [],
       games: 0,
       winRate: { value: null },
       pickRate: { value: null },

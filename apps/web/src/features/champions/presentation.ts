@@ -1,4 +1,9 @@
-import type { SampledValue, TierListRow } from "@summonersnet/data/contracts";
+import type {
+  ChampionLaneRole,
+  MatchupRow,
+  SampledValue,
+  TierListRow,
+} from "@summonersnet/data/contracts";
 
 export const roleLabels: Record<TierListRow["role"], string> = {
   ALL: "All Roles",
@@ -29,3 +34,18 @@ export const sampleLabels: Record<TierListRow["sample"], string> = {
   "low-sample": "Low Sample",
   hidden: "Too Few Games",
 };
+
+/** A champion's best and worst lane opponents by shrunk win rate, for the overview's cards. */
+export interface MatchupSummary {
+  role: ChampionLaneRole;
+  source: "solo" | "pro";
+  patch: string;
+  /** Opponents with any games in this role and patch. */
+  opponents: number;
+  best: MatchupRow[];
+  worst: MatchupRow[];
+}
+/** A signed percentage-point difference, such as +2.4%; unknown stays unknown. */
+export function signedPoints(value: number | null) {
+  return value === null ? "Unknown" : `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+}

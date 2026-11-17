@@ -1,16 +1,29 @@
 "use client";
 import { Button, Select } from "@summonersnet/ui";
-import type { ChampionOverview, SampledValue } from "@summonersnet/data/contracts";
+import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { percent } from "./presentation";
 
-const sampled = (rate: SampledValue, unit: string) =>
-  `${percent(rate)} · ${rate.sampleCount} ${unit}`;
+function Tile({ label, value, sample }: { label: string; value: string; sample: string }) {
+  return (
+    <div className="ev-stat-tile">
+      <dt>
+        {label}
+        <small>{sample}</small>
+      </dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
 export function ProSection({ overview }: { overview: ChampionOverview }) {
   const { pro, query: q, champion } = overview;
   return (
     <section className="np-stack" aria-labelledby="pro-heading">
       <h2 id="pro-heading">Pro Play</h2>
-      <form action={`/champions/${champion.id}`} method="get" className="ev-filters">
+      <form
+        action={`/champions/${champion.id}`}
+        method="get"
+        className="ev-filters ev-filters--compact"
+      >
         {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
           q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
         )}
@@ -29,36 +42,27 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
         <p className="np-meta">No pro drafts imported yet.</p>
       ) : (
         <>
-          <dl className="ev-summary" aria-label="Pro-Play Statistics">
-            <div>
-              <dt>Presence · {pro.games} games</dt>
-              <dd>{percent(pro.presence)}</dd>
-            </div>
-            <div>
-              <dt>Picks / bans</dt>
-              <dd>
-                {pro.picks} / {pro.bans}
-              </dd>
-            </div>
-            <div>
-              <dt>Win rate</dt>
-              <dd>{sampled(pro.winRate, "results")}</dd>
-            </div>
+          <dl className="ev-stat-grid" aria-label="Pro-Play Statistics">
+            <Tile label="Presence" value={percent(pro.presence)} sample={`${pro.games} Games`} />
+            <Tile label="Picks / Bans" value={`${pro.picks} / ${pro.bans}`} sample="Drafts" />
+            <Tile
+              label="Win Rate"
+              value={percent(pro.winRate)}
+              sample={`${pro.winRate.sampleCount} Results`}
+            />
             {pro.sides.map((s) => (
-              <div key={s.side}>
-                <dt>
-                  {s.side === "blue" ? "Blue" : "Red"} side · {s.picks} picks
-                </dt>
-                <dd>{sampled(s.winRate, "results")}</dd>
-              </div>
+              <Tile
+                key={s.side}
+                label={`${s.side === "blue" ? "Blue" : "Red"} Side Win Rate`}
+                value={percent(s.winRate)}
+                sample={`${s.picks} Picks · ${s.winRate.sampleCount} Results`}
+              />
             ))}
-            <div>
-              <dt>Blind / counter</dt>
-              <dd>
-                {percent(pro.blindRate)} / {percent(pro.counterRate)} · {pro.blindRate.sampleCount}{" "}
-                picks
-              </dd>
-            </div>
+            <Tile
+              label="Blind / Counter"
+              value={`${percent(pro.blindRate)} / ${percent(pro.counterRate)}`}
+              sample={`${pro.blindRate.sampleCount} Picks`}
+            />
           </dl>
           {pro.unmapped.length > 0 && (
             <p className="np-meta">

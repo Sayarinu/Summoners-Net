@@ -25,16 +25,18 @@ function Matrix({ matrix }: { matrix: BotLaneMatrix }) {
   const carry = new Map(matrix.carries.map((c) => [c.key, championName(c.key, c.name)]));
   const support = new Map(matrix.supports.map((s) => [s.key, championName(s.key, s.name)]));
   return (
-    <HeatGrid
-      title="Bot-Lane Pairs: Win Rate (%)"
-      cells={matrix.cells.map((c) => ({
-        id: `${c.carry}:${c.support}`,
-        row: carry.get(c.carry)!,
-        column: support.get(c.support)!,
-        value: c.winRate.value === null ? null : Math.round(c.winRate.value * 1000) / 10,
-        sampleCount: c.winRate.sampleCount,
-      }))}
-    />
+    <div className="ev-heat-compact">
+      <HeatGrid
+        title="Bot-Lane Pairs: Win Rate (%)"
+        cells={matrix.cells.map((c) => ({
+          id: `${c.carry}:${c.support}`,
+          row: carry.get(c.carry)!,
+          column: support.get(c.support)!,
+          value: c.winRate.value === null ? null : Math.round(c.winRate.value * 1000) / 10,
+          sampleCount: c.winRate.sampleCount,
+        }))}
+      />
+    </div>
   );
 }
 export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
