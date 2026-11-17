@@ -318,3 +318,69 @@ it("queues pro account links and shows whole-file validation reports", async () 
   fireEvent.submit(button.closest("form")!);
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
 });
+
+it("shows the active win probability model or why there is none, and only queues training", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  const model = {
+    id: 2,
+    kind: "timeline" as const,
+    status: "active" as const,
+    reason: null,
+    modelVersion: 1,
+    featureVersion: 1,
+    window: ["16.22", "16.21"],
+    trainMatches: 812,
+    trainRows: 24000,
+    evalMatches: 203,
+    evalRows: 6000,
+    brier: 0.181,
+    trainedAt: "2026-03-01T00:00:00.000Z",
+  };
+  const rejected = {
+    ...model,
+    id: 3,
+    status: "rejected" as const,
+    reason: "Only 12 training matches; at least 500 are needed.",
+  };
+  const view = render(
+    <SourcesPage
+      status={status}
+      timezone="UTC"
+      year={2026}
+      models={{ models: [rejected, model], selected: null }}
+    />,
+  );
+  const section = screen.getByRole("region", { name: "Win probability model" });
+  expect(section).toHaveTextContent("Model v1 (#2) is active");
+  expect(section).toHaveTextContent(
+    "812 games (24000 states) from patches 16.22, 16.21. Brier score 0.181 on 203 held-out games",
+  );
+  expect(section).toHaveTextContent("Last attempt rejected: Only 12 training matches");
+  fireEvent.click(screen.getByRole("button", { name: "Queue training" }));
+  await screen.findByText(/Queued\. The local worker/);
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/refresh",
+    expect.objectContaining({ body: JSON.stringify({ kind: "wp-train" }) }),
+  );
+  view.rerender(
+    <SourcesPage
+      status={status}
+      timezone="UTC"
+      year={2026}
+      models={{ models: [rejected], selected: null }}
+    />,
+  );
+  expect(
+    screen.getByText(/No model is active\. The last training was rejected: Only 12/),
+  ).toBeVisible();
+  view.rerender(
+    <SourcesPage
+      status={status}
+      timezone="UTC"
+      year={2026}
+      models={{ models: [], selected: null }}
+    />,
+  );
+  expect(screen.getByText(/trains automatically once enough solo-queue games/)).toBeVisible();
+});

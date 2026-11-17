@@ -73,7 +73,12 @@ export function seeded(seed: number) {
   };
 }
 /** Splits by match, never by row: every row of a match lands on the same side. */
-export function splitByMatch(examples: readonly Example[], seed: number, holdout = 0.2) {
+/** Share of matches held out for evaluation. */
+export const holdoutShare = 0.2;
+/** Training matches a split leaves from this many matches; the split is exact, not random. */
+export const trainingMatchesFrom = (matches: number) =>
+  matches - Math.round(matches * holdoutShare);
+export function splitByMatch(examples: readonly Example[], seed: number, holdout = holdoutShare) {
   const matches = [...new Set(examples.map((e) => e.matchId))].sort();
   const random = seeded(seed);
   for (let i = matches.length - 1; i > 0; i--) {

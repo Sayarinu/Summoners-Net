@@ -14,7 +14,8 @@ export function RefreshButton({
     | "history"
     | "entities"
     | "riot-key"
-    | "riot-match-ids";
+    | "riot-match-ids"
+    | "wp-train";
   year?: number;
   label?: string;
 }) {

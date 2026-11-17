@@ -10,6 +10,8 @@ import { RefreshButton } from "./refresh";
 import { RiotKeySection } from "./riot-key";
 import { RiotStorageSection } from "./riot-storage";
 import { RiotCrawlerSection } from "./riot-crawler";
+import { WinProbabilitySection } from "./win-probability";
+import type { ModelDiagnostics } from "@summonersnet/data/contracts";
 
 function dataLabel(source: string) {
   switch (source) {
@@ -29,11 +31,13 @@ export function SourcesPage({
   timezone,
   year,
   entities,
+  models,
 }: {
   status: SyncStatus;
   timezone: string;
   year: number;
   entities?: Awaited<ReturnType<Queries["entityStatus"]>>;
+  models?: ModelDiagnostics;
 }) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -143,6 +147,7 @@ export function SourcesPage({
       <RiotKeySection riotKey={status.riotKey} timezone={timezone} />
       <RiotCrawlerSection crawl={status.riotCrawl} timezone={timezone} />
       <RiotStorageSection storage={status.riotStorage} timezone={timezone} />
+      {models ? <WinProbabilitySection models={models} timezone={timezone} /> : null}
       <ReplayTrackUpload />
       <ReplayMetadataUpload />
       <ProAccountUpload />

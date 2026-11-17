@@ -103,6 +103,11 @@ Solo-queue data uses these optional Riot settings:
 
 None of these settings reach the browser; only the worker reads them.
 
+The win probability model trains daily, and the first time as soon as enough solo-queue games with
+timelines are stored. To train now, run `pnpm wp:train` (it prints whether the model was published
+or rejected and why) or use **Queue training** on **Sources & imports**. A sample that is too small
+is stored as rejected and the active model stays. `/models` shows every stored model's calibration.
+
 To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/path/file.csv` or
 `pnpm history:import-dir /absolute/path/to/dir` (not `pnpm import`, which is a pnpm command), then
 `pnpm sync:once`. `pnpm sync:status` shows the queue. The **Sources & imports** page also accepts
