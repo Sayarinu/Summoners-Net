@@ -1,12 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
-import { MatchRow, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
+import { EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { InlineMatchStream } from "./inline-stream";
-import { watchableBroadcasts } from "../watch/player";
-import { identityHref, matchDisplay } from "./presentation";
-import { preferencesChangedEvent } from "../preferences/model";
+import { identityHref } from "./presentation";
+import { MatchSection, useMatchRows } from "./match-group";
 
 const matchSections = [
   { id: "live", label: "Live", states: ["live"] },
@@ -29,19 +26,8 @@ export function MatchesPage({
   hideSpoilers: boolean;
   now: string;
 }) {
-  const [revealed, setRevealed] = useState<string[]>([]);
-  const [spoilersHidden, setSpoilersHidden] = useState(hideSpoilers);
-  const [openStreamId, setOpenStreamId] = useState<string | null>(null);
+  const rows = useMatchRows(hideSpoilers);
   const timezone = query.timezone ?? "UTC";
-  useEffect(() => setSpoilersHidden(hideSpoilers), [hideSpoilers]);
-  useEffect(() => {
-    const onPreferencesChanged = (event: Event) => {
-      const next = (event as CustomEvent<{ hideSpoilers?: unknown }>).detail;
-      if (typeof next?.hideSpoilers === "boolean") setSpoilersHidden(next.hideSpoilers);
-    };
-    window.addEventListener(preferencesChangedEvent, onPreferencesChanged);
-    return () => window.removeEventListener(preferencesChangedEvent, onPreferencesChanged);
-  }, []);
   return (
     <div className="ev-matches-page np-stack">
       <header className="ev-title">
@@ -58,50 +44,14 @@ export function MatchesPage({
         );
         if (!sectionItems.length) return null;
         return (
-          <section key={section.id} className="ev-match-section">
-            <h2>{section.label}</h2>
-            <div className="ev-match-group">
-              {sectionItems.map((match) => {
-                const streamOpen = openStreamId === match.id;
-                const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
-                const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-                return (
-                  <div key={match.id}>
-                    <MatchRow
-                      match={matchDisplay(match, timezone, now)}
-                      spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
-                      onSpoilerReveal={() => setRevealed([...revealed, match.id])}
-                      streamAction={
-                        watchableBroadcasts(match).length > 0 ? (
-                          <button
-                            aria-controls={streamOpen ? streamPanelId : undefined}
-                            aria-expanded={streamOpen}
-                            aria-label={streamOpen ? "Close Stream" : watchLabel}
-                            className="ev-watch-toggle"
-                            onClick={() =>
-                              setOpenStreamId((current) => (current === match.id ? null : match.id))
-                            }
-                            type="button"
-                          >
-                            {watchLabel}
-                          </button>
-                        ) : undefined
-                      }
-                      expandedContent={
-                        streamOpen ? (
-                          <InlineMatchStream match={match} id={streamPanelId} />
-                        ) : undefined
-                      }
-                    />
-                    {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
-                      (match.state === "live" ? 300000 : 1200000) && (
-                      <p className="ev-row-note">Saved observation · refresh overdue</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+          <MatchSection
+            key={section.id}
+            title={section.label}
+            matches={sectionItems}
+            timezone={timezone}
+            now={now}
+            {...rows}
+          />
         );
       })}
       {!data.items.length && (
@@ -114,27 +64,109 @@ export function MatchesPage({
       <p className="np-body-sm">
         Looking further back?{" "}
         <TextLink href="/history" variant="accent">
-          Browse the Game Archive
+          Browse Past Matches
         </TextLink>
       </p>
     </div>
   );
 }
-export function HistoryPage({ data, query }: { data: Page<Game>; query: BrowseQuery }) {
+
+/** Month headings in the viewer's timezone, in the order the matches arrive. */
+function byMonth(matches: Match[], timezone: string) {
+  const format = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "long",
+    year: "numeric",
+  });
+  const groups = new Map<string, Match[]>();
+  for (const match of matches) {
+    const label = match.startsAt ? format.format(new Date(match.startsAt)) : "Date to Be Confirmed";
+    groups.set(label, [...(groups.get(label) ?? []), match]);
+  }
+  return [...groups];
+}
+
+function viewHref(query: BrowseQuery, view: "series" | "games") {
+  const params = new URLSearchParams();
+  if (query.league) params.set("league", query.league);
+  if (typeof query.year === "number" || typeof query.year === "string")
+    params.set("year", String(query.year));
+  if (query.q) params.set("q", query.q);
+  if (view === "games") params.set("view", "games");
+  const search = params.toString();
+  return search ? `/history?${search}` : "/history";
+}
+
+export function PastMatchesPage({
+  view,
+  series,
+  games,
+  query,
+  hideSpoilers,
+  now,
+}: {
+  view: "series" | "games";
+  series?: Page<Match>;
+  games?: Page<Game>;
+  query: BrowseQuery;
+  hideSpoilers: boolean;
+  now: string;
+}) {
+  const rows = useMatchRows(hideSpoilers);
+  const timezone = query.timezone ?? "UTC";
   return (
-    <div className="np-stack">
+    <div className="ev-matches-page np-stack">
       <header className="ev-title">
         <div>
-          <span className="np-overline">Historical records</span>
-          <h1>Game Archive</h1>
+          <span className="np-overline">Results</span>
+          <h1>Past Matches</h1>
           <p className="np-body-sm">
-            Played lineups and basic statistics, from 2014 onward where imported.
+            {view === "series"
+              ? "Finished series, newest first. Open a series to see each game."
+              : "Played lineups from the game archive, including games without a known series."}
           </p>
         </div>
       </header>
-      <Filters query={query} history />
-      <GamesTable games={data.items} timezone={query.timezone ?? "UTC"} />
-      <Pages data={data} />
+      <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
+        {(["series", "games"] as const).map((option) => (
+          <a
+            key={option}
+            className="ev-tab"
+            href={viewHref(query, option)}
+            aria-current={view === option ? "page" : undefined}
+          >
+            {option === "series" ? "Series" : "Games"}
+          </a>
+        ))}
+      </nav>
+      <Filters query={query} history view={view} />
+      {view === "series" && series ? (
+        <>
+          {byMonth(series.items, timezone).map(([label, matches]) => (
+            <MatchSection
+              key={label}
+              title={label}
+              matches={matches}
+              timezone={timezone}
+              now={now}
+              {...rows}
+            />
+          ))}
+          {!series.items.length && (
+            <EmptyState
+              title="No Past Matches in This View"
+              description="Try another league or year, or switch to games."
+            />
+          )}
+          <Pages data={series} />
+        </>
+      ) : null}
+      {view === "games" && games ? (
+        <>
+          <GamesTable games={games.items} timezone={timezone} />
+          <Pages data={games} />
+        </>
+      ) : null}
     </div>
   );
 }

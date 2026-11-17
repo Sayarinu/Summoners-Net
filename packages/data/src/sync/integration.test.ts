@@ -570,6 +570,77 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect((await run({ kind: "running" })).state).toBe("failed");
     expect(await queries.match("pandascore:match:2")).toBeNull();
   });
+  it("pairs series games with archive games only through corroborated team links", async () => {
+    const seriesGame = (position: number, begin: string, end: string | null) => ({
+      id: 500 + position,
+      position,
+      status: end ? "finished" : "not_started",
+      begin_at: begin,
+      end_at: end,
+      winner: end ? { id: 10 } : null,
+    });
+    fetcher.mockImplementation(() =>
+      Promise.resolve(
+        json([
+          rawMatch(1, {
+            games: [
+              seriesGame(2, "2026-03-01T02:00:00Z", "2026-03-01T02:40:00Z"),
+              seriesGame(1, "2026-03-01T01:00:00Z", "2026-03-01T01:40:00Z"),
+              seriesGame(3, "2026-03-01T03:00:00Z", null),
+            ],
+          }),
+        ]),
+      ),
+    );
+    expect((await run({ kind: "matches" })).state).toBe("done");
+    await importCsv(
+      historyCsv() +
+        historyCsv({ id: "acceptance-game-2" })
+          .split("\n")
+          .slice(1)
+          .join("\n")
+          .replaceAll("2026-03-01 01:00:00", "2026-03-01 02:00:00")
+          .replaceAll(",1,16.4,", ",2,16.4,"),
+    );
+    const archive = (await queries.games()).items;
+    const first = archive.find((game) => game.number === 1)!.id;
+    const second = archive.find((game) => game.number === 2)!.id;
+    // Shared team names are not evidence: nothing pairs until the identities are linked.
+    expect((await queries.matchGames("pandascore:match:1"))?.map((g) => g.gameId)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    for (const [oracle, panda] of [
+      ["oracle:team:10", "pandascore:team:10"],
+      ["oracle:team:11", "pandascore:team:20"],
+    ])
+      await pool.query(
+        "INSERT INTO identity_links(oracle_id,panda_id,evidence,resolved_at) VALUES($1,$2,'{}',$3)",
+        [oracle, panda, now],
+      );
+    expect(await queries.matchGames("pandascore:match:1")).toMatchObject([
+      { number: 1, gameId: first, finishedAt: "2026-03-01T01:40:00.000Z" },
+      { number: 2, gameId: second },
+      { number: 3, gameId: null, finishedAt: null },
+    ]);
+    expect(await queries.gameSeries(second)).toEqual({ matchId: "pandascore:match:1", number: 2 });
+    expect(await queries.matchGames("pandascore:match:missing")).toBeNull();
+    // A second archive game claiming the same number makes that pair ambiguous.
+    await importCsv(
+      historyCsv({ id: "acceptance-game-duplicate" }).replaceAll(
+        "2026-03-01 01:00:00",
+        "2026-03-01 01:30:00",
+      ),
+      2026,
+    );
+    expect((await queries.matchGames("pandascore:match:1"))?.map((g) => g.gameId)).toEqual([
+      null,
+      second,
+      null,
+    ]);
+    expect(await queries.gameSeries(first)).toBeNull();
+  });
   it("persists versioned metadata and preserves the last version on partial failure", async () => {
     serveDataDragon(["16.4.1", "lolpatch_7.20"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");

@@ -1,4 +1,12 @@
-import type { Game, Identity, Match, Profile, SyncStatus, Page } from "@summonersnet/data";
+import type {
+  Game,
+  Identity,
+  Match,
+  Profile,
+  SeriesGame,
+  SyncStatus,
+  Page,
+} from "@summonersnet/data";
 export const instant = "2026-03-01T12:00:00.000Z";
 export const blue: Identity = {
   id: "oracle:team:10",
@@ -66,6 +74,28 @@ export const match: Match = {
   ],
   updatedAt: instant,
 };
+/** The fixture series, with game 1 linked to the archive game, game 2 unlinked and game 3 unplayed. */
+export const seriesGames = (): SeriesGame[] => [
+  { ...match.games[0]!, gameId: "oracle:game:acceptance-game" },
+  {
+    sourceId: "101",
+    number: 2,
+    state: "finished",
+    startsAt: "2026-03-01T02:00:00.000Z",
+    finishedAt: "2026-03-01T02:31:05.000Z",
+    winnerId: red.id,
+    gameId: null,
+  },
+  {
+    sourceId: "102",
+    number: 3,
+    state: "not_started",
+    startsAt: null,
+    finishedAt: null,
+    winnerId: null,
+    gameId: null,
+  },
+];
 export const game: Game = {
   id: "oracle:game:acceptance-game",
   sourceId: "acceptance-game",

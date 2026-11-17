@@ -22,7 +22,10 @@ it("keeps route navigation, skip link and local controls available", () => {
   );
   path.value = "/games/1";
   view.rerender(<ShellHeader preferences={defaultPreferences} />);
-  expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   path.value = "/search";
   view.rerender(<ShellHeader preferences={defaultPreferences} />);
   expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("aria-current", "page");

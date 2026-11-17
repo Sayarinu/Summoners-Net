@@ -8,103 +8,37 @@ import {
   TeamIdentity,
   PlayerIdentity,
   EmptyState,
-  MatchRow,
 } from "@summonersnet/ui";
-import type { Match, Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
-import { dateTime, identityHref, matchDisplay, gameTeams } from "../browse/presentation";
+import type { Game, Profile, BrowseQuery, ProGameWinProbability } from "@summonersnet/data";
+import { dateTime, identityHref, gameTeams } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
-import { WatchPlayer, watchableBroadcasts } from "../watch/player";
+import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
-export function MatchPage({
-  match,
-  timezone,
-  hideSpoilers,
-  now,
-}: {
-  match: Match;
-  timezone: string;
-  hideSpoilers: boolean;
-  now: string;
-}) {
-  const [hidden, setHidden] = useState(hideSpoilers);
-  const gamesWithStatistics = match.games.filter((game) => game.state === "finished");
-  const display = matchDisplay(match, timezone, now);
-  const canWatch = match.state === "live" || match.state === "final";
-  return (
-    <div className="np-stack">
-      <Breadcrumb items={[{ label: "Matches", href: "/" }, { label: match.league }]} />
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">
-            {match.league} · Best of {match.bestOf}
-          </span>
-          <h1>
-            {match.teams.length > 0
-              ? display.teams.map((team) => team.name).join(" vs ")
-              : match.name}
-          </h1>
-          <p className="np-body-sm">
-            {match.event} · {dateTime(match.startsAt, timezone)}
-          </p>
-        </div>
-      </header>
-      <MatchRow
-        match={{ ...display, streamAvailable: false }}
-        spoilerHidden={hidden}
-        onSpoilerReveal={() => setHidden(false)}
-      />
-      {canWatch && match.broadcasts.length > 0 ? (
-        <WatchPlayer
-          broadcasts={watchableBroadcasts(match)}
-          mode={match.state === "final" ? "replay" : "live"}
-        />
-      ) : null}
-      {gamesWithStatistics.length > 0 ? (
-        <section className="np-stack">
-          <h2>Game Information</h2>
-          <Table
-            caption="Game Context"
-            rows={gamesWithStatistics}
-            getRowKey={(g) => g.sourceId}
-            columns={[
-              { id: "number", header: "Game", render: (g) => g.number },
-              {
-                id: "start",
-                header: "Started",
-                render: (g) => dateTime(g.startsAt, timezone),
-              },
-              {
-                id: "winner",
-                header: "Winner",
-                render: (g) =>
-                  hidden
-                    ? "Hidden"
-                    : (match.teams.find((t) => t.id === g.winnerId)?.name ?? "Unknown"),
-              },
-            ]}
-          />
-        </section>
-      ) : null}
-    </div>
-  );
-}
+import { seriesGameHref } from "./series";
+export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
   timezone,
   hideSpoilers,
   winProbability,
+  series = null,
 }: {
   game: Game;
   timezone: string;
   hideSpoilers: boolean;
   /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
   winProbability?: ProGameWinProbability | null;
+  /** The series this archive game is confirmed to belong to, if any. */
+  series?: { matchId: string; number: number } | null;
 }) {
   const [hidden, setHidden] = useState(hideSpoilers);
   return (
     <div className="np-stack">
       <Breadcrumb
-        items={[{ label: "History", href: "/history" }, { label: `Game ${game.number}` }]}
+        items={[
+          { label: "Past Matches", href: "/history?view=games" },
+          { label: `Game ${game.number}` },
+        ]}
       />
       <header className="ev-title">
         <div>
@@ -126,61 +60,18 @@ export function GamePage({
           : "Partial record · excluded from summary statistics."}
       </p>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
-      <Table
-        caption="Historical Played Lineup"
-        getRowKey={(p) => p.slot}
-        rows={game.participants.filter((p) => p.player)}
-        columns={[
-          { id: "side", header: "Side", render: (p) => p.side },
-          {
-            id: "team",
-            header: "Team",
-            render: (p) => (
-              <TeamIdentity
-                name={p.team.name}
-                shortName={p.team.name}
-                size="compact"
-                href={identityHref(p.team)}
-                {...(p.team.imageUrl ? { logo: p.team.imageUrl } : {})}
-              />
-            ),
-          },
-          { id: "role", header: "Role", render: (p) => p.role },
-          {
-            id: "player",
-            header: "Player",
-            render: (p) =>
-              p.player ? (
-                <PlayerIdentity
-                  handle={p.player.name}
-                  href={identityHref(p.player)}
-                  {...(p.player.imageUrl ? { portrait: p.player.imageUrl } : {})}
-                />
-              ) : (
-                "—"
-              ),
-          },
-          {
-            id: "champion",
-            header: "Champion",
-            render: (p) => (hidden ? "Hidden" : (p.champion ?? "—")),
-          },
-          {
-            id: "kda",
-            header: "K / D / A",
-            render: (p) =>
-              hidden ? "Hidden" : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`,
-          },
-          {
-            id: "result",
-            header: "Result",
-            render: (p) =>
-              hidden ? "Hidden" : p.won === null ? "Unknown" : p.won ? "Win" : "Loss",
-          },
-        ]}
-      />
+      <LineupTable game={game} hidden={hidden} />
       {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
-      <p className="np-meta">Series association {game.matchId ? "verified" : "unconfirmed"}.</p>
+      {series ? (
+        <p className="np-meta">
+          Part of a confirmed series.{" "}
+          <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
+            Open in Series
+          </TextLink>
+        </p>
+      ) : (
+        <p className="np-meta">Series association unconfirmed.</p>
+      )}
     </div>
   );
 }

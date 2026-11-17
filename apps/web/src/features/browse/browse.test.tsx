@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MatchesPage, HistoryPage, DirectoryPage, SearchPage } from "./pages";
+import { MatchesPage, PastMatchesPage, DirectoryPage, SearchPage } from "./pages";
 import { matchDisplay, dateTime, identityHref } from "./presentation";
 import { Pages, Filters } from "./components";
 import { match, game, blue, red, player, page, instant } from "../../../tests/fixtures";
@@ -72,6 +72,51 @@ describe("browse presentation", () => {
     expect(screen.queryByText("Result Hidden")).not.toBeInTheDocument();
     expect(screen.getByText("Saved observation · refresh overdue")).toBeVisible();
   });
+  it("lists past series as overview rows grouped by month, newest first", () => {
+    const later = {
+      ...match,
+      id: "pandascore:match:2",
+      startsAt: "2026-04-02T01:00:00.000Z",
+      broadcasts: [],
+    };
+    const view = render(
+      <PastMatchesPage
+        view="series"
+        series={page([later, match, { ...match, id: "pandascore:match:3", startsAt: null }])}
+        query={{ timezone: "UTC", league: "LCK" }}
+        hideSpoilers
+        now={instant}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Past Matches" })).toBeVisible();
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
+    ).toEqual(["April 2026", "March 2026", "Date to Be Confirmed"]);
+    // Rows reuse the overview's row group, so they share its sizing.
+    expect(document.querySelectorAll(".ev-match-group .np-match-row")).toHaveLength(3);
+    expect(screen.getByLabelText("Filter Matches")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Series" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Games" })).toHaveAttribute(
+      "href",
+      "/history?league=LCK&view=games",
+    );
+    expect(screen.getAllByText("Result Hidden")).toHaveLength(3);
+    fireEvent.click(screen.getAllByRole("button", { name: /Reveal score/ })[0]!);
+    expect(screen.getAllByText("Result Hidden")).toHaveLength(2);
+    // Only one stream opens at a time across every month.
+    fireEvent.click(screen.getAllByRole("button", { name: "Watch" })[0]!);
+    expect(screen.getAllByRole("button", { name: "Close Stream" })).toHaveLength(1);
+    view.rerender(
+      <PastMatchesPage
+        view="series"
+        series={page([])}
+        query={{}}
+        hideSpoilers={false}
+        now={instant}
+      />,
+    );
+    expect(screen.getByText("No Past Matches in This View")).toBeVisible();
+  });
   it("renders honest empty states, filters and historical table links", () => {
     const view = render(
       <MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />,
@@ -79,10 +124,22 @@ describe("browse presentation", () => {
     expect(screen.getByText("No Matches in This View")).toBeVisible();
     view.rerender(<MatchesPage data={page([])} query={{}} hideSpoilers={false} now={instant} />);
     view.rerender(
-      <HistoryPage
-        data={page([game, { ...game, id: "partial", patch: null, complete: false }])}
+      <PastMatchesPage
+        view="games"
+        games={page([game, { ...game, id: "partial", patch: null, complete: false }])}
         query={{ year: 2026, league: "LCK" }}
+        hideSpoilers={false}
+        now={instant}
       />,
+    );
+    expect(screen.getByLabelText("Filter Games")).toBeVisible();
+    expect(new FormData(screen.getByLabelText<HTMLInputElement>("Year").form!).get("view")).toBe(
+      "games",
+    );
+    expect(screen.getByRole("link", { name: "Games" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Series" })).toHaveAttribute(
+      "href",
+      "/history?league=LCK&year=2026",
     );
     expect(screen.getByRole("table", { name: "Historical Games" })).toBeVisible();
     expect(screen.getByText("Partial")).toBeVisible();
