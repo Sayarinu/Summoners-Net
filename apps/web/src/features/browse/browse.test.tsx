@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MatchesPage, HistoryPage, DirectoryPage, SearchPage } from "./pages";
-import { matchDisplay, localDate, dateTime, identityHref } from "./presentation";
+import { matchDisplay, dateTime, identityHref } from "./presentation";
 import { Pages, Filters } from "./components";
 import { match, game, blue, red, player, page, instant } from "../../../tests/fixtures";
 describe("browse presentation", () => {
   it("formats timezone boundaries and incomplete match identities without invented scores", () => {
-    expect(localDate("2026-03-01T01:00:00Z", "America/Phoenix")).toBe("02/28/2026");
+    expect(dateTime("2026-03-01T01:00:00Z", "America/Phoenix")).toMatch(/^02\/28\/2026/);
     expect(dateTime(null, "UTC")).toBe("Time to be confirmed");
     expect(
       matchDisplay({ ...match, teams: [], state: "live" }, "UTC", "2026-03-02T00:00:00Z"),
@@ -45,7 +45,7 @@ describe("browse presentation", () => {
     expect(identityHref(blue)).toContain("/teams/");
     expect(identityHref(player)).toContain("/players/");
   });
-  it("groups matches, hides scores until reveal, and marks stale observations", () => {
+  it("lists matches in flat rows by state, hides scores until reveal, and marks stale observations", () => {
     render(
       <MatchesPage
         data={page([
@@ -64,7 +64,9 @@ describe("browse presentation", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: "Past Games" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "02/28/2026" })).toBeVisible();
+    // Rows carry their own date; there are no per-day group headings.
+    expect(screen.queryByRole("heading", { name: "02/28/2026" })).not.toBeInTheDocument();
+    expect(screen.getByText(/^02\/28\/2026/)).toBeVisible();
     expect(screen.getByText("Result hidden")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
     expect(screen.queryByText("Result hidden")).not.toBeInTheDocument();

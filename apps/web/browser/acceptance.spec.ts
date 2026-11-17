@@ -25,13 +25,16 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
     const teams = row.querySelectorAll<HTMLElement>(".np-match-team");
     const names = row.querySelectorAll<HTMLElement>(".np-match-team__name");
     const versus = row.querySelector<HTMLElement>(".np-match-vs")!;
+    const leftLogo = teams[0]!.querySelector<HTMLElement>(".np-avatar")!;
     const rightLogo = teams[1]!.querySelector<HTMLElement>(".np-avatar")!;
     const primary = row.querySelector<HTMLElement>(".np-match-row__primary")!;
     const leftTeam = teams[0]!.getBoundingClientRect();
     const rightTeam = teams[1]!.getBoundingClientRect();
+    const leftName = names[0]!.getBoundingClientRect();
     const rightName = names[1]!.getBoundingClientRect();
     const versusBox = versus.getBoundingClientRect();
     const primaryBox = primary.getBoundingClientRect();
+    const leftLogoBox = leftLogo.getBoundingClientRect();
     const rightLogoBox = rightLogo.getBoundingClientRect();
     return {
       sideBySide: window.matchMedia("(min-width: 851px)").matches,
@@ -40,7 +43,8 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
       versusOffset: Math.abs(
         versusBox.left + versusBox.width / 2 - (primaryBox.left + primaryBox.width / 2),
       ),
-      rightLogoFollowsName: rightLogoBox.left > rightName.right,
+      // Logos sit inside, beside the scores: name, logo, score vs score, logo, name.
+      logosInside: leftLogoBox.left > leftName.right && rightLogoBox.right < rightName.left,
       rightNameClipped: names[1]!.scrollWidth > names[1]!.clientWidth,
     };
   });
@@ -48,7 +52,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
     expect(Math.abs(teamLayout.leftGap - teamLayout.rightGap)).toBeLessThanOrEqual(1);
     expect(teamLayout.versusOffset).toBeLessThanOrEqual(1);
   }
-  expect(teamLayout.rightLogoFollowsName).toBe(true);
+  if (teamLayout.sideBySide) expect(teamLayout.logosInside).toBe(true);
   expect(teamLayout.rightNameClipped).toBe(false);
   const watchButtons = page.locator(".ev-watch-toggle");
   const watchTop = () =>
@@ -202,7 +206,12 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   await page.goto("/?date=2026-02-28");
   await expect(page.getByText(/29 records/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "02/28/2026" })).toBeVisible();
+  await expect(
+    page
+      .locator(".np-match-row")
+      .getByText(/^02\/28\/2026/)
+      .first(),
+  ).toBeVisible();
   await openSettings(page);
   await page.getByRole("switch", { name: "Hide results" }).press("Space");
   await expect(page.getByText("Result hidden")).not.toHaveCount(0);

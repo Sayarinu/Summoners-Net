@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { synchronization } from "./data";
-import { preferencesSchema } from "../features/preferences/model";
+import {
+  legacyPreferencesCookie,
+  preferencesCookie,
+  preferencesSchema,
+} from "../features/preferences/model";
 const refreshSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -63,7 +67,8 @@ export async function mutate(request: Request, kind: "refresh" | "preferences") 
     }
     const prefs = preferencesSchema.parse(raw);
     const response = NextResponse.json({ saved: true });
-    response.cookies.set("viewer-preferences", JSON.stringify(prefs), {
+    response.cookies.delete(legacyPreferencesCookie);
+    response.cookies.set(preferencesCookie, JSON.stringify(prefs), {
       httpOnly: true,
       sameSite: "strict",
       path: "/",

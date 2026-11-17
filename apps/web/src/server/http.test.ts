@@ -82,6 +82,11 @@ describe("local HTTP entry points", () => {
       "preferences",
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("viewer-preferences-v2=");
+    // The legacy cookie saved hidden results as a default, so saving clears it.
+    expect(response.headers.get("set-cookie")).toMatch(
+      /viewer-preferences=;.*Max-Age=0|viewer-preferences=;.*Expires=/,
+    );
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("SameSite=strict");
     expect(

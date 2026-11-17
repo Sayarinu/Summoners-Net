@@ -119,12 +119,6 @@
   border-block: 1px solid var(--color-border-subtle);
   font-size: var(--font-size-lg);
 }
-.ev-match-group > h3 {
-  padding: var(--space-4) var(--space-5);
-  background: var(--color-bg-surface);
-  border-bottom: 1px solid var(--color-border-subtle);
-  font-size: var(--font-size-md);
-}
 .ev-match-group .np-match-row {
   grid-template-columns: 224px minmax(0, 1fr) 112px 112px;
   grid-template-rows: minmax(54px, auto);
@@ -164,49 +158,48 @@
 .ev-match-group .np-match-row__meta > span:last-child {
   font-size: var(--font-size-xs);
 }
+/* Each team reads outward from the score: name, logo, score · vs · score, logo, name. */
 .ev-match-group .np-match-team {
   width: max-content;
   min-width: max-content;
-  grid-template-columns: 36px max-content 40px;
   gap: var(--space-3);
-  justify-items: stretch;
   font-size: var(--font-size-md);
 }
 .ev-match-group .np-match-team:first-child {
+  grid-template-columns: max-content 36px 40px;
   justify-self: end;
 }
 .ev-match-group .np-match-team:last-child {
+  grid-template-columns: 40px 36px max-content;
   justify-self: start;
 }
 .ev-match-group .np-match-teams {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: var(--space-6);
+  gap: var(--space-4);
   align-items: center;
 }
-.ev-match-group .np-match-team > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ev-match-group .np-match-team__name {
-  overflow: visible;
-  text-overflow: clip;
-  text-align: start;
-}
-.ev-match-group .np-match-team:last-child > .np-avatar,
-.ev-match-group .np-match-team:last-child > .np-match-team__icon-placeholder {
-  grid-column: 3;
+.ev-match-group .np-match-team > * {
   grid-row: 1;
+}
+.ev-match-group .np-match-team > .np-avatar,
+.ev-match-group .np-match-team > .np-match-team__icon-placeholder {
+  grid-column: 2;
+  justify-self: center;
+}
+.ev-match-group .np-match-team:first-child > .np-match-team__name {
+  grid-column: 1;
+  text-align: right;
+}
+.ev-match-group .np-match-team:first-child > .np-score {
+  grid-column: 3;
+  text-align: right;
 }
 .ev-match-group .np-match-team:last-child > .np-match-team__name {
-  grid-column: 2;
-  grid-row: 1;
-  text-align: right;
+  grid-column: 3;
+  text-align: left;
 }
 .ev-match-group .np-match-team:last-child > .np-score {
   grid-column: 1;
-  grid-row: 1;
   text-align: left;
 }
 .np-match-vs {
@@ -525,11 +518,27 @@
     grid-row: 3;
     grid-column: 1;
   }
-  .ev-match-group .np-match-team {
+  /* Stacked teams read logo, name, score. */
+  .ev-match-group .np-match-team,
+  .ev-match-group .np-match-team:first-child,
+  .ev-match-group .np-match-team:last-child {
     width: 100%;
     grid-template-columns: 32px minmax(0, 1fr) 32px;
     gap: var(--space-2);
     font-size: var(--font-size-sm);
+    justify-self: stretch;
+  }
+  .ev-match-group .np-match-team > .np-avatar,
+  .ev-match-group .np-match-team > .np-match-team__icon-placeholder {
+    grid-column: 1;
+  }
+  .ev-match-group .np-match-team:is(:first-child, :last-child) > .np-match-team__name {
+    grid-column: 2;
+    text-align: left;
+  }
+  .ev-match-group .np-match-team:is(:first-child, :last-child) > .np-score {
+    grid-column: 3;
+    text-align: right;
   }
   .ev-match-group .np-match-teams {
     grid-template-columns: 1fr;
