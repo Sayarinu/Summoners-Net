@@ -49,6 +49,20 @@ export type {
   SoloGameMapEvents,
 } from "./domain/solo-games.js";
 export { mapEventLimit, soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
+export {
+  heatmapKinds,
+  heatmapMinimumGames,
+  heatmapQuerySchema,
+  heatmapRoles,
+  heatmapSubjectKinds,
+} from "./domain/heatmaps.js";
+export type {
+  Heatmap,
+  HeatmapKind,
+  HeatmapQuery,
+  HeatmapSample,
+  HeatmapSubjectKind,
+} from "./domain/heatmaps.js";
 export { featureLabels, modelDiagnosticsQuerySchema } from "./domain/model-diagnostics.js";
 export type { ModelDiagnostics, ModelSummary } from "./domain/model-diagnostics.js";
 export { wpaKinds, wpaLeaderboardQuerySchema, wpaSorts } from "./domain/wpa-leaderboards.js";
