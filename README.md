@@ -108,6 +108,11 @@ timelines are stored. To train now, run `pnpm wp:train` (it prints whether the m
 or rejected and why) or use **Queue training** on **Sources & imports**. A sample that is too small
 is stored as rejected and the active model stays. `/models` shows every stored model's calibration.
 
+Aggregate tables (tier list, trending, patch overview, WPA leaderboards, matchups, the role matrix,
+counter-pick values and pro drafts) have a **Download CSV** link. It streams the whole table with
+the page's filters, up to 10,000 rows, from `/api/export/<table>`, with sample counts and Riot or
+Data Dragon identifiers. Unknown values are empty, never zero.
+
 To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/path/file.csv` or
 `pnpm history:import-dir /absolute/path/to/dir` (not `pnpm import`, which is a pnpm command), then
 `pnpm sync:once`. `pnpm sync:status` shows the queue. The **Sources & imports** page also accepts

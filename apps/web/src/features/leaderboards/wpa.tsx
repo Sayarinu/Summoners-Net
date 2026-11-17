@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import {
   Button,
   EmptyState,
@@ -100,6 +101,10 @@ export function WpaLeaderboardPage({
             {board.model.brier === null ? "" : `, Brier ${board.model.brier.toFixed(3)}`}). Values
             are percentage points of win probability; rows with fewer than 10 games show no value.
           </p>
+          <ExportLink
+            table="wpa"
+            filters={{ kind: board.query.kind, patch: board.patch, sort: board.query.sort }}
+          />
           <Table
             caption={`${kindLabels[board.query.kind]} by win probability added`}
             rows={board.page.items}

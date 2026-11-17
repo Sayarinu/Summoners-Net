@@ -109,3 +109,22 @@ export interface MatchupMatrix {
   columns: PatchChampion[];
   cells: { championKey: number; opponentKey: number; games: number; estimate: MatchupEstimate }[];
 }
+
+/** Every observed pair in a role, for export; paged in SQL in champion and opponent key order. */
+export const matchupPairsQuerySchema = matchupMatrixQuerySchema
+  .pick({ source: true, patch: true, role: true, metric: true })
+  .extend({
+    page: z.coerce.number().int().min(1).max(10000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(200).default(200),
+  });
+export type MatchupPairsQuery = z.input<typeof matchupPairsQuerySchema>;
+export interface MatchupPairs {
+  query: z.output<typeof matchupPairsQuerySchema>;
+  patch: string | null;
+  page: Page<{
+    champion: PatchChampion;
+    opponent: PatchChampion;
+    games: number;
+    estimate: MatchupEstimate;
+  }>;
+}

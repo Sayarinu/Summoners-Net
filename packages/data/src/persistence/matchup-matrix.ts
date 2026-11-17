@@ -5,6 +5,9 @@ import {
   type MatchupMatrixQuery,
   type MatchupMatrix,
   type MetricCounts,
+  matchupPairsQuerySchema,
+  type MatchupPairs,
+  type MatchupPairsQuery,
 } from "../domain/matchups.js";
 import type { Executor } from "./database.js";
 import { matchupPatchScope } from "./matchups.js";
@@ -87,5 +90,66 @@ export async function matchupMatrix(
       ...cell,
       estimate: matchupEstimate(value, baseline),
     })),
+  };
+}
+
+/** All observed pairs in one role, paged in SQL; baselines pool each champion's opponents. */
+export async function matchupPairs(db: Executor, input: MatchupPairsQuery): Promise<MatchupPairs> {
+  const q = matchupPairsQuerySchema.parse(input);
+  const row = (
+    await db.query<{
+      patch: string | null;
+      total: number;
+      items: {
+        champion: MatchupPairs["page"]["items"][number]["champion"];
+        opponent: MatchupPairs["page"]["items"][number]["champion"];
+        games: number;
+        value: MetricCounts;
+        baseline: MetricCounts;
+      }[];
+    }>(
+      `
+    WITH ${matchupPatchScope}, scoped AS (
+      SELECT * FROM matchup_aggregates WHERE source=$2 AND patch_key=(SELECT patch_key FROM chosen) AND role=$1
+    ), selected AS (
+      SELECT * FROM scoped ORDER BY champion_key,opponent_key LIMIT $5 OFFSET $6
+    ), baseline AS (
+      SELECT a.champion_key,sum((metrics->$4->>'total')::double precision) AS total,
+        sum((metrics->$4->>'count')::integer)::integer AS n
+      FROM scoped a WHERE a.champion_key IN (SELECT champion_key FROM selected) GROUP BY a.champion_key
+    ), named AS (
+      SELECT DISTINCT ON (c.champion_key) c.champion_key,jsonb_build_object('championKey',c.champion_key,
+        'championId',c.champion_id,'name',c.name,
+        'imageUrl',CASE WHEN i.asset_hash IS NULL THEN NULL ELSE '/api/images/'||i.asset_hash END) AS champion
+      FROM catalog_champions c JOIN patches p USING(patch_key)
+      LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
+      WHERE c.champion_key IN (SELECT champion_key FROM selected UNION SELECT opponent_key FROM selected)
+      ORDER BY c.champion_key,(c.patch_key=(SELECT patch_key FROM chosen)) DESC,p.release_order DESC
+    )
+    SELECT (SELECT patch_key FROM chosen) AS patch,(SELECT count(*)::integer FROM scoped) AS total,
+      coalesce((SELECT jsonb_agg(jsonb_build_object(
+        'champion',coalesce(c.champion,jsonb_build_object('championKey',s.champion_key,'championId',NULL,'name',NULL,'imageUrl',NULL)),
+        'opponent',coalesce(o.champion,jsonb_build_object('championKey',s.opponent_key,'championId',NULL,'name',NULL,'imageUrl',NULL)),
+        'games',s.games,
+        'value',coalesce(s.metrics->$4,jsonb_build_object('total',NULL,'count',0)),
+        'baseline',jsonb_build_object('total',b.total,'count',b.n)) ORDER BY s.champion_key,s.opponent_key)
+        FROM selected s JOIN baseline b USING(champion_key)
+        LEFT JOIN named c ON c.champion_key=s.champion_key LEFT JOIN named o ON o.champion_key=s.opponent_key),'[]') AS items
+  `,
+      [q.role, q.source, q.patch ?? null, q.metric, q.pageSize, (q.page - 1) * q.pageSize],
+    )
+  ).rows[0]!;
+  return {
+    query: q,
+    patch: row.patch,
+    page: {
+      page: q.page,
+      pageSize: q.pageSize,
+      total: row.total,
+      items: row.items.map(({ value, baseline, ...pair }) => ({
+        ...pair,
+        estimate: matchupEstimate(value, baseline),
+      })),
+    },
   };
 }

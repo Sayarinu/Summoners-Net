@@ -84,3 +84,51 @@ export async function mutate(request: Request, kind: "refresh" | "preferences") 
     );
   }
 }
+
+type CsvCell = string | number | boolean | null | undefined;
+/**
+ * One CSV field. Unknown values are empty, never zero. Text that a spreadsheet would run as a
+ * formula is prefixed with an apostrophe; fields with separators or quotes are quoted.
+ */
+export function csvField(value: CsvCell) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = typeof value === "boolean" ? String(value) : value;
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+/** Streams a CSV download row by row, so a large export never sits in memory. */
+export function csvResponse(
+  filename: string,
+  header: readonly string[],
+  rows: AsyncIterable<CsvCell[]>,
+) {
+  const encoder = new TextEncoder();
+  const iterator = rows[Symbol.asyncIterator]();
+  const line = (cells: readonly CsvCell[]) =>
+    encoder.encode(`${cells.map(csvField).join(",")}\r\n`);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(line(header));
+    },
+    async pull(controller) {
+      try {
+        const next = await iterator.next();
+        if (next.done) controller.close();
+        else controller.enqueue(line(next.value));
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`,
+      "cache-control": "no-store",
+    },
+  });
+}

@@ -164,6 +164,9 @@ export {
 export {
   matchupMatrixQuerySchema,
   matchupMatrixPageSize,
+  matchupPairsQuerySchema,
+  type MatchupPairs,
+  type MatchupPairsQuery,
   type MatchupMatrix,
   type MatchupMatrixQuery,
   championMatchupsQuerySchema,

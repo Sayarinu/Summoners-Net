@@ -5,6 +5,7 @@ import { championOverview, championStats, tierList } from "./aggregates.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
+import { matchupPairs } from "./matchup-matrix.js";
 import { heatmap } from "./heatmaps.js";
 import { championJunglePaths } from "./jungle-paths.js";
 
@@ -177,6 +178,7 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
   ["WPA leaderboard", (db) => wpaLeaderboard(db, { kind: "player", sort: "total", page: 4 })],
   ["WPA leaderboard, champions", (db) => wpaLeaderboard(db, { patch: "16.23" })],
   ["counter-pick list", (db) => counterPickList(db, { role: "MIDDLE", page: 3 })],
+  ["matchup pairs export", (db) => matchupPairs(db, { role: "TOP", patch: "16.24", page: 4 })],
   [
     "draft assistant",
     (db) =>

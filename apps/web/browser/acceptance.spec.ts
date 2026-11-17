@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { proAccountFixture } from "../../../packages/data/tests/pro-account-fixtures";
 import { roflFixture } from "../../../packages/data/tests/rofl-fixtures";
 import { test, expect, type Page } from "@playwright/test";
@@ -932,6 +933,30 @@ test("role counter-pick values list stored values with reasons and validate filt
   await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
   const missing = await page.goto("/matchups/ALL/counter-picks");
   expect(missing?.status()).toBe(404);
+});
+
+test("aggregate tables download as CSV with the page's filters", async ({ page }) => {
+  await page.goto("/tier-list?patch=16.4&role=MIDDLE");
+  const [tier] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download CSV" }).click(),
+  ]);
+  expect(tier.suggestedFilename()).toBe("tier-list-solo-16.4-MIDDLE.csv");
+  const csv = await readFile(await tier.path(), "utf8");
+  expect(csv.split("\r\n")[0]).toContain("champion_key,champion_id,champion_name,role,games");
+  expect(csv).toContain(",Ahri,Ahri,MIDDLE,1,1,");
+  await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
+  const link = page.getByRole("link", { name: "Download CSV" });
+  await expect(link).toHaveAttribute(
+    "href",
+    "/api/export/champion-matchups?champion=Ahri&source=solo&patch=16.4&role=MIDDLE&sort=games&order=desc",
+  );
+  const matchups = await page.request.get((await link.getAttribute("href"))!);
+  expect(matchups.headers()["content-type"]).toBe("text/csv; charset=utf-8");
+  // One game: rates are below the minimum, so they are empty, with their sample counts.
+  expect(await matchups.text()).toMatch(/\r\nsolo,16\.4,MIDDLE,103,Ahri,Ahri,\d+,\w+,[^,]+,1,,,1,/);
+  expect((await page.request.get("/api/export/tier-list?role=SUPPORT")).status()).toBe(400);
+  expect((await page.request.get("/api/export/unknown")).status()).toBe(404);
 });
 
 test("role matchup matrices retain null-cell samples and expose a table alternative", async ({

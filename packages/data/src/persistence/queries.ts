@@ -1,10 +1,14 @@
-import { matchupMatrix } from "./matchup-matrix.js";
+import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championMatchups } from "./matchups.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
 import type { DraftAssistantQuery } from "../domain/draft-assistant.js";
 import type { ChampionBlindabilityQuery, CounterPickListQuery } from "../domain/blindability.js";
-import type { ChampionMatchupsQuery, MatchupMatrixQuery } from "../domain/matchups.js";
+import type {
+  ChampionMatchupsQuery,
+  MatchupMatrixQuery,
+  MatchupPairsQuery,
+} from "../domain/matchups.js";
 import { patchOverview } from "./patch-overview.js";
 import { trending } from "./trending.js";
 import type { TrendingQuery } from "../domain/trending.js";
@@ -194,6 +198,7 @@ export function queries(pool: Pool, clock: () => Date) {
     ...historicalQueries(pool),
     ...draftQueries(pool),
     matchupMatrix: (input: MatchupMatrixQuery) => matchupMatrix(pool, input),
+    matchupPairs: (input: MatchupPairsQuery) => matchupPairs(pool, input),
     championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
     championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
     counterPickList: (input: CounterPickListQuery) => counterPickList(pool, input),
