@@ -1,3 +1,4 @@
+import { teamDirectory, teamSeasons } from "./team-directory.js";
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championDirectory, patchDirectory } from "./directories.js";
 import { championMatchups } from "./matchups.js";
@@ -132,6 +133,19 @@ export interface SearchHit {
   publicSlug?: string;
 }
 export function queries(pool: Pool, clock: () => Date) {
+  async function profileIdentity(id: string, routeKind?: "team" | "player") {
+    return (
+      await pool.query<{ document: Identity }>(
+        `SELECT document
+            FROM entity_profiles
+            WHERE id=coalesce(
+              (SELECT entity_id FROM entity_members WHERE id=$1),
+              (SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2)
+            )`,
+        [idSchema.parse(id), routeKind ?? null],
+      )
+    ).rows[0]?.document;
+  }
   async function decorateGames(items: Game[]) {
     const enriched = await enrichIdentities(
       pool,
@@ -290,8 +304,19 @@ export function queries(pool: Pool, clock: () => Date) {
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");
     },
     games,
-    async matches(input: BrowseQuery = {}) {
+    teamDirectory: (input: BrowseQuery = {}) => teamDirectory(pool, input, clock()),
+    async teamContext(id: string) {
+      const identity = await profileIdentity(id, "team");
+      if (identity?.kind !== "team") return null;
+      return { identity, seasons: await teamSeasons(pool, identity.id) };
+    },
+    async matches(input: BrowseQuery = {}, teamEntityId?: string) {
       const { q, values, clauses } = filters(input, "matches");
+      if (teamEntityId) {
+        values.push(idSchema.parse(teamEntityId));
+        clauses.push(`EXISTS(SELECT 1 FROM entity_members m WHERE m.entity_id=$${values.length}
+          AND matches.document->'teams' @> jsonb_build_array(jsonb_build_object('id',m.id)))`);
+      }
       const result = await page<Match>(
         pool,
         "matches",
@@ -484,17 +509,7 @@ export function queries(pool: Pool, clock: () => Date) {
       input: BrowseQuery = {},
       routeKind?: "team" | "player",
     ): Promise<Profile | null> {
-      const identity = (
-        await pool.query<{ document: Identity }>(
-          `SELECT document
-            FROM entity_profiles
-            WHERE id=coalesce(
-              (SELECT entity_id FROM entity_members WHERE id=$1),
-              (SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2)
-            )`,
-          [idSchema.parse(id), routeKind ?? null],
-        )
-      ).rows[0]?.document;
+      const identity = await profileIdentity(id, routeKind);
       if (!identity) return null;
       const { values, clauses } = filters(input, "games");
       const members = (

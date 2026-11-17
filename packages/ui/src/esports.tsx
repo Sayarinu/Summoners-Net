@@ -209,6 +209,7 @@ function MatchTeams({
 }
 
 export interface MatchRowProps extends AnalyticsProps {
+  readonly statusLabel?: ReactNode;
   readonly actions?: ReactNode;
   readonly expandedContent?: ReactNode;
   readonly match: MatchDisplay;
@@ -218,6 +219,7 @@ export interface MatchRowProps extends AnalyticsProps {
 }
 
 export function MatchRow({
+  statusLabel,
   analyticsId,
   actions,
   expandedContent,
@@ -237,7 +239,7 @@ export function MatchRow({
       )}
     >
       <div className="np-match-row__time">
-        <MatchLifecycleLabel lifecycle={match.lifecycle} />
+        {statusLabel ?? <MatchLifecycleLabel lifecycle={match.lifecycle} />}
         <span>{match.scheduledLabel}</span>
       </div>
       {spoilerHidden && (match.lifecycle === "final" || match.lifecycle === "forfeit") ? (
