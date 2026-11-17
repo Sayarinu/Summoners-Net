@@ -1,0 +1,202 @@
+.ev-teams {
+  --team-slate: color-mix(in srgb, var(--color-bg-raised) 86%, var(--color-status-info));
+  max-width: var(--size-content);
+  margin-inline: auto;
+  min-width: 0;
+}
+.ev-team-banner,
+.ev-team-panel,
+.ev-team-history,
+.ev-team-grid .np-identity {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+.ev-team-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  background: linear-gradient(110deg, var(--team-slate), var(--color-bg-raised));
+  border-inline-start: 3px solid var(--color-border-accent);
+}
+.ev-team-banner h1,
+.ev-team-banner .np-identity__copy strong {
+  font-size: var(--font-size-2xl);
+  color: var(--color-text-primary);
+  line-height: 1.15;
+}
+.ev-team-banner .np-avatar {
+  width: 64px;
+  height: 64px;
+}
+.ev-team-banner .ev-filters {
+  padding: 0;
+  border: 0;
+}
+.ev-team-banner details {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+.ev-team-banner summary {
+  cursor: pointer;
+  color: var(--color-text-accent);
+}
+.ev-team-grid,
+.ev-roster,
+.ev-champ-pool {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.ev-team-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ev-team-grid .np-identity {
+  display: flex;
+  height: 100%;
+  padding: var(--space-4);
+  background: var(--team-slate);
+  color: var(--color-text-primary);
+}
+.ev-team-grid .np-identity:hover,
+.ev-roster a:hover {
+  background: var(--color-bg-interactive);
+  border-color: var(--color-border-accent);
+}
+.ev-teams .np-identity__copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ev-team-grid .np-identity small,
+.ev-team-banner .np-identity small {
+  color: var(--color-text-accent);
+}
+.ev-team-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(270px, 1fr);
+  gap: var(--space-4);
+}
+.ev-team-panel,
+.ev-team-history {
+  padding: var(--space-5);
+  background: var(--color-bg-raised);
+  min-width: 0;
+}
+.ev-team-panel h2 {
+  margin-bottom: var(--space-4);
+}
+.ev-roster {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+.ev-roster a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  background: var(--team-slate);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-1);
+  height: 100%;
+}
+.ev-roster .np-avatar {
+  width: 52px;
+  height: 52px;
+}
+.ev-team-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ev-team-stats dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.ev-team-stats dd {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xl);
+}
+.ev-teams small {
+  display: block;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+}
+.ev-outcome--win {
+  color: var(--color-status-success);
+}
+.ev-outcome--loss {
+  color: var(--color-status-danger);
+}
+.ev-team-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ev-team-history .ev-match-section > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.ev-team-history .np-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+}
+.ev-team-history .ev-pagination {
+  margin-top: var(--space-3);
+}
+.ev-champ-pool {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-bottom: var(--space-3);
+}
+.ev-champ-pool li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--team-slate);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+@media (max-width: 1150px) {
+  .ev-team-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ev-team-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ev-team-stats {
+    justify-content: flex-start;
+    gap: var(--space-8);
+  }
+}
+@media (max-width: 900px) {
+  .ev-team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .ev-team-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ev-team-banner,
+  .ev-team-panel,
+  .ev-team-history {
+    padding: var(--space-4);
+  }
+  .ev-team-banner .ev-filters {
+    width: 100%;
+  }
+  .ev-team-history .np-match-row {
+    padding-inline: var(--space-2);
+  }
+}

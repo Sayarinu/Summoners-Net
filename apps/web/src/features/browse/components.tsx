@@ -28,11 +28,17 @@ function todayInputValue(timezone: string) {
 export function Filters({
   query,
   history = false,
+  teams = false,
+  seasons,
+  selectedYear,
   search = false,
   view,
 }: {
   query: BrowseQuery;
   history?: boolean;
+  teams?: boolean;
+  seasons?: number[];
+  selectedYear?: string;
   search?: boolean;
   /** The past matches view; the games view is kept when the filters are submitted. */
   view?: "series" | "games";
@@ -74,11 +80,19 @@ export function Filters({
       {view === "games" ? <input type="hidden" name="view" value="games" /> : null}
       <Input
         type="search"
-        label={search ? "Search" : history && view !== "series" ? "Filter Games" : "Filter Matches"}
+        label={
+          teams
+            ? "Search Teams"
+            : search
+              ? "Search"
+              : history && view !== "series"
+                ? "Filter Games"
+                : "Filter Matches"
+        }
         name="q"
         defaultValue={query.q ?? ""}
         onChange={scheduleSubmit}
-        placeholder={search ? "Search..." : "Filter..."}
+        placeholder={teams ? "Team name or alias" : search ? "Search..." : "Filter..."}
       />
       {!search && (
         <>
@@ -92,7 +106,18 @@ export function Filters({
               ...regions.map((r) => ({ value: r, label: r })),
             ]}
           />
-          {history ? (
+          {seasons ? (
+            <Select
+              label="Season"
+              name="year"
+              defaultValue={selectedYear ?? "all"}
+              onValueChange={scheduleSubmit}
+              options={[
+                ...seasons.map((year) => ({ label: String(year), value: String(year) })),
+                { label: "All Years", value: "all" },
+              ]}
+            />
+          ) : teams ? null : history ? (
             <Input
               label="Year"
               type="number"

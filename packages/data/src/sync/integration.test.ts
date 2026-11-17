@@ -189,6 +189,24 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       await recovering.close();
     }
   });
+  it("finds teams by the competitions they played in their latest season", async () => {
+    await importCsv(historyCsv({ id: "old", year: 2024, league: "LEC" }), 2024);
+    await importCsv(historyCsv());
+    await importCsv(historyCsv({ id: "worlds", league: "Worlds" }));
+    const { items, total } = await queries.teamDirectory({
+      q: "Blue",
+      league: "Worlds",
+      pageSize: 1,
+    });
+    expect(total).toBe(1);
+    expect(items[0]).toMatchObject({ name: "Acceptance Blue", league: "Worlds" });
+    expect((await queries.teamDirectory({ league: "LEC" })).total).toBe(0);
+    expect((await queries.teamDirectory({ q: "Blue" })).items[0]?.league).toBe("LCK");
+    expect((await queries.teamContext(items[0]!.publicSlug!))?.seasons).toEqual([
+      { year: 2026, league: "LCK" },
+      { year: 2024, league: "LEC" },
+    ]);
+  });
   it("prefers recent play and upcoming teams, while old imports stay searchable on bounded pages", async () => {
     await importCsv(
       historyCsv().replaceAll("Acceptance", "Zebra").replaceAll("Player", "Zebra Player"),

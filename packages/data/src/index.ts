@@ -1,3 +1,4 @@
+export type { TeamDirectoryEntry, TeamSeason } from "./persistence/team-directory.js";
 import { database } from "./persistence/database.js";
 import { queries } from "./persistence/queries.js";
 export { querySchema, regions } from "./domain/models.js";

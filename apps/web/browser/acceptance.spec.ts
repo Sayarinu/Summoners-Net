@@ -164,6 +164,35 @@ test("in-app links navigate without reloading the document and pages fade in", a
   await expect(page.locator(".ev-main > *").first()).toHaveCSS("animation-name", "none");
 });
 
+test("team finder and profile keep season, series and archive games accessible", async ({
+  page,
+}, info) => {
+  if (info.project.name === "desktop-chromium")
+    await page.setViewportSize({ width: 1960, height: 1160 });
+  await page.goto("/teams?q=Acceptance&league=LCK");
+  await page.getByRole("link", { name: /Acceptance Blue/ }).click();
+  await expect(page.getByRole("heading", { name: "Current Roster" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Observed Player/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Season/ })).toContainText("2026");
+  await expect(page.locator("main .np-match-row")).toHaveCount(5);
+  await expect(page.getByText(/refresh overdue/)).toHaveCount(0);
+  await page.screenshot({
+    path: `../../output/playwright/${info.project.name}-team-profile.png`,
+    fullPage: true,
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.getByRole("link", { name: "Games", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Historical Games" })).toBeVisible();
+  await page.getByRole("button", { name: /Season/ }).click();
+  await page.getByRole("option", { name: "All Years" }).click();
+  await expect(page).toHaveURL(/year=all/);
+  await expect(page.getByRole("link", { name: "Series", exact: true })).toHaveAttribute(
+    "href",
+    /year=all/,
+  );
+});
 test("team profile links use readable routes and legacy URLs settle without a request loop", async ({
   page,
 }) => {
