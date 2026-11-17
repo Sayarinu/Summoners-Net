@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import { ChampionIcon, ItemIcon, Table, TextLink } from "@summonersnet/ui";
 import type {
   PatchOverview,
@@ -41,6 +42,11 @@ function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; pat
   return (
     <section className="np-stack">
       <h2>{title}</h2>
+      <ExportLink
+        table="patch-trends"
+        filters={{ patch }}
+        label="Download risers and fallers as CSV"
+      />
       <Table
         caption={`${title} in solo queue`}
         rows={rows}
@@ -111,6 +117,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
           and role in the preceding patch. Newly observed does not mean first ever used. Shares
           describe captured complete cores, not all games.
         </p>
+        <ExportLink table="patch-builds" filters={{ patch: o.patch }} />
         <Table
           caption="Newly observed three-item cores"
           rows={o.builds}
@@ -161,6 +168,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
           Picks plus bans across stored complete pro drafts. At least ten drafts are required;
           samples below 50 are flagged. Up to ten champions.
         </p>
+        <ExportLink table="patch-pro" filters={{ patch: o.patch }} />
         <Table
           caption="Pro pick and ban presence"
           rows={o.pro}

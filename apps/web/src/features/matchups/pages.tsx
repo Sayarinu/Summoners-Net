@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import {
   Button,
   ChampionIcon,
@@ -380,6 +381,17 @@ export function ChampionMatchupsPage({
         Patch {m.patch ?? "unavailable"} ·{" "}
         {q.value === "raw" ? "Raw observations" : "Shrunk estimates"} · {m.page.total} opponents
       </p>
+      <ExportLink
+        table="champion-matchups"
+        filters={{
+          champion: q.champion,
+          source: q.source,
+          patch: m.patch,
+          role: q.role,
+          sort: q.sort,
+          order: q.order,
+        }}
+      />
       <Table
         caption={`${name(m.champion)} lane opponents`}
         rows={m.page.items}
@@ -513,6 +525,11 @@ export function MatchupMatrixPage({
         are ordered by games. Blank cells are unknown or below the minimum sample. Use the data
         table below the grid for exact values and samples.
       </p>
+      <ExportLink
+        table="matchup-matrix"
+        filters={{ source: q.source, patch: m.patch, role: q.role, metric: q.metric }}
+        label="Download every pair as CSV"
+      />
       <HeatGrid
         title={`${roles[q.role]} matchups: ${metrics[q.metric]}${isRate(q.metric) ? " (%)" : ""} · ${q.value}`}
         cells={cells}
@@ -637,6 +654,16 @@ export function CounterPickListPage({
           <p className="np-meta">
             Patch {l.patch ?? "unavailable"} · {l.page.total} champions
           </p>
+          <ExportLink
+            table="counter-picks"
+            filters={{
+              source: l.query.source,
+              patch: l.patch,
+              role,
+              sort: l.query.sort,
+              order: l.query.order,
+            }}
+          />
           <Table
             caption={`${roles[role]} counter-pick values`}
             rows={l.page.items}

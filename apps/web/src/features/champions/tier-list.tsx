@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import {
   ChampionIcon,
   EmptyState,
@@ -40,6 +41,18 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             Patch {list.patch} · {list.sliceGames} {list.sliceGames === 1 ? "game" : "games"} in
             this selection. Win rates show a 95% interval; rows with few games are marked.
           </p>
+          <ExportLink
+            table="tier-list"
+            filters={{
+              source: list.query.source,
+              patch: list.patch,
+              role: list.query.role,
+              region: list.query.region,
+              tier: list.query.tier,
+              sort: list.query.sort,
+              order: list.query.order,
+            }}
+          />
           <Table
             caption="Champion tier list"
             rows={list.page.items}

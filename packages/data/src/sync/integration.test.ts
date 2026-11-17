@@ -6215,6 +6215,21 @@ describe("lane matchup aggregates", () => {
     expect(second.rows.map((c) => c.championKey)).toEqual([205, 206, 207]);
     expect(second.rows[0]).toMatchObject({ championId: null, name: null, imageUrl: null });
     expect(second.cells).toHaveLength(9);
+    // The export lists the same observed pairs in key order, with the same estimates.
+    const pairs = await queries.matchupPairs({ role: "MIDDLE", pageSize: 3, page: 1 });
+    expect(pairs).toMatchObject({ patch: "16.22", page: { total: 20, pageSize: 3 } });
+    expect(pairs.page.items.map((p) => [p.champion.championKey, p.opponent.championKey])).toEqual([
+      [20, 103],
+      [62, 103],
+      [103, 20],
+    ]);
+    expect(pairs.page.items[2]).toMatchObject({
+      champion: { championId: "Ahri" },
+      opponent: { championId: "Nunu" },
+      games: 10,
+      estimate: cell.estimate,
+    });
+    expect((await queries.matchupPairs({ role: "MIDDLE", page: 10000 })).page.items).toEqual([]);
     expect(await queries.matchupMatrix({ role: "MIDDLE", columnPage: 10000 })).toMatchObject({
       total: 11,
       columns: [],

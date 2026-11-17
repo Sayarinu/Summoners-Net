@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import { Button, EmptyState, Input, Pagination, Table, TextLink } from "@summonersnet/ui";
 import type { DraftAnalytics, ParsedDraftQuery, SampledValue } from "@summonersnet/data/contracts";
 import type { Page } from "@summonersnet/data";
@@ -133,6 +134,10 @@ export function DraftsPage({
             </div>
           </details>
           <section className="np-stack" aria-label="Draft priority">
+            <ExportLink
+              table="draft-priorities"
+              filters={{ patch: query.patch, league: query.league }}
+            />
             <Table
               caption="Pick and ban priority"
               rows={analytics.priorities.items}
@@ -150,6 +155,10 @@ export function DraftsPage({
             <Pages data={analytics.priorities} parameter="priorityPage" label="Priority pages" />
           </section>
           <section className="np-stack" aria-label="Role draft order">
+            <ExportLink
+              table="draft-roles"
+              filters={{ patch: query.patch, league: query.league }}
+            />
             <Table
               caption="Blind and counter picks by role"
               rows={analytics.roles.items}

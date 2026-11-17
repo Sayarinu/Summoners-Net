@@ -1,4 +1,5 @@
 "use client";
+import { ExportLink } from "../shell/export-link";
 import {
   Button,
   ChampionIcon,
@@ -128,6 +129,10 @@ export function TrendingPage({
               No aggregate sample is stored for the preceding patch. Changes are unknown.
             </p>
           ) : null}
+          <ExportLink
+            table="trending"
+            filters={{ source: trends.query.source, patch: trends.patch, role: trends.query.role }}
+          />
           <Table
             caption="Champion changes between patches"
             rows={trends.page.items}

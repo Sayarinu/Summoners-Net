@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { mutate, localRequest } from "./http";
+import { csvField, csvResponse, mutate, localRequest } from "./http";
 import { importUpload } from "./import";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
@@ -236,4 +236,41 @@ it("queues bounded pro account link uploads for worker validation and rejects pa
   expect(
     (await mutate(request({ kind: "pro-account-links", file: "/etc/passwd" }), "refresh")).status,
   ).toBe(400);
+});
+
+describe("CSV responses", () => {
+  it("leaves unknown values empty and neutralizes formulas and separators", () => {
+    expect([null, undefined, Number.NaN].map(csvField)).toEqual(["", "", ""]);
+    expect(csvField(0)).toBe("0");
+    expect(csvField(-0.25)).toBe("-0.25");
+    expect(csvField(true)).toBe("true");
+    expect(csvField("Nunu & Willump")).toBe("Nunu & Willump");
+    expect(csvField('Kai"Sa, the')).toBe('"Kai""Sa, the"');
+    expect(csvField("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(csvField("-cmd")).toBe("'-cmd");
+    expect(csvField("a\nb")).toBe('"a\nb"');
+  });
+  it("streams the header and rows as an attachment", async () => {
+    async function* rows() {
+      await Promise.resolve();
+      yield [1, "Ahri", null];
+      yield [2, "Nunu", 0.5];
+    }
+    const response = csvResponse("tier list 16.22.csv", ["key", "name", "rate"], rows());
+    expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="tier_list_16.22.csv"',
+    );
+    expect(await response.text()).toBe("key,name,rate\r\n1,Ahri,\r\n2,Nunu,0.5\r\n");
+  });
+  it("ends the stream with an error when a page fails", async () => {
+    async function* rows(): AsyncGenerator<string[]> {
+      await Promise.resolve();
+      yield ["ok"];
+      throw new Error("database unavailable");
+    }
+    await expect(csvResponse("x.csv", ["a"], rows()).text()).rejects.toThrow(
+      "database unavailable",
+    );
+  });
 });

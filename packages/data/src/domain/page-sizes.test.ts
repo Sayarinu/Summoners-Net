@@ -8,6 +8,7 @@ import { synergyPageSize } from "./synergies.js";
 import { wpaPageSize } from "./wpa-leaderboards.js";
 import { tierListPageSize } from "../persistence/aggregates.js";
 import { counterPickListQuerySchema } from "./blindability.js";
+import { matchupPairsQuerySchema } from "./matchups.js";
 import type { ZodType } from "zod";
 
 it.each([
@@ -17,6 +18,7 @@ it.each([
   ["pro feed", proFeedQuerySchema, "pageSize", 100],
   ["champion statistics", championStatsQuerySchema, "limit", 250],
   ["counter-pick list", counterPickListQuerySchema, "pageSize", 100],
+  ["matchup pairs export", matchupPairsQuerySchema, "pageSize", 200],
 ] as const)("%s accepts a bounded page size", (_, schema, field, max) => {
   const size = (schema as unknown as { shape: Record<string, ZodType> }).shape[field]!;
   expect(size.safeParse(max).success).toBe(true);
