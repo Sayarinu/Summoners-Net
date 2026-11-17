@@ -46,7 +46,10 @@ export async function rebuildBlindability(
     { picks: Map<number, number>; samples: Map<number, BlindabilityMatchup[]> }
   >();
   for (const r of rows) {
-    const role = roles.get(r.role) ?? { picks: new Map(), samples: new Map() };
+    const role = roles.get(r.role) ?? {
+      picks: new Map<number, number>(),
+      samples: new Map<number, BlindabilityMatchup[]>(),
+    };
     roles.set(r.role, role);
     role.picks.set(r.champion_key, (role.picks.get(r.champion_key) ?? 0) + r.games);
     role.samples.set(r.champion_key, [

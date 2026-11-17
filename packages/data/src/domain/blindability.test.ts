@@ -151,7 +151,7 @@ describe("counter-pick values", () => {
     const rates = new Map(
       [...samples].map(([c, m]) => [
         c,
-        new Map(m.map((o) => [o.opponentKey, (o.winRate.total! + 25) / 100])),
+        new Map(m.map((o) => [o.opponentKey, (o.winRate.total + 25) / 100])),
       ]),
     );
     expect(bestResponses(rates)).toEqual(
