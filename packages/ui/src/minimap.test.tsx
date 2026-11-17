@@ -86,6 +86,34 @@ describe("Minimap", () => {
       result.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
     ).toEqual([]);
   });
+  it("draws kills as crosses, objectives as squares and wards as diamonds, in neutral when unowned", () => {
+    render(
+      <Minimap
+        title="Events"
+        points={[
+          { ...blue, id: "kill", label: "Kill", marker: "kill" },
+          { ...blue, id: "dragon", label: "Dragon", side: "neutral", marker: "objective" },
+          { ...blue, id: "ward", label: "Ward", side: "red", marker: "ward" },
+          { ...blue, id: "champion", label: "Ahri", marker: "champion" },
+        ]}
+      />,
+    );
+    const svg = screen.getByRole("img", { name: "Events" });
+    expect(svg.querySelector(".np-minimap__event--kill")).toHaveAttribute(
+      "stroke",
+      "var(--color-side-blue)",
+    );
+    expect(svg.querySelector(".np-minimap__event--objective")).toHaveAttribute(
+      "fill",
+      "var(--color-text-secondary)",
+    );
+    expect(svg.querySelector(".np-minimap__event--ward")).toHaveAttribute(
+      "fill",
+      "var(--color-side-red)",
+    );
+    expect(svg.querySelectorAll(".np-minimap__point")).toHaveLength(1);
+    expect(screen.getByText(/4 points, 0 paths/)).toBeVisible();
+  });
   it("handles absent, failed and remote image URLs without requesting a provider", () => {
     const { rerender } = render(<Minimap title="Map" imageUrl={null} />);
     expect(screen.getByText(/Map image unavailable/)).toBeVisible();

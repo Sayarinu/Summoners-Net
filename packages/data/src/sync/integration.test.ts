@@ -43,7 +43,7 @@ import {
   winProbabilityModels,
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
-import { soloGamePositions } from "../persistence/solo-game-positions.js";
+import { soloGameMapEvents, soloGamePositions } from "../persistence/solo-game-positions.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
 import { proGameWinProbability, trainCheckpointModel } from "../persistence/pro-wp.js";
@@ -51,7 +51,7 @@ import { modelDiagnostics } from "../persistence/model-diagnostics.js";
 import { trainOnDemand } from "./train-command.js";
 import { firstTrainingDue } from "../persistence/wp-models.js";
 import { tierFromDelta } from "../domain/champion-stats.js";
-import { timelineMinuteLimit } from "../domain/solo-games.js";
+import { mapEventLimit, timelineMinuteLimit } from "../domain/solo-games.js";
 import { saveTimeline } from "../persistence/riot-timelines.js";
 import { parseRiotTimeline } from "../providers/riot-timeline.js";
 import { parseRiotMatch } from "../providers/riot-match.js";
@@ -3206,6 +3206,56 @@ describe("Champion aggregates", () => {
     expect(pending.tracks.every((t) => t.frames.length === 0)).toBe(true);
     expect(await soloGamePositions(pool, "EUW1_999")).toBeNull();
     await expect(soloGamePositions(pool, "not a match")).rejects.toThrow();
+  });
+  it("reads one game's kills, objectives and wards for the map, keeping missing coordinates null", async () => {
+    serveDataDragon(["16.22.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
+    await ingest("EUW1_1", challenger);
+    await ingest("EUW1_2", challenger);
+    const timeline = JSON.parse(
+      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+    ) as { metadata: { matchId: string } };
+    timeline.metadata.matchId = "EUW1_1";
+    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
+    const game = (await queries.soloGameMapEvents("EUW1_1"))!;
+    expect(game.truncated).toBe(false);
+    expect(
+      game.events.map((e) => [e.kind, e.timestampMs, e.side, e.participantId, e.x, e.y, e.label]),
+    ).toEqual([
+      ["ward", 65000, "blue", 5, null, null, "Ward placed (Yellow Trinket)"],
+      ["kill", 98000, "blue", 2, 7200, 7100, "Champion kill"],
+      ["objective", 110000, "blue", 2, 9866, 4414, "Fire Dragon"],
+      ["objective", 125000, "blue", null, 8955, 8510, "Tower destroyed (Mid Lane)"],
+    ]);
+    expect(game.events[1]!.victimId).toBe(7);
+    // An execution has no champion killer: the side is the victim's opponent.
+    await pool.query(
+      `INSERT INTO riot_timeline_events(match_id,seq,type,timestamp_ms,victim_id,x,y)
+       VALUES ('EUW1_1',100,'CHAMPION_KILL',129000,7,NULL,NULL)`,
+    );
+    expect((await soloGameMapEvents(pool, "EUW1_1"))!.events.at(-1)).toMatchObject({
+      kind: "kill",
+      side: "blue",
+      participantId: null,
+      x: null,
+    });
+    // Reads are bounded per game, and the result says when events were left out.
+    await pool.query(
+      `INSERT INTO riot_timeline_events(match_id,seq,type,timestamp_ms,participant_id,ward_type)
+       SELECT 'EUW1_1',1000+n,'WARD_PLACED',130000,6,'CONTROL_WARD' FROM generate_series(1,$1) n`,
+      [mapEventLimit],
+    );
+    const bounded = (await soloGameMapEvents(pool, "EUW1_1"))!;
+    expect(bounded.truncated).toBe(true);
+    expect(bounded.events).toHaveLength(mapEventLimit);
+    expect(bounded.events.at(-1)).toMatchObject({
+      side: "red",
+      label: "Ward placed (Control Ward)",
+    });
+    expect(await soloGameMapEvents(pool, "EUW1_2")).toEqual({ events: [], truncated: false });
+    expect(await soloGameMapEvents(pool, "EUW1_999")).toBeNull();
+    await expect(soloGameMapEvents(pool, "not a match")).rejects.toThrow();
   });
   it("stores win probability added per event and participant for each model", async () => {
     serveDataDragon(["16.22.1"]);

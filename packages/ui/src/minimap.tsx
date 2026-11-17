@@ -5,10 +5,15 @@ import { useState } from "react";
 import { worldToPixel, type MapPosition } from "./map-coordinates.js";
 export { worldToPixel, summonersRiftBounds, type MapPosition } from "./map-coordinates.js";
 
+export type MinimapSide = "blue" | "red" | "neutral";
+/** How a point is drawn: champions as dots, kills as crosses, objectives as squares, wards as diamonds. */
+export type MinimapMarker = "champion" | "kill" | "objective" | "ward";
+
 export interface MinimapPoint extends MapPosition {
   readonly id: string;
   readonly label: string;
-  readonly side: "blue" | "red";
+  readonly side: MinimapSide;
+  readonly marker?: MinimapMarker;
 }
 
 export interface MinimapPath {
@@ -32,7 +37,50 @@ export interface MinimapProps {
 }
 
 const size = 512;
-const sideColor = (side: "blue" | "red") => `var(--color-side-${side})`;
+const sideColor = (side: MinimapSide) =>
+  side === "neutral" ? "var(--color-text-secondary)" : `var(--color-side-${side})`;
+
+function Marker({
+  marker = "champion",
+  x,
+  y,
+  color,
+}: {
+  marker?: MinimapMarker | undefined;
+  x: number;
+  y: number;
+  color: string;
+}) {
+  const r = 6;
+  if (marker === "kill")
+    return (
+      <path
+        d={`M ${x - r} ${y - r} L ${x + r} ${y + r} M ${x + r} ${y - r} L ${x - r} ${y + r}`}
+        stroke={color}
+        className="np-minimap__event np-minimap__event--kill"
+      />
+    );
+  if (marker === "objective")
+    return (
+      <rect
+        x={x - r}
+        y={y - r}
+        width={2 * r}
+        height={2 * r}
+        fill={color}
+        className="np-minimap__event np-minimap__event--objective"
+      />
+    );
+  if (marker === "ward")
+    return (
+      <polygon
+        points={`${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`}
+        fill={color}
+        className="np-minimap__event np-minimap__event--ward"
+      />
+    );
+  return <circle cx={x} cy={y} r={5} fill={color} className="np-minimap__point" />;
+}
 
 function pathData(positions: readonly MapPosition[]) {
   let connected = false;
@@ -124,16 +172,15 @@ export function Minimap({
         </g>
         <g>
           {visiblePoints.map((point) => (
-            <circle
-              key={point.id}
-              cx={point.pixel.x}
-              cy={point.pixel.y}
-              r={5}
-              fill={sideColor(point.side)}
-              className="np-minimap__point"
-            >
+            <g key={point.id}>
               <title>{`${point.label} (${point.x}, ${point.y})`}</title>
-            </circle>
+              <Marker
+                marker={point.marker}
+                x={point.pixel.x}
+                y={point.pixel.y}
+                color={sideColor(point.side)}
+              />
+            </g>
           ))}
         </g>
       </svg>
