@@ -10,11 +10,6 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
   return (
     <section className="np-stack" aria-labelledby="pro-heading">
       <h2 id="pro-heading">Pro play</h2>
-      <p className="np-body-sm">
-        From Oracle&apos;s Elixir games with a complete draft
-        {pro.patch ? ` on patch ${pro.patch}` : ""}. Blind means picked before the opposing champion
-        in the same role; counter means after.
-      </p>
       <form action={`/champions/${champion.id}`} method="get" className="ev-filters">
         {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
           q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,

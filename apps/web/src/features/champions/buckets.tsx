@@ -14,10 +14,6 @@ export function BucketsSection({ buckets }: { buckets: ChampionBuckets | null })
   return (
     <section className="np-stack" aria-labelledby="buckets-heading">
       <h2 id="buckets-heading">When it wins</h2>
-      <p className="np-body-sm">
-        Leads compare this champion with the enemy in the same position. Buckets without enough
-        results show no rate and appear as gaps; each chart has a data table.
-      </p>
       {charts.map(({ kind, title, xLabel }) => (
         <BarChart
           key={kind}

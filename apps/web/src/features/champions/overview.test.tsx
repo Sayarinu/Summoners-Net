@@ -231,7 +231,9 @@ it("shows skill orders and how many games were left out", () => {
   expect(screen.getByRole("table", { name: "Max order" })).toHaveTextContent(
     "No games with a decided max order yet.",
   );
-  expect(screen.getByText(/2 for the first levels, 7 for the max order/)).toBeVisible();
+  expect(
+    screen.getByText(/Games left out: 2 for the first levels, 7 for the max order/),
+  ).toBeVisible();
 });
 it("charts win rate by game length with gaps and a data table", () => {
   const view = render(<ChampionOverviewPage overview={overview} error={null} />);

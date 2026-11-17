@@ -163,10 +163,6 @@ export function DirectoryPage({
         <div>
           <span className="np-overline">Your library</span>
           <h1>{kind === "team" ? "Teams" : "Players"}</h1>
-          <p className="np-body-sm">
-            Recently active {kind === "team" ? "teams" : "players"} appear first. Search includes
-            historical names and appearances.
-          </p>
         </div>
       </header>
       <Filters query={query} search />

@@ -13,7 +13,6 @@ import {
   matchupMetrics,
   matchupRoles,
   matchupMinimumSample,
-  matchupPriorGames,
   blindabilityMinimumCoverage,
   blindabilityMinimumOpponents,
   blindabilityTailShare,
@@ -75,16 +74,6 @@ function Champion({ champion: c, href }: { champion: PatchChampion; href?: strin
       />
       {href ? <TextLink href={href}>{name(c)}</TextLink> : name(c)}
     </span>
-  );
-}
-function Policy() {
-  return (
-    <p className="np-body-sm">
-      Values need at least {matchupMinimumSample} observations for that statistic. Shrunk estimates
-      use {matchupPriorGames} prior observations at the champion’s same-role, same-patch baseline
-      across all opponents. Raw values are available in the Values selector. First blood and first
-      tower describe team outcomes.
-    </p>
   );
 }
 function Filters({
@@ -209,10 +198,7 @@ export function CounterPickSummary({
         <p role="status">Counter-pick value unavailable: {counterPickReasons[v.counterReason]}</p>
       ) : null}
       <p className="np-body-sm">
-        Picking blind meets the whole field: the blind win rate is the pick-weighted expected win
-        rate. Counter-picking plays the champion only into the opponents it is the best sampled
-        response to (the champion with the highest shrunk win rate against them), weighted by their
-        picks. The value is the difference. <TextLink href={listHref}>Compare the role</TextLink>
+        <TextLink href={listHref}>Compare the role</TextLink>
       </p>
     </div>
   );
@@ -376,7 +362,6 @@ export function ChampionMatchupsPage({
         score={m.patch ? blindability : null}
         listHref={counterPicksHref(q.role, q.source, m.patch)}
       />
-      <Policy />
       <p className="np-meta">
         Patch {m.patch ?? "unavailable"} ·{" "}
         {q.value === "raw" ? "Raw observations" : "Shrunk estimates"} · {m.page.total} opponents
@@ -519,7 +504,6 @@ export function MatchupMatrixPage({
         />
         <Button type="submit">Apply filters</Button>
       </form>
-      <Policy />
       <p>
         Patch {m.patch ?? "unavailable"}. Rows are champions; columns are their opponents. Both axes
         are ordered by games. Blank cells are unknown or below the minimum sample. Use the data
@@ -643,14 +627,6 @@ export function CounterPickListPage({
             <input type="hidden" name="pageSize" value={l.query.pageSize} />
             <Button type="submit">Apply filters</Button>
           </form>
-          <p className="np-body-sm">
-            Blind win rate: the pick-weighted expected win rate against every sampled opponent.
-            Counter-pick win rate: the pick-weighted win rate against only the opponents this
-            champion is the best sampled response to. Both use shrunk matchup win rates with at
-            least {matchupMinimumSample} observations, and are unknown when the sampled opponents
-            cover less than {blindabilityMinimumCoverage * 100}% of opponent picks. Unknown values
-            sort last.
-          </p>
           <p className="np-meta">
             Patch {l.patch ?? "unavailable"} · {l.page.total} champions
           </p>

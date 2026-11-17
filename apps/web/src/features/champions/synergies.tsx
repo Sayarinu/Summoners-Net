@@ -43,10 +43,6 @@ export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
   return (
     <section className="np-stack" aria-labelledby="synergies-heading">
       <h2 id="synergies-heading">Synergies</h2>
-      <p className="np-body-sm">
-        Expected win rate adds each champion&apos;s distance from 50% in its role. Delta is the
-        pair&apos;s win rate minus that, pulled toward zero for small samples.
-      </p>
       <form action={`/champions/${champion.id}`} method="get" className="ev-filters">
         {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
           q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
