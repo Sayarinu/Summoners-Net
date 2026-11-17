@@ -1,7 +1,16 @@
-import { it, expect } from "vitest";
+import { afterEach, beforeEach, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MatchPage, GamePage, ProfilePage, SeriesGamePage } from "./pages";
 import { match, game, profile, blue, instant, page, seriesGames } from "../../../tests/fixtures";
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+});
+afterEach(() => vi.unstubAllGlobals());
+
 it("keeps a finished replay collapsed and unloads it on close", async () => {
   const view = render(
     <MatchPage match={match} games={seriesGames()} timezone="UTC" hideSpoilers now={instant} />,
@@ -25,7 +34,9 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
   await waitFor(() => expect(screen.queryByTitle("Match Broadcast")).toBeNull());
   expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
-  expect(screen.getByRole("img", { name: /Series score/ })).toHaveTextContent("2 – 1");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Acceptance Blue 2 vs Acceptance Red 1",
+  );
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
     <MatchPage
@@ -235,9 +246,10 @@ it("moves between a series overview and its played games with spoilers kept", ()
   // An unplayed game is listed but cannot be opened.
   expect(within(tabs).queryByRole("link", { name: "Game 3" })).toBeNull();
   expect(within(tabs).getByText("Game 3")).toHaveAttribute("aria-disabled", "true");
-  expect(screen.getAllByText("Result hidden")).toHaveLength(3);
-  expect(screen.getByText(/^31:05 · /)).toBeVisible();
-  expect(screen.getByText(/^0:00 · /)).toBeVisible();
+  expect(screen.getAllByText("Result hidden")).toHaveLength(2);
+  expect(screen.getByText("31:05")).toBeVisible();
+  expect(screen.getByText("0:00")).toBeVisible();
+  expect(within(tabs).getByText("Mar 1, 2026")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Result hidden")).toBeNull();
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveTextContent("Acceptance Blue");
@@ -327,7 +339,9 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toBeVisible();
   expect(screen.queryByText("31:05")).toBeNull();
   expect(screen.queryByText(/^Patch/)).toBeNull();
-  expect(screen.getByText(/2026 · Playoffs · Grand Final ·/)).toBeVisible();
+  expect(screen.getByText("LCK · Grand Finals · Best of 3")).toBeVisible();
+  expect(screen.queryByText(/Playoffs/)).toBeNull();
+  expect(screen.queryByText("Final", { exact: true })).toBeNull();
   expect(
     within(screen.getByRole("heading", { level: 1 }).closest("header")!).getByRole("link", {
       name: "Watch Game VOD",
@@ -364,7 +378,7 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
     />,
   );
   expect(screen.getByText("Game Details Not Available Yet")).toBeVisible();
-  expect(screen.getByText(/2026 · Playoffs · \d/)).toBeVisible();
+  expect(screen.getByText("2026 · Playoffs · Best of 3")).toBeVisible();
   expect(screen.queryByText(/Grand Final/)).toBeNull();
   expect(screen.queryByRole("link", { name: "Watch Game VOD" })).toBeNull();
   expect(
