@@ -152,6 +152,8 @@ Patch summaries at `/patches/16.22` combine qualified trends, newly observed thr
 pro presence leaders. See the [patch overview sample rules](docs/analytics/patch-overview.md). Solo
 champion pages also list [sampled ladder players](docs/analytics/champion-players.md), with current
 stored ranks, pro identity links and a visible minimum sample.
+[Lane matchup aggregates](docs/analytics/matchups.md) pair opponents by role and retain raw samples
+alongside estimates shrunk toward each champion’s baseline.
 
 The checks and the test database setup are in [AGENTS.md](AGENTS.md#checks).
 

@@ -145,7 +145,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
+    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -5436,5 +5436,325 @@ describe("champion ladder players", () => {
       (await queries.championOverview({ champion: "Ahri", patch: "16.22", region: "missing" }))
         ?.players?.page.total,
     ).toBe(0);
+  });
+});
+
+describe("lane matchup aggregates", () => {
+  const template = JSON.parse(
+    readFileSync(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+  ) as {
+    metadata: { matchId: string };
+    info: {
+      queueId: number;
+      gameVersion: string;
+      participants: { championId: number; teamPosition: string; win?: boolean }[];
+      teams: { teamId: number; objectives: Record<string, { first?: boolean; kills?: number }> }[];
+    };
+  };
+  let sequence = 0;
+  async function catalog() {
+    serveDataDragon(["16.22.1", "16.21.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+  }
+  async function game(
+    opponent: number,
+    won: boolean,
+    gold: number,
+    options: {
+      missing15?: boolean;
+      missingCs?: boolean;
+      unknownResult?: boolean;
+      queue?: number;
+      patch?: string;
+      ambiguous?: boolean;
+      missingOpponent?: boolean;
+      missingObjectives?: boolean;
+    } = {},
+  ) {
+    const raw = structuredClone(template),
+      matchId = `EUW1_${8900000000 + sequence++}`;
+    const patch = options.patch ?? "16.22";
+    raw.metadata.matchId = matchId;
+    raw.info.gameVersion = `${patch}.1`;
+    raw.info.queueId = options.queue ?? 420;
+    for (const p of raw.info.participants) p.teamPosition = "";
+    const blue = raw.info.participants[0]!,
+      red = raw.info.participants[5]!;
+    blue.championId = 103;
+    blue.teamPosition = "MIDDLE";
+    blue.win = won;
+    red.championId = opponent;
+    red.teamPosition = options.missingOpponent ? "" : "MIDDLE";
+    red.win = !won;
+    if (options.unknownResult) delete blue.win;
+    if (options.ambiguous) raw.info.participants[1]!.teamPosition = "MIDDLE";
+    for (const team of raw.info.teams) {
+      team.objectives.champion = { first: team.teamId === 100 ? won : !won, kills: 5 };
+      team.objectives.tower = { first: team.teamId === 100 ? !won : won, kills: 5 };
+      if (options.missingObjectives) {
+        delete team.objectives.champion;
+        delete team.objectives.tower;
+      }
+    }
+    await saveMatchIds(
+      pool,
+      { puuid: "a".repeat(78), platform: "euw1", region: "europe", patchKey: patch },
+      [matchId],
+      1000,
+      now,
+    );
+    await saveRiotMatch(pool, parseRiotMatch(raw, matchId), raw, now);
+    const frames = [10, 15].flatMap((minute) =>
+      [1, 6]
+        .filter((id) => !(options.missing15 && minute === 15 && id === 6))
+        .map((participantId) => ({
+          participantId,
+          minute,
+          timestampMs: minute * 60000,
+          x: null,
+          y: null,
+          currentGold: null,
+          totalGold: 4000 + (participantId === 1 ? gold : 0),
+          xp: 3000 + (participantId === 1 ? gold * 2 : 0),
+          level: 10,
+          minionsKilled: participantId === 1 ? 100 : 90,
+          jungleMinionsKilled: options.missingCs && participantId === 1 ? null : 10,
+        })),
+    );
+    await saveTimeline(pool, { matchId, frames, events: [] }, now);
+    return matchId;
+  }
+  const aggregate = async () => expect((await run({ kind: "aggregate" })).state).toBe("done");
+  it("matches hand-counted rates and checkpoint differences, then shrinks against all opponents", async () => {
+    await catalog();
+    for (let n = 0; n < 10; n++)
+      await game(20, n < 8, 100, { missing15: n === 0, missingCs: n === 0 });
+    for (let n = 0; n < 10; n++) await game(62, n < 2, -50);
+    const unknown = await game(999, true, 9000, { unknownResult: true, missingObjectives: true });
+    await saveTimeline(pool, { matchId: unknown, frames: [], events: [] }, now);
+    await game(999, true, 9000, { queue: 450 });
+    await game(999, true, 9000, { patch: "16.21" });
+    await aggregate();
+    const calls = fetcher.mock.calls.length;
+    const data = await queries.championMatchups({
+      champion: "Ahri",
+      patch: "16.22",
+      sort: "winRate",
+      pageSize: 1,
+    });
+    expect(data?.page).toMatchObject({ total: 3, pageSize: 1 });
+    const row = data!.page.items[0]!;
+    expect(row.opponent).toMatchObject({
+      championKey: 20,
+      championId: "Nunu",
+      name: "Nunu & Willump",
+    });
+    expect(row.games).toBe(10);
+    expect(row.metrics.winRate).toEqual({
+      raw: 0.8,
+      shrunk: 0.55,
+      sampleCount: 10,
+      baseline: 0.5,
+      baselineSampleCount: 20,
+    });
+    expect(row.metrics.gold10).toEqual({
+      raw: 100,
+      shrunk: 37.5,
+      sampleCount: 10,
+      baseline: 25,
+      baselineSampleCount: 20,
+    });
+    expect(row.metrics.xp10).toMatchObject({ raw: 200, shrunk: 75, sampleCount: 10 });
+    expect(row.metrics.cs10).toMatchObject({
+      raw: null,
+      shrunk: null,
+      sampleCount: 9,
+      baseline: 10,
+      baselineSampleCount: 19,
+    });
+    expect(row.metrics.gold15).toMatchObject({ raw: null, shrunk: null, sampleCount: 9 });
+    expect(row.metrics.firstBlood).toMatchObject({ raw: 0.8, shrunk: 0.55, sampleCount: 10 });
+    expect(row.metrics.firstTower).toMatchObject({ raw: 0.2, shrunk: 0.45, sampleCount: 10 });
+    const second = await queries.championMatchups({
+      champion: "Ahri",
+      patch: "16.22",
+      sort: "winRate",
+      pageSize: 1,
+      page: 2,
+    });
+    expect(second?.page.items[0]?.opponent.championKey).toBe(62);
+    expect(second?.page.items[0]?.metrics.gold10.shrunk).toBe(12.5);
+    expect(
+      (
+        await queries.championMatchups({
+          champion: "Ahri",
+          patch: "16.22",
+          sort: "winRate",
+          value: "raw",
+          order: "asc",
+        })
+      )?.page.items[0]?.opponent.championKey,
+    ).toBe(62);
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22", page: 10000 }))?.page,
+    ).toMatchObject({ total: 3, items: [] });
+    const last = await queries.championMatchups({
+      champion: "Ahri",
+      patch: "16.22",
+      sort: "winRate",
+      pageSize: 1,
+      page: 3,
+    });
+    expect(last?.page.items[0]).toMatchObject({
+      opponent: { championKey: 999, championId: null, name: null, imageUrl: null },
+      metrics: { winRate: { raw: null, shrunk: null, sampleCount: 0 } },
+    });
+    expect(fetcher.mock.calls.length).toBe(calls);
+    expect(await queries.championMatchups({ champion: "Unknown" })).toBeNull();
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.99" }))?.patch,
+    ).toBeNull();
+    expect((await queries.championMatchups({ champion: "Ahri", role: "TOP" }))?.page.items).toEqual(
+      [],
+    );
+    expect((await queries.championMatchups({ champion: "Ahri", source: "pro" }))?.patch).toBeNull();
+  });
+  it("counts unpairable games once per role and preserves missing metrics through rebuilds", async () => {
+    await catalog();
+    const valid = await game(20, true, 100, { unknownResult: true, missingObjectives: true });
+    await game(20, true, 100, { ambiguous: true });
+    await game(20, true, 100, { missingOpponent: true });
+    await aggregate();
+    let data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    expect(data?.page.items[0]).toMatchObject({
+      games: 1,
+      metrics: {
+        winRate: { raw: null, shrunk: null, sampleCount: 0 },
+        firstBlood: { raw: null, sampleCount: 0 },
+        gold10: { raw: null, sampleCount: 1 },
+      },
+    });
+    expect(data?.exclusions.find((r) => r.role === "MIDDLE")).toEqual({
+      role: "MIDDLE",
+      games: 2,
+      participants: 4,
+      unknownRole: 0,
+      ambiguousRole: 3,
+      missingOpponent: 1,
+      unmappedChampion: 0,
+    });
+    expect(data?.exclusions.find((r) => r.role === "UNKNOWN")).toMatchObject({
+      games: 3,
+      participants: 24,
+      unknownRole: 24,
+    });
+    // A replacement timeline changes its sample, without duplicating the game or other source rows.
+    await saveTimeline(pool, { matchId: valid, frames: [], events: [] }, now);
+    await aggregate();
+    data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    expect(data?.page.items[0]?.games).toBe(1);
+    expect(data?.page.items[0]?.metrics.gold10).toMatchObject({ raw: null, sampleCount: 0 });
+    expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
+    expect((await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page).toEqual(
+      data?.page,
+    );
+    await pool.query("UPDATE riot_matches SET remake=true WHERE match_id=$1", [valid]);
+    expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page.items,
+    ).toEqual([]);
+    const excluded = await queries.championMatchups({ champion: "Ahri" });
+    expect(excluded).toMatchObject({ patch: "16.22", patches: ["16.22"], page: { items: [] } });
+    expect(excluded?.exclusions.find((r) => r.role === "MIDDLE")?.games).toBe(2);
+  });
+  it("uses Oracle opponent roles and reported checkpoints, with separate pro samples and unmapped counts", async () => {
+    await catalog();
+    const rows: string[] = [];
+    let header = "";
+    for (let n = 0; n < 10; n++) {
+      const lines = historyCsv({ id: `matchup-pro-${n}` })
+        .trim()
+        .split("\n");
+      const fields = lines[0]!.split(",");
+      header =
+        lines[0] +
+        ",golddiffat10,xpdiffat10,csdiffat10,golddiffat15,xpdiffat15,csdiffat15,firstblood,firsttower";
+      for (const line of lines.slice(1)) {
+        const values = line.split(","),
+          get = (key: string) => values[fields.indexOf(key)]!;
+        values[fields.indexOf("patch")] = "16.22";
+        values[fields.indexOf("champion")] =
+          get("position") === "mid"
+            ? get("side") === "Blue"
+              ? "Ahri"
+              : "Nunu & Willump"
+            : "Unmapped fixture";
+        const blue = get("side") === "Blue";
+        values[fields.indexOf("result")] = blue ? (n < 7 ? "1" : "0") : n < 7 ? "0" : "1";
+        const checkpoints =
+          get("position") === "mid"
+            ? [
+                blue ? 100 : -100,
+                blue ? 200 : -200,
+                blue ? 10 : -10,
+                n === 0 ? "" : blue ? 300 : -300,
+                blue ? 400 : -400,
+                blue ? 20 : -20,
+              ]
+            : ["", "", "", "", "", ""];
+        rows.push(
+          [
+            ...values,
+            ...checkpoints,
+            get("position") === "team" ? (blue ? "1" : "0") : "",
+            get("position") === "team" ? (blue ? "0" : "1") : "",
+          ].join(","),
+        );
+      }
+    }
+    await importCsv(header + "\n" + rows.join("\n") + "\n");
+    const data = await queries.championMatchups({
+      champion: "Ahri",
+      source: "pro",
+      patch: "16.22",
+    });
+    expect(data?.page.items).toHaveLength(1);
+    expect(data?.page.items[0]).toMatchObject({
+      games: 10,
+      opponent: { championKey: 20 },
+      metrics: {
+        winRate: { raw: 0.7, shrunk: 0.7, sampleCount: 10 },
+        gold10: { raw: 100, shrunk: 100, sampleCount: 10 },
+        xp15: { raw: 400, sampleCount: 10 },
+        cs15: { raw: 20, sampleCount: 10 },
+        gold15: { raw: null, sampleCount: 9 },
+        firstBlood: { raw: 1, sampleCount: 10 },
+        firstTower: { raw: 0, sampleCount: 10 },
+      },
+    });
+    const missing = await queries.championMatchups({
+      champion: "Ahri",
+      source: "pro",
+      role: "TOP",
+    });
+    expect(missing?.exclusions).toEqual([
+      {
+        role: "TOP",
+        games: 10,
+        participants: 20,
+        unknownRole: 0,
+        ambiguousRole: 0,
+        missingOpponent: 0,
+        unmappedChampion: 20,
+      },
+    ]);
+    for (const role of ["JUNGLE", "BOTTOM", "UTILITY"] as const) {
+      const skipped = await queries.championMatchups({ champion: "Ahri", source: "pro", role });
+      expect(skipped?.exclusions).toHaveLength(1);
+      expect(skipped?.exclusions[0]).toMatchObject({ role, games: 10, unmappedChampion: 20 });
+    }
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", source: "solo" }))?.page.items,
+    ).toEqual([]);
   });
 });

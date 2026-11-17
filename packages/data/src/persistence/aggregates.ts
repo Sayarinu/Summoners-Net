@@ -1,3 +1,4 @@
+import { rebuildMatchups } from "./matchup-writer.js";
 import { championPlayers } from "./champion-players.js";
 import type { Pool } from "pg";
 import {
@@ -176,7 +177,7 @@ export async function rebuildPatch(
       source,
       patchKey,
     ]);
-    return (inserted.rowCount ?? 0) + builds;
+    return (inserted.rowCount ?? 0) + builds + (await rebuildMatchups(c, source, patchKey, now));
   });
 }
 

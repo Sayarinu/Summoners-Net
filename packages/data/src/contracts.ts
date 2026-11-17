@@ -131,3 +131,17 @@ export {
   type ChampionPlayer,
   type ChampionPlayers,
 } from "./domain/champion-players.js";
+
+export {
+  championMatchupsQuerySchema,
+  matchupRoles,
+  matchupMetrics,
+  matchupMinimumSample,
+  matchupPriorGames,
+  type ChampionMatchupsQuery,
+  type ChampionMatchups,
+  type MatchupRow,
+  type MatchupMetric,
+  type MatchupEstimate,
+  type MatchupExclusions,
+} from "./domain/matchups.js";
