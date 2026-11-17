@@ -96,17 +96,19 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await page.goto("/?date=2026-02-28&league=LCK");
   await expect(page.getByText(/29 records/)).toBeVisible();
   await expect(page.getByText("Result Hidden")).toHaveCount(0);
+  await page.route("https://www.youtube-nocookie.com/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
+  );
   await page
     .getByRole("link", { name: /Acceptance Blue versus Acceptance Red/ })
     .first()
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Acceptance Blue vs Acceptance Red",
+    "Acceptance Blue 2 vs Acceptance Red 1",
   );
-  await expect(page.locator("iframe")).toHaveCount(0);
-  await expect(page.locator("summary").filter({ hasText: /^Watch Replay$/ })).toBeVisible();
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
+  await expect(tabs.locator("time")).toHaveText("Feb 28, 2026");
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -289,10 +291,21 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
 test("a finished match loads its paused replay and keeps an external fallback", async ({
   page,
 }) => {
+  const seriesUrl = "/matches/pandascore%3Amatch%3A1";
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
-  await page.goto("/matches/pandascore%3Amatch%3A1");
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto(seriesUrl);
+  await expect(page.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
+  const frame = page.getByTitle("Match Broadcast");
+  await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
+  const cardBounds = await page.getByRole("link", { name: "Open Game 1" }).boundingBox();
+  const replayBounds = await frame.boundingBox();
+  expect(replayBounds!.x).toBeGreaterThan(cardBounds!.x + cardBounds!.width);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(seriesUrl);
   const replay = page.locator("summary").filter({ hasText: /^Watch Replay$/ });
   await expect(page.locator("iframe")).toHaveCount(0);
   await replay.click();

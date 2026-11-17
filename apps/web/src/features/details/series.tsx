@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Avatar,
   Breadcrumb,
@@ -10,6 +10,7 @@ import {
   TextLink,
 } from "@summonersnet/ui";
 import type {
+  Broadcast,
   Game,
   HistoricalGameDetail,
   Match,
@@ -18,7 +19,7 @@ import type {
 } from "@summonersnet/data";
 import { gameReplayUrl, recordingUrl } from "@summonersnet/data/contracts";
 import { type ChampionPortraits } from "../browse/visuals";
-import { dateTime, matchDisplay, gameTeams, seriesRound } from "../browse/presentation";
+import { matchDisplay, gameTeams, seriesRound } from "../browse/presentation";
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
@@ -55,6 +56,7 @@ function SeriesShell({
   children,
   game,
   vodUrl,
+  gameStartsAt,
 }: {
   match: Match;
   games: SeriesGame[];
@@ -66,11 +68,16 @@ function SeriesShell({
   children: ReactNode;
   game?: Game | null;
   vodUrl?: string | null;
+  gameStartsAt?: string | null;
 }) {
   const display = matchDisplay(match, timezone, now);
   const overview = current === "overview";
   const [first, second] = display.teams;
-  const hasScores = first.score !== undefined || second.score !== undefined;
+  const showScore =
+    overview &&
+    match.teams.length > 0 &&
+    (!hidden || match.state !== "final") &&
+    (first.score !== undefined || second.score !== undefined);
   const margin =
     match.state === "final" && first.score !== undefined && second.score !== undefined
       ? first.score - second.score
@@ -82,10 +89,10 @@ function SeriesShell({
         ? ["ev-outcome--loss", "ev-outcome--win"]
         : [];
   const round = seriesRound(match);
-  const eventHasRound = match.event
-    .split(" · ")
-    .some((label) => label.trim().toLowerCase().replaceAll("-", "") === round?.toLowerCase());
-  const event = round && !eventHasRound ? `${match.event} · ${round}` : match.event;
+  const event = round
+    ? `${match.league} · ${round === "Grand Final" ? "Grand Finals" : round}`
+    : match.event || match.league;
+  const startsAt = gameStartsAt ?? match.startsAt;
   const title =
     match.teams.length > 0 ? display.teams.map((team) => team.name).join(" vs ") : match.name;
   const sides = game
@@ -96,7 +103,7 @@ function SeriesShell({
       ? { label: "Past Matches", href: "/history" }
       : { label: "Matches", href: "/" };
   return (
-    <div className="np-stack ev-series-page">
+    <div className="np-stack ev-series-page ev-series-page--wide">
       <Breadcrumb
         items={
           overview
@@ -106,45 +113,54 @@ function SeriesShell({
       />
       <header className="ev-title">
         <div>
-          <span className="np-overline">
-            {match.league} · Best of {match.bestOf}
-          </span>
+          <div className="np-cluster ev-series-title__facts">
+            <span className="np-overline">
+              {event} · Best of {match.bestOf}
+            </span>
+            {overview && match.state !== "final" ? (
+              <MatchLifecycleLabel lifecycle={match.state} />
+            ) : null}
+          </div>
           <h1>
             {match.teams.length > 0
               ? display.teams.map((team, index) => {
                   const identity = match.teams[index];
                   const side = identity && sides?.get(identity.entityId ?? identity.id);
                   return (
-                    <span className="ev-series-title__team" key={index}>
+                    <span key={index}>
                       {index ? " vs " : null}
-                      {overview && team.logo ? (
-                        <Avatar
-                          alt=""
-                          aria-hidden="true"
-                          entityKind="team"
-                          fallback={team.shortName}
-                          size="small"
-                          src={team.logo}
-                        />
-                      ) : null}
-                      <span
-                        className="ev-side-name"
-                        data-side={side}
-                        title={side ? `${side} side` : undefined}
-                      >
-                        {team.name}
+                      <span className="ev-series-title__team">
+                        {overview && team.logo ? (
+                          <Avatar
+                            alt=""
+                            aria-hidden="true"
+                            entityKind="team"
+                            fallback={team.shortName}
+                            size="small"
+                            src={team.logo}
+                          />
+                        ) : null}
+                        <span
+                          className="ev-side-name"
+                          data-side={side}
+                          title={side ? `${side} side` : undefined}
+                        >
+                          {team.name}
+                        </span>
+                        {showScore ? (
+                          <span
+                            className={`ev-series-title__score ${(index ? secondColor : firstColor) ?? ""}`}
+                          >
+                            {" "}
+                            {team.score ?? "—"}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                   );
                 })
               : title}
           </h1>
-          <div className="np-cluster ev-series-title__facts">
-            <p className="np-body-sm">
-              {event} · {display.scheduledLabel}
-            </p>
-            {overview ? <MatchLifecycleLabel lifecycle={match.state} /> : null}
-          </div>
         </div>
         {overview && hidden && match.state === "final" ? (
           <Button
@@ -154,16 +170,6 @@ function SeriesShell({
           >
             Reveal Score
           </Button>
-        ) : overview && hasScores ? (
-          <div
-            className="ev-series-score"
-            role="img"
-            aria-label={`Series score, ${first.name} ${first.score ?? "unknown"}, ${second.name} ${second.score ?? "unknown"}`}
-          >
-            <span className={firstColor}>{first.score ?? "—"}</span>
-            <span className="ev-series-score__separator"> – </span>
-            <span className={secondColor}>{second.score ?? "—"}</span>
-          </div>
         ) : vodUrl ? (
           <TextLink href={vodUrl} target="_blank" rel="noreferrer">
             Watch Game VOD
@@ -194,17 +200,53 @@ function SeriesShell({
             </span>
           ),
         )}
+        {startsAt ? (
+          <time className="np-meta ev-series-date" dateTime={startsAt}>
+            {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: timezone }).format(
+              new Date(startsAt),
+            )}
+          </time>
+        ) : null}
       </nav>
       {children}
     </div>
   );
 }
 
+// Keep this breakpoint in sync with the series overview grid.
+const replayLayout = "(min-width: 76rem)";
+function subscribeToReplayLayout(onChange: () => void) {
+  const query = window.matchMedia(replayLayout);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function SeriesReplay({ broadcasts }: { broadcasts: Broadcast[] }) {
+  const wide = useSyncExternalStore(
+    subscribeToReplayLayout,
+    () => window.matchMedia(replayLayout).matches,
+    () => false,
+  );
+  const player = (
+    <WatchPlayer
+      broadcasts={broadcasts}
+      mode="replay"
+      showHeading={wide}
+      showBroadcastSelect={broadcasts.length > 1}
+    />
+  );
+  return (
+    <aside className="ev-series-replay">
+      {wide ? player : <Disclosure title="Watch Replay">{player}</Disclosure>}
+    </aside>
+  );
+}
+
 function Winner({ match, game, hidden }: { match: Match; game: SeriesGame; hidden: boolean }) {
+  if (!played(game)) return <span className="np-meta">Not played</span>;
   if (hidden) return <span className="np-meta">Result hidden</span>;
   const team = match.teams.find((t) => t.id === game.winnerId);
-  if (!team)
-    return <span className="np-meta">{played(game) ? "Winner unknown" : "Not played"}</span>;
+  if (!team) return <span className="np-meta">Winner unknown</span>;
   return (
     <TeamIdentity
       name={team.name}
@@ -254,15 +296,12 @@ export function MatchPage({
             <ol className="ev-series-games">
               {games.map((game) => {
                 const vodUrl = gameReplayUrl(match, game);
+                const duration = played(game) ? length(observedSeconds(game)) : null;
                 const body = (
                   <>
                     <span className="ev-series-game__number">Game {game.number}</span>
                     <Winner match={match} game={game} hidden={hidden} />
-                    <span className="np-meta">
-                      {played(game)
-                        ? `${length(observedSeconds(game)) ?? "—"} · ${dateTime(game.startsAt, timezone)}`
-                        : "Not played"}
-                    </span>
+                    {duration !== null ? <span className="np-meta">{duration}</span> : null}
                   </>
                 );
                 return (
@@ -297,14 +336,7 @@ export function MatchPage({
           <EmptyState title="No Games Reported Yet" />
         )}
         {match.state === "final" && broadcasts.length ? (
-          <Disclosure title="Watch Replay">
-            <WatchPlayer
-              broadcasts={broadcasts}
-              mode="replay"
-              showHeading={false}
-              showBroadcastSelect={broadcasts.length > 1}
-            />
-          </Disclosure>
+          <SeriesReplay broadcasts={broadcasts} />
         ) : null}
       </div>
     </SeriesShell>
@@ -349,6 +381,7 @@ export function SeriesGamePage({
       current={number}
       game={game}
       vodUrl={vodUrl}
+      gameStartsAt={current.startsAt ?? game?.occurredAt ?? null}
       timezone={timezone}
       now={now}
       hidden={hidden}
