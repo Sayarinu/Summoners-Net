@@ -51,8 +51,10 @@ describe("rankDraftCandidates", () => {
       (typeof ranked)[0],
       (typeof ranked)[0],
     ];
-    expect(first.matchup).toEqual({ value: expect.closeTo(0.05, 12), sampleCount: 50 });
-    expect(first.synergy).toEqual({ value: expect.closeTo(synergyA, 12), sampleCount: 100 });
+    expect(first.matchup?.sampleCount).toBe(50);
+    expect(first.matchup?.value).toBeCloseTo(0.05, 12);
+    expect(first.synergy?.sampleCount).toBe(100);
+    expect(first.synergy?.value).toBeCloseTo(synergyA, 12);
     expect(first.blindability).toBeNull();
     expect(first.score).toBeCloseTo((0.05 + synergyA) / 2, 12);
     expect(first.parts).toBe(2);
@@ -71,10 +73,8 @@ describe("rankDraftCandidates", () => {
     const unknownLane = [a, b, c].map((x) => ({ ...x, laneMatchup: null }));
     const ranked = rankDraftCandidates(unknownLane, false);
     expect(ranked.map((r) => r.champion.championKey)).toEqual([2, 1, 3]);
-    expect(ranked[0]).toMatchObject({
-      blindability: { value: expect.closeTo(0.1, 12), sampleCount: 700 },
-      parts: 1,
-    });
+    expect(ranked[0]).toMatchObject({ blindability: { sampleCount: 700 }, parts: 1 });
+    expect(ranked[0]!.blindability?.value).toBeCloseTo(0.1, 12);
     expect(ranked[1]!.score).toBeCloseTo((-0.02 + synergyA) / 2, 12);
     expect(ranked[2]).toMatchObject({ blindability: { value: null, sampleCount: 20 }, parts: 1 });
   });

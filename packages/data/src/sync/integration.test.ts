@@ -6214,7 +6214,8 @@ describe("lane matchup aggregates", () => {
     expect(blind).toMatchObject({ laneOpponent: null, synergyAllies: [{ championKey: 20 }] });
     const ahriBlind = blind.candidates.find((c) => c.champion.championKey === 103)!;
     const synergy = ((24 / 40 - expected) * 40) / 90;
-    expect(ahriBlind.synergy).toEqual({ value: expect.closeTo(synergy, 12), sampleCount: 40 });
+    expect(ahriBlind.synergy?.sampleCount).toBe(40);
+    expect(ahriBlind.synergy?.value).toBeCloseTo(synergy, 12);
     expect(ahriBlind.blindability!.sampleCount).toBe(30);
     expect(ahriBlind.score).toBeCloseTo((ahriBlind.blindability!.value! + synergy) / 2, 12);
     expect(blind.candidates.some((c) => c.champion.championKey === 20)).toBe(false);

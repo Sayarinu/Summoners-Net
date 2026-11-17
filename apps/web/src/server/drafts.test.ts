@@ -52,7 +52,8 @@ it("validates the draft assistant URL before reading stored aggregates", async (
   ])
     expect(await loadDraftAssistant(params)).toMatchObject({
       assistant: null,
-      error: expect.stringContaining("Enter picks"),
+      error:
+        "Enter picks as champion IDs with an optional role (Ahri:MIDDLE), at most five per side and ten bans, each champion once, and a role to fill that your side has not picked.",
     });
   expect(draftAssistant).not.toHaveBeenCalled();
   expect(

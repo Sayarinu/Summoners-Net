@@ -1,9 +1,5 @@
 import "server-only";
-import {
-  draftAssistantQuerySchema,
-  draftQuerySchema,
-  type DraftAssistantQuery,
-} from "@summonersnet/data/contracts";
+import { draftAssistantQuerySchema, draftQuerySchema } from "@summonersnet/data/contracts";
 import { data } from "./data";
 
 export async function loadDrafts(params: Record<string, string | string[] | undefined>) {
@@ -33,6 +29,6 @@ export async function loadDraftAssistant(params: Record<string, string | string[
   const parsed = draftAssistantQuerySchema.safeParse(raw);
   if (!parsed.success || Object.values(params).some(Array.isArray))
     return { assistant: null, input, error: assistantError };
-  // The query takes the URL form, which the schema has just accepted, and parses it again.
-  return { assistant: await data().draftAssistant(raw as DraftAssistantQuery), input, error: null };
+  // The query takes the URL form, which the schema has just accepted, and validates it again.
+  return { assistant: await data().draftAssistant(raw), input, error: null };
 }
