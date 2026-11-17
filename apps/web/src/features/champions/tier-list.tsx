@@ -9,6 +9,7 @@ import {
   TextLink,
 } from "@summonersnet/ui";
 import type { TierList } from "@summonersnet/data/contracts";
+import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionFilters } from "./filters";
 import { interval, percent, sampleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
@@ -120,6 +121,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
           </div>
         </section>
       )}
+      <SavedViewsPanel path="/tier-list" defaultName="Tier list" />
     </div>
   );
 }

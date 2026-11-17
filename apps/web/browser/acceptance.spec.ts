@@ -480,6 +480,51 @@ test("the game map switches to a linked replay track inside its interval and lis
     (await page.request.get("/api/solo-games/EUW1_7000000001/track?fromMs=0&toMs=200000")).status(),
   ).toBe(400);
 });
+test("comparisons show two champions or patches with samples, and views save only in the browser", async ({
+  page,
+}) => {
+  await page.goto("/compare/champions");
+  await page.getByLabel("First champion id").fill("Ahri");
+  await page.getByLabel("Second champion id").fill("MonkeyKing");
+  await page.getByRole("button", { name: "Compare" }).click();
+  await expect(page).toHaveURL(/\/compare\/champions\?a=Ahri&b=MonkeyKing/);
+  const champions = page.getByRole("table", { name: "Ahri and Wukong, All roles" });
+  await expect(champions.getByRole("columnheader", { name: "Sample" })).toHaveCount(2);
+  // Wukong has no stored games: unknown values with a zero sample, never zero rates.
+  await expect(champions.getByRole("row", { name: /^Win rate / }).first()).toContainText(
+    "Unknown0",
+  );
+  const saved = page
+    .waitForRequest((r) => r.method() !== "GET", { timeout: 1000 })
+    .catch(() => null);
+  await page.getByLabel("View name").fill("Ahri vs Wukong");
+  await page.getByRole("button", { name: "Save this view" }).click();
+  await expect(page.getByText('Saved "Ahri vs Wukong" in this browser.')).toBeVisible();
+  // Saving writes nothing to the server.
+  expect(await saved).toBeNull();
+  // An invalid stored entry is dropped when read; the page still works.
+  await page.evaluate(() => {
+    const views = JSON.parse(localStorage.getItem("summonersnet-saved-views") ?? "[]") as unknown[];
+    localStorage.setItem(
+      "summonersnet-saved-views",
+      JSON.stringify([...views, { id: "bad", name: "Elsewhere", path: "https://example.com" }]),
+    );
+  });
+  await page.goto("/saved-views");
+  const list = page.getByRole("list", { name: "Saved views" });
+  await expect(list.getByRole("link", { name: "Ahri vs Wukong" })).toHaveAttribute(
+    "href",
+    /\/compare\/champions\?a=Ahri&b=MonkeyKing/,
+  );
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await page.goto("/compare/patches?a=16.4&b=16.3");
+  await expect(
+    page.getByRole("table", { name: "Patch 16.4 and patch 16.3, All roles" }),
+  ).toContainText("Ahri");
+  await expect(page.getByText("Patch 16.3 has no stored statistics")).toBeVisible();
+  await page.goto("/compare/champions?a=Ahri&b=..%2Fx");
+  await expect(page.getByText(/^Choose two champion ids/)).toBeVisible();
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {

@@ -8,6 +8,7 @@ import type {
 } from "@summonersnet/data/contracts";
 import { CounterPickSummary } from "../matchups/pages";
 import { JunglePathsSection } from "./jungle-paths";
+import { SavedViewsPanel } from "../saved-views/panel";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
@@ -141,6 +142,7 @@ export function ChampionOverviewPage({
           <PlayersSection overview={overview} />
         </section>
       )}
+      <SavedViewsPanel path={`/champions/${champion.id}`} defaultName={champion.name} />
     </div>
   );
 }
