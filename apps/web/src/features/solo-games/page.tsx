@@ -27,6 +27,10 @@ export function SoloGamePage({ game }: { game: SoloGame }) {
             {game.durationSeconds !== null
               ? ` · ${Math.floor(game.durationSeconds / 60)} min ${game.durationSeconds % 60} s`
               : ""}
+            {" · "}
+            <TextLink href={`/solo-games/${encodeURIComponent(game.matchId)}/map`}>
+              Game map
+            </TextLink>
           </p>
         </div>
       </header>

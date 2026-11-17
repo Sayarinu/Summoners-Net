@@ -363,6 +363,35 @@ test("a solo game charts win probability with the model's calibration and event 
   const missing = await page.goto("/solo-games/EUW1_1");
   expect(missing?.status()).toBe(404);
 });
+test("a solo game's map replays timeline positions with keyboard controls and toggles", async ({
+  page,
+}) => {
+  await page.goto("/solo-games/EUW1_7000000001");
+  await page.getByRole("link", { name: "Game map" }).click();
+  await expect(page).toHaveURL(/\/solo-games\/EUW1_7000000001\/map$/);
+  await expect(page.getByRole("heading", { name: "Game map", level: 1 })).toBeVisible();
+  await expect(page.getByText(/one position per champion per minute/)).toBeVisible();
+  const positions = () => page.getByRole("table", { name: /^Positions at / });
+  await expect(positions().getByRole("row")).toHaveCount(11);
+  await expect(page.locator(".np-minimap__point")).toHaveCount(10);
+  // The seeded timeline has frames at minutes 0-2; the scrubber is keyboard operable.
+  const scrubber = page.getByLabel(/^Game time/);
+  await scrubber.focus();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("table", { name: "Positions at 2:00" })).toBeVisible();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("table", { name: "Positions at 0:01" })).toContainText(
+    "estimated between frames",
+  );
+  await page.getByRole("switch", { name: "Red team" }).press("Space");
+  await expect(positions().getByRole("row")).toHaveCount(6);
+  await expect(page.locator(".np-minimap__point")).toHaveCount(5);
+  await page.getByRole("button", { name: "Play", exact: true }).press("Enter");
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  const missing = await page.goto("/solo-games/EUW1_1/map");
+  expect(missing?.status()).toBe(404);
+});
 test("win probability added leaderboards rank champions and roles from the active model", async ({
   page,
 }) => {

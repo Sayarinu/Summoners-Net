@@ -64,8 +64,13 @@ export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
 export type { ProChampionStats } from "./domain/pro-stats.js";
-export type { SoloGame, SoloGameMarker } from "./domain/solo-games.js";
-export { soloMatchIdSchema } from "./domain/solo-games.js";
+export type {
+  SoloGame,
+  SoloGameMarker,
+  SoloGamePositions,
+  TimelinePositionFrame,
+} from "./domain/solo-games.js";
+export { soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
 export { featureLabels, modelDiagnosticsQuerySchema } from "./domain/model-diagnostics.js";
 export type { ModelDiagnostics, ModelSummary } from "./domain/model-diagnostics.js";
 export type { ProGameWinProbability } from "./persistence/pro-wp.js";
