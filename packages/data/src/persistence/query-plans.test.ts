@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { database, migrate, type Executor } from "./database.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
-import { championBlindability } from "./blindability.js";
+import { championBlindability, counterPickList } from "./blindability.js";
 
 // Query plan budgets for the aggregate reads. The tables are seeded at a realistic size for a
 // library with two years of pro data and four retained patches of solo queue, then every statement the reads run is
@@ -74,8 +74,10 @@ beforeAll(async () => {
     FROM wp_models m, (SELECT * FROM patches WHERE minor>20) p, generate_series(1,3000) s`);
   await seed(`INSERT INTO blindability_scores(source,patch_key,champion_key,role,games,sampled_opponents,
       covered_opponents,covered_picks,role_picks,expected,worst_case,worst_opponent_key,variance,lower_tail,
-      reason,built_at)
-    SELECT source,p.patch_key,c,role,200,40,30,9000,10000,0.51,0.42,1+c%170,0.002,0.46,NULL,$1
+      reason,counter_win_rate,counter_opponents,counter_picks,counter_reason,built_at)
+    SELECT source,p.patch_key,c,role,200,40,30,9000,10000,0.51,0.42,1+c%170,0.002,0.46,NULL,
+      CASE WHEN c%3=0 THEN NULL ELSE 0.5+(c%11)::float/100 END,c%3,(c%3)*40,
+      CASE WHEN c%3=0 THEN 'never-best-response' END,$1
     FROM (SELECT * FROM patches WHERE minor>20) p, generate_series(1,170) c,
       unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) role, unnest(ARRAY['solo','pro']) source`);
   await pool.query(`ANALYZE ${largeTables.join(",")},catalog_champions,patches,wp_models`);
@@ -145,6 +147,11 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
   ],
   ["WPA leaderboard", (db) => wpaLeaderboard(db, { kind: "player", sort: "total", page: 4 })],
   ["WPA leaderboard, champions", (db) => wpaLeaderboard(db, { patch: "16.23" })],
+  ["counter-pick list", (db) => counterPickList(db, { role: "MIDDLE", page: 3 })],
+  [
+    "counter-pick list, pro by score",
+    (db) => counterPickList(db, { role: "TOP", source: "pro", patch: "16.23", sort: "score" }),
+  ],
   [
     "champion blindability",
     (db) =>

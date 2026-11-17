@@ -272,3 +272,38 @@ it("shows pro presence, sides and draft order with samples, and reports unmapped
   );
   expect(screen.getByText("No pro drafts imported yet.")).toBeVisible();
 });
+it("shows the stored counter-pick value for a lane role", () => {
+  const view = render(
+    <ChampionOverviewPage
+      overview={overview}
+      draftValue={{
+        games: 32,
+        sampledOpponents: 4,
+        coveredOpponents: 3,
+        coveredPicks: 30,
+        rolePicks: 32,
+        coverage: 30 / 32,
+        expected: 0.5,
+        worstCase: 0.4,
+        worstOpponent: null,
+        variance: 0.01,
+        lowerTail: 0.42,
+        score: 0.42,
+        reason: null,
+        counterWinRate: 0.56,
+        counterOpponents: 2,
+        counterPicks: 12,
+        counterReason: null,
+        counterDifference: 0.06,
+        builtAt: "2026-11-16T12:00:00.000Z",
+      }}
+      error={null}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "Counter-pick value" })).toBeVisible();
+  expect(screen.getByLabelText("Counter-pick statistics")).toHaveTextContent(
+    "Counter-pick value+6.0 pts",
+  );
+  view.rerender(<ChampionOverviewPage overview={overview} draftValue={null} error={null} />);
+  expect(screen.queryByRole("heading", { name: "Counter-pick value" })).toBeNull();
+});

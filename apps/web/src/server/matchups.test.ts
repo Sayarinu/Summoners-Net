@@ -1,6 +1,7 @@
 import type {
   ChampionBlindabilityQuery,
   ChampionMatchupsQuery,
+  CounterPickListQuery,
   MatchupMatrixQuery,
 } from "@summonersnet/data/contracts";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -11,12 +12,13 @@ const championMatchups =
       ) => Promise<{ patch: string | null; champion: { championKey: number } } | null>
     >(),
   championBlindability = vi.fn<(input: ChampionBlindabilityQuery) => Promise<{ score: number }>>(),
+  counterPickList = vi.fn<(input: CounterPickListQuery) => Promise<{ patch: string }>>(),
   matchupMatrix = vi.fn<(input: MatchupMatrixQuery) => Promise<{ patch: string }>>();
 vi.mock("server-only", () => ({}));
 vi.mock("./data", () => ({
-  data: () => ({ championMatchups, championBlindability, matchupMatrix }),
+  data: () => ({ championMatchups, championBlindability, counterPickList, matchupMatrix }),
 }));
-const { loadChampionMatchups, loadMatchupMatrix } = await import("./matchups");
+const { loadChampionMatchups, loadCounterPickList, loadMatchupMatrix } = await import("./matchups");
 beforeEach(() => {
   championMatchups
     .mockReset()
@@ -104,5 +106,26 @@ it("passes validated filters, normalizes only patch sentinels and preserves not 
     page: 1,
     columnPage: 2,
     metric: "cs15",
+  });
+});
+it("validates the counter-pick list role and filters before reading", async () => {
+  counterPickList.mockReset().mockResolvedValue({ patch: "16.22" });
+  expect(await loadCounterPickList("ALL", {})).toBeNull();
+  for (const params of [{ sort: "SQL" }, { pageSize: "101" }, { page: ["1"] }, { role: "TOP" }])
+    expect(await loadCounterPickList("MIDDLE", params)).toMatchObject({
+      list: null,
+      role: "MIDDLE",
+    });
+  expect(counterPickList).not.toHaveBeenCalled();
+  expect(
+    await loadCounterPickList("TOP", { patch: "all", sort: "blind", order: "asc", page: "2" }),
+  ).toEqual({ list: { patch: "16.22" }, error: null, role: "TOP" });
+  expect(counterPickList).toHaveBeenCalledWith({
+    role: "TOP",
+    source: "solo",
+    sort: "blind",
+    order: "asc",
+    page: 2,
+    pageSize: 25,
   });
 });

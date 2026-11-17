@@ -16,8 +16,11 @@ import {
   blindabilityMinimumCoverage,
   blindabilityMinimumOpponents,
   blindabilityTailShare,
+  counterPickSorts,
   type BlindabilityReason,
   type ChampionBlindability,
+  type CounterPickList,
+  type CounterPickReason,
   type ChampionMatchups,
   type MatchupMatrix,
   type MatchupMetric,
@@ -53,6 +56,12 @@ function selection(q: { source: string; value: string }, patch: string | null) {
   const params = new URLSearchParams({ source: q.source, value: q.value });
   if (patch) params.set("patch", patch);
   return params;
+}
+/** The role list takes only source and patch filters. */
+function counterPicksHref(role: string, source: string, patch: string | null) {
+  const params = new URLSearchParams({ source });
+  if (patch) params.set("patch", patch);
+  return `/matchups/${role}/counter-picks?${params}`;
 }
 function Champion({ champion: c, href }: { champion: PatchChampion; href?: string }) {
   return (
@@ -157,7 +166,63 @@ const blindabilityReasons: Record<BlindabilityReason, string> = {
   "few-opponents": `Fewer than ${blindabilityMinimumOpponents} opponents have at least ${matchupMinimumSample} win-rate observations.`,
   "low-coverage": `Opponents with at least ${matchupMinimumSample} win-rate observations cover less than ${blindabilityMinimumCoverage * 100}% of opponent picks.`,
 };
-function Blindability({ score: b }: { score: ChampionBlindability | null }) {
+const points = (value: number | null) =>
+  value === null ? "Unknown" : `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)} pts`;
+const counterPickReasons: Record<CounterPickReason, string> = {
+  "blind-unavailable": "The blind win rate is unknown, so there is nothing to compare with.",
+  "never-best-response":
+    "This champion is not the best sampled response to any opponent in this role and patch.",
+};
+/** Blind and best-response counter-pick win rates, with their coverage and samples. */
+export function CounterPickSummary({
+  value: v,
+  listHref,
+}: {
+  value: ChampionBlindability;
+  listHref: string;
+}) {
+  return (
+    <div className="np-stack">
+      <dl className="ev-summary" aria-label="Counter-pick statistics">
+        <div>
+          <dt>Blind win rate</dt>
+          <dd>{percent(v.expected)}</dd>
+        </div>
+        <div>
+          <dt>Counter-pick win rate</dt>
+          <dd>{percent(v.counterWinRate)}</dd>
+        </div>
+        <div>
+          <dt>Counter-pick value</dt>
+          <dd>{points(v.counterDifference)}</dd>
+        </div>
+        <div>
+          <dt>Best response to</dt>
+          <dd>
+            {v.counterOpponents} {v.counterOpponents === 1 ? "opponent" : "opponents"} ·{" "}
+            {v.counterPicks} of {v.rolePicks} opponent picks
+          </dd>
+        </div>
+      </dl>
+      {v.counterReason ? (
+        <p role="status">Counter-pick value unavailable: {counterPickReasons[v.counterReason]}</p>
+      ) : null}
+      <p className="np-body-sm">
+        Picking blind meets the whole field: the blind win rate is the pick-weighted expected win
+        rate. Counter-picking plays the champion only into the opponents it is the best sampled
+        response to (the champion with the highest shrunk win rate against them), weighted by their
+        picks. The value is the difference. <TextLink href={listHref}>Compare the role</TextLink>
+      </p>
+    </div>
+  );
+}
+function Blindability({
+  score: b,
+  listHref,
+}: {
+  score: ChampionBlindability | null;
+  listHref: string;
+}) {
   const tail = blindabilityTailShare * 100;
   return (
     <section className="np-stack" aria-labelledby="blindability">
@@ -204,6 +269,8 @@ function Blindability({ score: b }: { score: ChampionBlindability | null }) {
             {b.coveredOpponents} of {b.sampledOpponents} sampled opponents meet the minimum ·{" "}
             {b.games} lane games
           </p>
+          <h3>Counter-pick value</h3>
+          <CounterPickSummary value={b} listHref={listHref} />
         </>
       )}
       <details>
@@ -270,6 +337,10 @@ export function ChampionMatchupsPage({
         <TextLink href={`/matchups/${q.role}?${selection(q, m.patch)}`}>
           Role matchup matrix
         </TextLink>
+        {" · "}
+        <TextLink href={counterPicksHref(q.role, q.source, m.patch)}>
+          Role counter-pick values
+        </TextLink>
       </nav>
       <form className="ev-filters" method="get" action={`/champions/${q.champion}/matchups`}>
         <Filters query={q} patches={m.patches} patch={m.patch} />
@@ -300,7 +371,10 @@ export function ChampionMatchupsPage({
         <input type="hidden" name="pageSize" value={q.pageSize} />
         <Button type="submit">Apply filters</Button>
       </form>
-      <Blindability score={m.patch ? blindability : null} />
+      <Blindability
+        score={m.patch ? blindability : null}
+        listHref={counterPicksHref(q.role, q.source, m.patch)}
+      />
       <Policy />
       <p className="np-meta">
         Patch {m.patch ?? "unavailable"} ·{" "}
@@ -420,6 +494,9 @@ export function MatchupMatrixPage({
           </TextLink>
         ))}
       </nav>
+      <TextLink href={counterPicksHref(q.role, q.source, m.patch)}>
+        {roles[q.role]} counter-pick values
+      </TextLink>
       <form className="ev-filters" method="get" action={`/matchups/${q.role}`}>
         <Filters query={q} patches={m.patches} patch={m.patch} />
         <Select
@@ -469,6 +546,157 @@ export function MatchupMatrixPage({
             );
           })}
       </nav>
+    </div>
+  );
+}
+const counterPickSortLabels: Record<(typeof counterPickSorts)[number], string> = {
+  difference: "Counter-pick value",
+  counter: "Counter-pick win rate",
+  blind: "Blind win rate",
+  score: "Blindability score",
+  games: "Lane games",
+};
+export function CounterPickListPage({
+  list: l,
+  error,
+  role,
+}: {
+  list: CounterPickList | null;
+  error: string | null;
+  role: keyof typeof roles;
+}) {
+  return (
+    <div className="np-stack">
+      <header className="ev-title">
+        <div>
+          {l ? (
+            <span className="np-overline">{l.query.source === "solo" ? "Solo queue" : "Pro"}</span>
+          ) : null}
+          <h1>{roles[role]} counter-pick values</h1>
+        </div>
+      </header>
+      <nav aria-label="Counter-pick roles">
+        {matchupRoles.map((r) => (
+          <TextLink key={r} href={`/matchups/${r}/counter-picks`}>
+            {roles[r]}{" "}
+          </TextLink>
+        ))}
+      </nav>
+      {!l ? (
+        <p role="alert">{error}</p>
+      ) : (
+        <>
+          <form className="ev-filters" method="get" action={`/matchups/${role}/counter-picks`}>
+            <Select
+              label="Source"
+              name="source"
+              defaultValue={l.query.source}
+              options={[
+                { value: "solo", label: "Solo queue" },
+                { value: "pro", label: "Pro" },
+              ]}
+            />
+            <Select
+              label="Patch"
+              name="patch"
+              defaultValue={l.patch ?? "all"}
+              options={[
+                { value: "all", label: "Latest available" },
+                ...[...new Set([...(l.patch ? [l.patch] : []), ...l.patches])].map((p) => ({
+                  value: p,
+                  label: p,
+                })),
+              ]}
+            />
+            <Select
+              label="Sort by"
+              name="sort"
+              defaultValue={l.query.sort}
+              options={counterPickSorts.map((s) => ({ value: s, label: counterPickSortLabels[s] }))}
+            />
+            <Select
+              label="Order"
+              name="order"
+              defaultValue={l.query.order}
+              options={[
+                { value: "desc", label: "Descending" },
+                { value: "asc", label: "Ascending" },
+              ]}
+            />
+            <input type="hidden" name="pageSize" value={l.query.pageSize} />
+            <Button type="submit">Apply filters</Button>
+          </form>
+          <p className="np-body-sm">
+            Blind win rate: the pick-weighted expected win rate against every sampled opponent.
+            Counter-pick win rate: the pick-weighted win rate against only the opponents this
+            champion is the best sampled response to. Both use shrunk matchup win rates with at
+            least {matchupMinimumSample} observations, and are unknown when the sampled opponents
+            cover less than {blindabilityMinimumCoverage * 100}% of opponent picks. Unknown values
+            sort last.
+          </p>
+          <p className="np-meta">
+            Patch {l.patch ?? "unavailable"} · {l.page.total} champions
+          </p>
+          <Table
+            caption={`${roles[role]} counter-pick values`}
+            rows={l.page.items}
+            getRowKey={(r) => String(r.champion.championKey)}
+            emptyMessage="No stored values on this page. Try another source, patch or page."
+            columns={[
+              {
+                id: "champion",
+                header: "Champion",
+                render: (r) => (
+                  <Champion
+                    champion={r.champion}
+                    {...(r.champion.championId
+                      ? {
+                          href: `/champions/${r.champion.championId}/matchups?${selection({ source: l.query.source, value: "shrunk" }, l.patch)}&role=${role}`,
+                        }
+                      : {})}
+                  />
+                ),
+              },
+              { id: "games", header: "Lane games", render: (r) => r.games },
+              { id: "blind", header: "Blind win rate", render: (r) => percent(r.blind) },
+              { id: "counter", header: "Counter-pick win rate", render: (r) => percent(r.counter) },
+              {
+                id: "difference",
+                header: "Counter-pick value",
+                render: (r) => points(r.difference),
+              },
+              { id: "score", header: "Blindability score", render: (r) => percent(r.score) },
+              {
+                id: "coverage",
+                header: "Coverage",
+                render: (r) => `${percent(r.coverage)} · ${r.coveredPicks} of ${r.rolePicks} picks`,
+              },
+              {
+                id: "responses",
+                header: "Best response to",
+                render: (r) => `${r.counterOpponents} · ${r.counterPicks} picks`,
+              },
+              {
+                id: "reason",
+                header: "Unknown because",
+                render: (r) =>
+                  r.reason
+                    ? blindabilityReasons[r.reason]
+                    : r.counterReason
+                      ? counterPickReasons[r.counterReason]
+                      : "",
+              },
+            ]}
+          />
+          <Pages
+            label="Champion pages"
+            field="page"
+            page={l.query.page}
+            total={l.page.total}
+            size={l.query.pageSize}
+          />
+        </>
+      )}
     </div>
   );
 }

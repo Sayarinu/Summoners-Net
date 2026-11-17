@@ -6046,7 +6046,7 @@ describe("lane matchup aggregates", () => {
     });
     expect(fetcher.mock.calls.length).toBe(calls);
   });
-  it("stores blindability from shrunk matchups weighted by opponent picks, with null reasons", async () => {
+  it("stores blindability and counter-pick values from shrunk matchups weighted by opponent picks", async () => {
     await catalog();
     for (let n = 0; n < 10; n++) await game(20, n < 8, 0);
     for (let n = 0; n < 10; n++) await game(62, n < 2, 0);
@@ -6081,6 +6081,11 @@ describe("lane matchup aggregates", () => {
     // The lowest fifth of 30 picks is six of Wukong's ten.
     expect(ahri!.lowerTail).toBeCloseTo(shrunk(2), 12);
     expect(ahri!.score).toBe(ahri!.lowerTail);
+    // Ahri is the only sampled response to each of its covered opponents, so it counter-picks all
+    // of them: the counter-pick rate equals the blind rate.
+    expect(ahri).toMatchObject({ counterOpponents: 3, counterPicks: 30, counterReason: null });
+    expect(ahri!.counterWinRate).toBeCloseTo(expected, 12);
+    expect(ahri!.counterDifference).toBeCloseTo(0, 12);
     // Nunu faced only Ahri (32 of the 54 other picks): too few opponents, counts kept, values unknown.
     const nunu = await queries.championBlindability({
       championKey: 20,
@@ -6099,8 +6104,39 @@ describe("lane matchup aggregates", () => {
       lowerTail: null,
       score: null,
       reason: "few-opponents",
+      counterWinRate: null,
+      counterDifference: null,
+      counterReason: "blind-unavailable",
     });
     expect(nunu!.coverage).toBeCloseTo(32 / 54, 12);
+    // The role list sorts in SQL with unknown values last, then by champion key.
+    const list = await queries.counterPickList({ role: "MIDDLE", pageSize: 2 });
+    expect(list).toMatchObject({ patch: "16.22", patches: ["16.22"], page: { total: 5 } });
+    expect(list.page.items.map((r) => r.champion.championKey)).toEqual([103, 20]);
+    expect(list.page.items[0]).toMatchObject({
+      champion: { championId: "Ahri" },
+      games: 32,
+      coveredPicks: 30,
+      rolePicks: 32,
+      counterOpponents: 3,
+      reason: null,
+      counterReason: null,
+    });
+    expect(list.page.items[0]!.difference).toBeCloseTo(0, 12);
+    expect(list.page.items[1]).toMatchObject({ blind: null, counter: null, difference: null });
+    const byGames = await queries.counterPickList({
+      role: "MIDDLE",
+      sort: "games",
+      order: "asc",
+      page: 1,
+    });
+    expect(byGames.page.items.map((r) => r.champion.championKey)).toEqual([200, 20, 62, 64, 103]);
+    expect((await queries.counterPickList({ role: "MIDDLE", page: 10000 })).page.items).toEqual([]);
+    expect(await queries.counterPickList({ role: "TOP" })).toMatchObject({ page: { total: 0 } });
+    expect(await queries.counterPickList({ role: "MIDDLE", source: "pro" })).toMatchObject({
+      patch: null,
+      page: { total: 0, items: [] },
+    });
     expect(
       await queries.championBlindability({
         championKey: 103,

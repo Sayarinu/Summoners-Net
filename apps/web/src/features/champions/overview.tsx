@@ -1,7 +1,8 @@
 "use client";
 import { PlayersSection } from "./players";
 import { ChampionIcon, EmptyState, Sparkline, TextLink } from "@summonersnet/ui";
-import type { ChampionOverview } from "@summonersnet/data/contracts";
+import type { ChampionBlindability, ChampionOverview } from "@summonersnet/data/contracts";
+import { CounterPickSummary } from "../matchups/pages";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
@@ -18,9 +19,11 @@ const tierNotes = {
 } as const;
 export function ChampionOverviewPage({
   overview,
+  draftValue = null,
   error,
 }: {
   overview: ChampionOverview;
+  draftValue?: ChampionBlindability | null;
   error: string | null;
 }) {
   const { champion, query: q } = overview;
@@ -105,6 +108,15 @@ export function ChampionOverviewPage({
               sampleCount: t.winRate.sampleCount,
             }))}
           />
+          {draftValue ? (
+            <section className="np-stack" aria-labelledby="counter-pick-value">
+              <h2 id="counter-pick-value">Counter-pick value</h2>
+              <CounterPickSummary
+                value={draftValue}
+                listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}
+              />
+            </section>
+          ) : null}
           <LoadoutsSection builds={overview.builds} />
           <ProSection overview={overview} />
           <BucketsSection buckets={overview.buckets} />

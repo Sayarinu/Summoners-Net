@@ -1,5 +1,9 @@
 import "server-only";
-import { championOverviewQuerySchema, tierListQuerySchema } from "@summonersnet/data/contracts";
+import {
+  championOverviewQuerySchema,
+  matchupRoles,
+  tierListQuerySchema,
+} from "@summonersnet/data/contracts";
 import { data } from "./data";
 
 // "all" (and an empty value) means no filter for that field.
@@ -39,5 +43,16 @@ export async function loadChampionOverview(
     parsed.success ? parsed.data : { champion: id.data },
   );
   if (!overview) return null;
-  return { overview, error: parsed.success ? null : filterError };
+  // Counter-pick values are per lane role; the all-roles view has none.
+  const role = matchupRoles.find((r) => r === overview.query.role);
+  const draftValue =
+    role && overview.patch
+      ? await data().championBlindability({
+          championKey: overview.champion.key,
+          source: overview.query.source,
+          patch: overview.patch,
+          role,
+        })
+      : null;
+  return { overview, draftValue, error: parsed.success ? null : filterError };
 }
