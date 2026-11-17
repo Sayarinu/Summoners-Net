@@ -2,6 +2,7 @@ import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championMatchups } from "./matchups.js";
 import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
+import { soloDraftWinProbability } from "./draft-model.js";
 import type { DraftAssistantQuery } from "../domain/draft-assistant.js";
 import type { ChampionBlindabilityQuery, CounterPickListQuery } from "../domain/blindability.js";
 import type {
@@ -218,6 +219,7 @@ export function queries(pool: Pool, clock: () => Date) {
     tierList: (input?: TierListQuery) => tierList(pool, input),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
+    soloDraftWinProbability: (matchId: string) => soloDraftWinProbability(pool, matchId),
     soloGamePositions: (matchId: string) => soloGamePositions(pool, matchId),
     soloGameMapEvents: (matchId: string) => soloGameMapEvents(pool, matchId),
     heatmap: (input: HeatmapQuery) => heatmap(pool, input),

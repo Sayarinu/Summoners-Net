@@ -361,6 +361,13 @@ test("a solo game charts win probability with the model's calibration and event 
   const events = page.getByRole("table", { name: "Kills and objectives" });
   await expect(events).toContainText("Blue: Fire Dragon");
   await expect(page.getByRole("table", { name: "Players" })).toContainText("Ahri");
+  // The pre-game draft probability: one stored game is below every input's minimum sample.
+  const draft = page.getByLabel("Draft win probability by side");
+  await expect(draft).toContainText("Blue side");
+  await expect(draft).toContainText("Champion strength coverage0 of 10");
+  await expect(page.getByText(/Brier score on 0 held-out games: unknown/)).toBeVisible();
+  await page.getByText("Inputs and samples").click();
+  await expect(page.getByRole("table", { name: "Draft model inputs" })).toContainText("Ahri vs");
   const missing = await page.goto("/solo-games/EUW1_1");
   expect(missing?.status()).toBe(404);
 });
@@ -937,6 +944,8 @@ test("the draft assistant ranks stored candidates from the URL and excludes pick
   const table = page.getByRole("table", { name: "Ranked candidates for Mid" });
   await expect(table).toContainText("Ahri");
   await expect(page.getByRole("status").filter({ hasText: "ignored" })).toContainText("Zzz");
+  await expect(page.getByLabel("Draft win probability by side")).toContainText("Blue side");
+  await expect(table).toContainText("Draft win probability if picked");
   await page.goto("/drafts/assistant?patch=16.4&blue=Ahri:TOP");
   await expect(table).not.toContainText("Ahri");
   await page.goto("/drafts/assistant?blue=Ahri,Ahri");

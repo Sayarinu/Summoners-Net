@@ -21,7 +21,7 @@ const summary = (m: WinProbabilityModel): ModelSummary => ({
   brier: m.brier,
   trainedAt: m.trainedAt,
 });
-/** Stored model versions of both kinds, newest first, with one shown in detail. */
+/** Stored model versions of every kind, newest first, with one shown in detail. */
 export async function modelDiagnostics(
   db: Executor,
   selectedId?: number,
@@ -29,6 +29,7 @@ export async function modelDiagnostics(
   const models = [
     ...(await winProbabilityModels(db, 20, "timeline")),
     ...(await winProbabilityModels(db, 20, "pro-checkpoints")),
+    ...(await winProbabilityModels(db, 20, "draft")),
   ].sort((a, b) => b.id - a.id);
   const selected =
     (selectedId === undefined

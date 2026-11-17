@@ -2,6 +2,7 @@ import { z } from "zod";
 import { applySamplePolicy, deltaShrinkGames, shrinkDelta } from "./statistics.js";
 import { matchupEstimate, matchupRoles, type MetricCounts } from "./matchups.js";
 import type { PatchChampion } from "./patch-overview.js";
+import type { DraftWinProbability } from "./draft-model.js";
 
 const championId = z.string().regex(/^[A-Za-z0-9]{1,40}$/);
 const role = z.enum(matchupRoles);
@@ -87,6 +88,8 @@ export interface DraftCandidate {
   /** Mean of the known parts; null when none is known. */
   score: number | null;
   parts: number;
+  /** Your side's draft win probability with this candidate added; null without a draft model. */
+  winProbability: number | null;
 }
 
 /** Shrunk lane win rate against the enemy laner, as points above 50%. */
@@ -143,6 +146,7 @@ export function rankDraftCandidates(
         blindability,
         score: known.length ? known.reduce((s, v) => s + v, 0) / known.length : null,
         parts: known.length,
+        winProbability: null,
       };
     })
     .sort(
@@ -163,4 +167,6 @@ export interface DraftAssistant {
   /** Allies whose role is known and so contribute synergy. */
   synergyAllies: PatchChampion[];
   candidates: DraftCandidate[];
+  /** The current draft's pre-game probability, from blue's side; null for pro play. */
+  draft: DraftWinProbability | null;
 }

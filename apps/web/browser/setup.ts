@@ -11,6 +11,7 @@ import { saveRiotMatch } from "../../../packages/data/src/persistence/riot-match
 import { parseRiotMatch } from "../../../packages/data/src/providers/riot-match";
 import { saveTimeline } from "../../../packages/data/src/persistence/riot-timelines";
 import { trainWinProbabilityModel } from "../../../packages/data/src/persistence/wp-models";
+import { trainDraftModel } from "../../../packages/data/src/persistence/draft-model";
 import { parseRiotTimeline } from "../../../packages/data/src/providers/riot-timeline";
 import { draftCsv } from "../../../packages/data/tests/draft-fixtures";
 import { historyCsv, rawMatch, now } from "../../../packages/data/tests/fixtures";
@@ -230,6 +231,8 @@ export default async function setup() {
     await sync.request({ kind: "replay-track", file: trackFile });
     if ((await sync.runNext()).state !== "done")
       throw new Error("Browser replay track fixture failed");
+    // A draft model from the one seeded game, so game pages and the assistant can show it.
+    await trainDraftModel(pool, now, { minimumGames: 1, seed: 1 });
   } finally {
     await sync.close();
     await pool.end();

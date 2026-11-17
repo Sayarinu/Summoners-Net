@@ -2,11 +2,15 @@
 import { EmptyState, ScatterChart, StatusIndicator, Table, TextLink } from "@summonersnet/ui";
 import type { ModelDiagnostics, ModelSummary } from "@summonersnet/data/contracts";
 
-const kindLabels = { timeline: "Solo queue (timelines)", "pro-checkpoints": "Pro (4 checkpoints)" };
+const kindLabels = {
+  timeline: "Solo queue (timelines)",
+  "pro-checkpoints": "Pro (4 checkpoints)",
+  draft: "Solo queue (pre-game draft)",
+};
 const statusTones = { active: "success", retired: "neutral", rejected: "warning" } as const;
 const brier = (value: number | null) => (value === null ? "Unknown" : value.toFixed(3));
 const windowLabel = (m: ModelSummary) =>
-  m.kind === "timeline" ? `Patches ${m.window.join(", ")}` : `Years ${m.window.join(", ")}`;
+  m.kind === "pro-checkpoints" ? `Years ${m.window.join(", ")}` : `Patches ${m.window.join(", ")}`;
 
 export function ModelsPage({
   diagnostics,

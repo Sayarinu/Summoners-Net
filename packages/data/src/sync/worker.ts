@@ -39,6 +39,7 @@ import {
 } from "../persistence/wp-models.js";
 import { scorePendingWpa } from "../persistence/wpa.js";
 import { trainCheckpointModel } from "../persistence/pro-wp.js";
+import { trainDraftModel } from "../persistence/draft-model.js";
 import { rebuildWpaAggregates } from "../persistence/wpa-leaderboards.js";
 import {
   dirtyPatches,
@@ -613,7 +614,11 @@ export function worker(pool: Pool, options: WorkerOptions) {
         minimumGames: options.winProbability?.minimumProGames ?? 200,
         seed: options.winProbability?.seed ?? 20261116,
       });
-      return Number(trained.active) + Number(pro.active);
+      const draft = await trainDraftModel(pool, clock(), {
+        minimumGames: minimumMatches(),
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      return Number(trained.active) + Number(pro.active) + Number(draft.active);
     }
     if (r.kind === "riot-key") return checkRiotKey();
     if (r.kind === "riot-retention") return applyRetention();

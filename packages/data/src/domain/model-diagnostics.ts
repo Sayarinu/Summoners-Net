@@ -14,18 +14,21 @@ export const featureLabels: Record<string, string> = {
   dragonDiff: "Dragon difference (per 4)",
   soulDiff: "Dragon soul",
   goldDiffByMinute: "Gold difference × game time (per 150,000)",
+  strength: "Champion strength difference (per 10 points)",
+  lane: "Lane matchup advantage (per 10 points)",
+  synergy: "Synergy difference (per 10 points)",
 };
 export const modelDiagnosticsQuerySchema = z
   .object({ model: z.coerce.number().int().positive().optional() })
   .strict();
 export interface ModelSummary {
   id: number;
-  kind: "timeline" | "pro-checkpoints";
+  kind: "timeline" | "pro-checkpoints" | "draft";
   status: "active" | "retired" | "rejected";
   reason: string | null;
   modelVersion: number;
   featureVersion: number;
-  /** Patch keys for the timeline model; archive years for the pro checkpoint model. */
+  /** Patch keys for the timeline and draft models; archive years for the pro checkpoint model. */
   window: string[];
   trainMatches: number;
   trainRows: number;

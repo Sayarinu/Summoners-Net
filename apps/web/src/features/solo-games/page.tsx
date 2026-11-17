@@ -1,13 +1,20 @@
 "use client";
 import { ChampionIcon, LineChart, Table, TextLink } from "@summonersnet/ui";
-import type { SoloGame } from "@summonersnet/data/contracts";
+import type { DraftWinProbability, SoloGame } from "@summonersnet/data/contracts";
+import { DraftWinProbabilitySection } from "../drafts/draft-win-probability";
 
 const percent = (value: number | null) =>
   value === null ? "Unknown" : `${(value * 100).toFixed(1)}%`;
 const sideLabel = (side: "blue" | "red" | null) =>
   side === "blue" ? "Blue" : side === "red" ? "Red" : "Unknown";
 
-export function SoloGamePage({ game }: { game: SoloGame }) {
+export function SoloGamePage({
+  game,
+  draft = null,
+}: {
+  game: SoloGame;
+  draft?: DraftWinProbability | null;
+}) {
   const wp = game.winProbability;
   const blue = game.teams.find((t) => t.side === "blue");
   return (
@@ -34,6 +41,15 @@ export function SoloGamePage({ game }: { game: SoloGame }) {
           </p>
         </div>
       </header>
+      {draft ? (
+        <DraftWinProbabilitySection
+          value={draft}
+          name={(key) => {
+            const p = game.participants.find((x) => x.championKey === key);
+            return p?.championName ?? `Champion ${key}`;
+          }}
+        />
+      ) : null}
       <section className="np-stack" aria-labelledby="wp-heading">
         <h2 id="wp-heading">Win probability</h2>
         {wp.model && wp.points.length ? (

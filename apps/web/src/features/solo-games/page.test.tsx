@@ -77,3 +77,41 @@ it("explains why there is no chart instead of drawing a flat line", () => {
   expect(screen.queryByText("Blue side win probability by minute")).toBeNull();
   expect(screen.getByRole("heading", { name: "Result unknown" })).toBeVisible();
 });
+it("shows the pre-game draft win probability with its inputs", () => {
+  render(
+    <SoloGamePage
+      game={game}
+      draft={{
+        model: { id: 9, modelVersion: 1, brier: 0.238, evalGames: 40, patches: ["16.22"] },
+        reason: null,
+        blueWinProbability: 0.6,
+        inputs: [
+          {
+            kind: "lane",
+            side: "blue",
+            role: "MIDDLE",
+            championKeys: [game.participants[0]!.championKey, 9999],
+            value: null,
+            sampleCount: 4,
+          },
+        ],
+        coverage: {
+          strength: { known: 8, total: 10 },
+          lane: { known: 0, total: 1 },
+          synergy: { known: 3, total: 20 },
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "Draft win probability" })).toBeVisible();
+  expect(screen.getByLabelText("Draft win probability by side")).toHaveTextContent(
+    "Blue side60.0%",
+  );
+  expect(screen.getByLabelText("Draft win probability by side")).toHaveTextContent(
+    "Lane matchup coverage0 of 1",
+  );
+  expect(screen.getByRole("table", { name: "Draft model inputs" })).toHaveTextContent(
+    "Champion 9999",
+  );
+  expect(screen.getByRole("table", { name: "Draft model inputs" })).toHaveTextContent("Unknown4");
+});

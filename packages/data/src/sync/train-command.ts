@@ -1,7 +1,11 @@
 import type { ModelDiagnostics, ModelSummary } from "../domain/model-diagnostics.js";
 import type { createSync } from "./index.js";
 
-const kinds = { timeline: "Solo queue model", "pro-checkpoints": "Pro checkpoint model" } as const;
+const kinds = {
+  timeline: "Solo queue model",
+  "pro-checkpoints": "Pro checkpoint model",
+  draft: "Draft model",
+} as const;
 const outcome = (m: ModelSummary, active: ModelSummary | undefined) =>
   m.status === "active"
     ? `${kinds[m.kind]} #${m.id} published: ${m.trainMatches} training games (${m.trainRows} states), Brier score ${m.brier === null ? "unknown" : m.brier.toFixed(3)}.`

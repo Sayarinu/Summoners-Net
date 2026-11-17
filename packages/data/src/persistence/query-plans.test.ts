@@ -8,6 +8,7 @@ import { draftAssistant } from "./draft-assistant.js";
 import { matchupPairs } from "./matchup-matrix.js";
 import { heatmap } from "./heatmaps.js";
 import { championJunglePaths } from "./jungle-paths.js";
+import { storedDraftLookup } from "./draft-model.js";
 
 // Query plan budgets for the aggregate reads. The tables are seeded at a realistic size for a
 // library with two years of pro data and four retained patches of solo queue, then every statement the reads run is
@@ -193,6 +194,24 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
   [
     "draft assistant, pro and blind",
     (db) => draftAssistant(db, { source: "pro", role: "UTILITY" }),
+  ],
+  [
+    "draft model inputs for a role's candidates",
+    (db) =>
+      storedDraftLookup(
+        db,
+        "16.24",
+        [
+          ...Array.from({ length: 170 }, (_, i) => ({ championKey: i + 1, role: "TOP" as const })),
+          { championKey: 3, role: "MIDDLE" },
+          { championKey: 14, role: "JUNGLE" },
+        ],
+        [
+          { championKey: 3, role: "MIDDLE" },
+          { championKey: 14, role: "JUNGLE" },
+          { championKey: 27, role: "TOP" },
+        ],
+      ),
   ],
   [
     "counter-pick list, pro by score",

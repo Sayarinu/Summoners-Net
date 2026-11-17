@@ -16,6 +16,7 @@ const base = {
 };
 const diagnostics: ModelDiagnostics = {
   models: [
+    { ...base, id: 4, kind: "draft", status: "active", window: ["16.21", "16.22"] },
     { ...base, id: 3, kind: "pro-checkpoints", status: "active", window: ["2025", "2026"] },
     { ...base, id: 2, kind: "timeline", status: "active", window: ["16.22"] },
     {
@@ -49,6 +50,9 @@ it("lists model versions and shows the selected model's calibration and weights"
     "#3 · v1Pro (4 checkpoints)activeYears 2025, 2026800 games · 24000 statesv10.181",
   );
   expect(versions).toHaveTextContent("Patches 16.22");
+  expect(versions).toHaveTextContent(
+    "#4 · v1Solo queue (pre-game draft)activePatches 16.21, 16.22",
+  );
   expect(versions).toHaveTextContent("Unknown");
   expect(screen.getByRole("link", { name: "#2 · v1" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByText(/Evaluated on 200 held-out games \(6000 states\)/)).toBeVisible();

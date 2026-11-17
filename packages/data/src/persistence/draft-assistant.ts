@@ -8,6 +8,10 @@ import {
 import type { MetricCounts } from "../domain/matchups.js";
 import type { PatchChampion } from "../domain/patch-overview.js";
 import type { Executor } from "./database.js";
+import { draftFeatureValues, type DraftSlot } from "../domain/draft-model.js";
+import { predict } from "../domain/wp-model.js";
+import { scoreDraft, storedDraftLookup } from "./draft-model.js";
+import { activeWinProbabilityModel } from "./wp-models.js";
 
 const championJson = (key: string, alias: string) =>
   `jsonb_build_object('championKey',${key},'championId',${alias}.champion_id,'name',${alias}.name,
@@ -63,7 +67,7 @@ export async function draftAssistant(
     const c = byId.get(p.champion);
     return c && p.role ? [{ champion: c, role: p.role }] : [];
   });
-  const result: Omit<DraftAssistant, "candidates"> = {
+  const result: Omit<DraftAssistant, "candidates" | "draft"> = {
     query: q,
     patch: scope.patch,
     patches: scope.patches,
@@ -71,7 +75,7 @@ export async function draftAssistant(
     laneOpponent: opponent,
     synergyAllies: q.source === "solo" ? allies.map((a) => a.champion) : [],
   };
-  if (!scope.patch) return { ...result, candidates: [] };
+  if (!scope.patch) return { ...result, candidates: [], draft: null };
   const rows = (
     await db.query<{
       champion: PatchChampion;
@@ -148,5 +152,41 @@ export async function draftAssistant(
       expected: a.expected,
     })),
   }));
-  return { ...result, candidates: rankDraftCandidates(candidates, opponent !== null) };
+  const ranked = rankDraftCandidates(candidates, opponent !== null);
+  // The draft model covers solo queue: score the draft as it stands and with each candidate.
+  if (q.source !== "solo") return { ...result, candidates: ranked, draft: null };
+  const slots = (picks: typeof q.blue): DraftSlot[] =>
+    picks.flatMap((p) => {
+      const c = byId.get(p.champion);
+      return c && p.role ? [{ championKey: c.championKey, role: p.role }] : [];
+    });
+  const teams = { blue: slots(q.blue), red: slots(q.red) };
+  const picked = [...teams.blue, ...teams.red];
+  const lookup = await storedDraftLookup(
+    db,
+    scope.patch,
+    [...picked, ...ranked.map((c) => ({ championKey: c.champion.championKey, role: q.role }))],
+    picked,
+  );
+  const draft = await scoreDraft(db, scope.patch, teams, lookup);
+  const model = draft.model ? await activeWinProbabilityModel(db, "draft") : null;
+  const forUs = (blue: number) => (q.side === "blue" ? blue : 1 - blue);
+  return {
+    ...result,
+    draft,
+    candidates: ranked.map((c) => {
+      if (!model) return c;
+      const slot = { championKey: c.champion.championKey, role: q.role };
+      const withCandidate = {
+        ...teams,
+        [q.side]: [...teams[q.side], slot],
+      };
+      return {
+        ...c,
+        winProbability: forUs(
+          predict(model.coefficients, draftFeatureValues(withCandidate, lookup).x),
+        ),
+      };
+    }),
+  };
 }
