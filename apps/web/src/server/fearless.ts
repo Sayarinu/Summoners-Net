@@ -1,8 +1,6 @@
 import "server-only";
 import type { Match, SeriesGame } from "@summonersnet/data";
-import { roleKey } from "@summonersnet/data/contracts";
 import { data } from "./data";
-import type { FearlessPick } from "../features/details/draft";
 
 // Riot introduced Fearless Draft for Worlds 2025 series and retained the 2025 format
 // for the 2026 Swiss and Knockout stages.
@@ -12,7 +10,7 @@ export async function previousFearlessPicks(
   match: Match,
   games: SeriesGame[],
   number: number,
-): Promise<FearlessPick[]> {
+): Promise<string[]> {
   const year = match.startsAt?.slice(0, 4);
   const documentedFormat =
     match.league === "Worlds" &&
@@ -27,18 +25,19 @@ export async function previousFearlessPicks(
     return [];
   const picks = await Promise.all(
     earlier.map(async (game) => {
-      const archive = game.gameId ? await data().game(game.gameId) : null;
-      return (archive?.participants ?? []).flatMap((player) => {
-        const role = roleKey(player.role.toLowerCase());
-        return player.player && player.champion && role
-          ? [{ champion: player.champion, role }]
-          : [];
-      });
+      const archive = game.gameId ? await data().historicalGame(game.gameId) : null;
+      const ordered = archive?.draftOrder
+        .filter(({ action }) => action === "pick")
+        .sort((first, second) => first.slot - second.slot)
+        .map(({ champion }) => champion);
+      if (ordered?.length === 10) return ordered;
+      return (archive?.participants ?? []).flatMap(({ player, champion }) =>
+        player && champion ? [champion] : [],
+      );
     }),
   );
   const all = picks.flat();
-  return picks.every((entries) => entries.length === 10) &&
-    new Set(all.map(({ champion }) => champion)).size === all.length
+  return picks.every((entries) => entries.length === 10) && new Set(all).size === all.length
     ? all
     : [];
 }

@@ -39,7 +39,7 @@ export default async function Page({
       [
         ...(archive?.participants.map((participant) => participant.champion) ?? []),
         ...(detail?.draft.flatMap(({ picks, bans }) => [...picks, ...bans]) ?? []),
-        ...fearless.map(({ champion }) => champion),
+        ...fearless,
       ],
       archive?.patch,
     ),

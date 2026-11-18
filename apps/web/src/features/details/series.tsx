@@ -30,7 +30,7 @@ import {
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
-import { DraftPanel, type FearlessPick } from "./draft";
+import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
 
@@ -395,7 +395,7 @@ export function SeriesGamePage({
   game: Game | null;
   detail: HistoricalGameDetail | null;
   portraits?: ChampionPortraits;
-  fearless?: FearlessPick[];
+  fearless?: string[];
   winProbability: ProGameWinProbability | null;
   timezone: string;
   hideSpoilers: boolean;

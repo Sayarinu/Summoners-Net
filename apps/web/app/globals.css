@@ -1283,29 +1283,13 @@
 }
 
 .ev-fearless {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: center;
   gap: var(--space-1);
   min-inline-size: 0;
-}
-
-.ev-fearless__role {
-  display: grid;
-  align-content: start;
-  justify-items: center;
-  gap: var(--space-2);
-  min-inline-size: 0;
-}
-
-.ev-fearless .ev-draft-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
-  align-items: start;
-  justify-content: center;
-}
-
-.ev-fearless .ev-draft-tiles .np-avatar {
-  inline-size: clamp(16px, 4cqi, 28px);
+  list-style: none;
 }
 
 @container (max-width: 24rem) {

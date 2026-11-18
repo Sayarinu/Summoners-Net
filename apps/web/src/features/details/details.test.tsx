@@ -474,6 +474,7 @@ it("shows the draft by side, team totals and the score through the selected game
   ).toBeVisible();
   expect(screen.queryByText(/^Patch/)).toBeNull();
 
+  const priorPicks = ["Orianna", "Gnar", "Vi", "Ezreal", "Lulu", "Ahri"];
   view.rerender(
     <SeriesGamePage
       match={{ ...match, league: "Worlds", event: "2026 · Playoffs" }}
@@ -481,14 +482,7 @@ it("shows the draft by side, team totals and the score through the selected game
       number={2}
       game={{ ...game, number: 2 }}
       detail={detail}
-      fearless={[
-        { role: "mid", champion: "Orianna" },
-        { role: "top", champion: "Gnar" },
-        { role: "jungle", champion: "Vi" },
-        { role: "bottom", champion: "Ezreal" },
-        { role: "support", champion: "Lulu" },
-        { role: "mid", champion: "Ahri" },
-      ]}
+      fearless={priorPicks}
       winProbability={null}
       timezone="UTC"
       hideSpoilers={false}
@@ -496,18 +490,13 @@ it("shows the draft by side, team totals and the score through the selected game
     />,
   );
   const combinedDraft = screen.getByRole("region", { name: "Draft Order" });
-  const fearless = within(combinedDraft).getByRole("region", { name: "Fearless Bans" });
+  const fearless = within(combinedDraft).getByRole("list", { name: "Fearless Bans" });
   expect(within(fearless).queryByRole("heading")).toBeNull();
   expect(within(fearless).queryByText(/Game \d/)).toBeNull();
-  expect(within(fearless).getAllByRole("list")).toEqual(
-    ["Top", "Jungle", "Mid", "Bottom", "Support"].map((role) =>
-      within(fearless).getByRole("list", { name: `${role} Fearless Bans` }),
-    ),
+  expect(within(fearless).getAllByRole("img")).toEqual(
+    priorPicks.map((name) => within(fearless).getByRole("img", { name })),
   );
-  const mid = within(fearless).getByRole("list", { name: "Mid Fearless Bans" });
-  expect(within(mid).getByRole("img", { name: "Orianna" })).toBeVisible();
-  expect(within(mid).getByRole("img", { name: "Ahri" })).toBeVisible();
-  expect(within(fearless).getByRole("img", { name: "Mid" })).toBeVisible();
+  expect(fearless.querySelector("[data-action], .ev-draft-portrait")).toBeNull();
 });
 
 it("links an archive game back to its confirmed series", () => {

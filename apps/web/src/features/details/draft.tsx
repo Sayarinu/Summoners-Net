@@ -1,14 +1,8 @@
 import type { HistoricalGameDetail } from "@summonersnet/data";
-import { RoleIcon } from "@summonersnet/ui";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 
 const actions = ["ban", "pick"] as const;
 const phases = [1, 2] as const;
-
-export interface FearlessPick {
-  role: string;
-  champion: string;
-}
 
 function DraftPortrait({
   name,
@@ -24,38 +18,6 @@ function DraftPortrait({
   );
 }
 
-function FearlessBans({
-  picks,
-  portraits,
-}: {
-  picks: FearlessPick[];
-  portraits?: ChampionPortraits | undefined;
-}) {
-  return (
-    <section className="ev-fearless" aria-label="Fearless Bans">
-      {["Top", "Jungle", "Mid", "Bottom", "Support"].map((role) => (
-        <div className="ev-fearless__role" key={role}>
-          <RoleIcon role={role} />
-          <ul
-            className="ev-draft-tiles"
-            data-action="ban"
-            aria-label={`${role} Fearless Bans`}
-            role="list"
-          >
-            {picks
-              .filter((pick) => pick.role === role.toLowerCase())
-              .map(({ champion }) => (
-                <li key={champion}>
-                  <DraftPortrait name={champion} portraits={portraits} />
-                </li>
-              ))}
-          </ul>
-        </div>
-      ))}
-    </section>
-  );
-}
-
 export function DraftPanel({
   detail,
   portraits,
@@ -63,7 +25,7 @@ export function DraftPanel({
 }: {
   detail: HistoricalGameDetail;
   portraits?: ChampionPortraits | undefined;
-  fearless?: FearlessPick[];
+  fearless?: string[];
 }) {
   const hasDraft = detail.draft.some((side) =>
     [...side.picks, ...side.bans].some((champion) => champion !== null),
@@ -144,7 +106,15 @@ export function DraftPanel({
           })}
         </div>
       ) : null}
-      {fearless.length ? <FearlessBans picks={fearless} portraits={portraits} /> : null}
+      {fearless.length ? (
+        <ol className="ev-fearless" aria-label="Fearless Bans" role="list">
+          {fearless.map((champion) => (
+            <li key={champion}>
+              <ChampionPortrait name={champion} portraits={portraits} size="medium" />
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </section>
   );
 }
