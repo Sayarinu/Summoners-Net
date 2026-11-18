@@ -152,7 +152,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,pro_game_details,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
+    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,pro_game_details,pro_game_vods,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -637,11 +637,21 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
         "INSERT INTO identity_links(oracle_id,panda_id,evidence,resolved_at) VALUES($1,$2,'{}',$3)",
         [oracle, panda, now],
       );
+    // A linked game carries its archive recording, the game start before the draft start.
+    const start = "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=540s";
+    const draft = "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=2881s";
+    await pool.query(
+      `INSERT INTO pro_game_vods(source_game_id,checked_at,observed_at,game_start_url,draft_start_url)
+       VALUES('acceptance-game',$1,$1,$2,$3),('acceptance-game-2',$1,$1,NULL,$3)`,
+      [now, start, draft],
+    );
     expect(await queries.matchGames("pandascore:match:1")).toMatchObject([
-      { number: 1, gameId: first, finishedAt: "2026-03-01T01:40:00.000Z" },
-      { number: 2, gameId: second },
-      { number: 3, gameId: null, finishedAt: null },
+      { number: 1, gameId: first, finishedAt: "2026-03-01T01:40:00.000Z", gameVodUrl: start },
+      { number: 2, gameId: second, gameVodUrl: draft },
+      { number: 3, gameId: null, finishedAt: null, gameVodUrl: null },
     ]);
+    expect(await queries.gameVod(first)).toBe(start);
+    expect(await queries.gameVod("oracle:game:missing")).toBeNull();
     expect(await queries.gameSeries(second)).toEqual({ matchId: "pandascore:match:1", number: 2 });
     expect(await queries.matchGames("pandascore:match:missing")).toBeNull();
     // A second archive game claiming the same number makes that pair ambiguous.
@@ -7233,5 +7243,179 @@ describe("Leaguepedia pro game detail batches", () => {
     expect(requested).toEqual([[first, broken, cut], [cut]]);
     expect((await detailRows()).map(({ source_game_id: id }) => id)).toEqual([first, broken, cut]);
     expect(await jobs()).toEqual(["done", "done"]);
+  });
+});
+
+describe("Leaguepedia pro game recordings", () => {
+  const wiki = "https://lol.fandom.com/api.php?";
+  const gamesOf = (url: string) =>
+    [...(new URL(url).searchParams.get("where") ?? "").matchAll(/'([A-Z0-9]+_[0-9]+)'/g)].map(
+      ([, id]) => id!,
+    );
+  const row = (id: string, links: { start?: string; draft?: string; vod?: string }) => ({
+    title: {
+      GameId: `Example/${id}`,
+      Vod: links.vod ?? "",
+      VodGameStart: links.start ?? "",
+      VodPB: links.draft ?? "",
+      RiotPlatformGameId: id,
+    },
+  });
+  async function importGames(games: { id: string; league: string }[]) {
+    const [header] = historyCsv().trim().split("\n");
+    const rows = games.flatMap((game) => historyCsv(game).trim().split("\n").slice(1));
+    expect(await importCsv([header, ...rows].join("\n") + "\n")).toMatchObject({
+      state: "done",
+    });
+  }
+  const gameId = async (sourceGameId: string) =>
+    (
+      await pool.query<{ id: string }>(
+        `SELECT g.id FROM games g JOIN oracle_archive_games a ON a.id=g.archive_game_id
+         WHERE a.source_game_id=$1`,
+        [sourceGameId],
+      )
+    ).rows[0]!.id;
+  const jobs = async () =>
+    (
+      await pool.query<{ state: string }>(
+        "SELECT state FROM sync_jobs WHERE request->>'kind'='pro-game-vods' ORDER BY id",
+      )
+    ).rows.map(({ state }) => state);
+
+  it("asks for 50 games at a time, covered competitions first, and rechecks only games without a recording", async () => {
+    const covered = Array.from({ length: 51 }, (_, n) => `LOLTMNT02_${500_001 + n}`);
+    const other = "LOLTMNT02_100001";
+    await importGames([
+      ...covered.map((id) => ({ id, league: "Worlds" })),
+      { id: other, league: "LDL" },
+    ]);
+    const requested: string[][] = [];
+    const agents: (string | undefined)[] = [];
+    let rows: (ids: string[]) => unknown[] = (ids) =>
+      ids.includes(covered[0]!)
+        ? [
+            row(covered[0]!, {
+              start: "https://youtu.be/c5ZgeZ0QdDI?t=540",
+              draft: "https://youtu.be/c5ZgeZ0QdDI",
+            }),
+            row(covered[1]!, {}),
+          ]
+        : [];
+    fetcher.mockImplementation((input, init) => {
+      const url = endpoint(input);
+      if (!url.startsWith(wiki)) throw new Error("Unexpected provider request");
+      expect(new URL(url).searchParams.get("maxlag")).toBe("5");
+      agents.push((init?.headers as Record<string, string> | undefined)?.["User-Agent"]);
+      const ids = gamesOf(url);
+      requested.push(ids);
+      return Promise.resolve(json({ cargoquery: rows(ids) }));
+    });
+    const pauses: number[] = [];
+    const w = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: (ms) => {
+        pauses.push(ms);
+        instant = new Date(instant.valueOf() + ms);
+        return Promise.resolve();
+      },
+      proGameVodRun: { maxMs: 1000, spacingMs: 2000 },
+    });
+    try {
+      await w.request({ kind: "pro-game-vods" });
+      expect(await w.runNext()).toMatchObject({ state: "done", records: 1 });
+      // The second-tier game comes after every covered game, two seconds after the first batch.
+      expect(requested).toEqual([covered.slice(0, 50), [covered[50], other]]);
+      expect(pauses).toEqual([2000]);
+      expect(await jobs()).toEqual(["done"]);
+      expect(agents.every((agent) => agent?.startsWith("SummonersNet/"))).toBe(true);
+      expect(await queries.gameVod(await gameId(covered[0]!))).toBe(
+        "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=540s",
+      );
+      expect(await queries.gameVod(await gameId(covered[1]!))).toBeNull();
+
+      // Nothing is due until a recent game's six hours have passed.
+      requested.length = 0;
+      await w.request({ kind: "pro-game-vods" });
+      expect(await w.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(requested).toEqual([]);
+
+      instant = new Date(instant.valueOf() + 7 * 3_600_000);
+      rows = (ids) =>
+        ids.includes(covered[1]!)
+          ? [row(covered[1]!, { draft: "https://www.twitch.tv/videos/2345678901?t=1h2m3s" })]
+          : [];
+      await w.request({ kind: "pro-game-vods" });
+      expect(await w.runNext()).toMatchObject({ state: "done", records: 1 });
+      expect(requested.flat()).toHaveLength(51);
+      expect(requested.flat()).not.toContain(covered[0]);
+      // Only a draft-start link is known, so the recording opens at the draft.
+      expect(await queries.gameVod(await gameId(covered[1]!))).toBe(
+        "https://www.twitch.tv/videos/2345678901?t=1h2m3s",
+      );
+
+      // A failed request keeps the stored links, and the job retries later.
+      instant = new Date(instant.valueOf() + 7 * 3_600_000);
+      fetcher.mockImplementation(() => Promise.resolve(new Response("", { status: 503 })));
+      await w.request({ kind: "pro-game-vods" });
+      expect(await w.runNext()).toMatchObject({ state: "queued" });
+      expect(await queries.gameVod(await gameId(covered[0]!))).toBe(
+        "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=540s",
+      );
+      expect(await queries.gameVod(await gameId(covered[1]!))).toBe(
+        "https://www.twitch.tv/videos/2345678901?t=1h2m3s",
+      );
+    } finally {
+      await w.close();
+    }
+  });
+
+  it("waits out wiki lag and rechecks only games still without a recording", async () => {
+    const [recent, old] = ["LOLTMNT02_600001", "LOLTMNT02_600002"];
+    await importGames([recent, old].map((id) => ({ id, league: "LCK" })));
+    const link = "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=60s";
+    const day = 86_400_000;
+    await pool.query(
+      `INSERT INTO pro_game_vods(source_game_id,checked_at,observed_at,game_start_url)
+       VALUES($1,$2,NULL,NULL),($3,$4,$4,$5)`,
+      [
+        recent,
+        new Date(instant.valueOf() - day),
+        old,
+        new Date(instant.valueOf() - 60 * day),
+        link,
+      ],
+    );
+    fetcher.mockImplementation(() =>
+      Promise.resolve(
+        json({ error: { code: "maxlag", info: "Waiting for a replica" } }, { "Retry-After": "7" }),
+      ),
+    );
+    expect(await run({ kind: "pro-game-vods" })).toMatchObject({ state: "queued" });
+    const [lagged] = (
+      await pool.query<{ available_at: Date; attempts: number }>(
+        "SELECT available_at,attempts FROM sync_jobs WHERE request->>'kind'='pro-game-vods'",
+      )
+    ).rows;
+    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 7000));
+    expect(lagged?.attempts).toBe(0);
+
+    const requested: string[][] = [];
+    fetcher.mockImplementation((input) => {
+      const ids = gamesOf(endpoint(input));
+      requested.push(ids);
+      return Promise.resolve(json({ cargoquery: ids.map((id) => row(id, {})) }));
+    });
+    instant = new Date(instant.valueOf() + 7000);
+    expect(await sync.runNext()).toMatchObject({ state: "done", records: 0 });
+    // A game with a recording is never asked for again.
+    expect(requested).toEqual([[recent]]);
+    expect(await queries.gameVod(await gameId(old))).toBe(link);
+    const stored = await pool.query<{ checked_at: Date }>(
+      "SELECT checked_at FROM pro_game_vods WHERE source_game_id=$1",
+      [recent],
+    );
+    expect(stored.rows[0]?.checked_at).toEqual(instant);
   });
 });

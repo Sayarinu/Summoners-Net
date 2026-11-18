@@ -125,8 +125,8 @@ To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/
 `pnpm sync:once`. `pnpm sync:status` shows the queue.
 
 `pnpm queue KIND` queues other worker jobs: `matches`, `running`, `rosters`, `metadata`, `entities`,
-`riot-key`, `riot-match-ids` and `wp-train`. Files are queued with an absolute or relative path:
-`pnpm queue replay-track FILE`, `pnpm queue replay-metadata FILE [PLATFORM]` and
+`riot-key`, `riot-match-ids`, `pro-game-vods` and `wp-train`. Files are queued with an absolute or
+relative path: `pnpm queue replay-track FILE`, `pnpm queue replay-metadata FILE [PLATFORM]` and
 `pnpm queue pro-account-links FILE`.
 
 `pnpm queue replay-track FILE` queues [replay track JSON](docs/formats/replay-track-v1.md) files up
@@ -275,4 +275,7 @@ Match data comes from [PandaScore](https://pandascore.co) and historical data fr
 purchase history, gold snapshots and timed objectives where matching postgame records are available
 from [Leaguepedia](https://lol.fandom.com/wiki/League_of_Legends_Esports_Wiki). It asks for five
 games per request, at most one request every two seconds, starting with the covered competitions,
-and waits whenever the wiki reports that it is under load. Each source has its own terms.
+and waits whenever the wiki reports that it is under load. It also reads each game's YouTube or
+Twitch recording from Leaguepedia's match schedule, 50 games per request at the same pace, so a
+game's VOD opens where the game starts. A game without a recording is asked for again after six
+hours while it is under two weeks old, and after 30 days once older. Each source has its own terms.

@@ -299,7 +299,10 @@ function Winner({ match, game, hidden }: { match: Match; game: SeriesGame; hidde
 
 export interface SeriesGameSummary {
   number: number;
+  /** In-game length from the archive, which excludes the draft. */
   durationSeconds: number | null;
+  /** When the archive game started, after the draft. */
+  startsAt?: string | null;
   teams: { id: string; side: "blue" | "red"; kills: number | null }[];
 }
 
@@ -385,6 +388,8 @@ export function MatchPage({
   const preferenceHidden = useSpoilerPreference(hideSpoilers);
   const [revealed, setRevealed] = useState(false);
   const hidden = preferenceHidden && !revealed;
+  const byNumber = new Map(summaries.map((summary) => [summary.number, summary]));
+  const clock = new Intl.DateTimeFormat("en-US", { timeStyle: "short", timeZone: timezone });
   const broadcasts = watchableBroadcasts(match);
   const hasReplay = match.state === "final" && broadcasts.length > 0;
   const hasSummary =
@@ -414,7 +419,13 @@ export function MatchPage({
             <ol className="ev-series-games">
               {games.map((game) => {
                 const vodUrl = gameReplayUrl(match, game);
-                const duration = played(game) ? length(observedSeconds(game)) : null;
+                const summary = byNumber.get(game.number);
+                // The provider's times include the draft, so the archive's length comes first.
+                const duration = played(game)
+                  ? length(summary?.durationSeconds ?? observedSeconds(game))
+                  : null;
+                const startedAt =
+                  game.state === "finished" ? (summary?.startsAt ?? game.startsAt) : null;
                 const body = (
                   <>
                     <span className="ev-series-game__number">Game {game.number}</span>
@@ -444,6 +455,11 @@ export function MatchPage({
                       >
                         Watch Game VOD
                       </TextLink>
+                    ) : startedAt ? (
+                      <span className="ev-series-game__replay np-meta">
+                        Started{" "}
+                        <time dateTime={startedAt}>{clock.format(new Date(startedAt))}</time>
+                      </span>
                     ) : null}
                   </li>
                 );

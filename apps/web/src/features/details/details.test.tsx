@@ -284,7 +284,9 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(within(tabs).getByText("Game 3")).toHaveAttribute("aria-disabled", "true");
   expect(screen.getAllByText("Result hidden")).toHaveLength(2);
   expect(screen.getByText("31:05")).toBeVisible();
-  expect(screen.getByText("0:00")).toBeVisible();
+  // Game 1's card takes the archive's in-game length over the provider's times.
+  expect(screen.getByText("32:56")).toBeVisible();
+  expect(screen.queryByText("0:00")).toBeNull();
   expect(screen.getByText("Mar 1, 2026", { selector: "time" })).toBeVisible();
   expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
   expect(screen.queryByRole("region", { name: "Series Summary" })).toBeNull();
@@ -304,6 +306,72 @@ it("moves between a series overview and its played games with spoilers kept", ()
   );
   expect(screen.getByText("No Games Reported Yet")).toBeVisible();
   expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute("href", "/history");
+});
+
+it("shows each game card's in-game length and its VOD at the game start, or else its start time", () => {
+  const vodUrl = "https://www.youtube.com/watch?v=c5ZgeZ0QdDI&t=540s";
+  const games = seriesGames().map((item) =>
+    item.number === 1
+      ? {
+          ...item,
+          startsAt: "2026-03-01T01:00:00.000Z",
+          finishedAt: "2026-03-01T02:01:51.000Z",
+          gameVodUrl: vodUrl,
+        }
+      : item,
+  );
+  const view = render(
+    <MatchPage
+      match={match}
+      games={games}
+      summaries={[
+        { number: 1, durationSeconds: 3196, startsAt: "2026-03-01T01:08:00.000Z", teams: [] },
+        { number: 2, durationSeconds: null, startsAt: "2026-03-01T02:08:00.000Z", teams: [] },
+      ]}
+      timezone="America/New_York"
+      hideSpoilers
+      now={instant}
+    />,
+  );
+  const cards = within(screen.getByRole("heading", { name: "Games" }).parentElement!);
+  const [first, second, third] = cards.getAllByRole("listitem");
+  // PandaScore's times include the draft (61:51); the archive's in-game length is shown.
+  expect(within(first!).getByText("53:16")).toBeVisible();
+  expect(within(first!).queryByText("61:51")).toBeNull();
+  expect(within(first!).getByRole("link", { name: "Watch Game 1 VOD" })).toHaveAttribute(
+    "href",
+    vodUrl,
+  );
+  expect(within(first!).queryByText(/Started/)).toBeNull();
+  // Without an archive length the provider's times remain; without a VOD the start time shows.
+  expect(within(second!).getByText("31:05")).toBeVisible();
+  expect(within(second!).queryByRole("link", { name: /VOD/ })).toBeNull();
+  expect(within(second!).getByText(/Started/)).toHaveTextContent("Started 9:08 PM");
+  expect(within(second!).getByText("9:08 PM")).toHaveAttribute(
+    "datetime",
+    "2026-03-01T02:08:00.000Z",
+  );
+  expect(within(third!).queryByText(/Started/)).toBeNull();
+  // Without a summary, the provider's start stands in.
+  view.rerender(
+    <MatchPage match={match} games={games} timezone="UTC" hideSpoilers now={instant} />,
+  );
+  expect(screen.getByText(/Started/)).toHaveTextContent("Started 2:00 AM");
+  expect(screen.getByText("61:51")).toBeVisible();
+  view.rerender(
+    <SeriesGamePage
+      match={match}
+      games={games}
+      number={1}
+      game={null}
+      detail={null}
+      winProbability={null}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Watch Game VOD" })).toHaveAttribute("href", vodUrl);
 });
 
 it("shows the draft by side, team totals and the score through the selected game after reveal", async () => {
