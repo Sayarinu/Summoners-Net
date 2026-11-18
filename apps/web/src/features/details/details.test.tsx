@@ -271,7 +271,8 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(screen.getAllByText("Result hidden")).toHaveLength(2);
   expect(screen.getByText("31:05")).toBeVisible();
   expect(screen.getByText("0:00")).toBeVisible();
-  expect(within(tabs).getByText("Mar 1, 2026")).toBeVisible();
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" })).toBeVisible();
+  expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Result hidden")).toBeNull();
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveTextContent("Acceptance Blue");
@@ -407,7 +408,9 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toBeVisible();
   expect(screen.queryByText("31:05")).toBeNull();
   expect(screen.queryByText(/^Patch/)).toBeNull();
-  expect(screen.getByText("LCK · Grand Finals · Best of 3")).toBeVisible();
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" }).parentElement).toHaveTextContent(
+    "LCK · Grand Finals · Mar 1, 2026 · Best of 3",
+  );
   expect(screen.queryByText(/Playoffs/)).toBeNull();
   expect(screen.queryByText("Final", { exact: true })).toBeNull();
   expect(
@@ -475,7 +478,9 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue 1 vs 1 Acceptance Red",
   );
-  expect(screen.getByText("2026 · Playoffs · Best of 3")).toBeVisible();
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" }).parentElement).toHaveTextContent(
+    "2026 · Playoffs · Mar 1, 2026 · Best of 3",
+  );
   expect(screen.queryByText(/Grand Final/)).toBeNull();
   expect(screen.queryByRole("link", { name: "Watch Game VOD" })).toBeNull();
   expect(

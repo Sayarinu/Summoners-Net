@@ -167,7 +167,7 @@ export function Pages({ data }: { data: Page<unknown> }) {
   return (
     <div className="ev-pagination">
       <span className="np-meta">
-        {data.total.toLocaleString()} records · Page {data.page}
+        {data.total.toLocaleString()} {data.total === 1 ? "record" : "records"} · Page {data.page}
       </span>
       <Pagination
         currentPage={data.page}
@@ -185,10 +185,12 @@ export function GamesTable({
   games,
   timezone,
   hideSpoilers,
+  pastMatches = false,
 }: {
   games: Game[];
   timezone: string;
   hideSpoilers: boolean;
+  pastMatches?: boolean;
 }) {
   return (
     <Table
@@ -202,7 +204,7 @@ export function GamesTable({
           header: "Played",
           render: (g) => (
             <TextLink href={`/games/${encodeURIComponent(g.id)}`}>
-              {dateTime(g.occurredAt, timezone)}
+              {dateTime(g.occurredAt, timezone, pastMatches)}
             </TextLink>
           ),
         },
@@ -231,16 +233,20 @@ export function GamesTable({
         { id: "league", header: "League", render: (g) => g.league },
         { id: "game", header: "Game", render: (g) => g.number },
         { id: "patch", header: "Patch", render: (g) => g.patch ?? "—" },
-        {
-          id: "coverage",
-          header: "Statistics",
-          render: (g) => (
-            <StatusIndicator
-              label={g.complete ? "Eligible" : "Partial"}
-              tone={g.complete ? "neutral" : "warning"}
-            />
-          ),
-        },
+        ...(pastMatches
+          ? []
+          : [
+              {
+                id: "coverage",
+                header: "Statistics",
+                render: (g: Game) => (
+                  <StatusIndicator
+                    label={g.complete ? "Eligible" : "Partial"}
+                    tone={g.complete ? "neutral" : "warning"}
+                  />
+                ),
+              },
+            ]),
       ]}
     />
   );

@@ -1,3 +1,7 @@
+.ev-shell {
+  display: contents;
+}
+
 .ev-sidebar {
   position: fixed;
   z-index: 30;
@@ -56,17 +60,58 @@
   flex: 1;
   min-width: 220px;
 }
-.ev-shell-footer {
-  margin-left: 240px;
-}
-.ev-mobile-header,
+.ev-mobile-brand,
+.ev-mobile-menu-button,
 .ev-mobile-menu-backdrop {
   display: none;
+}
+.ev-topbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: 240px;
+  padding: var(--space-2) clamp(var(--space-4), 2vw, var(--space-8));
+  background: color-mix(in srgb, var(--color-bg-canvas) 94%, transparent);
+  border-bottom: 1px solid var(--color-border-subtle);
+  backdrop-filter: blur(16px);
+}
+.ev-global-search {
+  position: relative;
+  inline-size: min(100%, 26rem);
+  min-inline-size: 0;
+}
+.ev-global-search__suggestions {
+  position: absolute;
+  inset: calc(100% + var(--space-1)) 0 auto;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.ev-global-search__suggestions a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.ev-global-search__suggestions a:is(:hover, :focus-visible) {
+  background: var(--color-bg-interactive);
 }
 .ev-main {
   scroll-margin-top: 90px;
   max-width: none;
-  min-height: calc(100svh - 168px);
   padding: var(--space-8) clamp(var(--space-4), 2vw, var(--space-8)) var(--space-16);
   margin-left: 240px;
 }
@@ -306,9 +351,19 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
   padding-block: var(--space-4);
+}
+.ev-pagination > .np-meta {
+  color: var(--color-text-accent);
+}
+.ev-pagination > .np-pagination {
+  min-inline-size: 0;
+  margin-inline-start: auto;
+}
+.ev-pagination .np-pagination__pages {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .ev-refresh {
   display: flex;
@@ -362,30 +417,31 @@
     width: min(320px, calc(100vw - 48px));
     box-shadow: var(--shadow-md);
   }
-  .ev-mobile-header {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    display: flex;
-    min-height: 56px;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--color-bg-canvas) 94%, transparent);
-    border-bottom: 1px solid var(--color-border-subtle);
-    backdrop-filter: blur(16px);
+  .ev-topbar {
+    margin-inline-start: 0;
+    padding-inline: var(--space-3);
+  }
+  .ev-global-search {
+    flex: 1;
+  }
+  .ev-global-search__suggestions {
+    inset-inline-start: auto;
+    inline-size: max(100%, min(22rem, calc(100vw - 2 * var(--space-3))));
   }
   .ev-mobile-brand {
+    display: inline-block;
     color: var(--color-text-primary);
     font-family: var(--font-family-mono);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     text-decoration: none;
+    white-space: nowrap;
   }
   .ev-mobile-menu-button {
     display: inline-grid;
     width: 44px;
     height: 44px;
+    flex: 0 0 44px;
     place-items: center;
     color: var(--color-text-primary);
     font-size: var(--font-size-lg);
@@ -404,12 +460,9 @@
     background: var(--color-bg-overlay);
     border: 0;
   }
-  .ev-main,
-  .ev-shell-footer {
-    margin-left: 0;
-  }
   .ev-main {
     scroll-margin-top: 72px;
+    margin-left: 0;
     padding: var(--space-5) var(--space-3) var(--space-12);
   }
   .ev-title {
@@ -772,17 +825,6 @@
 .ev-series-title__facts {
   gap: var(--space-1) var(--space-3);
 }
-.ev-series-date {
-  align-self: center;
-  margin-inline-start: auto;
-  padding-inline: var(--space-2);
-  white-space: nowrap;
-}
-.ev-title .ev-series-date {
-  display: block;
-  margin-inline-start: 0;
-  padding: 0;
-}
 .ev-series-page > .np-button,
 .ev-series-content > .np-button {
   align-self: start;
@@ -850,6 +892,12 @@
   --np-stack-gap: var(--space-2);
 }
 
+.ev-series-replay {
+  inline-size: min(100%, 67.5rem);
+  min-inline-size: 0;
+  margin-inline: auto;
+}
+
 .ev-compact-player {
   width: 100%;
   max-width: 560px;
@@ -857,8 +905,6 @@
 
 .ev-series-overview .ev-watch-player {
   --np-stack-gap: var(--space-2);
-  max-width: 560px;
-  margin-inline: auto;
 }
 
 .ev-watch-player__streams {
@@ -1071,43 +1117,9 @@
   transform: translateX(-50%);
 }
 
-@media (min-width: 76rem) {
-  .ev-series-overview:has(> .ev-series-replay) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, min(45%, 45rem));
-    gap: var(--space-2) var(--space-6);
-  }
-
-  .ev-series-overview:has(> .ev-series-replay) > .ev-series-overview__games {
-    display: grid;
-    grid-row: 1 / span 2;
-    grid-template-rows: subgrid;
-    align-self: stretch;
-  }
-
-  .ev-series-overview:has(> .ev-series-overview__games) > .ev-series-replay {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .ev-series-overview:has(> .ev-series-replay) .ev-series-games {
-    align-self: start;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-  }
-
-  .ev-series-overview .ev-watch-player {
-    max-width: none;
-  }
-}
-
 @container (max-width: 25rem) {
   .ev-series-tabs .ev-tab {
     padding-inline: var(--space-2);
-  }
-
-  .ev-series-date {
-    flex-basis: 100%;
-    margin-inline-start: 0;
-    padding-block: var(--space-1);
   }
 }
 
@@ -1434,7 +1446,7 @@
   }
 }
 
-.ev-history-toolbar {
+.ev-browse-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
@@ -1443,11 +1455,11 @@
   border-block: 1px solid var(--color-border-subtle);
 }
 
-.ev-history-toolbar .ev-view-switch {
+.ev-browse-toolbar .ev-view-switch {
   align-self: end;
 }
 
-.ev-history-toolbar > .ev-filters {
+.ev-browse-toolbar > .ev-filters {
   display: flex;
   flex: 1 1 440px;
   align-items: end;
@@ -1455,13 +1467,13 @@
   border: 0;
 }
 
-.ev-history-toolbar .ev-filters > .np-field:has(input[type="search"]) {
+.ev-browse-toolbar .ev-filters > .np-field:has(input[type="search"]) {
   flex: 1 1 180px;
   min-width: min(100%, 180px);
   max-width: none;
 }
 
-.ev-history-toolbar .ev-filters > .np-select {
+.ev-browse-toolbar .ev-filters > .np-select {
   min-width: 140px;
 }
 

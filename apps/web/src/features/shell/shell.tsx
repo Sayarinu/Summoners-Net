@@ -1,9 +1,10 @@
 "use client";
-import { Footer, Navigation, SkipLink } from "@summonersnet/ui";
+import { Navigation, SkipLink } from "@summonersnet/ui";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { TimezoneDetector } from "../preferences/controls";
 import type { Preferences } from "../preferences/model";
+import { GlobalSearch } from "./global-search";
 /** Pages that live under a navigation entry without sharing its first path segment. */
 const sections: Record<string, string> = {
   matches: "/",
@@ -49,7 +50,6 @@ export function ShellHeader({
     { href: "/patches", label: "Patches" },
     { href: "/drafts", label: "Drafts" },
     { href: "/models", label: "Models" },
-    { href: "/search", label: "Search" },
   ];
   return (
     <div className={`ev-shell${mobileOpen ? " ev-shell--mobile-open" : ""}`}>
@@ -83,7 +83,7 @@ export function ShellHeader({
         </div>
         {autoDetectTimezone ? <TimezoneDetector initial={preferences} /> : null}
       </aside>
-      <header className="ev-mobile-header">
+      <header className="ev-topbar">
         <button
           aria-controls="app-navigation"
           aria-expanded={mobileOpen}
@@ -97,14 +97,8 @@ export function ShellHeader({
         <a className="ev-mobile-brand" href="/">
           Summoners Net
         </a>
+        <GlobalSearch />
       </header>
-    </div>
-  );
-}
-export function ShellFooter() {
-  return (
-    <div className="ev-shell-footer">
-      <Footer copyright="Summoners Net" />
     </div>
   );
 }

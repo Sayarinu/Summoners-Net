@@ -7,21 +7,6 @@
   max-width: none;
   margin-inline: 0;
 }
-.ev-team-directory-heading {
-  justify-content: flex-start;
-  align-items: end;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-6);
-  padding: 0;
-}
-.ev-team-directory-heading .ev-filters {
-  padding: 0;
-  border: 0;
-}
-.ev-teams--directory .ev-pagination {
-  justify-content: flex-start;
-  padding-block: 0;
-}
 .ev-team-banner,
 .ev-team-panel,
 .ev-team-history,

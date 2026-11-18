@@ -178,6 +178,19 @@ test("team finder and profile keep season, series and archive games accessible",
   if (info.project.name === "desktop-chromium")
     await page.setViewportSize({ width: 1960, height: 1160 });
   await page.goto("/teams?q=Acceptance&league=LCK");
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  const records = page.getByText(/^\d+ records? · Page 1$/);
+  const pagination = page.getByRole("navigation", { name: "Pagination" });
+  await expect(records).toBeVisible();
+  await expect(pagination.getByRole("button", { name: "Page 1" })).toBeVisible();
+  const [recordBounds, pageBounds] = await Promise.all([
+    records.boundingBox(),
+    pagination.boundingBox(),
+  ]);
+  expect(pageBounds!.x).toBeGreaterThan(recordBounds!.x + recordBounds!.width);
+  expect(
+    Math.abs(pageBounds!.y + pageBounds!.height / 2 - recordBounds!.y - recordBounds!.height / 2),
+  ).toBeLessThan(2);
   await page.getByRole("link", { name: /Acceptance Blue/ }).click();
   await expect(page.getByRole("heading", { name: "Current Roster" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Observed Player/ })).toBeVisible();
@@ -223,9 +236,19 @@ test("team profile links use readable routes and legacy URLs settle without a re
 test("search, history, observed rosters and independently accessible played lineups", async ({
   page,
 }) => {
-  await page.goto("/search");
-  await page.getByRole("searchbox", { name: "Search" }).fill("Player Blue mid");
+  await page.goto("/");
+  const search = page.getByRole("searchbox", { name: "Search App" });
+  await search.fill("Player Blue");
+  const suggestions = page.getByRole("list", { name: "Search Suggestions" });
+  await expect(suggestions.getByRole("link")).toHaveCount(5);
+  await search.press("ArrowDown");
+  await expect(suggestions.getByRole("link").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(search).toBeFocused();
+  await search.fill("Player Blue mid");
+  await search.press("Enter");
   await expect(page).toHaveURL(/q=Player\+Blue\+mid/);
+  await expect(suggestions).toHaveCount(0);
   await page.getByRole("link", { name: /Player Blue mid/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
   await expect(page.getByRole("table", { name: "Current Roster" })).toBeVisible();
@@ -252,14 +275,16 @@ test("search, history, observed rosters and independently accessible played line
   await expect(page).toHaveURL(/year=2014&view=games/);
   await expect(page.getByText("No games match these filters.")).toBeVisible();
 });
-test("search typed before hydration still runs once the page hydrates", async ({ page }) => {
+test("global search submits before hydration", async ({ page }) => {
   // Hold back the client bundles so the text lands while the form is still server-rendered HTML.
   await page.route("**/_next/static/**/*.js", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await route.continue();
   });
-  await page.goto("/search", { waitUntil: "domcontentloaded" });
-  await page.getByRole("searchbox", { name: "Search" }).fill("Player Blue mid");
+  await page.goto("/teams", { waitUntil: "domcontentloaded" });
+  const search = page.getByRole("searchbox", { name: "Search App" });
+  await search.fill("Player Blue mid");
+  await search.press("Enter");
   await expect(page).toHaveURL(/q=Player\+Blue\+mid/, { timeout: 15000 });
   await expect(page.getByRole("link", { name: /Player Blue mid/ })).toHaveCount(1);
 });
@@ -287,7 +312,8 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await expect(page.getByRole("heading", { name: "February 2026", level: 2 })).toBeVisible();
   await expect(page.getByText("Result Hidden")).not.toHaveCount(0);
   await page.goto("/history?view=games");
-  await expect(page.getByRole("link", { name: /02\/28\/2026/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "02/28/2026", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Statistics" })).toHaveCount(0);
 });
 test("a finished match loads its paused replay and keeps an external fallback", async ({
   page,
@@ -302,11 +328,11 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   await expect(page.getByRole("heading", { name: "Watch Replay" })).toHaveCount(0);
   const frame = page.getByTitle("Match Broadcast");
   await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  const cardBounds = await page.getByRole("link", { name: "Open Game 1" }).boundingBox();
+  const cardBounds = await page.locator(".ev-series-games").boundingBox();
   const replayBounds = await frame.boundingBox();
   const playerBounds = await page.getByRole("region", { name: "Match Player" }).boundingBox();
-  expect(replayBounds!.x).toBeGreaterThan(cardBounds!.x + cardBounds!.width);
-  expect(Math.abs(playerBounds!.y - cardBounds!.y)).toBeLessThanOrEqual(1.5);
+  expect(playerBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height);
+  expect(playerBounds!.width).toBeCloseTo(1080, 0);
   const streams = page.getByRole("button", { name: /\bStream\b/ });
   await expect(streams).toContainText("YouTube · English");
   const streamsBounds = await streams.boundingBox();

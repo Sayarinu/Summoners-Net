@@ -25,10 +25,14 @@ export function TeamFinder({
 }) {
   return (
     <div className="ev-teams ev-teams--directory np-stack">
-      <header className="ev-title ev-team-directory-heading">
-        <h1>Teams</h1>
-        <Filters teams query={query} />
+      <header className="ev-title">
+        <div>
+          <h1>Teams</h1>
+        </div>
       </header>
+      <div className="ev-browse-toolbar">
+        <Filters teams query={query} />
+      </div>
       {data.items.length ? (
         <ul className="ev-team-grid">
           {data.items.map((t) => (
@@ -47,7 +51,7 @@ export function TeamFinder({
       ) : (
         <EmptyState title="No Teams Found" />
       )}
-      {data.total > data.pageSize && <Pages data={data} />}
+      <Pages data={data} />
     </div>
   );
 }

@@ -114,7 +114,7 @@ function SeriesShell({
     : match.event || match.league;
   const startsAt = gameStartsAt ?? match.startsAt;
   const date = startsAt ? (
-    <time className="np-meta ev-series-date" dateTime={startsAt}>
+    <time dateTime={startsAt}>
       {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: timezone }).format(
         new Date(startsAt),
       )}
@@ -142,7 +142,8 @@ function SeriesShell({
         <div>
           <div className="np-cluster ev-series-title__facts">
             <span className="np-overline">
-              {event} · Best of {match.bestOf}
+              {event}
+              {date ? <> · {date}</> : null} · Best of {match.bestOf}
             </span>
             {overview && match.state !== "final" ? (
               <MatchLifecycleLabel lifecycle={match.state} />
@@ -206,7 +207,6 @@ function SeriesShell({
                 })
               : title}
           </h1>
-          {overview ? null : date}
         </div>
         {overview && hidden && match.state === "final" ? (
           <Button
@@ -250,7 +250,6 @@ function SeriesShell({
             </span>
           ),
         )}
-        {overview ? date : null}
       </nav>
       <div className="np-stack ev-series-content" key={current}>
         {children}
@@ -259,7 +258,6 @@ function SeriesShell({
   );
 }
 
-// Keep this breakpoint in sync with the series overview grid.
 const replayLayout = "(min-width: 76rem)";
 function subscribeToReplayLayout(onChange: () => void) {
   const query = window.matchMedia(replayLayout);
