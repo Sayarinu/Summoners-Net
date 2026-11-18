@@ -7,25 +7,31 @@ import { parseRiotTimeline, type TimelineEvent, type TimelineFrame } from "./rio
 
 export const proGamePlatformPattern = "^(LOL|ESPORTS)TMNT[0-9]{2}_[0-9]+$";
 const proGameId = z.string().max(30).regex(new RegExp(proGamePlatformPattern));
-const revisions = z.object({
-  query: z.object({
-    pages: z
-      .array(
-        z.object({
-          title: z.string(),
-          revisions: z
-            .array(
-              z.object({
-                slots: z.object({ main: z.object({ content: z.string().max(8_000_000) }) }),
-              }),
-            )
-            .length(1)
-            .optional(),
-        }),
-      )
-      .max(2),
-  }),
+/**
+ * Games per request. One game's two pages are about 1.1 MB, and MediaWiki continues a response
+ * past about 8 MiB, so five games fit in one reply with room to spare.
+ */
+export const leaguepediaBatchSize = 5;
+const page = z.object({
+  title: z.string(),
+  missing: z.boolean().optional(),
+  revisions: z
+    .array(
+      z.object({
+        slots: z.object({ main: z.object({ content: z.string().max(8_000_000) }) }),
+      }),
+    )
+    .length(1)
+    .optional(),
 });
+type Page = z.infer<typeof page>;
+const reply = z.union([
+  z.object({ error: z.object({ code: z.string().max(100) }) }),
+  z.object({
+    continue: z.record(z.string(), z.unknown()).optional(),
+    query: z.object({ pages: z.array(page).max(leaguepediaBatchSize * 2) }),
+  }),
+]);
 const gameIdentity = z.object({ gameId: z.number().int().positive() });
 const dragonTypes = {
   FIRE_DRAGON: "infernal",
@@ -54,18 +60,67 @@ function gamePages(id: string) {
   return { score, timeline: `${score}/Timeline`, number: Number(number) };
 }
 
-export function leaguepediaGameUrl(id: string) {
-  const { score, timeline } = gamePages(id);
+/** One request for the score and timeline pages of up to `leaguepediaBatchSize` games. */
+export function leaguepediaGamesUrl(ids: readonly string[]) {
+  if (!ids.length || ids.length > leaguepediaBatchSize)
+    throw new Error(`Request between 1 and ${leaguepediaBatchSize} games.`);
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     formatversion: "2",
-    titles: `${score}|${timeline}`,
+    titles: ids
+      .flatMap((id) => {
+        const { score, timeline } = gamePages(id);
+        return [score, timeline];
+      })
+      .join("|"),
     prop: "revisions",
     rvprop: "content",
     rvslots: "main",
+    // Ask the wiki to refuse the request while its replicas lag, rather than add to the load.
+    maxlag: "5",
   });
   return `https://lol.fandom.com/api.php?${params}`;
+}
+
+export type LeaguepediaGame =
+  /** `detail` is null when the wiki has neither page. */
+  | { state: "loaded"; detail: ProGameDetails | null }
+  /** The pages exist but do not describe this game. */
+  | { state: "invalid" }
+  /** The reply was cut off before this game's pages; request it again. */
+  | { state: "deferred" };
+export type LeaguepediaReply =
+  { state: "lagged" } | { state: "pages"; games: Map<string, LeaguepediaGame> };
+
+/** Validates one batched reply and parses each requested game independently. */
+export function parseLeaguepediaGames(input: unknown, ids: readonly string[]): LeaguepediaReply {
+  const body = reply.parse(input);
+  if ("error" in body) {
+    if (body.error.code === "maxlag") return { state: "lagged" };
+    throw new Error("Leaguepedia refused the request.");
+  }
+  const pages = body.query.pages;
+  const continued = body.continue !== undefined;
+  const games = new Map<string, LeaguepediaGame>();
+  for (const id of ids) {
+    const { score, timeline } = gamePages(id);
+    const own = pages.filter(({ title }) => title === score || title === timeline);
+    const unread = (title: string) => {
+      const found = own.find((entry) => entry.title === title);
+      return !found || (!found.missing && !found.revisions);
+    };
+    if (continued && (unread(score) || unread(timeline))) {
+      games.set(id, { state: "deferred" });
+      continue;
+    }
+    try {
+      games.set(id, { state: "loaded", detail: parseGame(own, id) });
+    } catch {
+      games.set(id, { state: "invalid" });
+    }
+  }
+  return { state: "pages", games };
 }
 
 function objective(event: TimelineEvent) {
@@ -81,9 +136,8 @@ function objective(event: TimelineEvent) {
     : null;
 }
 
-export function parseLeaguepediaGame(input: unknown, id: string): ProGameDetails | null {
+function parseGame(pages: readonly Page[], id: string): ProGameDetails | null {
   const { score, timeline, number } = gamePages(id);
-  const pages = revisions.parse(input).query.pages;
   const read = (title: string): unknown => {
     const raw = pages.find((page) => page.title === title)?.revisions?.[0]?.slots.main.content;
     if (!raw) return null;

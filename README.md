@@ -268,5 +268,6 @@ officially involved in producing or managing Riot Games properties.
 Match data comes from [PandaScore](https://pandascore.co) and historical data from
 [Oracle's Elixir](https://oracleselixir.com). The worker fills in recent pro game inventories,
 purchase history, gold snapshots and timed objectives where matching postgame records are available
-from [Leaguepedia](https://lol.fandom.com/wiki/League_of_Legends_Esports_Wiki). Each source has its
-own terms.
+from [Leaguepedia](https://lol.fandom.com/wiki/League_of_Legends_Esports_Wiki). It asks for five
+games per request, at most one request every two seconds, starting with the covered competitions,
+and waits whenever the wiki reports that it is under load. Each source has its own terms.
