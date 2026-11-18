@@ -34,6 +34,7 @@ export function historyCsv({
   kills = "5",
   omitIds = false,
   completeness = "complete",
+  metrics = {},
 } = {}) {
   const fields = [
     "gameid",
@@ -53,6 +54,7 @@ export function historyCsv({
     "game",
     "patch",
     "datacompleteness",
+    ...Object.keys(metrics),
   ];
   const rows = [];
   for (const [i, side] of ["Blue", "Red"].entries())
@@ -77,6 +79,7 @@ export function historyCsv({
           "1",
           "16.4",
           completeness,
+          ...Object.values(metrics),
         ].join(","),
       );
     }

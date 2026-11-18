@@ -256,9 +256,11 @@ test("search, history, observed rosters and independently accessible played line
   await expect(suggestions).toHaveCount(0);
   await page.getByRole("link", { name: /Player Blue mid/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
-  await expect(page.getByRole("table", { name: "Current Roster" })).toBeVisible();
+  await expect(
+    page.locator(".ev-player-heading").getByRole("link", { name: /Acceptance Blue/ }),
+  ).toBeVisible();
   await expect(page.getByText("100.0%")).toBeVisible();
-  await page.getByRole("table", { name: "Historical Games" }).getByRole("link").first().click();
+  await page.locator(".ev-player-game__teams").first().click();
   await expect(page.getByRole("table", { name: "Acceptance Blue Lineup" })).toBeVisible();
   await expect(page.getByText("Hidden", { exact: true })).toHaveCount(0);
   await expect(page.getByText("5 / 2 / 7", { exact: true })).toHaveCount(10);
@@ -772,18 +774,18 @@ test("canonical profiles share local portraits across search and rosters with te
   await expect(page.getByRole("link", { name: /Player Blue mid/ })).toHaveCount(1);
   await page.getByRole("link", { name: /Player Blue mid/ }).click();
   await expect(page).toHaveURL(/\/players\/player-blue-mid$/);
-  const portrait = page.locator(".ev-title img");
+  const portrait = page.locator('.ev-player-heading [data-entity-kind="player"] img');
   await expect(portrait).toHaveAttribute("src", /^\/api\/images\/[a-f0-9]{64}$/);
   await expect
     .poll(() => portrait.evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBeGreaterThan(0);
   await expect(portrait).toHaveCSS("object-fit", "contain");
-  await expect(page.locator('.ev-title [data-entity-kind="player"]')).toHaveCSS(
+  await expect(page.locator('.ev-player-heading [data-entity-kind="player"]')).toHaveCSS(
     "background-color",
     "rgba(0, 0, 0, 0)",
   );
   await expect(page.getByText("Identity Details")).toHaveCount(0);
-  await page.getByRole("table", { name: "Historical Games" }).getByRole("link").first().click();
+  await page.locator(".ev-player-game__teams").first().click();
   const player = page.getByRole("link", { name: /Player Blue mid/ });
   await expect(player.locator("img")).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Mid", exact: true })).toHaveCount(2);
@@ -794,7 +796,9 @@ test("canonical profiles share local portraits across search and rosters with te
   await expect(page).toHaveURL(/\/players\/player-blue-mid$/);
   await page.goto("/players/pandascore%3Aplayer%3A32");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
-  await expect(page.getByRole("table", { name: "Current Roster" })).toBeVisible();
+  await expect(
+    page.locator(".ev-player-heading").getByRole("link", { name: /Acceptance Blue/ }),
+  ).toBeVisible();
   expect(external).toEqual([]);
   await page.addScriptTag({ content: AxeBuilder.source });
   expect(
@@ -827,10 +831,10 @@ test("missing and failed portraits show a person across search and profiles", as
   await expect(result.locator('[data-entity-kind="player"] svg')).toBeVisible();
   await expect(result.locator('[data-entity-kind="player"]')).toHaveText("");
   await result.click();
-  await expect(page.locator('.ev-title [data-entity-kind="player"] svg')).toBeVisible();
+  await expect(page.locator('.ev-player-heading [data-entity-kind="player"] svg')).toBeVisible();
   await page.goto("/players/oracle%3Aplayer%3A10-mid");
-  await expect(page.locator('.ev-title [data-entity-kind="player"] svg')).toBeVisible();
-  await expect(page.locator('.ev-title [data-entity-kind="player"] img')).toHaveCount(0);
+  await expect(page.locator('.ev-player-heading [data-entity-kind="player"] svg')).toBeVisible();
+  await expect(page.locator('.ev-player-heading [data-entity-kind="player"] img')).toHaveCount(0);
   expect(failedRequests).toBeGreaterThan(0);
   await page.screenshot({
     path: `../../output/playwright/${info.project.name}-person-placeholder.png`,

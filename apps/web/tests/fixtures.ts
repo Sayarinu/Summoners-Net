@@ -6,6 +6,7 @@ import type {
   SeriesGame,
   SyncStatus,
   Page,
+  PlayerPerformance,
 } from "@summonersnet/data";
 export const instant = "2026-03-01T12:00:00.000Z";
 export const blue: Identity = {
@@ -211,4 +212,27 @@ export const status: SyncStatus = {
   pandaRequests: 10,
   cooldownUntil: null,
   history: [{ year: 2026, games: 1, eligible: 1, latestGameAt: instant }],
+};
+const sampled = (value: number | null, sampleCount = 2) => ({ value, sampleCount });
+export const performance: PlayerPerformance = {
+  games: 2,
+  killsPerGame: sampled(5),
+  deathsPerGame: sampled(2),
+  assistsPerGame: sampled(7),
+  killParticipation: sampled(0.75),
+  csPerMinute: sampled(8.46),
+  goldPerMinute: sampled(412.4),
+  goldShare: sampled(0.231),
+  damagePerMinute: sampled(612.8),
+  damageShare: sampled(0.284),
+  visionScorePerMinute: sampled(1.234),
+  wardsPerMinute: sampled(0.45),
+  wardsClearedPerMinute: sampled(0.2),
+  controlWardsPerGame: sampled(3),
+  goldDiffAt15: sampled(-123.4, 1),
+  csDiffAt15: sampled(8),
+  xpDiffAt15: sampled(null, 0),
+  firstBloodParticipation: sampled(0.5),
+  firstBloodVictim: sampled(0),
+  pentakills: sampled(1),
 };
