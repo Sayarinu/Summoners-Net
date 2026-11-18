@@ -7010,3 +7010,139 @@ it("joins pro game inventories and purchases by source game and participant IDs"
   expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 0 });
   expect(fetcher).not.toHaveBeenCalled();
 });
+
+describe("Leaguepedia pro game detail batches", () => {
+  const wiki = "https://lol.fandom.com/api.php?";
+  const titlesOf = (url: string) => new URL(url).searchParams.get("titles")!.split("|");
+  const gamesOf = (url: string) =>
+    titlesOf(url)
+      .filter((title) => !title.endsWith("/Timeline"))
+      .map((title) => title.replace("V5 data:", "").replace(" ", "_"));
+  const missing = (url: string) => ({
+    batchcomplete: true,
+    query: { pages: titlesOf(url).map((title) => ({ title, missing: true })) },
+  });
+  /** One 2026 file holding each game, so the archive keeps them all. */
+  async function importGames(games: { id: string; league: string }[]) {
+    const [header] = historyCsv().trim().split("\n");
+    const rows = games.flatMap((game) => historyCsv(game).trim().split("\n").slice(1));
+    expect(await importCsv([header, ...rows].join("\n") + "\n")).toMatchObject({
+      state: "done",
+    });
+  }
+  const detailRows = async () =>
+    (
+      await pool.query<{ source_game_id: string; document: unknown }>(
+        "SELECT source_game_id,document FROM pro_game_details ORDER BY source_game_id",
+      )
+    ).rows;
+  const jobs = async () =>
+    (
+      await pool.query<{ state: string }>(
+        "SELECT state FROM sync_jobs WHERE request->>'kind'='pro-game-details' ORDER BY id",
+      )
+    ).rows.map(({ state }) => state);
+
+  it("requests five games at a time, covered competitions first, and requeues while games remain", async () => {
+    const covered = Array.from({ length: 11 }, (_, n) => `LOLTMNT02_${200_001 + n}`);
+    const other = "LOLTMNT02_100001";
+    await importGames([
+      ...covered.map((id) => ({ id, league: "Worlds" })),
+      { id: other, league: "LDL" },
+    ]);
+    const requested: string[][] = [];
+    const agents: (string | undefined)[] = [];
+    fetcher.mockImplementation((input, init) => {
+      const url = endpoint(input);
+      if (!url.startsWith(wiki)) throw new Error("Unexpected provider request");
+      expect(new URL(url).searchParams.get("maxlag")).toBe("5");
+      agents.push((init?.headers as Record<string, string> | undefined)?.["User-Agent"]);
+      requested.push(gamesOf(url));
+      return Promise.resolve(json(missing(url)));
+    });
+    const pauses: number[] = [];
+    const w = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: (ms) => {
+        pauses.push(ms);
+        instant = new Date(instant.valueOf() + ms);
+        return Promise.resolve();
+      },
+      proGameDetailRun: { maxMs: 1000, spacingMs: 2000 },
+    });
+    try {
+      await w.request({ kind: "pro-game-details" });
+      // Two batches fit before the time budget is spent; the rest wait for the continuation.
+      expect(await w.runNext()).toMatchObject({ state: "done", records: 0 });
+      expect(requested).toEqual([covered.slice(0, 5), covered.slice(5, 10)]);
+      expect(pauses).toEqual([2000]);
+      expect(await jobs()).toEqual(["done", "queued"]);
+      expect(await w.runNext()).toMatchObject({ state: "done", records: 0 });
+      // The second-tier game comes after every covered game.
+      expect(requested[2]).toEqual([covered[10], other]);
+      expect(await jobs()).toEqual(["done", "done"]);
+      expect(agents.every((agent) => agent?.startsWith("SummonersNet/"))).toBe(true);
+      const rows = await detailRows();
+      expect(rows).toHaveLength(12);
+      expect(rows.every(({ document }) => document === null)).toBe(true);
+    } finally {
+      await w.close();
+    }
+  });
+
+  it("waits out wiki lag, retries cut-off games, and skips one invalid game without failing the batch", async () => {
+    const [first, broken, cut] = ["LOLTMNT02_300001", "LOLTMNT02_300002", "LOLTMNT02_300003"];
+    await importGames([first, broken, cut].map((id) => ({ id, league: "LCK" })));
+    const wrongId = (title: string) => ({
+      title,
+      revisions: [{ slots: { main: { content: JSON.stringify({ gameId: 1 }) } } }],
+    });
+    let reply: (url: string) => Response = () =>
+      json({ error: { code: "maxlag", info: "Waiting for a replica" } }, { "Retry-After": "7" });
+    fetcher.mockImplementation((input) => {
+      const url = endpoint(input);
+      if (!url.startsWith(wiki)) throw new Error("Unexpected provider request");
+      return Promise.resolve(reply(url));
+    });
+    expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "queued" });
+    const [lagged] = (
+      await pool.query<{ available_at: Date; attempts: number }>(
+        "SELECT available_at,attempts FROM sync_jobs WHERE request->>'kind'='pro-game-details'",
+      )
+    ).rows;
+    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 7000));
+    expect(lagged?.attempts).toBe(0);
+    expect(await detailRows()).toEqual([]);
+
+    const requested: string[][] = [];
+    reply = (url) => {
+      const games = gamesOf(url);
+      requested.push(games);
+      if (games.length === 1) return json(missing(url));
+      const [score, timeline] = [`V5 data:LOLTMNT02 300002`, `V5 data:LOLTMNT02 300002/Timeline`];
+      return json({
+        continue: { rvcontinue: "1|2", continue: "||" },
+        query: {
+          pages: [
+            { title: "V5 data:LOLTMNT02 300001", missing: true },
+            { title: "V5 data:LOLTMNT02 300001/Timeline", missing: true },
+            wrongId(score),
+            wrongId(timeline),
+            { title: "V5 data:LOLTMNT02 300003" },
+            { title: "V5 data:LOLTMNT02 300003/Timeline" },
+          ],
+        },
+      });
+    };
+    instant = new Date(instant.valueOf() + 7000);
+    expect(await sync.runNext()).toMatchObject({ state: "done", records: 0 });
+    // The cut-off game is not marked checked; the continuation requests it on its own.
+    expect((await detailRows()).map(({ source_game_id: id }) => id)).toEqual([first, broken]);
+    expect(await jobs()).toEqual(["done", "queued"]);
+    expect(await sync.runNext()).toMatchObject({ state: "done", records: 0 });
+    expect(requested).toEqual([[first, broken, cut], [cut]]);
+    expect((await detailRows()).map(({ source_game_id: id }) => id)).toEqual([first, broken, cut]);
+    expect(await jobs()).toEqual(["done", "done"]);
+  });
+});

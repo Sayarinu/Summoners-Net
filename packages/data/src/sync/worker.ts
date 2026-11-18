@@ -83,7 +83,7 @@ import { cacheCatalogImages } from "./catalog-images.js";
 import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
-import { refreshProGameDetails } from "./pro-game-details.js";
+import { refreshProGameDetails, type ProGameDetailRun } from "./pro-game-details.js";
 import {
   riotKeyCheckResult,
   riotKeyCheckPath,
@@ -130,7 +130,14 @@ export interface WorkerOptions {
    * themselves behind other due jobs. The time stays under the five-minute job lease.
    */
   riotRun?: { maxItems?: number; maxMs?: number };
+  /**
+   * Leaguepedia detail runs load batches until no game is pending, spacing requests, and yield
+   * after `maxMs` to requeue themselves behind other due jobs.
+   */
+  proGameDetailRun?: ProGameDetailRun;
 }
+/** Identifies the worker to the wiki, as its API etiquette asks of automated clients. */
+const wikiUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game detail sync)";
 class ProviderError extends Error {
   constructor(
     message: string,
@@ -158,7 +165,12 @@ export function worker(pool: Pool, options: WorkerOptions) {
   const fetcher = options.fetch ?? fetch;
   const pause = options.pause ?? pauseFor;
   let lastPandaAttempt = 0;
-  async function request(url: string, panda = false, timeoutMs = 60000): Promise<Response> {
+  async function request(
+    url: string,
+    panda = false,
+    timeoutMs = 60000,
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
     if (panda) {
       if (!options.token) throw new ProviderError("PANDASCORE_TOKEN is not configured.");
       // Space catalog/backfill requests as well as respecting the durable hourly ceiling.
@@ -170,7 +182,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
     let response: Response;
     try {
       response = await fetcher(url, {
-        headers: panda ? { Authorization: `Bearer ${options.token}` } : {},
+        headers: panda ? { Authorization: `Bearer ${options.token}` } : headers,
         signal: AbortSignal.timeout(timeoutMs),
         redirect: panda ? "error" : "follow",
       });
@@ -604,8 +616,16 @@ export function worker(pool: Pool, options: WorkerOptions) {
   }
   const minimumMatches = () => options.winProbability?.minimumMatches ?? 500;
   async function perform(r: SyncRequest): Promise<number> {
-    if (r.kind === "pro-game-details")
-      return refreshProGameDetails(pool, clock, (url) => request(url, false, 15000));
+    if (r.kind === "pro-game-details") {
+      const { loaded, remaining } = await refreshProGameDetails(pool, {
+        ...options.proGameDetailRun,
+        clock,
+        pause,
+        request: (url) => request(url, false, 60000, { "User-Agent": wikiUserAgent }),
+      });
+      requeueAfterRun = remaining;
+      return loaded;
+    }
     if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
     if (r.kind === "wp-train") {
       const trained = await trainWinProbabilityModel(pool, clock(), {
