@@ -7050,7 +7050,21 @@ it("joins pro game inventories and purchases by source game and participant IDs"
     revisions: [{ slots: { main: { content: JSON.stringify(content) } } }],
   });
   const scoreTitle = "V5 data:LOLTMNT02 487405";
-  const scoreboard = page(scoreTitle, { ...match.info, platformId: "LOLTMNT02", gameId: 487405 });
+  const [first, ...others] = match.info.participants as Record<string, unknown>[];
+  const scoreboard = page(scoreTitle, {
+    ...match.info,
+    participants: [
+      {
+        ...first,
+        physicalDamageDealtToChampions: 4000,
+        magicDamageDealtToChampions: 15000,
+        trueDamageDealtToChampions: 1000,
+      },
+      ...others,
+    ],
+    platformId: "LOLTMNT02",
+    gameId: 487405,
+  });
   const events = page(`${scoreTitle}/Timeline`, { ...timeline.info, gameId: 487405 });
   const reply = (pages: ReturnType<typeof page>[]) => ({ query: { pages } });
   fetcher.mockImplementation((input) => {
@@ -7071,9 +7085,19 @@ it("joins pro game inventories and purchases by source game and participant IDs"
   expect(telemetry).toMatchObject({
     patch: "16.22",
     builds: {
-      "blue:top": { inventory: [3089, 3020, 4645, 3340], purchases: [{ itemId: 1056 }] },
+      "blue:top": {
+        inventory: [3089, 3020, 4645, 3340],
+        purchases: [{ itemId: 1056 }],
+        damage: { physical: 4000, magic: 15000, true: 1000 },
+      },
     },
   });
+  expect(
+    Object.entries(telemetry?.builds ?? {}).filter(([slot]) => slot !== "blue:top"),
+  ).not.toContainEqual([
+    expect.any(String),
+    expect.objectContaining({ damage: expect.anything() }),
+  ]);
   expect(telemetry?.gold.map(({ seconds }) => seconds)).toContain(60);
   expect(telemetry?.events.map(({ drake }) => drake)).toContain("infernal");
   await pool.query(

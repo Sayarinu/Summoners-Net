@@ -5,6 +5,7 @@ import {
   ChampionIcon,
   ItemIcon,
   ObjectiveIcon,
+  StatIcon,
   RuneIcon,
   SummonerSpellIcon,
 } from "./catalog-icons.js";
@@ -72,5 +73,18 @@ it("names objective icons by default or by the given label", () => {
     </>,
   );
   for (const name of ["Rift Herald", "Void Grubs", "First Tower", "First Blood", "Baron Nashor"])
+    expect(screen.getByRole("img", { name })).toHaveAttribute("title", name);
+});
+
+it("names gold and damage type icons", () => {
+  render(
+    <>
+      <StatIcon stat="gold" />
+      <StatIcon stat="physical" />
+      <StatIcon stat="magic" />
+      <StatIcon stat="true" />
+    </>,
+  );
+  for (const name of ["Gold", "Physical Damage", "Magic Damage", "True Damage"])
     expect(screen.getByRole("img", { name })).toHaveAttribute("title", name);
 });

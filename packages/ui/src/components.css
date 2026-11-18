@@ -67,6 +67,25 @@
   .np-drake-icon[data-drake="elder"] {
     background-image: url("./drake-icons/dragonelderminimap.png");
   }
+  .np-stat-icon {
+    display: inline-block;
+    inline-size: 16px;
+    block-size: 16px;
+    flex: none;
+    background: center / contain no-repeat;
+  }
+  .np-stat-icon[data-stat="gold"] {
+    background-image: url("./stat-icons/gold.png");
+  }
+  .np-stat-icon[data-stat="physical"] {
+    background-image: url("./stat-icons/physical.png");
+  }
+  .np-stat-icon[data-stat="magic"] {
+    background-image: url("./stat-icons/magic.png");
+  }
+  .np-stat-icon[data-stat="true"] {
+    background-image: url("./stat-icons/true.png");
+  }
   .np-objective-icon {
     display: inline-block;
     inline-size: 20px;

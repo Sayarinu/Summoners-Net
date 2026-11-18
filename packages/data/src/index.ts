@@ -29,6 +29,7 @@ export type {
   HistoricalGameDetail,
   HistoricalGameTelemetry,
   HistoricalPlayerBuild,
+  DamageBreakdown,
   HistoricalParticipant,
   HistoricalSummary,
   HistoricalCoverage,

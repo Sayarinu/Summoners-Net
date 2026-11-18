@@ -59,9 +59,18 @@ export interface HistoricalParticipant {
     checkpoints: Record<string, number | null>;
   };
 }
+/** Damage dealt to champions by type, from the game's own record. */
+export interface DamageBreakdown {
+  physical: number;
+  magic: number;
+  true: number;
+}
+
 export interface HistoricalPlayerBuild {
   inventory: number[];
   purchases: { itemId: number; timestampMs: number }[] | null;
+  /** Null when the record has no breakdown; older stored details omit it. */
+  damage?: DamageBreakdown | null;
 }
 
 export interface HistoricalGameTelemetry {

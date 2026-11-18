@@ -1,6 +1,11 @@
 "use client";
-import { Avatar, RoleIcon, Table } from "@summonersnet/ui";
-import type { Game, HistoricalGameDetail, HistoricalParticipant } from "@summonersnet/data";
+import { Avatar, RoleIcon, StatIcon, Table } from "@summonersnet/ui";
+import type {
+  DamageBreakdown,
+  Game,
+  HistoricalGameDetail,
+  HistoricalParticipant,
+} from "@summonersnet/data";
 import { roleKey } from "@summonersnet/data/contracts";
 import { gameTeams } from "../browse/presentation";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
@@ -9,6 +14,8 @@ const roles = ["top", "jungle", "mid", "bottom", "support"];
 const percentage = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
 const count = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 type Statistics = HistoricalParticipant["statistics"];
+
+const damageTypes = ["physical", "magic", "true"] as const;
 
 const metrics = [
   {
@@ -22,7 +29,45 @@ const metrics = [
     read: (stats?: Statistics) => stats?.damage.damagetochampions,
     share: (stats?: Statistics) => stats?.damage.damageshare,
   },
-];
+] as const;
+
+/** The amount behind a bar: gold with its icon, or damage with its type breakdown when recorded. */
+function AmountTip({
+  id,
+  unit,
+  amount,
+  damage,
+}: {
+  id: string;
+  unit: "gold" | "damage";
+  amount: number;
+  damage: DamageBreakdown | null;
+}) {
+  return (
+    <span className="ev-game-distribution__tip" role="tooltip" id={id}>
+      {unit === "gold" ? (
+        <span className="ev-game-distribution__amount">
+          <StatIcon stat="gold" />
+          {count.format(amount)}
+        </span>
+      ) : (
+        <>
+          <span className="ev-game-distribution__amount">Damage {count.format(amount)}</span>
+          {damage ? (
+            <ul aria-label="Damage by Type" role="list">
+              {damageTypes.map((type) => (
+                <li key={type} className="ev-game-distribution__amount">
+                  <StatIcon stat={type} />
+                  {count.format(damage[type])}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      )}
+    </span>
+  );
+}
 
 function measuredTotal(values: (number | null | undefined)[]) {
   return values.every((value) => value != null)
@@ -54,16 +99,23 @@ export function GameDistributions({
       }),
     };
   });
-  const cards = metrics.flatMap(({ label, unit, read, share }) => {
+  const cards = metrics.flatMap((metric) => {
+    const { label, unit, read } = metric;
+    const share = "share" in metric ? metric.share : undefined;
     const values = sides.map(({ team, players }) => {
       const amounts = players.map((player) => read(player?.statistics));
       const total = read(team) ?? measuredTotal(amounts);
       return players.map((player, index) => {
         const amount = amounts[index] ?? null;
+        const damage =
+          unit === "damage" && player
+            ? (detail.telemetry?.builds[player.slot]?.damage ?? null)
+            : null;
         const recorded = share?.(player?.statistics);
-        if (recorded != null && recorded >= 0 && recorded <= 1) return { share: recorded, amount };
+        if (recorded != null && recorded >= 0 && recorded <= 1)
+          return { share: recorded, amount, damage };
         return total && amount != null && amount >= 0 && amount <= total
-          ? { share: amount / total, amount }
+          ? { share: amount / total, amount, damage }
           : null;
       });
     });
@@ -90,18 +142,22 @@ export function GameDistributions({
           align: team.side === "blue" ? ("end" as const) : ("start" as const),
           render: (role: string) => {
             const value = values[index]?.[roles.indexOf(role)];
+            const tip = `ev-${unit}-${team.side}-${role}`;
             return value == null ? (
               "—"
             ) : (
               <span
                 className="ev-game-distribution__value"
                 data-side={team.side}
-                title={value.amount == null ? undefined : `${count.format(value.amount)} ${unit}`}
+                {...(value.amount == null ? {} : { tabIndex: 0, "aria-describedby": tip })}
               >
                 <span className="ev-game-distribution__track" aria-hidden="true">
                   <span style={{ inlineSize: `${value.share * 100}%` }} />
                 </span>
                 <span className="np-meta">{percentage.format(value.share)}</span>
+                {value.amount == null ? null : (
+                  <AmountTip id={tip} unit={unit} amount={value.amount} damage={value.damage} />
+                )}
               </span>
             );
           },
