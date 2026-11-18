@@ -225,6 +225,7 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
   expect(within(chart).getAllByText("100%", { exact: true })).toHaveLength(2);
   expect(within(chart).getByText("0%", { exact: true })).toBeVisible();
+  expect(screen.queryByRole("table", { name: "Win Probability Checkpoints" })).toBeNull();
   expect(within(chart).queryByText("Acceptance Blue", { exact: true })).toBeNull();
   expect(within(chart).queryByText("Acceptance Red", { exact: true })).toBeNull();
   expect(
@@ -368,6 +369,7 @@ it("shows the draft by side, team totals and the score through the selected game
           combat: { kills: 14, firstblood: 1, fbtime: 2.5 },
           objectives: {
             towers: 7,
+            turretplates: 5,
             dragons: 3,
             firstdragon: 1,
             fdtime: 6.25,
@@ -381,7 +383,7 @@ it("shows the draft by side, team totals and the score through the selected game
           damage: {},
           vision: {},
           economy: { totalgold: 56005 },
-          checkpoints: {},
+          checkpoints: { golddiffat10: 2750, golddiffat15: -1500 },
         },
       },
       {
@@ -395,7 +397,7 @@ it("shows the draft by side, team totals and the score through the selected game
         statistics: {
           combat: {},
           objectives: {},
-          damage: { damagetochampions: 20819 },
+          damage: { damagetochampions: 20819, damageshare: 0.25 },
           vision: { visionscore: 28 },
           economy: { totalgold: 14912, "total cs": 236 },
           checkpoints: {},
@@ -470,6 +472,17 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(dragons.queryByText(/Elemental|Elder/)).toBeNull();
   expect(screen.getByText("20,819")).toBeVisible();
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
+    "Tower Plates5",
+  );
+  const goldShare = within(screen.getByRole("table", { name: "Gold Distribution" }));
+  const damageShare = within(screen.getByRole("table", { name: "Damage Distribution" }));
+  expect(goldShare.getByText("26.6%")).toBeVisible();
+  expect(damageShare.getByText("25%")).toBeVisible();
+  expect(goldShare.getByRole("img", { name: "Acceptance Blue" })).toBeVisible();
+  expect(goldShare.getByRole("img", { name: "Ahri" }).closest("tr")).toContainElement(
+    goldShare.getByRole("img", { name: /^Mid$/ }),
+  );
+  expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
     "Void Grubs3Rift Herald1Barons0",
   );
   expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
@@ -481,6 +494,13 @@ it("shows the draft by side, team totals and the score through the selected game
       .getAllByRole("listitem")
       .map((item) => item.textContent),
   ).toEqual(["2:30First Blood", "6:15First Dragon"]);
+  const goldPlot = within(screen.getByRole("group", { name: /^Gold Difference by Time/ }));
+  expect(
+    goldPlot.getByText("10:00: Acceptance Blue ahead by 2,750 gold").closest("li"),
+  ).toHaveAttribute("data-side", "blue");
+  expect(
+    goldPlot.getByText("15:00: Acceptance Red ahead by 1,500 gold").closest("li"),
+  ).toHaveAttribute("data-side", "red");
   expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
   view.rerender(
     <SeriesGamePage

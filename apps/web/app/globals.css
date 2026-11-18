@@ -926,6 +926,18 @@
   border-inline-start: 2px solid var(--np-team-side);
 }
 
+.ev-series-summary .np-align--end .ev-series-summary__score[data-side] {
+  padding-inline: 0 var(--space-2);
+  border-inline-start: 0;
+  border-inline-end: 2px solid var(--np-team-side);
+}
+
+.ev-series-summary__game {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+}
+
 @container (min-width: 70rem) {
   .ev-series-media:has(> .ev-series-replay + .ev-series-summary) {
     grid-template-columns: minmax(0, 67.5rem) minmax(20rem, 1fr);
@@ -1021,14 +1033,10 @@
 .ev-timeline-row__label {
   align-self: center;
   justify-self: center;
-  color: var(--color-text-muted);
+  color: var(--color-text-accent);
   font-size: var(--font-size-xs);
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-}
-
-.ev-timeline-row__label--probability {
-  color: var(--color-text-accent);
 }
 
 .ev-timeline-events {
@@ -1142,6 +1150,71 @@
   white-space: nowrap;
 }
 
+.ev-game-distributions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  gap: var(--space-3);
+}
+
+.ev-game-distribution {
+  min-inline-size: 0;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.ev-game-distribution h2 {
+  padding: var(--space-2) var(--space-3);
+}
+
+.ev-game-distribution .np-table {
+  table-layout: fixed;
+}
+
+.ev-game-distribution th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ev-game-distribution .np-table :is(th, td) {
+  padding-inline: var(--space-2);
+}
+
+.ev-game-distribution__matchup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ev-game-distribution__value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ev-game-distribution__value[data-side="blue"] {
+  direction: rtl;
+}
+
+.ev-game-distribution__value > .np-meta {
+  direction: ltr;
+}
+
+.ev-game-distribution__track {
+  display: flex;
+  block-size: var(--space-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-interactive);
+}
+
+.ev-game-distribution__track > span {
+  display: block;
+  block-size: 100%;
+  background: var(--np-team-side);
+}
+
 .ev-probability__point {
   color: var(--np-team-side, var(--color-text-muted));
   transform: translate(-50%, calc(-100% - 3px));
@@ -1168,6 +1241,23 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
   gap: var(--space-3);
   align-items: start;
+}
+
+@container (min-width: 46.75rem) {
+  .ev-lineups:has(> .ev-lineup-card + .ev-lineup-card) .ev-lineup-card[data-side="red"] {
+    & .ev-lineup-card__header {
+      flex-direction: row-reverse;
+    }
+    & :is(.ev-lineup-card__facts, .np-table-wrap) {
+      direction: rtl;
+    }
+    & :is(th, td, .ev-lineup-card__facts > div) {
+      direction: ltr;
+    }
+    & td:not(.np-align--center) {
+      text-align: right;
+    }
+  }
 }
 
 .ev-lineup-card {

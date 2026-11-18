@@ -35,6 +35,7 @@ import { Disclosure } from "./disclosure";
 import { DraftPanel, type FearlessPick } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
+import { GameDistributions } from "./game-distributions";
 
 /** A game counts as played once the provider reports it finished or under way. */
 const played = (game: SeriesGame) => game.state === "finished" || game.state === "running";
@@ -312,7 +313,27 @@ function SeriesSummary({
 }) {
   const byNumber = new Map(summaries.map((summary) => [summary.number, summary]));
   const finished = games.filter((game) => game.state === "finished");
-  const hasLength = summaries.some((summary) => summary.durationSeconds !== null);
+  const teamColumns = match.teams.map((team, index) => ({
+    id: team.id,
+    header: team.name,
+    align: index === 0 ? ("end" as const) : ("start" as const),
+    render: (game: SeriesGame) => {
+      const entry = byNumber
+        .get(game.number)
+        ?.teams.find((item) => item.id === (team.entityId ?? team.id));
+      const winner = game.winnerId === team.id;
+      return (
+        <span className="ev-series-summary__score" data-side={entry?.side}>
+          <span className={winner ? "ev-outcome--win" : undefined}>
+            {entry?.kills == null ? (winner ? "Winner" : "—") : `${entry.kills} kills`}
+          </span>
+          {winner && entry?.kills != null ? (
+            <span className="np-visually-hidden">Winner</span>
+          ) : null}
+        </span>
+      );
+    },
+  }));
   return (
     <section className="ev-series-summary" aria-labelledby="series-summary-heading">
       <h2 id="series-summary-heading">Series Summary</h2>
@@ -322,43 +343,23 @@ function SeriesSummary({
         rows={finished}
         getRowKey={(game) => String(game.number)}
         columns={[
+          ...teamColumns.slice(0, 1),
           {
             id: "game",
             header: "Game",
-            render: (game) => (
-              <TextLink href={seriesGameHref(match, game.number)}>Game {game.number}</TextLink>
-            ),
-          },
-          ...match.teams.map((team) => ({
-            id: team.id,
-            header: team.name,
-            render: (game: SeriesGame) => {
-              const entry = byNumber
-                .get(game.number)
-                ?.teams.find((item) => item.id === (team.entityId ?? team.id));
-              const winner = game.winnerId === team.id;
+            align: "center",
+            width: "5.5rem",
+            render: (game) => {
+              const duration = length(byNumber.get(game.number)?.durationSeconds ?? null);
               return (
-                <span className="ev-series-summary__score" data-side={entry?.side}>
-                  <span className={winner ? "ev-outcome--win" : undefined}>
-                    {entry?.kills == null ? (winner ? "Winner" : "—") : `${entry.kills} kills`}
-                  </span>
-                  {winner && entry?.kills != null ? (
-                    <span className="np-visually-hidden">Winner</span>
-                  ) : null}
+                <span className="ev-series-summary__game">
+                  <TextLink href={seriesGameHref(match, game.number)}>Game {game.number}</TextLink>
+                  {duration !== null ? <span className="np-meta">{duration}</span> : null}
                 </span>
               );
             },
-          })),
-          ...(hasLength
-            ? [
-                {
-                  id: "length",
-                  header: "Length",
-                  render: (game: SeriesGame) =>
-                    length(byNumber.get(game.number)?.durationSeconds ?? null) ?? "—",
-                },
-              ]
-            : []),
+          },
+          ...teamColumns.slice(1),
         ]}
       />
     </section>
@@ -520,7 +521,10 @@ export function SeriesGamePage({
           ) : null}
           <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
           {!hidden ? (
-            <ProTimeline game={game} detail={detail} winProbability={winProbability} />
+            <>
+              <ProTimeline game={game} detail={detail} winProbability={winProbability} />
+              <GameDistributions game={game} detail={detail} portraits={portraits} />
+            </>
           ) : null}
         </>
       ) : (

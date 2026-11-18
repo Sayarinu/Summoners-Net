@@ -23,6 +23,7 @@ import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
+import { GameDistributions } from "./game-distributions";
 export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
@@ -97,7 +98,12 @@ export function GamePage({
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
       <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
-      {!hidden ? <ProTimeline game={game} detail={detail} winProbability={winProbability} /> : null}
+      {!hidden ? (
+        <>
+          <ProTimeline game={game} detail={detail} winProbability={winProbability} />
+          <GameDistributions game={game} detail={detail} portraits={portraits} />
+        </>
+      ) : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
           Open in Series

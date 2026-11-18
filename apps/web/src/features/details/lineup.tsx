@@ -71,6 +71,7 @@ export function LineupTable({
     stats?.combat.kills ?? stats?.combat.teamkills ?? null,
     stats?.economy.totalgold ?? null,
     stats?.objectives.towers ?? null,
+    stats?.objectives.turretplates ?? null,
     stats?.objectives.dragons ?? null,
     stats?.objectives.void_grubs ?? null,
     stats?.objectives.heralds ?? null,
@@ -97,6 +98,7 @@ export function LineupTable({
     "Kills",
     "Gold",
     "Towers",
+    "Tower Plates",
     "Dragons",
     "Void Grubs",
     "Rift Herald",
@@ -182,6 +184,18 @@ export function LineupTable({
                   render: (p) => <RoleIcon role={p.role} />,
                 },
                 {
+                  id: "champion",
+                  header: "Champion",
+                  width: "5rem",
+                  align: "center",
+                  render: (p) =>
+                    hidden ? (
+                      "Hidden"
+                    ) : (
+                      <ChampionPortrait name={p.champion} portraits={portraits} size="medium" />
+                    ),
+                },
+                {
                   id: "player",
                   header: "Player",
                   render: (p) =>
@@ -195,18 +209,6 @@ export function LineupTable({
                       </TextLink>
                     ) : (
                       "—"
-                    ),
-                },
-                {
-                  id: "champion",
-                  header: "Champion",
-                  width: "5rem",
-                  align: "center",
-                  render: (p) =>
-                    hidden ? (
-                      "Hidden"
-                    ) : (
-                      <ChampionPortrait name={p.champion} portraits={portraits} size="medium" />
                     ),
                 },
                 {
