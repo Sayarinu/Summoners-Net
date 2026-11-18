@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { useId, useState, type CSSProperties, type PointerEvent } from "react";
 import { Avatar, DrakeIcon } from "@summonersnet/ui";
 import type {
   Game,
@@ -33,6 +33,53 @@ interface TimelinePoint {
   lead: number | null;
   label: string;
   description: string;
+  /** Short hover value: the leading team and its lead, or null when unknown. */
+  readout: { team: string | null; value: string } | null;
+}
+
+type TimelineEvent = NonNullable<HistoricalGameDetail["telemetry"]>["events"][number];
+
+const eventAbbreviations: Record<string, string> = {
+  "First Blood": "FB",
+  "First Tower": "FT",
+  "First Dragon": "DR",
+  Dragon: "DR",
+  "Elder Dragon": "ED",
+  "Rift Herald": "RH",
+  "First Baron": "BN",
+  "Baron Nashor": "BN",
+  "Void Grub": "VG",
+};
+
+/** Marker rows above the plot: same-side repeats within 45 seconds merge, and overlaps stack. */
+function eventMarkers(events: TimelineEvent[], end: number) {
+  const merged: (TimelineEvent & { count: number; times: number[] })[] = [];
+  for (const event of events) {
+    const previous = merged.findLast(
+      (marker) =>
+        marker.label === event.label &&
+        marker.side === event.side &&
+        marker.drake === event.drake &&
+        event.seconds - marker.times.at(-1)! <= 45,
+    );
+    if (previous) {
+      previous.count++;
+      previous.times.push(event.seconds);
+    } else merged.push({ ...event, count: 1, times: [event.seconds] });
+  }
+  const rowEnds: number[] = [];
+  return merged.map((marker) => {
+    const fraction = plotX(marker.seconds, end) / width;
+    const span = marker.count > 1 ? 0.05 : 0.035;
+    let row = rowEnds.findIndex((rowEnd) => rowEnd < fraction - span / 2);
+    if (row < 0) row = rowEnds.length;
+    rowEnds[row] = fraction + span / 2;
+    return { ...marker, row };
+  });
+}
+
+function plotX(seconds: number, end: number) {
+  return inset + (seconds / end) * (width - 2 * inset);
 }
 
 const sideInLead = (lead: number | null) => (lead ? (lead > 0 ? "blue" : "red") : undefined);
@@ -68,6 +115,12 @@ function goldCheckpoints(rows: HistoricalParticipant[], duration: number | null)
     else points.push({ seconds: duration, time: clockLabel(duration), lead: lastBlue - lastRed });
   }
   return points;
+}
+
+function leadReadout(lead: number | null, blueName: string, redName: string, format: string) {
+  if (lead === null) return null;
+  if (lead === 0) return { team: null, value: format };
+  return { team: lead > 0 ? blueName : redName, value: format };
 }
 
 export function ProTimeline({
@@ -106,7 +159,10 @@ export function ProTimeline({
       if (detail?.context.durationSeconds && seconds > detail.context.durationSeconds) return [];
       return [{ label, seconds, side: owner?.side ?? null, drake: null }];
     });
-  const events = [...checkpointEvents, ...timedEvents].sort((a, b) => a.seconds - b.seconds);
+  const events: TimelineEvent[] = [...checkpointEvents, ...timedEvents].sort(
+    (a, b) => a.seconds - b.seconds,
+  );
+  const [hover, setHover] = useState<number | null>(null);
   const duration = detail?.context.durationSeconds ?? null;
   const probability = (winProbability?.model ? winProbability.points : []).map(
     ({ minute, blueWinProbability: value }): TimelinePoint => ({
@@ -118,6 +174,15 @@ export function ProTimeline({
         value === null
           ? `${minute} minutes: win probability unavailable`
           : `${minute} minutes: ${blueName} ${percent.format(value)}, ${redName} ${percent.format(1 - value)}`,
+      readout:
+        value === null
+          ? null
+          : value === 0.5
+            ? { team: null, value: "Even" }
+            : {
+                team: value > 0.5 ? blueName : redName,
+                value: percent.format(Math.max(value, 1 - value)),
+              },
     }),
   );
   const trackedGold = detail?.telemetry?.gold ?? [];
@@ -140,6 +205,12 @@ export function ProTimeline({
         : lead === 0
           ? `${clockLabel(seconds)}: tied on gold`
           : `${clockLabel(seconds)}: ${lead > 0 ? blueName : redName} ahead by ${goldAmount.format(Math.abs(lead))} gold`,
+    readout: leadReadout(
+      lead,
+      blueName,
+      redName,
+      lead ? `+${goldAmount.format(Math.abs(lead))} Gold` : "Even",
+    ),
   }));
   const hasProbability = probability.some(({ lead }) => lead !== null);
   const hasGold = gold.some(({ lead }) => lead !== null);
@@ -166,7 +237,10 @@ export function ProTimeline({
                 <li
                   key={index}
                   data-side={side ?? undefined}
+                  data-active={hover === seconds || undefined}
                   title={teams.find((team) => team.side === side)?.name}
+                  onPointerEnter={() => setHover(seconds)}
+                  onPointerLeave={() => setHover(null)}
                 >
                   <time className="np-meta" dateTime={`PT${seconds}S`}>
                     {clockLabel(seconds)}
@@ -184,6 +258,10 @@ export function ProTimeline({
               points={gold}
               teams={teams}
               end={end}
+              events={events}
+              markers
+              hover={hover}
+              onHover={setHover}
               limit={goldLimit}
               edgeLabel={compactGold.format(goldLimit)}
               centerLabel="0"
@@ -198,6 +276,10 @@ export function ProTimeline({
               points={probability}
               teams={teams}
               end={end}
+              events={events}
+              markers={!hasGold}
+              hover={hover}
+              onHover={setHover}
               limit={0.5}
               edgeLabel="100%"
               centerLabel="0%"
@@ -214,6 +296,10 @@ function SideTimelinePlot({
   points,
   teams,
   end,
+  events,
+  markers,
+  hover,
+  onHover,
   limit,
   edgeLabel,
   centerLabel,
@@ -222,6 +308,11 @@ function SideTimelinePlot({
   points: TimelinePoint[];
   teams: ReturnType<typeof gameTeams>;
   end: number;
+  events: TimelineEvent[];
+  /** Show labelled event markers above this plot; dashed event lines always show. */
+  markers: boolean;
+  hover: number | null;
+  onHover: (seconds: number | null) => void;
   limit: number;
   edgeLabel: string;
   centerLabel: string;
@@ -243,7 +334,7 @@ function SideTimelinePlot({
       !dense || point.seconds === last || (point.seconds % 300 === 0 && last - point.seconds > 90),
     ...point,
     side: sideInLead(point.lead),
-    x: inset + (point.seconds / end) * (width - 2 * inset),
+    x: plotX(point.seconds, end),
     y: point.lead === null ? null : middle - (point.lead / limit) * (middle - inset),
   }));
   const segments = samples.flatMap((sample, index) => {
@@ -261,8 +352,45 @@ function SideTimelinePlot({
     )
     .join(" ");
 
+  const known = samples.filter(({ y }) => y !== null);
+  // A hovered time matches this plot's nearest sample within about half its sampling interval.
+  const spacing =
+    known.length > 1 ? (known.at(-1)!.seconds - known[0]!.seconds) / (known.length - 1) : 60;
+  const reach = Math.max(30, spacing * 0.6);
+  const nearest = (seconds: number) =>
+    known.reduce<(typeof known)[number] | undefined>(
+      (best, sample) =>
+        Math.abs(sample.seconds - seconds) <= reach &&
+        (!best || Math.abs(sample.seconds - seconds) < Math.abs(best.seconds - seconds))
+          ? sample
+          : best,
+      undefined,
+    );
+  const active = hover === null ? undefined : nearest(hover);
+  const activeIndex = active ? known.indexOf(active) : -1;
+  const since = activeIndex > 0 ? known[activeIndex - 1]!.seconds : -1;
+  const activeEvents = active
+    ? events.filter(({ seconds }) => seconds > since && seconds <= active.seconds)
+    : [];
+  const cursorX = active ? active.x : hover === null ? null : plotX(hover, end);
+  const rail = markers ? eventMarkers(events, end) : [];
+  const railRows = rail.reduce((rows, { row }) => Math.max(rows, row + 1), 0);
+  const track = (event: PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    if (!box.width) return;
+    const x = ((event.clientX - box.left) / box.width) * width;
+    const seconds = Math.min(end, Math.max(0, ((x - inset) / (width - 2 * inset)) * end));
+    onHover(nearest(seconds)?.seconds ?? Math.round(seconds));
+  };
+  const sideName = (side: "blue" | "red" | null) => teams.find((team) => team.side === side)?.name;
+
   return (
-    <div className="ev-probability__chart" role="group" aria-label={label}>
+    <div
+      className="ev-probability__chart"
+      role="group"
+      aria-label={label}
+      style={railRows ? ({ "--ev-rail-rows": railRows } as CSSProperties) : undefined}
+    >
       <div className="ev-probability__scale" aria-hidden="true">
         {ticks.map(({ y, label, team }) => (
           <span
@@ -285,7 +413,36 @@ function SideTimelinePlot({
           </span>
         ))}
       </div>
-      <div className="ev-probability__plot">
+      <div
+        className="ev-probability__plot"
+        onPointerMove={track}
+        onPointerDown={track}
+        onPointerLeave={() => onHover(null)}
+      >
+        {rail.length ? (
+          <ol className="ev-timeline-markers" aria-hidden="true">
+            {rail.map(({ label: name, seconds, side, drake, count, times, row }) => (
+              <li
+                key={`${seconds}-${name}`}
+                data-side={side ?? undefined}
+                data-active={times.includes(hover ?? -1) || undefined}
+                title={`${times.map(clockLabel).join(", ")} ${name}${count > 1 ? ` ×${count}` : ""}${sideName(side) ? ` (${sideName(side)})` : ""}`}
+                style={{
+                  insetInlineStart: `${(plotX(seconds, end) / width) * 100}%`,
+                  insetBlockStart: `calc(${row} * var(--ev-rail-row))`,
+                }}
+                onPointerEnter={() => onHover(seconds)}
+              >
+                {drake ? (
+                  <DrakeIcon drake={drake} />
+                ) : (
+                  (eventAbbreviations[name] ?? name.slice(0, 2))
+                )}
+                {count > 1 ? <span>×{count}</span> : null}
+              </li>
+            ))}
+          </ol>
+        ) : null}
         <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <clipPath id={`${clipId}-blue`}>
@@ -310,6 +467,32 @@ function SideTimelinePlot({
               <path className="ev-probability__line" d={slope} />
             </g>
           ))}
+          {events.map(({ seconds, side }, index) => (
+            <line
+              className="ev-probability__event"
+              key={`event-${index}`}
+              data-side={side ?? undefined}
+              data-active={hover === seconds || undefined}
+              x1={plotX(seconds, end)}
+              x2={plotX(seconds, end)}
+              y1={0}
+              y2={height}
+            />
+          ))}
+          {cursorX === null ? null : (
+            <line className="ev-probability__cursor" x1={cursorX} x2={cursorX} y1={0} y2={height} />
+          )}
+          {active ? (
+            <line
+              className="ev-probability__dot"
+              data-active
+              data-side={active.side}
+              x1={active.x}
+              x2={active.x}
+              y1={active.y!}
+              y2={active.y!}
+            />
+          ) : null}
           {samples.map(({ seconds, side, x, y, showLabel }) =>
             y === null || !showLabel ? null : (
               <line
@@ -352,6 +535,28 @@ function SideTimelinePlot({
             ),
           )}
         </ol>
+        {active?.readout ? (
+          <div
+            className="ev-probability__readout"
+            aria-hidden="true"
+            data-side={active.side}
+            data-flip={active.x / width > 0.7 || undefined}
+            style={{ insetInlineStart: `${(active.x / width) * 100}%` }}
+          >
+            <span className="np-meta">{clockLabel(active.seconds)}</span>
+            <strong>{active.readout.value}</strong>
+            {active.readout.team ? <span>{active.readout.team}</span> : null}
+            {activeEvents.map(({ label: name, seconds, side }, index) => (
+              <span
+                className="ev-probability__readout-event"
+                data-side={side ?? undefined}
+                key={index}
+              >
+                {clockLabel(seconds)} {name}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

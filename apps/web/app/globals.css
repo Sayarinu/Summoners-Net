@@ -1088,9 +1088,54 @@
   transform: translateY(-50%);
 }
 
+.ev-probability__chart {
+  --ev-rail-row: 1.35rem;
+  --ev-rail: calc(var(--ev-rail-rows, 0) * var(--ev-rail-row));
+}
+
+.ev-probability__scale {
+  margin-block-start: var(--ev-rail);
+}
+
 .ev-probability__plot {
   position: relative;
-  padding-block-end: 1.3rem;
+  padding-block: var(--ev-rail) 1.3rem;
+  touch-action: pan-y;
+}
+
+.ev-timeline-markers {
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: var(--ev-rail);
+  list-style: none;
+}
+
+.ev-timeline-markers > li {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  block-size: calc(var(--ev-rail-row) - 0.2rem);
+  padding-inline: 3px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  color: var(--np-team-side, var(--color-text-muted));
+  font-size: 0.625rem;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  cursor: default;
+}
+
+.ev-timeline-markers > li[data-active],
+.ev-timeline-events > li[data-active] {
+  border-color: var(--np-team-side, var(--color-border-strong));
+}
+
+.ev-timeline-markers .np-drake-icon {
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
 }
 
 .ev-probability__plot > svg {
@@ -1134,8 +1179,59 @@
 
 .ev-probability__points {
   position: absolute;
-  inset: 0 0 1.3rem;
+  inset: var(--ev-rail) 0 1.3rem;
   list-style: none;
+}
+
+.ev-probability__event {
+  stroke: var(--np-team-side, var(--color-text-muted));
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev-probability__event[data-active] {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.ev-probability__cursor {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev-probability__dot[data-active] {
+  stroke-width: 10;
+}
+
+.ev-probability__readout {
+  position: absolute;
+  inset-block-start: calc(var(--ev-rail) + 0.25rem);
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-inline-size: 7rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  pointer-events: none;
+  transform: translateX(0.5rem);
+}
+
+.ev-probability__readout[data-flip] {
+  transform: translateX(calc(-100% - 0.5rem));
+}
+
+.ev-probability__readout strong {
+  color: var(--np-team-side, var(--color-text-primary));
+}
+
+.ev-probability__readout-event {
+  color: var(--np-team-side, var(--color-text-muted));
 }
 
 .ev-probability__points > li {
@@ -1353,15 +1449,52 @@
 
 .ev-player-build__items {
   display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
+  flex-wrap: nowrap;
+  gap: 2px;
   vertical-align: middle;
 }
 
+.ev-player-build .np-avatar,
+.ev-player-build__items .np-avatar {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
 .ev-player-build summary {
-  display: inline list-item;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+  padding: 2px var(--space-1) 2px 2px;
+  margin-inline-start: -2px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  list-style: none;
   color: var(--color-text-muted);
+}
+
+.ev-player-build summary::-webkit-details-marker {
+  display: none;
+}
+
+.ev-player-build summary::after {
+  flex: none;
+  content: "";
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+}
+
+.ev-player-build[open] summary::after {
+  transform: rotate(45deg);
+}
+
+.ev-player-build summary:hover {
+  background: var(--color-bg-interactive);
+  color: var(--color-text-primary);
 }
 
 .ev-player-build summary .ev-player-build__items {
@@ -1369,22 +1502,45 @@
 }
 
 .ev-player-build__path {
-  display: grid;
-  gap: var(--space-1);
-  max-block-size: 15rem;
-  margin-block-start: var(--space-2);
-  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-1) var(--space-2);
+  margin-block-start: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-inline-start: 2px solid var(--color-border-subtle);
   list-style: none;
 }
 
 .ev-player-build__path li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: grid;
+  gap: 1px;
 }
 
 .ev-player-build__path time {
-  min-inline-size: 2rem;
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+
+.ev-player-build__path .ev-player-build__items {
+  margin-block-start: 0;
+}
+
+.ev-player-build__purchase {
+  position: relative;
+  display: inline-flex;
+}
+
+.ev-player-build__count {
+  position: absolute;
+  inset-block-end: -2px;
+  inset-inline-end: -3px;
+  padding-inline: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  font-size: 0.625rem;
+  line-height: 1.1;
 }
 
 .ev-lineup-card .np-table :is(th, td) {

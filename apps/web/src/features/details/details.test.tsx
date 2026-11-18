@@ -650,7 +650,24 @@ it("shows a player's final items and reveals their recorded purchases by minute"
   const path = within(screen.getByRole("list", { name: /Purchase Order$/ }));
   expect(path.getByText("9m")).toBeVisible();
   expect(path.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  expect(path.getByTitle("Rabadon's Deathcap at 9:10")).toBeVisible();
   const gold = await screen.findByRole("group", { name: /^Gold Difference by Time/ });
   expect(within(gold).getByText("2:00: Acceptance Red ahead by 120 gold")).toBeInTheDocument();
-  expect(within(screen.getByRole("list", { name: "Game Events" })).getByText("6:42")).toBeVisible();
+  const events = within(screen.getByRole("list", { name: "Game Events" }));
+  expect(events.getByText("6:42")).toBeVisible();
+  // Hovering an event marks its time on every chart with a dashed line.
+  const eventLine = () => gold.querySelector(".ev-probability__event");
+  expect(eventLine()).not.toHaveAttribute("data-active");
+  fireEvent.pointerEnter(events.getByText("6:42").closest("li")!);
+  expect(eventLine()).toHaveAttribute("data-active");
+  fireEvent.pointerLeave(events.getByText("6:42").closest("li")!);
+  expect(eventLine()).not.toHaveAttribute("data-active");
+  // Pointing at the plot reads out the nearest recorded minute.
+  const plot = gold.querySelector<HTMLElement>(".ev-probability__plot")!;
+  plot.getBoundingClientRect = () => ({ left: 0, width: 600 }) as DOMRect;
+  fireEvent.pointerMove(plot, { clientX: 16 + (120 / 1865) * 568 });
+  const readout = gold.querySelector(".ev-probability__readout");
+  expect(readout).toHaveTextContent("2:00+120 GoldAcceptance Red");
+  fireEvent.pointerLeave(plot);
+  expect(gold.querySelector(".ev-probability__readout")).toBeNull();
 });
