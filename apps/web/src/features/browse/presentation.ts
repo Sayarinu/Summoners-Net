@@ -17,6 +17,12 @@ export function identityHref(identity: Pick<Identity, "kind" | "name" | "publicS
   // A missing route is a data-integrity issue; never expose provider IDs as a fallback.
   return identity.publicSlug ? `/${section}/${identity.publicSlug}` : `/${section}`;
 }
+export const seriesRouteId = (id: string) => id.replace(/^pandascore:match:(\d+)$/, "$1");
+export const seriesHref = (match: Pick<Match, "id">) =>
+  `/matches/${encodeURIComponent(seriesRouteId(match.id))}`;
+export const seriesGameHref = (match: Pick<Match, "id">, number: number) =>
+  `${seriesHref(match)}/games/${number}`;
+
 export function matchDisplay(match: Match, timezone: string, now: string): MatchDisplay {
   const showScores = match.state === "live" || match.state === "final";
   const team = (i: number): MatchTeam => {
@@ -32,7 +38,7 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
   };
   return {
     id: match.id,
-    href: `/matches/${encodeURIComponent(match.id)}`,
+    href: seriesHref(match),
     lifecycle: match.state,
     bestOf: match.bestOf,
     competition: match.league,

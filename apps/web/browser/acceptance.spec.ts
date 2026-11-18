@@ -106,6 +106,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Acceptance Blue 2 vs 1 Acceptance Red",
   );
+  await expect(page).toHaveURL(/\/matches\/\d+$/);
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
   await expect(tabs.locator("time")).toHaveText("Feb 28, 2026");
@@ -291,18 +292,21 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
 test("a finished match loads its paused replay and keeps an external fallback", async ({
   page,
 }) => {
-  const seriesUrl = "/matches/pandascore%3Amatch%3A1";
+  const seriesUrl = "/matches/1";
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
   await page.setViewportSize({ width: 1920, height: 900 });
-  await page.goto(seriesUrl);
+  await page.goto("/matches/pandascore%3Amatch%3A1");
+  await expect(page).toHaveURL(/\/matches\/1$/);
   await expect(page.getByRole("heading", { name: "Watch Replay" })).toHaveCount(0);
   const frame = page.getByTitle("Match Broadcast");
   await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
   const cardBounds = await page.getByRole("link", { name: "Open Game 1" }).boundingBox();
   const replayBounds = await frame.boundingBox();
+  const playerBounds = await page.getByRole("region", { name: "Match Player" }).boundingBox();
   expect(replayBounds!.x).toBeGreaterThan(cardBounds!.x + cardBounds!.width);
+  expect(Math.abs(playerBounds!.y - cardBounds!.y)).toBeLessThanOrEqual(1.5);
   const streams = page.getByRole("button", { name: /\bStream\b/ });
   await expect(streams).toContainText("YouTube · English");
   const streamsBounds = await streams.boundingBox();

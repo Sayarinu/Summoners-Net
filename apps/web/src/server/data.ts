@@ -37,3 +37,7 @@ export async function browseQuery(
 export async function sourceIdFromRoute(params: Promise<{ id: string }>) {
   return decodeURIComponent((await params).id);
 }
+
+export function matchIdFromRouteId(id: string) {
+  return /^\d+$/.test(id) ? `pandascore:match:${id}` : id;
+}

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import {
+  Avatar,
   Breadcrumb,
   Button,
   Table,
@@ -17,12 +18,11 @@ import type {
   ProGameWinProbability,
 } from "@summonersnet/data";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
-import { dateTime, identityHref, gameTeams } from "../browse/presentation";
+import { dateTime, identityHref, gameTeams, seriesGameHref } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
-import { seriesGameHref } from "./series";
 export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
@@ -64,9 +64,21 @@ export function GamePage({
             {teams.map((team, index) => (
               <span key={team.id}>
                 {index ? " vs " : null}
-                <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
-                  {team.name}
-                </span>
+                <a className="ev-series-title__identity" href={identityHref(team)}>
+                  {team.imageUrl ? (
+                    <Avatar
+                      alt=""
+                      aria-hidden="true"
+                      entityKind="team"
+                      fallback={team.name}
+                      size="small"
+                      src={team.imageUrl}
+                    />
+                  ) : null}
+                  <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
+                    {team.name}
+                  </span>
+                </a>
               </span>
             ))}
           </h1>

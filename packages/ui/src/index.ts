@@ -13,6 +13,7 @@ export * from "./minimap.js";
 export {
   ChampionIcon,
   RoleIcon,
+  DrakeIcon,
   ItemIcon,
   RuneIcon,
   SummonerSpellIcon,

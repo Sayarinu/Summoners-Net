@@ -2,7 +2,7 @@
 import { ChampionIcon, EmptyState, SearchResult, TextLink, RoleIcon } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { identityHref } from "./presentation";
+import { identityHref, seriesHref } from "./presentation";
 import { MatchSection, useMatchRows } from "./match-group";
 
 const matchSections = [
@@ -217,7 +217,9 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
                 ? identityHref({ ...i, kind: i.kind })
                 : i.kind === "summoner"
                   ? `/summoners/${encodeURIComponent(i.id)}`
-                  : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
+                  : i.kind === "game"
+                    ? `/games/${encodeURIComponent(i.id)}`
+                    : seriesHref(i)
             }
             {...(i.imageUrl ? { image: i.imageUrl } : {})}
           />

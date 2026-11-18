@@ -26,7 +26,7 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
   );
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/1",
+    "/matches/1/games/1",
   );
   const replay = screen.getByText("Replay", { selector: "summary" });
   expect(screen.queryByTitle("Match Broadcast")).toBeNull();
@@ -43,13 +43,14 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue 2 vs 1 Acceptance Red",
   );
-  const teams = screen
-    .getByRole("heading", { level: 1 })
-    .querySelectorAll(".ev-series-title__team");
-  expect(teams[0]?.children[0]).toHaveTextContent("Acceptance Blue");
-  expect(teams[0]?.children[1]).toHaveClass("np-avatar");
-  expect(teams[1]?.children[1]).toHaveClass("np-avatar");
-  expect(teams[1]?.children[2]).toHaveTextContent("Acceptance Red");
+  const matchup = within(screen.getByRole("heading", { level: 1 }));
+  const blueLink = matchup.getByRole("link", { name: "Acceptance Blue" });
+  const redLink = matchup.getByRole("link", { name: "Acceptance Red" });
+  expect(blueLink.children[0]).toHaveTextContent("Acceptance Blue");
+  expect(blueLink.children[1]).toHaveClass("np-avatar");
+  expect(redLink.children[0]).toHaveClass("np-avatar");
+  expect(redLink.children[1]).toHaveTextContent("Acceptance Red");
+  expect(blueLink).toHaveAttribute("href", "/teams/acceptance-blue");
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
     <MatchPage
@@ -236,10 +237,7 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   expect(
     within(chart).getByText("25 minutes: Blue Side 50%, Red Side 50%").closest("li"),
   ).not.toHaveAttribute("data-side");
-  expect(screen.getByRole("link", { name: "Model Diagnostics" })).toHaveAttribute(
-    "href",
-    "/models?model=2",
-  );
+  expect(screen.queryByRole("link", { name: "Model Diagnostics" })).toBeNull();
   for (const unavailable of [
     { model: null, reason: "No pro win probability model is active yet.", points: [] },
     { ...winProbability, points: [{ minute: 10, blueWinProbability: null }] },
@@ -263,7 +261,7 @@ it("moves between a series overview and its played games with spoilers kept", ()
   );
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/2",
+    "/matches/1/games/2",
   );
   // An unplayed game is listed but cannot be opened.
   expect(within(tabs).queryByRole("link", { name: "Game 3" })).toBeNull();
@@ -344,10 +342,34 @@ it("shows the draft by side, team totals and the score through the selected game
         won: true,
         statistics: {
           combat: { kills: 14 },
-          objectives: { towers: 7, dragons: 3, barons: 0 },
+          objectives: {
+            towers: 7,
+            dragons: 3,
+            barons: 0,
+            elementaldrakes: 2,
+            elders: 1,
+            infernals: 2,
+          },
           damage: {},
           vision: {},
           economy: { totalgold: 56005 },
+          checkpoints: {},
+        },
+      },
+      {
+        slot: game.participants[0]!.slot,
+        side: "blue" as const,
+        position: "mid",
+        player: { name: "Player Blue mid", sourceId: "10-mid" },
+        team: { name: "Acceptance Blue", sourceId: "10" },
+        champion: "Ahri",
+        won: true,
+        statistics: {
+          combat: {},
+          objectives: {},
+          damage: { damagetochampions: 20819 },
+          vision: { visionscore: 28 },
+          economy: { totalgold: 14912, "total cs": 236 },
           checkpoints: {},
         },
       },
@@ -374,7 +396,7 @@ it("shows the draft by side, team totals and the score through the selected game
   const tabs = screen.getByRole("navigation", { name: "Series" });
   expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1",
+    "/matches/1",
   );
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toBeVisible();
   expect(screen.queryByText("31:05")).toBeNull();
@@ -396,12 +418,14 @@ it("shows the draft by side, team totals and the score through the selected game
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(heading).toHaveTextContent("Acceptance Blue 1 vs 0 Acceptance Red");
   const draft = screen.getByRole("region", { name: "Draft Order" });
-  expect(tabs.nextElementSibling).toBe(draft);
+  expect(tabs.nextElementSibling).toContainElement(draft);
   expect(within(draft).getByText("First Pick").parentElement).toHaveTextContent("Red Side");
-  const bans = await screen.findByRole("list", { name: "Red Side Bans 1–6" });
+  expect(within(draft).getByText("Second Pick").parentElement).toHaveTextContent("Blue Side");
+  const bans = await screen.findByRole("list", { name: "Red Side First Phase Bans" });
   expect(within(bans).getByRole("img", { name: "Azir" })).toBeVisible();
+  expect(bans.querySelector(".ev-draft-slot")).toBeNull();
   expect(
-    within(screen.getByRole("list", { name: "Blue Side Picks 1–6" })).getByRole("img", {
+    within(screen.getByRole("list", { name: "Blue Side First Phase Picks" })).getByRole("img", {
       name: "Ahri",
     }),
   ).toBeVisible();
@@ -410,6 +434,11 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(screen.queryByRole("link", { name: "Open Archive Record" })).toBeNull();
   expect(within(draft).queryByText("Draft Order", { selector: "summary" })).toBeNull();
   expect(screen.getByText("56,005")).toBeVisible();
+  const dragons = within(screen.getByRole("group", { name: "Acceptance Blue Dragon Breakdown" }));
+  expect(dragons.getByRole("img", { name: "Infernal Drake" })).toBeVisible();
+  expect(dragons.getByRole("img", { name: "Elder Dragon" })).toBeVisible();
+  expect(dragons.getByText("Elemental 2 · Elder 1")).toBeVisible();
+  expect(screen.getByText("20,819")).toBeVisible();
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
     "Barons0",
   );
@@ -455,7 +484,7 @@ it("links an archive game back to its confirmed series", () => {
   );
   expect(screen.getByRole("link", { name: "Open in Series" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/1",
+    "/matches/1/games/1",
   );
   view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
   expect(screen.queryByRole("link", { name: "Open in Series" })).toBeNull();

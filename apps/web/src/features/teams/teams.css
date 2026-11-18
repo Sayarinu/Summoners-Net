@@ -1,8 +1,26 @@
 .ev-teams {
-  --team-slate: color-mix(in srgb, var(--color-bg-raised) 86%, var(--color-status-info));
   max-width: var(--size-content);
   margin-inline: auto;
   min-width: 0;
+}
+.ev-teams--directory {
+  max-width: none;
+  margin-inline: 0;
+}
+.ev-team-directory-heading {
+  justify-content: flex-start;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  padding: 0;
+}
+.ev-team-directory-heading .ev-filters {
+  padding: 0;
+  border: 0;
+}
+.ev-teams--directory .ev-pagination {
+  justify-content: flex-start;
+  padding-block: 0;
 }
 .ev-team-banner,
 .ev-team-panel,
@@ -18,8 +36,7 @@
   justify-content: space-between;
   gap: var(--space-5);
   padding: var(--space-6);
-  background: linear-gradient(110deg, var(--team-slate), var(--color-bg-raised));
-  border-inline-start: 3px solid var(--color-border-accent);
+  background: var(--color-bg-raised);
 }
 .ev-team-banner h1,
 .ev-team-banner .np-identity__copy strong {
@@ -59,7 +76,7 @@
   display: flex;
   height: 100%;
   padding: var(--space-4);
-  background: var(--team-slate);
+  background: var(--color-bg-raised);
   color: var(--color-text-primary);
 }
 .ev-team-grid .np-identity:hover,
@@ -98,7 +115,7 @@
   align-items: center;
   text-align: center;
   gap: var(--space-2);
-  background: var(--team-slate);
+  background: var(--color-bg-raised);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-1);
@@ -153,9 +170,14 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
-  background: var(--team-slate);
+  background: var(--color-bg-raised);
   padding: var(--space-3);
   border-radius: var(--radius-md);
+}
+@media (min-width: 1600px) {
+  .ev-team-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 @media (max-width: 1150px) {
   .ev-team-grid {
@@ -184,6 +206,9 @@
     padding: var(--space-4);
   }
   .ev-team-banner .ev-filters {
+    width: 100%;
+  }
+  .ev-team-directory-heading .ev-filters {
     width: 100%;
   }
   .ev-team-history .np-match-row {

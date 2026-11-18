@@ -1,10 +1,39 @@
 import type { HistoricalGameDetail } from "@summonersnet/data";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 
-const phases = [
-  { number: 1, slots: "1–6" },
-  { number: 2, slots: "7–10" },
-] as const;
+const actions = ["ban", "pick"] as const;
+const phases = [1, 2] as const;
+
+export interface FearlessGame {
+  number: number;
+  champions: string[];
+}
+
+export function FearlessBans({
+  games,
+  portraits,
+}: {
+  games: FearlessGame[];
+  portraits?: ChampionPortraits | undefined;
+}) {
+  return (
+    <section className="ev-fearless" aria-label="Fearless Bans">
+      <h2>Fearless Bans</h2>
+      {games.map(({ number, champions }) => (
+        <div className="ev-fearless__game" key={number}>
+          <span className="np-meta">Game {number}</span>
+          <ul aria-label={`Game ${number} Fearless Bans`} role="list">
+            {champions.map((champion) => (
+              <li key={champion}>
+                <ChampionPortrait name={champion} portraits={portraits} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 export function DraftPanel({
   detail,
@@ -19,44 +48,46 @@ export function DraftPanel({
   if (!hasDraft) return null;
   const firstPicks = detail.draft.filter(({ firstPick }) => firstPick === true);
   const firstPickSide = firstPicks.length === 1 ? firstPicks[0]?.side : null;
+  const ordered = detail.draftOrder.length > 0;
 
   return (
-    <section className="ev-draft" aria-labelledby="draft-order-heading">
-      <h2 id="draft-order-heading">Draft Order</h2>
-      {detail.draftOrder.length ? (
-        <div className="ev-draft-order">
-          {phases.map(({ number, slots }) => (
-            <div className="ev-draft-phase" key={number}>
-              <div className="ev-draft-phase__row ev-draft-phase__head">
-                <h3>Bans {slots}</h3>
-                <h3>Picks {slots}</h3>
-              </div>
-              {detail.draft.map(({ side }) => {
-                const label = side === "blue" ? "Blue Side" : "Red Side";
-                return (
-                  <div className="ev-draft-phase__row" data-side={side} key={side}>
-                    <div className="ev-draft-side">
-                      <span>{label}</span>
-                      {number === 1 && firstPickSide === side ? <small>First Pick</small> : null}
-                    </div>
-                    {(["ban", "pick"] as const).map((action) => (
+    <section className="ev-draft" aria-label="Draft Order">
+      {!ordered ? <p className="np-meta">Full draft order unavailable.</p> : null}
+      {detail.draft.map(({ side, bans, picks }) => {
+        const label = side === "blue" ? "Blue Side" : "Red Side";
+        return (
+          <div className="ev-draft-side" data-side={side} key={side}>
+            <div className="ev-draft-side__label">
+              <span>{label}</span>
+              {firstPickSide ? (
+                <small>{firstPickSide === side ? "First Pick" : "Second Pick"}</small>
+              ) : null}
+            </div>
+            <div className="ev-draft-side__phases">
+              {ordered ? (
+                phases.map((phase) => (
+                  <div className="ev-draft-phase" key={phase}>
+                    {actions.map((action) => (
                       <ol
                         key={action}
+                        data-action={action}
                         role="list"
-                        aria-label={`${label} ${action === "ban" ? "Bans" : "Picks"} ${slots}`}
+                        aria-label={`${label} ${phase === 1 ? "First" : "Second"} Phase ${action === "ban" ? "Bans" : "Picks"}`}
                       >
                         {detail.draftOrder
                           .filter(
                             (event) =>
-                              event.phase === number &&
+                              event.phase === phase &&
                               event.action === action &&
                               event.side === side,
                           )
-                          .map((event) => (
-                            <li key={event.slot}>
-                              <span className="ev-draft-slot">{event.slot}</span>
+                          .map(({ slot, champion }) => (
+                            <li key={slot}>
+                              {action === "pick" ? (
+                                <span className="ev-draft-slot">{slot}</span>
+                              ) : null}
                               <ChampionPortrait
-                                name={event.champion}
+                                name={champion}
                                 portraits={portraits}
                                 size="medium"
                               />
@@ -65,41 +96,29 @@ export function DraftPanel({
                       </ol>
                     ))}
                   </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="np-stack">
-          <p className="np-meta">Full draft order unavailable.</p>
-          <div className="ev-draft-order">
-            {detail.draft.map(({ side, picks, bans }) => (
-              <section className="ev-draft-phase" key={side} data-side={side}>
-                <h3 className="ev-draft-side">
-                  {side === "blue" ? "Blue Side" : "Red Side"}
-                  {firstPickSide === side ? <small>First Pick</small> : null}
-                </h3>
-                {(
-                  [
-                    ["Bans", bans],
-                    ["Picks", picks],
-                  ] as const
-                ).map(([label, champions]) => (
-                  <div key={label} className="np-stack" aria-label={label} role="group">
-                    <span className="np-meta">{label}</span>
-                    <div className="np-cluster">
-                      {champions.map((champion, index) => (
-                        <ChampionPortrait key={index} name={champion} portraits={portraits} />
+                ))
+              ) : (
+                <div className="ev-draft-phase">
+                  {actions.map((action) => (
+                    <ol
+                      key={action}
+                      data-action={action}
+                      role="list"
+                      aria-label={`${label} ${action === "ban" ? "Bans" : "Picks"}`}
+                    >
+                      {(action === "ban" ? bans : picks).map((champion, index) => (
+                        <li key={index}>
+                          <ChampionPortrait name={champion} portraits={portraits} />
+                        </li>
                       ))}
-                    </div>
-                  </div>
-                ))}
-              </section>
-            ))}
+                    </ol>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })}
     </section>
   );
 }

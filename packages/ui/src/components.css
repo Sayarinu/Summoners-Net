@@ -39,6 +39,35 @@
     padding-inline-start: var(--space-2);
   }
 
+  /* Riot minimap artwork bundled from the 14.16 CommunityDragon assets. */
+  .np-drake-icon {
+    display: inline-block;
+    inline-size: 20px;
+    block-size: 20px;
+    background: center / contain no-repeat;
+  }
+  .np-drake-icon[data-drake="infernal"] {
+    background-image: url("./drake-icons/dragonfireminimap.png");
+  }
+  .np-drake-icon[data-drake="mountain"] {
+    background-image: url("./drake-icons/dragonearthminimap.png");
+  }
+  .np-drake-icon[data-drake="cloud"] {
+    background-image: url("./drake-icons/dragonairminimap.png");
+  }
+  .np-drake-icon[data-drake="ocean"] {
+    background-image: url("./drake-icons/dragonwaterminimap.png");
+  }
+  .np-drake-icon[data-drake="chemtech"] {
+    background-image: url("./drake-icons/dragonchemtechmini.png");
+  }
+  .np-drake-icon[data-drake="hextech"] {
+    background-image: url("./drake-icons/dragonhextechminimap.png");
+  }
+  .np-drake-icon[data-drake="elder"] {
+    background-image: url("./drake-icons/dragonelderminimap.png");
+  }
+
   .np-role-icon {
     display: inline-grid;
     place-items: center;

@@ -19,17 +19,20 @@ import type {
 } from "@summonersnet/data";
 import { gameReplayUrl, recordingUrl } from "@summonersnet/data/contracts";
 import { type ChampionPortraits } from "../browse/visuals";
-import { matchDisplay, gameTeams, seriesRound } from "../browse/presentation";
+import {
+  identityHref,
+  matchDisplay,
+  gameTeams,
+  seriesGameHref,
+  seriesHref,
+  seriesRound,
+} from "../browse/presentation";
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
-import { DraftPanel } from "./draft";
+import { DraftPanel, FearlessBans, type FearlessGame } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
-
-export const seriesHref = (match: Pick<Match, "id">) => `/matches/${encodeURIComponent(match.id)}`;
-export const seriesGameHref = (match: Pick<Match, "id">, number: number) =>
-  `${seriesHref(match)}/games/${number}`;
 
 /** A game counts as played once the provider reports it finished or under way. */
 const played = (game: SeriesGame) => game.state === "finished" || game.state === "running";
@@ -177,13 +180,25 @@ function SeriesShell({
                       {index ? " " : null}
                     </span>
                   ) : null;
+                  const identityContent = (
+                    <>
+                      {index ? logo : name}
+                      {index ? name : logo}
+                    </>
+                  );
                   return (
                     <span key={index}>
                       {index ? " vs " : null}
                       <span className="ev-series-title__team">
-                        {index ? score : name}
-                        {logo}
-                        {index ? name : score}
+                        {index ? score : null}
+                        {identity && team.name !== "TBD" ? (
+                          <a className="ev-series-title__identity" href={identityHref(identity)}>
+                            {identityContent}
+                          </a>
+                        ) : (
+                          identityContent
+                        )}
+                        {index ? null : score}
                       </span>
                     </span>
                   );
@@ -367,6 +382,7 @@ export function SeriesGamePage({
   game,
   detail,
   portraits,
+  fearless = [],
   winProbability,
   timezone,
   hideSpoilers,
@@ -379,6 +395,7 @@ export function SeriesGamePage({
   game: Game | null;
   detail: HistoricalGameDetail | null;
   portraits?: ChampionPortraits;
+  fearless?: FearlessGame[];
   winProbability: ProGameWinProbability | null;
   timezone: string;
   hideSpoilers: boolean;
@@ -409,7 +426,12 @@ export function SeriesGamePage({
           {hidden ? (
             <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button>
           ) : null}
-          {detail && !hidden ? <DraftPanel detail={detail} portraits={portraits} /> : null}
+          {detail && !hidden ? (
+            <div className="ev-drafts">
+              <DraftPanel detail={detail} portraits={portraits} />
+              {fearless.length ? <FearlessBans games={fearless} portraits={portraits} /> : null}
+            </div>
+          ) : null}
           <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
           {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
         </>

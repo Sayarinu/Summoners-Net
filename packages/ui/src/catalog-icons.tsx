@@ -88,3 +88,25 @@ export function RoleIcon({ role }: { readonly role: string | null | undefined })
     </span>
   );
 }
+
+const drakeNames = {
+  infernal: "Infernal Drake",
+  mountain: "Mountain Drake",
+  cloud: "Cloud Drake",
+  ocean: "Ocean Drake",
+  chemtech: "Chemtech Drake",
+  hextech: "Hextech Drake",
+  elder: "Elder Dragon",
+} as const;
+
+export function DrakeIcon({ drake }: { readonly drake: keyof typeof drakeNames }) {
+  return (
+    <span
+      className="np-drake-icon"
+      data-drake={drake}
+      role="img"
+      aria-label={drakeNames[drake]}
+      title={drakeNames[drake]}
+    />
+  );
+}

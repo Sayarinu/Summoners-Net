@@ -24,8 +24,8 @@ export function TeamFinder({
   query: BrowseQuery;
 }) {
   return (
-    <div className="ev-teams np-stack">
-      <header className="ev-team-banner">
+    <div className="ev-teams ev-teams--directory np-stack">
+      <header className="ev-title ev-team-directory-heading">
         <h1>Teams</h1>
         <Filters teams query={query} />
       </header>
