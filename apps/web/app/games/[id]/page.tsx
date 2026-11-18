@@ -9,10 +9,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const record = await data().game(id);
   if (!record) notFound();
   const prefs = await preferences();
-  const [winProbability, series, detail] = await Promise.all([
+  const [winProbability, series, detail, archiveVod] = await Promise.all([
     data().proGameWinProbability(id),
     data().gameSeries(record.id),
     /^oracle:archive:[a-f0-9]{64}$/.test(record.id) ? data().historicalGame(record.id) : null,
+    data().gameVod(record.id),
   ]);
   const [match, portraits, items] = await Promise.all([
     series ? data().match(series.matchId) : null,
@@ -27,7 +28,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   ]);
   const game = match?.games.find((item) => item.number === series?.number);
   const vodUrl =
-    (match && game ? gameReplayUrl(match, game) : null) ?? recordingUrl(detail?.context.sourceUrl);
+    (match && game ? gameReplayUrl(match, { ...game, gameVodUrl: archiveVod }) : null) ??
+    recordingUrl(archiveVod) ??
+    recordingUrl(detail?.context.sourceUrl);
   return (
     <GamePage
       game={record}

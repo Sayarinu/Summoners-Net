@@ -71,7 +71,11 @@ export const matchSchema = z.object({
 });
 export type Match = z.infer<typeof matchSchema>;
 /** A series game with the archive game it corresponds to, or null while unconfirmed. */
-export type SeriesGame = z.infer<typeof matchGameSchema> & { gameId: string | null };
+export type SeriesGame = z.infer<typeof matchGameSchema> & {
+  gameId: string | null;
+  /** The linked archive game's recording, opening where the game starts, when one is known. */
+  gameVodUrl?: string | null;
+};
 export const participantSchema = z.object({
   slot: z.string(),
   side: z.enum(["blue", "red"]),
@@ -205,6 +209,7 @@ export const syncRequestSchema = z.discriminatedUnion("kind", [
         "riot-match-ids",
         "drafts",
         "pro-game-details",
+        "pro-game-vods",
         "riot-match",
         "riot-timeline",
         "riot-retention",

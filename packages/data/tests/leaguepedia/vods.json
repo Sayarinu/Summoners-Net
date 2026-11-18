@@ -1,0 +1,58 @@
+{
+  "cargoquery": [
+    {
+      "title": {
+        "GameId": "2026 Season World Championship/Main Event_Finals_1_1",
+        "Vod": "",
+        "VodGameStart": "https://youtu.be/c5ZgeZ0QdDI?t=540",
+        "VodPB": "https://youtu.be/c5ZgeZ0QdDI",
+        "RiotPlatformGameId": "LOLTMNT02_487405"
+      }
+    },
+    {
+      "title": {
+        "GameId": "2026 Season World Championship/Main Event_Finals_1_2",
+        "Vod": "",
+        "VodGameStart": "https://youtu.be/c5ZgeZ0QdDI?t=3433",
+        "VodPB": "https://youtu.be/c5ZgeZ0QdDI?t=2881",
+        "RiotPlatformGameId": "LOLTMNT02_487406"
+      }
+    },
+    {
+      "title": {
+        "GameId": "2026 Season World Championship/Main Event_Finals_1_3",
+        "Vod": "",
+        "VodGameStart": "",
+        "VodPB": "",
+        "RiotPlatformGameId": "LOLTMNT02_487408"
+      }
+    },
+    {
+      "title": {
+        "GameId": "Example League/Week 1_1_1",
+        "Vod": "https://www.twitch.tv/videos/2345678901?t=1h2m3s",
+        "VodGameStart": "http://youtu.be/c5ZgeZ0QdDI?t=540",
+        "VodPB": "https://www.twitch.tv/examplechannel",
+        "RiotPlatformGameId": "ESPORTSTMNT01_100001"
+      }
+    },
+    {
+      "title": {
+        "GameId": "Example League/Week 1_1_2",
+        "Vod": "https://www.youtube.com/embed/c5ZgeZ0QdDI",
+        "VodGameStart": "https://vods.example.com/c5ZgeZ0QdDI?t=540",
+        "VodPB": null,
+        "RiotPlatformGameId": "ESPORTSTMNT01_100002"
+      }
+    },
+    {
+      "title": {
+        "GameId": "Unrequested/Game",
+        "Vod": "https://youtu.be/c5ZgeZ0QdDI",
+        "VodGameStart": "",
+        "VodPB": "",
+        "RiotPlatformGameId": "LOLTMNT02_1"
+      }
+    }
+  ]
+}

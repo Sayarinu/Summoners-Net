@@ -54,6 +54,7 @@ import { heatmap } from "./heatmaps.js";
 import type { HeatmapQuery } from "../domain/heatmaps.js";
 import { championJunglePaths } from "./jungle-paths.js";
 import { proGameWinProbability } from "./pro-wp.js";
+import { archiveGameVods } from "./pro-game-vods.js";
 import { modelDiagnostics } from "./model-diagnostics.js";
 import { wpaLeaderboard } from "./wpa-leaderboards.js";
 import type { WpaLeaderboardQuery } from "../domain/wpa-leaderboards.js";
@@ -184,7 +185,7 @@ export function queries(pool: Pool, clock: () => Date) {
    * Pairs each game of a series with its archive game. A pair needs both series teams to
    * resolve, through corroborated identity links, to the archive game's two teams, the same
    * league, a time inside the series window and the same game number. Ambiguous pairs stay
-   * null; names alone never link.
+   * null; names alone never link. A linked game carries its archive recording, if any.
    */
   async function matchGames(id: string): Promise<SeriesGame[] | null> {
     const result = await pool.query<{ games: Match["games"]; links: Record<string, string> }>(
@@ -228,8 +229,12 @@ export function queries(pool: Pool, clock: () => Date) {
     );
     const row = result.rows[0];
     if (!row) return null;
+    const vods = await archiveGameVods(pool, Object.values(row.links));
     return (row.games ?? [])
-      .map((game) => ({ ...game, gameId: row.links[String(game.number)] ?? null }))
+      .map((game) => {
+        const gameId = row.links[String(game.number)] ?? null;
+        return { ...game, gameId, gameVodUrl: (gameId && vods.get(gameId)) ?? null };
+      })
       .sort((a, b) => a.number - b.number);
   }
   const games = async (input: BrowseQuery = {}, identityId?: string) => {
@@ -360,6 +365,11 @@ export function queries(pool: Pool, clock: () => Date) {
         if (linked) found.push({ matchId: id, number: linked.number });
       }
       return found.length === 1 ? found[0]! : null;
+    },
+    /** The archive game's recording, opening where the game starts when that is known. */
+    async gameVod(gameId: string): Promise<string | null> {
+      const parsedId = idSchema.parse(gameId);
+      return (await archiveGameVods(pool, [parsedId])).get(parsedId) ?? null;
     },
     async game(id: string) {
       const parsedId = idSchema.parse(id);

@@ -9,10 +9,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const [record, games] = await Promise.all([data().match(id), data().matchGames(id)]);
   if (!record || !games) notFound();
   if (routeId !== seriesRouteId(record.id)) redirect(seriesHref(record));
-  const [prefs, summaries] = await Promise.all([
-    preferences(),
-    record.state === "final" ? seriesSummaries(games) : [],
-  ]);
+  const [prefs, summaries] = await Promise.all([preferences(), seriesSummaries(games)]);
   return (
     <MatchPage
       match={record}

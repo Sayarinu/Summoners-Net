@@ -84,6 +84,7 @@ import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
 import { refreshProGameDetails, type ProGameDetailRun } from "./pro-game-details.js";
+import { refreshProGameVods, type ProGameVodRun } from "./pro-game-vods.js";
 import {
   riotKeyCheckResult,
   riotKeyCheckPath,
@@ -141,9 +142,12 @@ export interface WorkerOptions {
    * after `maxMs` to requeue themselves behind other due jobs.
    */
   proGameDetailRun?: ProGameDetailRun;
+  /** Leaguepedia recording runs, spaced and bounded like detail runs. */
+  proGameVodRun?: ProGameVodRun;
 }
 /** Identifies the worker to the wiki, as its API etiquette asks of automated clients. */
 const wikiUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game detail sync)";
+const vodUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game VOD sync)";
 class ProviderError extends Error {
   constructor(
     message: string,
@@ -158,6 +162,7 @@ const tracksSource = (r: SyncRequest) =>
   r.kind !== "resolve" &&
   r.kind !== "drafts" &&
   r.kind !== "pro-game-details" &&
+  r.kind !== "pro-game-vods" &&
   r.kind !== "pro-account-links" &&
   r.kind !== "replay-track" &&
   r.kind !== "replay-metadata" &&
@@ -631,6 +636,16 @@ export function worker(pool: Pool, options: WorkerOptions) {
       });
       requeueAfterRun = remaining;
       return loaded;
+    }
+    if (r.kind === "pro-game-vods") {
+      const { found, remaining } = await refreshProGameVods(pool, {
+        ...options.proGameVodRun,
+        clock,
+        pause,
+        request: (url) => request(url, false, 60000, { "User-Agent": vodUserAgent }),
+      });
+      requeueAfterRun = remaining;
+      return found;
     }
     if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
     if (r.kind === "wp-train") {

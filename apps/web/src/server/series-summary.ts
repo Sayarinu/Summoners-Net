@@ -22,6 +22,7 @@ async function summarize(gameId: string, number: number): Promise<SeriesGameSumm
   return {
     number,
     durationSeconds: detail?.context.durationSeconds ?? null,
+    startsAt: game?.occurredAt ?? null,
     teams: (game ? gameTeams(game) : []).map(({ id, entityId, side }) => {
       const stats = detail?.participants.find(
         (row) => row.side === side && row.position === "team",

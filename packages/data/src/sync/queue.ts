@@ -32,6 +32,8 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
     { request: { kind: "metadata" }, interval: 86400 },
     { request: { kind: "drafts" }, interval: 86400 },
     { request: { kind: "pro-game-details" }, interval: 600 },
+    // Mostly a no-op: only new games and games due a recheck for a late recording are requested.
+    { request: { kind: "pro-game-vods" }, interval: 1800 },
     {
       request: {
         kind: "history",
