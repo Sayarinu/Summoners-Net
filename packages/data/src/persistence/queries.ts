@@ -1,5 +1,6 @@
 import { teamDirectory, teamSeasons } from "./team-directory.js";
 import { playerPerformance, playerSeasons } from "./player-stats.js";
+import { playerDirectory } from "./player-directory.js";
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championDirectory, patchDirectory } from "./directories.js";
 import { championMatchups } from "./matchups.js";
@@ -311,6 +312,7 @@ export function queries(pool: Pool, clock: () => Date) {
     },
     games,
     teamDirectory: (input: BrowseQuery = {}) => teamDirectory(pool, input, clock()),
+    playerDirectory: (input: BrowseQuery = {}) => playerDirectory(pool, input, clock()),
     async teamContext(id: string) {
       const identity = await profileIdentity(id, "team");
       if (identity?.kind !== "team") return null;

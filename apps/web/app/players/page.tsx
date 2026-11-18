@@ -1,12 +1,10 @@
-import { DirectoryPage } from "../../src/features/browse/pages";
-import { browseQuery, data } from "../../src/server/data";
+import { PlayerFinder } from "../../src/features/browse/players";
+import { data, directoryQuery } from "../../src/server/data";
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = await browseQuery(searchParams);
-  return (
-    <DirectoryPage data={await data().directory("player", query)} query={query} kind="player" />
-  );
+  const query = await directoryQuery(searchParams);
+  return <PlayerFinder data={await data().playerDirectory(query)} query={query} />;
 }

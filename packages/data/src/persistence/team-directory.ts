@@ -1,6 +1,6 @@
 import type { Executor } from "./database.js";
 import {
-  querySchema,
+  directoryQuerySchema,
   type BrowseQuery,
   type Identity,
   type League,
@@ -12,7 +12,8 @@ export interface TeamSeason {
   year: number;
   league: League;
 }
-const leagueOrder = "league IN ('Worlds','MSI','First Stand','EWC'), last_played DESC, league";
+export const leagueOrder =
+  "league IN ('Worlds','MSI','First Stand','EWC'), last_played DESC, league";
 
 export async function teamSeasons(db: Executor, entityId: string): Promise<TeamSeason[]> {
   return (
@@ -30,7 +31,7 @@ export async function teamDirectory(
   input: BrowseQuery,
   now: Date,
 ): Promise<Page<TeamDirectoryEntry>> {
-  const q = querySchema.parse(input);
+  const q = directoryQuerySchema.parse(input);
   const pattern = q.q.toLowerCase().replace(/[\\%_]/g, "\\$&");
   const { rows } = await db.query<{ items: TeamDirectoryEntry[]; total: number }>(
     `WITH competitions AS (

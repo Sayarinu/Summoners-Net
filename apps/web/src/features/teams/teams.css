@@ -9,8 +9,7 @@
 }
 .ev-team-banner,
 .ev-team-panel,
-.ev-team-history,
-.ev-team-grid .np-identity {
+.ev-team-history {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
 }
@@ -45,7 +44,6 @@
   cursor: pointer;
   color: var(--color-text-accent);
 }
-.ev-team-grid,
 .ev-roster,
 .ev-champ-pool {
   list-style: none;
@@ -54,17 +52,6 @@
   display: grid;
   gap: var(--space-3);
 }
-.ev-team-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.ev-team-grid .np-identity {
-  display: flex;
-  height: 100%;
-  padding: var(--space-4);
-  background: var(--color-bg-raised);
-  color: var(--color-text-primary);
-}
-.ev-team-grid .np-identity:hover,
 .ev-roster a:hover {
   background: var(--color-bg-interactive);
   border-color: var(--color-border-accent);
@@ -73,7 +60,6 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.ev-team-grid .np-identity small,
 .ev-team-banner .np-identity small {
   color: var(--color-text-accent);
 }
@@ -159,15 +145,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-md);
 }
-@media (min-width: 1600px) {
-  .ev-team-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
 @media (max-width: 1150px) {
-  .ev-team-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
   .ev-team-overview {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -176,15 +154,7 @@
     gap: var(--space-8);
   }
 }
-@media (max-width: 900px) {
-  .ev-team-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 600px) {
-  .ev-team-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .ev-team-banner,
   .ev-team-panel,
   .ev-team-history {

@@ -155,10 +155,69 @@ test.describe("players navigation", () => {
     await page.getByRole("link", { name: "Players", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Players", exact: true })).toBeVisible();
     await page.waitForTimeout(1500);
+    const settled = page.url();
+    // The grid may resize its page once to fill the screen, then it stays put.
     expect(documentLoads).toBe(0);
-    expect(playerRouteRequests).toBe(1);
+    expect(playerRouteRequests).toBeLessThanOrEqual(2);
     expect(preferenceWrites).toBeLessThanOrEqual(1);
+    await page.waitForTimeout(1000);
+    expect(page.url()).toBe(settled);
+    expect(playerRouteRequests).toBeLessThanOrEqual(2);
   });
+});
+
+/** Cards on the page form whole rows that fit above the pagination without scrolling. */
+async function directoryFill(page: Page) {
+  return page.locator("main ul.ev-directory-grid").evaluate((grid) => {
+    const style = getComputedStyle(grid);
+    const columns = style.gridTemplateColumns.split(" ").length;
+    const rows = style.gridTemplateRows.split(" ").map(Number.parseFloat);
+    const step = Math.max(...rows) + Number.parseFloat(style.rowGap);
+    const box = grid.getBoundingClientRect();
+    const below = grid.parentElement!.lastElementChild!.getBoundingClientRect().bottom - box.bottom;
+    const room = window.innerHeight - box.top - window.scrollY - below;
+    return { cards: grid.children.length, columns, height: box.height, room, step };
+  });
+}
+
+test("directory card grids fill the visible area with whole rows and keep their size across pages", async ({
+  page,
+}) => {
+  const width = page.viewportSize()!.width;
+  await page.setViewportSize({ width, height: 560 });
+  await page.goto("/players");
+  await expect(page).toHaveURL(/pageSize=\d+/);
+  const pageSize = Number(new URL(page.url()).searchParams.get("pageSize"));
+  await expect(page.locator("main .ev-player-card")).toHaveCount(pageSize);
+  const small = await directoryFill(page);
+  expect(small.cards % small.columns).toBe(0);
+  // Either the smallest useful page, or as many rows as fit and no room for another.
+  if (small.cards > Math.ceil(6 / small.columns) * small.columns) {
+    expect(small.height).toBeLessThanOrEqual(small.room + 1);
+    expect(small.height + small.step).toBeGreaterThan(small.room);
+  }
+  await expect(page.getByText(/^\d+ records · Page 1$/)).toBeVisible();
+  const total = Number((await page.getByText(/^\d+ records/).textContent())!.split(" ")[0]);
+  expect(total).toBeGreaterThan(pageSize);
+  await page.getByRole("button", { name: "Next Page" }).click();
+  await expect(page).toHaveURL(/page=2/);
+  expect(new URL(page.url()).searchParams.get("pageSize")).toBe(String(pageSize));
+  await expect(page.getByText(/· Page 2$/)).toBeVisible();
+  await page.waitForTimeout(1000);
+  expect(new URL(page.url()).searchParams.get("pageSize")).toBe(String(pageSize));
+
+  await page.setViewportSize({ width, height: 2400 });
+  await expect(page).not.toHaveURL(new RegExp(`pageSize=${pageSize}(&|$)`));
+  const tall = await directoryFill(page);
+  expect(tall.cards).toBeGreaterThan(0);
+  expect(tall.cards % tall.columns === 0 || tall.cards === total).toBe(true);
+
+  await page.setViewportSize({ width, height: 560 });
+  await page.goto("/teams");
+  await expect(page.locator("main ul.ev-directory-grid > li").first()).toBeVisible();
+  const teams = await directoryFill(page);
+  const teamTotal = Number((await page.getByText(/^\d+ records?/).textContent())!.split(" ")[0]);
+  expect(teams.cards % teams.columns === 0 || teams.cards === teamTotal).toBe(true);
 });
 
 test("in-app links navigate without reloading the document and pages fade in", async ({ page }) => {
@@ -173,7 +232,7 @@ test("in-app links navigate without reloading the document and pages fade in", a
   await expect(page.locator(".ev-main > *").first()).toHaveCSS("animation-name", "ev-page-enter");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goBack();
-  await expect(page).toHaveURL(/\/teams$/);
+  await expect(page).toHaveURL(/\/teams(\?pageSize=\d+)?$/);
   await expect(page.locator(".ev-main > *").first()).toHaveCSS("animation-name", "none");
 });
 
