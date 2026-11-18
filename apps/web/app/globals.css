@@ -1371,23 +1371,32 @@
 }
 
 .ev-fearless__role {
-  display: grid;
-  grid-template-columns: auto auto;
-  align-items: start;
-  justify-content: center;
-  gap: var(--space-1);
+  position: relative;
+  justify-self: center;
 }
 
 .ev-fearless__role > .np-role-icon {
-  margin-block-start: 2px;
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
 }
 
 .ev-fearless__role ol {
   display: grid;
-  grid-template-columns: repeat(2, var(--ev-fearless-portrait));
-  grid-template-rows: repeat(4, var(--ev-fearless-portrait));
+  grid-template-columns: var(--ev-fearless-portrait) 1.5rem var(--ev-fearless-portrait);
+  grid-auto-rows: var(--ev-fearless-portrait);
+  align-content: center;
+  min-block-size: calc(4 * var(--ev-fearless-portrait) + 3 * var(--space-1));
   gap: var(--space-1);
   list-style: none;
+}
+
+.ev-fearless__role li:nth-child(odd) {
+  grid-column: 1;
+}
+
+.ev-fearless__role li:nth-child(even) {
+  grid-column: 3;
 }
 
 .ev-fearless .np-avatar {
