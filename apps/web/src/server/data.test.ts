@@ -14,7 +14,7 @@ vi.mock("@summonersnet/data", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createQueries: mocks.createQueries,
 }));
-import { data, preferences, browseQuery, sourceIdFromRoute } from "./data";
+import { data, preferences, browseQuery, directoryQuery, sourceIdFromRoute } from "./data";
 import { defaultPreferences } from "../features/preferences/model";
 it("loads validated preferences and query filters without passing blank controls", async () => {
   expect(await preferences()).toMatchObject({
@@ -27,6 +27,14 @@ it("loads validated preferences and query filters without passing blank controls
     page: 2,
   });
   await expect(browseQuery(Promise.resolve({ page: "bad" }))).rejects.toThrow();
+});
+it("clamps directory page sizes to a bounded range with a default for links without one", async () => {
+  expect((await directoryQuery(Promise.resolve({}))).pageSize).toBe(24);
+  expect((await directoryQuery(Promise.resolve({ pageSize: "36", page: "2" }))).pageSize).toBe(36);
+  expect((await directoryQuery(Promise.resolve({ pageSize: "5000" }))).pageSize).toBe(120);
+  expect((await directoryQuery(Promise.resolve({ pageSize: "-3" }))).pageSize).toBe(1);
+  expect((await directoryQuery(Promise.resolve({ pageSize: ["12", "18"] }))).pageSize).toBe(24);
+  await expect(browseQuery(Promise.resolve({ pageSize: "5000" }))).rejects.toThrow();
 });
 it("requires server-only configuration and reuses the query client", () => {
   vi.stubEnv("DATABASE_URL", "");

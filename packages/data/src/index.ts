@@ -1,8 +1,9 @@
 export type { TeamDirectoryEntry, TeamSeason } from "./persistence/team-directory.js";
 export type { PlayerPerformance, PlayerSeason } from "./domain/player-performance.js";
+export type { PlayerDirectoryEntry } from "./persistence/player-directory.js";
 import { database } from "./persistence/database.js";
 import { queries } from "./persistence/queries.js";
-export { querySchema, regions } from "./domain/models.js";
+export { directoryPageSize, directoryQuerySchema, querySchema, regions } from "./domain/models.js";
 export { historicalQuerySchema, historicalSubjectSchema } from "./domain/historical.js";
 export type {
   BrowseQuery,

@@ -1,8 +1,8 @@
 "use client";
-import { ChampionIcon, EmptyState, SearchResult, TextLink, RoleIcon } from "@summonersnet/ui";
-import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
+import { ChampionIcon, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
+import type { BrowseQuery, Match, Game, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { identityHref, searchHitHref } from "./presentation";
+import { searchHitHref } from "./presentation";
 import { MatchSection, useMatchRows } from "./match-group";
 
 const matchSections = [
@@ -157,42 +157,6 @@ export function PastMatchesPage({
           <Pages data={games} />
         </>
       ) : null}
-    </div>
-  );
-}
-export function DirectoryPage({
-  data,
-  query,
-  kind,
-}: {
-  data: Page<Identity>;
-  query: BrowseQuery;
-  kind: "team" | "player";
-}) {
-  return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>{kind === "team" ? "Teams" : "Players"}</h1>
-        </div>
-      </header>
-      <Filters query={query} search />
-      <div>
-        {data.items.map((i) => (
-          <SearchResult
-            key={i.id}
-            name={i.name}
-            shortName={i.name}
-            type={i.kind}
-            showType={false}
-            {...(i.role ? { meta: <RoleIcon role={i.role} /> } : {})}
-            href={identityHref(i)}
-            {...(i.imageUrl ? { image: i.imageUrl } : {})}
-          />
-        ))}
-      </div>
-      {!data.items.length && <EmptyState title="No Identities Found" />}
-      <Pages data={data} />
     </div>
   );
 }

@@ -167,6 +167,16 @@ export const querySchema = z.object({
   state: matchSchema.shape.state.optional(),
 });
 export type BrowseQuery = z.input<typeof querySchema>;
+/** Directory grids size their pages to whole rows of the visible area, within these bounds. */
+export const directoryPageSize = { default: 24, max: 120 } as const;
+export const directoryQuerySchema = querySchema.extend({
+  // Out-of-range sizes clamp rather than fail, so a resized or shared link still renders.
+  pageSize: z.coerce
+    .number()
+    .int()
+    .catch(directoryPageSize.default)
+    .transform((size) => Math.min(Math.max(size, 1), directoryPageSize.max)),
+});
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
   z.strictObject({

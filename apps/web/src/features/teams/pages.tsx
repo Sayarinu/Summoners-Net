@@ -1,4 +1,5 @@
 "use client";
+import "../browse/directory.css";
 import "./teams.css";
 import { useState } from "react";
 import type {
@@ -13,6 +14,7 @@ import { roleKey } from "@summonersnet/data/contracts";
 import { Breadcrumb, Button, EmptyState, PlayerIdentity, TeamIdentity } from "@summonersnet/ui";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { MatchSection, useMatchRows } from "../browse/match-group";
+import { FillingGrid } from "../browse/page-fill";
 import { identityHref } from "../browse/presentation";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 
@@ -34,7 +36,12 @@ export function TeamFinder({
         <Filters teams query={query} />
       </div>
       {data.items.length ? (
-        <ul className="ev-team-grid">
+        <FillingGrid
+          className="ev-directory-grid"
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+        >
           {data.items.map((t) => (
             <li key={t.id}>
               <TeamIdentity
@@ -47,7 +54,7 @@ export function TeamFinder({
               />
             </li>
           ))}
-        </ul>
+        </FillingGrid>
       ) : (
         <EmptyState title="No Teams Found" />
       )}

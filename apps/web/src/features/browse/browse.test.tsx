@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MatchesPage, PastMatchesPage, DirectoryPage, SearchPage } from "./pages";
+import { MatchesPage, PastMatchesPage, SearchPage } from "./pages";
+import { PlayerFinder } from "./players";
 import { matchDisplay, dateTime, identityHref } from "./presentation";
 import { Pages, Filters } from "./components";
 import { useRouter } from "next/navigation";
@@ -237,20 +238,43 @@ describe("browse presentation", () => {
       expect.stringContaining("autoplay=false"),
     );
   });
-  it("links identities and global results", () => {
+  it("links identities and global results", async () => {
     const view = render(
-      <DirectoryPage
-        kind="team"
-        data={page([{ ...blue, imageUrl: "https://example.org/logo.png" }])}
-        query={{}}
+      <PlayerFinder
+        data={{
+          ...page([
+            { ...player, team: { ...blue, imageUrl: "https://example.org/logo.png" } },
+            { ...player, id: "free", name: "Free Agent", publicSlug: "free-agent", team: null },
+          ]),
+          pageSize: 36,
+        }}
+        query={{ q: "Player", league: "LCK" }}
       />,
     );
+    const card = screen.getByRole("link", { name: /Player Blue mid/ }).closest("li")!;
+    expect(screen.getByRole("link", { name: /Player Blue mid/ })).toHaveAttribute(
+      "href",
+      identityHref(player),
+    );
+    expect(card.querySelector('[aria-label="Mid"]')).not.toBeNull();
     expect(screen.getByRole("link", { name: /Acceptance Blue/ })).toHaveAttribute(
       "href",
       identityHref(blue),
     );
-    view.rerender(<DirectoryPage kind="player" data={page([])} query={{ q: "none" }} />);
-    expect(screen.getByText("No Identities Found")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Acceptance Blue logo" })).toBeVisible();
+    expect(screen.getByText("No current team")).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Search Players" })).toHaveValue("Player");
+    expect(screen.getByRole("button", { name: /League/ })).toHaveTextContent("LCK");
+    expect(document.querySelector('input[name="pageSize"]')).toHaveValue("36");
+    const { replace } = useRouter() as unknown as Record<"replace", Mock>;
+    replace.mockClear();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search Players" }), {
+      target: { value: "Faker" },
+    });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace.mock.calls[0]).toEqual(["/?pageSize=36&q=Faker&league=LCK", { scroll: false }]);
+    view.rerender(<PlayerFinder data={page([])} query={{ q: "none" }} />);
+    expect(screen.getByText("No Players Found")).toBeVisible();
     view.rerender(
       <SearchPage
         data={page([
@@ -296,9 +320,8 @@ it("uses linked profile destinations and locally cached search images", () => {
   expect(identityHref(linkedPlayer)).toBe("/players/player-blue-mid");
   expect(identityHref({ ...player, publicSlug: undefined })).toBe("/players");
   const view = render(
-    <DirectoryPage
-      kind="player"
-      data={page([{ ...player, sourceCount: 2, imageUrl: image, entityId: "linked" }])}
+    <PlayerFinder
+      data={page([{ ...player, sourceCount: 2, imageUrl: image, entityId: "linked", team: null }])}
       query={{}}
     />,
   );

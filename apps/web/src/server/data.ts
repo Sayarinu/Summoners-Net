@@ -1,5 +1,10 @@
 import "server-only";
-import { createQueries, querySchema, type BrowseQuery } from "@summonersnet/data";
+import {
+  createQueries,
+  directoryQuerySchema,
+  querySchema,
+  type BrowseQuery,
+} from "@summonersnet/data";
 import { cookies } from "next/headers";
 import { parsePreferences, preferencesCookie } from "../features/preferences/model";
 const globalData = globalThis as typeof globalThis & {
@@ -25,13 +30,18 @@ export async function preferences() {
 }
 export async function browseQuery(
   params: Promise<Record<string, string | string[] | undefined>>,
+  schema: typeof querySchema | typeof directoryQuerySchema = querySchema,
 ): Promise<BrowseQuery> {
   const entries = await params;
   const prefs = await preferences();
   const raw = Object.fromEntries(
     Object.entries(entries).filter(([, v]) => v !== "" && v !== "all"),
   );
-  return querySchema.parse({ timezone: prefs.timezone, ...raw });
+  return schema.parse({ timezone: prefs.timezone, ...raw });
+}
+/** Directory grids accept larger, clamped page sizes so a page can fill the visible area. */
+export function directoryQuery(params: Promise<Record<string, string | string[] | undefined>>) {
+  return browseQuery(params, directoryQuerySchema);
 }
 // Next 16.2 passes URI-encoded dynamic segments to App Router page handlers.
 export async function sourceIdFromRoute(params: Promise<{ id: string }>) {

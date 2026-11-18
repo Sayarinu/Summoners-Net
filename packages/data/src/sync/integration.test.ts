@@ -207,6 +207,38 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       { year: 2024, league: "LEC" },
     ]);
   });
+  it("lists players with their current team and filters them by that team's latest league", async () => {
+    await importCsv(historyCsv());
+    const { items, total } = await queries.playerDirectory({ q: "Player Blue mid" });
+    expect(total).toBe(1);
+    expect(items[0]).toMatchObject({
+      name: "Player Blue mid",
+      role: "mid",
+      team: { name: "Acceptance Blue", kind: "team" },
+    });
+    await importCsv(
+      historyCsv({ id: "archive", year: 2014 })
+        .replaceAll("Acceptance", "Archive")
+        .replaceAll("Player", "Archived Player")
+        .replaceAll(",10", ",old-10")
+        .replaceAll(",11", ",old-11"),
+      2014,
+    );
+    const current = await queries.playerDirectory({ pageSize: 10 });
+    expect(current.total).toBe(20);
+    expect(current.items.every((i) => i.team !== null && !i.name.startsWith("Archived"))).toBe(
+      true,
+    );
+    expect(
+      (await queries.playerDirectory({ q: "Archived", pageSize: 1 })).items[0]?.team,
+    ).toBeNull();
+    expect((await queries.playerDirectory({ league: "LCK" })).total).toBe(10);
+    expect((await queries.playerDirectory({ league: "LEC" })).total).toBe(0);
+    // Directory pages clamp their size instead of rejecting a link from a larger screen.
+    expect((await queries.playerDirectory({ pageSize: 500 })).pageSize).toBe(120);
+    expect((await queries.teamDirectory({ pageSize: "many" })).pageSize).toBe(24);
+    expect((await queries.teamDirectory({ pageSize: 0 })).pageSize).toBe(1);
+  });
   it("prefers recent play and upcoming teams, while old imports stay searchable on bounded pages", async () => {
     await importCsv(
       historyCsv().replaceAll("Acceptance", "Zebra").replaceAll("Player", "Zebra Player"),
