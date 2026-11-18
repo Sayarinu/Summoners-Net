@@ -67,6 +67,24 @@
   .np-drake-icon[data-drake="elder"] {
     background-image: url("./drake-icons/dragonelderminimap.png");
   }
+  .np-objective-icon {
+    display: inline-block;
+    inline-size: 20px;
+    block-size: 20px;
+    background: center / contain no-repeat;
+  }
+  .np-objective-icon[data-objective="herald"] {
+    background-image: url("./objective-icons/riftherald.png");
+  }
+  .np-objective-icon[data-objective="grub"] {
+    background-image: url("./objective-icons/grub.png");
+  }
+  .np-objective-icon[data-objective="tower"] {
+    background-image: url("./objective-icons/tower.png");
+  }
+  .np-objective-icon[data-objective="first-blood"] {
+    background-image: url("./objective-icons/sword.svg");
+  }
 
   .np-role-icon {
     display: inline-grid;

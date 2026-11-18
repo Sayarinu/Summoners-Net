@@ -110,3 +110,30 @@ export function DrakeIcon({ drake }: { readonly drake: keyof typeof drakeNames }
     />
   );
 }
+
+const objectiveNames = {
+  herald: "Rift Herald",
+  grub: "Void Grub",
+  tower: "First Tower",
+  "first-blood": "First Blood",
+} as const;
+
+export type Objective = keyof typeof objectiveNames;
+
+export function ObjectiveIcon({
+  objective,
+  label = objectiveNames[objective],
+}: {
+  readonly objective: Objective;
+  readonly label?: string;
+}) {
+  return (
+    <span
+      className="np-objective-icon"
+      data-objective={objective}
+      role="img"
+      aria-label={label}
+      title={label}
+    />
+  );
+}

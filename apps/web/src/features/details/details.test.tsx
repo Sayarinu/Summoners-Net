@@ -502,7 +502,11 @@ it("shows the draft by side, team totals and the score through the selected game
     within(events)
       .getAllByRole("listitem")
       .map((item) => item.textContent),
-  ).toEqual(["2:30First Blood", "6:15First Dragon"]);
+  ).toEqual(["2:30", "6:15First Dragon"]);
+  expect(within(events).getByRole("img", { name: "First Blood" })).toHaveAttribute(
+    "data-objective",
+    "first-blood",
+  );
   const goldPlot = within(screen.getByRole("group", { name: /^Gold Difference by Time/ }));
   expect(
     goldPlot.getByText("10:00: Acceptance Blue ahead by 2,750 gold").closest("li"),

@@ -257,6 +257,11 @@ The license covers this repository's code, including `packages/ui` and `packages
 carry the same license text. Provider data, team and player images, trademarks, fonts and game
 assets belong to their respective owners. The neutral position icons are from Riot Games'
 [League Client assets archived by CommunityDragon](https://raw.communitydragon.org/16.3/plugins/rcp-fe-lol-parties/global/default/).
+The dragon, Rift Herald, Void Grub and turret icons are Riot Games'
+[minimap icons](https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons/), and the first
+blood sword is from the
+[League Client postgame assets](https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-postgame/global/default/),
+both archived by CommunityDragon.
 
 ## Disclaimer
 
