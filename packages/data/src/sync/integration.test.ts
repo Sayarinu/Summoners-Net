@@ -7092,12 +7092,8 @@ it("joins pro game inventories and purchases by source game and participant IDs"
       },
     },
   });
-  expect(
-    Object.entries(telemetry?.builds ?? {}).filter(([slot]) => slot !== "blue:top"),
-  ).not.toContainEqual([
-    expect.any(String),
-    expect.objectContaining({ damage: expect.anything() }),
-  ]);
+  for (const [slot, build] of Object.entries(telemetry?.builds ?? {}))
+    if (slot !== "blue:top") expect(build.damage).toBeNull();
   expect(telemetry?.gold.map(({ seconds }) => seconds)).toContain(60);
   expect(telemetry?.events.map(({ drake }) => drake)).toContain("infernal");
   await pool.query(
