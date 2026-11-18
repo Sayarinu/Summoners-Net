@@ -6992,11 +6992,16 @@ it("joins pro game inventories and purchases by source game and participant IDs"
   });
   expect(telemetry?.gold.map(({ seconds }) => seconds)).toContain(60);
   expect(telemetry?.events.map(({ drake }) => drake)).toContain("infernal");
-  await trainCheckpointModel(pool, instant, { minimumGames: 0, seed: 1 });
+  await pool.query(
+    `INSERT INTO wp_models(kind,model_version,feature_version,patch_window,seed,
+       train_matches,train_rows,eval_matches,eval_rows,coefficients,brier,bins,status,trained_at)
+     VALUES('pro-checkpoints',1,1,ARRAY['2026'],1,1,1,1,1,$1,0.2,'[]','active',$2)`,
+    [JSON.stringify({ intercept: 0, weights: [0, 0, 0, 0, 10, 0], features: [] }), instant],
+  );
   const forecast = await queries.proGameWinProbability(game!.id);
   expect(forecast.points.map(({ minute }) => minute)).toEqual([10, 11, 15, 20, 25]);
-  expect(typeof forecast.points.find(({ minute }) => minute === 11)?.blueWinProbability).toBe(
-    "number",
+  expect(forecast.points.find(({ minute }) => minute === 11)?.blueWinProbability).toBeCloseTo(
+    0.7311,
   );
   const [icon] = await queries.catalogIcons({ patch: "16.22", kind: "item", ids: ["3089"] });
   expect(icon?.name).toBe("Rabadon's Deathcap");

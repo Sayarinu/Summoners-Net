@@ -50,7 +50,7 @@ describe("pro checkpoint win probability", () => {
       return [10, 15, 20, 25].map((minute) => ({
         matchId: `G${game}`,
         x: vectorizeCheckpoint({
-          minute: minute as 10,
+          minute,
           goldDiff: lead,
           xpDiff: lead / 2,
           csDiff: lead / 50,
