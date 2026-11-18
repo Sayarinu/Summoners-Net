@@ -1458,14 +1458,23 @@
 }
 
 .ev-lineup-card__facts dd {
+  /* Room for a row of elemental dragons and a row of Elder Dragons, so both teams' totals stay
+     the same height whichever dragons each took. */
+  min-block-size: calc(2rem + 2px);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
 }
 
 .ev-lineup-card__facts dd:has(.ev-lineup-card__icons) {
   display: grid;
+  grid-template-rows: 1rem 1rem;
   justify-items: center;
+  align-content: start;
   gap: 2px;
+}
+
+.ev-lineup-card__icons[aria-label="Elder Dragons"] {
+  grid-row: 2;
 }
 
 .ev-lineup-card__facts > div:has(.ev-lineup-card__icons) {
