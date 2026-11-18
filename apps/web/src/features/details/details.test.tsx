@@ -479,6 +479,14 @@ it("shows the draft by side, team totals and the score through the selected game
   const damageShare = within(screen.getByRole("table", { name: "Damage Distribution" }));
   expect(goldShare.getByText("26.6%")).toBeVisible();
   expect(damageShare.getByText("25%")).toBeVisible();
+  expect(goldShare.getByText("26.6%").closest("[title]")).toHaveAttribute(
+    "title",
+    expect.stringMatching(/^[\d,]+ gold$/),
+  );
+  expect(damageShare.getByText("25%").closest("[title]")).toHaveAttribute(
+    "title",
+    expect.stringMatching(/^[\d,]+ damage$/),
+  );
   expect(goldShare.getByRole("img", { name: "Acceptance Blue" })).toBeVisible();
   expect(goldShare.getByRole("img", { name: "Ahri" }).closest("tr")).toContainElement(
     goldShare.getByRole("img", { name: /^Mid$/ }),
