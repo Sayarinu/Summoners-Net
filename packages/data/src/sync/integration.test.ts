@@ -7148,6 +7148,38 @@ describe("Leaguepedia pro game detail batches", () => {
     }
   });
 
+  it("reloads outdated details after covered games and before the rest of the archive", async () => {
+    const [covered, outdated, other, recheck] = [400_001, 400_002, 400_003, 400_004].map(
+      (n) => `LOLTMNT02_${n}`,
+    );
+    await importGames([
+      { id: covered!, league: "Worlds" },
+      ...[outdated!, other!, recheck!].map((id) => ({ id, league: "LDL" })),
+    ]);
+    const day = 86_400_000;
+    const stored = (id: string, at: Date, document: unknown) =>
+      pool.query(
+        `INSERT INTO pro_game_details(source_game_id,checked_at,observed_at,document)
+         VALUES($1,$2,$2,$3)`,
+        [id, at, document === null ? null : JSON.stringify(document)],
+      );
+    await stored(outdated!, new Date(instant.valueOf() - day), {
+      detailVersion: 1,
+      checkpoints: [],
+      gold: [{ seconds: 60, lead: 5 }],
+    });
+    await stored(recheck!, new Date(instant.valueOf() - 8 * day), null);
+    const requested: string[][] = [];
+    fetcher.mockImplementation((input) => {
+      const url = endpoint(input);
+      if (!url.startsWith(wiki)) throw new Error("Unexpected provider request");
+      requested.push(gamesOf(url));
+      return Promise.resolve(json(missing(url)));
+    });
+    expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done" });
+    expect(requested[0]).toEqual([covered, outdated, other, recheck]);
+  });
+
   it("waits out wiki lag, retries cut-off games, and skips one invalid game without failing the batch", async () => {
     const [first, broken, cut] = ["LOLTMNT02_300001", "LOLTMNT02_300002", "LOLTMNT02_300003"];
     await importGames([first, broken, cut].map((id) => ({ id, league: "LCK" })));

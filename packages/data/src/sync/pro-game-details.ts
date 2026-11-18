@@ -26,9 +26,9 @@ export interface ProGameDetailOptions extends ProGameDetailRun {
 }
 
 /**
- * Games still to check: never checked, stored once by an older parser, or checked over a week
- * ago without gold data. Never-checked games come first; within each group, games in a covered
- * competition (projected into `games`) come first, then every other eligible game, newest first.
+ * Games still to check, in this order: never-checked games in a covered competition (projected
+ * into `games`), details stored once by an older parser, other never-checked games, then games
+ * checked over a week ago without gold data. Each group runs newest first.
  */
 async function pendingGames(pool: Pool, now: Date, skip: readonly string[], limit: number) {
   const games = await pool.query<{ source_game_id: string }>(
@@ -43,9 +43,14 @@ async function pendingGames(pool: Pool, now: Date, skip: readonly string[], limi
          AND coalesce((d.document->>'detailVersion')::int, 1) < $5
          -- One attempt: a failed reload moves checked_at past observed_at and keeps the old record.
          AND d.checked_at <= d.observed_at))
-     GROUP BY g.source_game_id, d.checked_at
-     ORDER BY d.checked_at IS NOT NULL, bool_or(c.id IS NOT NULL) DESC, max(g.occurred_at) DESC,
-       g.source_game_id
+     GROUP BY g.source_game_id, d.checked_at, (d.document->'gold' <> '[]'::jsonb)
+     ORDER BY CASE
+         WHEN d.checked_at IS NULL AND bool_or(c.id IS NOT NULL) THEN 0
+         -- Only outdated records with gold data pass the filter above.
+         WHEN d.document->'gold' <> '[]'::jsonb THEN 1
+         WHEN d.checked_at IS NULL THEN 2
+         ELSE 3
+       END, max(g.occurred_at) DESC, g.source_game_id
      LIMIT $4`,
     [proGamePlatformPattern, now, skip, limit, proGameDetailVersion],
   );
