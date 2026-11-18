@@ -219,6 +219,17 @@ export function LineupTable({
                               },
                             ]}
                           />
+                        ) : label === "Barons" && value ? (
+                          <IconRow
+                            label="Captured Barons"
+                            entries={[
+                              {
+                                key: "baron",
+                                count: value,
+                                icon: <ObjectiveIcon objective="baron" />,
+                              },
+                            ]}
+                          />
                         ) : (
                           formatMetric(value)
                         )}

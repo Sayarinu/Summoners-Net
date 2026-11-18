@@ -43,8 +43,6 @@ const eventAbbreviations: Record<string, string> = {
   "First Dragon": "DR",
   Dragon: "DR",
   "Elder Dragon": "ED",
-  "First Baron": "BN",
-  "Baron Nashor": "BN",
 };
 
 const eventObjectives: Record<string, Objective> = {
@@ -52,6 +50,8 @@ const eventObjectives: Record<string, Objective> = {
   "First Tower": "tower",
   "Rift Herald": "herald",
   "Void Grub": "grub",
+  "First Baron": "baron",
+  "Baron Nashor": "baron",
 };
 
 /** The event's icon, or null when it has none and shows as text. */

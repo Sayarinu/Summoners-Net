@@ -1128,9 +1128,16 @@
   cursor: default;
 }
 
+.ev-timeline-markers > li[data-side],
+.ev-timeline-events > li[data-side] {
+  border-color: color-mix(in srgb, var(--np-team-side) 55%, transparent);
+  background: color-mix(in srgb, var(--np-team-side) 18%, var(--color-bg-raised));
+}
+
 .ev-timeline-markers > li[data-active],
 .ev-timeline-events > li[data-active] {
   border-color: var(--np-team-side, var(--color-border-strong));
+  background: color-mix(in srgb, var(--np-team-side, transparent) 30%, var(--color-bg-raised));
 }
 
 .ev-timeline-markers .np-drake-icon,

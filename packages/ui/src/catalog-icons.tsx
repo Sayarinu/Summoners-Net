@@ -114,6 +114,7 @@ export function DrakeIcon({ drake }: { readonly drake: keyof typeof drakeNames }
 const objectiveNames = {
   herald: "Rift Herald",
   grub: "Void Grub",
+  baron: "Baron Nashor",
   tower: "First Tower",
   "first-blood": "First Blood",
 } as const;

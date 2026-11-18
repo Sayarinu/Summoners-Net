@@ -642,7 +642,10 @@ it("shows a player's final items and reveals their recorded purchases by minute"
             { seconds: 60, lead: 200 },
             { seconds: 120, lead: -120 },
           ],
-          events: [{ seconds: 402, label: "Dragon", side: "blue", drake: "cloud" }],
+          events: [
+            { seconds: 402, label: "Dragon", side: "blue", drake: "cloud" },
+            { seconds: 1500, label: "Baron Nashor", side: "red", drake: null },
+          ],
           builds: {
             "blue:mid": {
               inventory: [3089],
@@ -679,6 +682,10 @@ it("shows a player's final items and reveals their recorded purchases by minute"
   expect(within(gold).getByText("2:00: Acceptance Red ahead by 120 gold")).toBeInTheDocument();
   const events = within(screen.getByRole("list", { name: "Game Events" }));
   expect(events.getByText("6:42")).toBeVisible();
+  expect(events.getByRole("img", { name: "Baron Nashor" }).closest("li")).toHaveAttribute(
+    "data-side",
+    "red",
+  );
   // Hovering an event marks its time on every chart with a dashed line.
   const eventLine = () => gold.querySelector(".ev-probability__event");
   expect(eventLine()).not.toHaveAttribute("data-active");

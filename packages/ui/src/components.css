@@ -79,6 +79,9 @@
   .np-objective-icon[data-objective="grub"] {
     background-image: url("./objective-icons/grub.png");
   }
+  .np-objective-icon[data-objective="baron"] {
+    background-image: url("./objective-icons/baron.png");
+  }
   .np-objective-icon[data-objective="tower"] {
     background-image: url("./objective-icons/tower.png");
   }
