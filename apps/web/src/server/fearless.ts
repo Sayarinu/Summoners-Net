@@ -1,5 +1,7 @@
 import "server-only";
 import type { Match, SeriesGame } from "@summonersnet/data";
+import { roleKey } from "@summonersnet/data/contracts";
+import type { FearlessPick } from "../features/details/draft";
 import { data } from "./data";
 
 // Riot introduced Fearless Draft for Worlds 2025 series and retained the 2025 format
@@ -10,13 +12,14 @@ export async function previousFearlessPicks(
   match: Match,
   games: SeriesGame[],
   number: number,
-): Promise<string[]> {
+): Promise<FearlessPick[] | null> {
   const year = match.startsAt?.slice(0, 4);
   const documentedFormat =
     match.league === "Worlds" &&
     match.bestOf > 1 &&
     (year === "2025" || (year === "2026" && /swiss|playoffs?|knockouts?/i.test(match.event)));
-  if (!documentedFormat || number < 2) return [];
+  if (!documentedFormat) return null;
+  if (number < 2) return [];
 
   const earlier = games
     .filter((game) => game.number < number && game.state === "finished")
@@ -29,15 +32,20 @@ export async function previousFearlessPicks(
       const ordered = archive?.draftOrder
         .filter(({ action }) => action === "pick")
         .sort((first, second) => first.slot - second.slot)
-        .map(({ champion }) => champion);
+        .flatMap(({ champion, role }) => (role ? [{ champion, role }] : []));
       if (ordered?.length === 10) return ordered;
-      return (archive?.participants ?? []).flatMap(({ player, champion }) =>
-        player && champion ? [champion] : [],
-      );
+      return (archive?.participants ?? []).flatMap(({ player, champion, position }) => {
+        const role = roleKey(position);
+        return player && champion && role ? [{ champion, role }] : [];
+      });
     }),
   );
   const all = picks.flat();
-  return picks.every((entries) => entries.length === 10) && new Set(all).size === all.length
+  return picks.every(
+    (entries) =>
+      entries.length === 10 &&
+      entries.every(({ role }) => entries.filter((pick) => pick.role === role).length === 2),
+  ) && new Set(all.map(({ champion }) => champion)).size === all.length
     ? all
     : [];
 }

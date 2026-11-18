@@ -22,7 +22,7 @@ import { dateTime, identityHref, gameTeams, seriesGameHref } from "../browse/pre
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
 import { LineupTable } from "./lineup";
-import { ProWinProbability } from "./pro-win-probability";
+import { ProTimeline } from "./pro-win-probability";
 export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
@@ -97,7 +97,7 @@ export function GamePage({
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
       <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
-      {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
+      {!hidden ? <ProTimeline game={game} detail={detail} winProbability={winProbability} /> : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
           Open in Series

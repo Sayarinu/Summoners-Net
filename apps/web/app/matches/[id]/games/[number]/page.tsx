@@ -32,14 +32,14 @@ export default async function Page({
         data().proGameWinProbability(game.gameId),
       ])
     : [null, null, null];
-  const fearless = detail ? await previousFearlessPicks(record, games, number) : [];
+  const fearless = detail ? await previousFearlessPicks(record, games, number) : null;
   const [prefs, portraits] = await Promise.all([
     preferences(),
     data().championIconsByName(
       [
         ...(archive?.participants.map((participant) => participant.champion) ?? []),
         ...(detail?.draft.flatMap(({ picks, bans }) => [...picks, ...bans]) ?? []),
-        ...fearless,
+        ...(fearless ?? []).map(({ champion }) => champion),
       ],
       archive?.patch,
     ),

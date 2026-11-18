@@ -1,16 +1,93 @@
 "use client";
 import { useId } from "react";
-import type { ProGameWinProbability } from "@summonersnet/data";
+import { Avatar } from "@summonersnet/ui";
+import type { Game, HistoricalGameDetail, ProGameWinProbability } from "@summonersnet/data";
+import { gameTeams } from "../browse/presentation";
 import { Disclosure } from "./disclosure";
 
 const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
 const width = 600;
 const middle = 60;
+const eventFields = [
+  ["First Blood", "combat", "firstblood", "fbtime"],
+  ["First Dragon", "objectives", "firstdragon", "fdtime"],
+  ["Rift Herald", "objectives", "firstherald", "heraldtime"],
+  ["First Baron", "objectives", "firstbaron", "fbarontime"],
+  ["First Tower", "objectives", "firsttower", "fttime"],
+] as const;
 
-export function ProWinProbability({ winProbability }: { winProbability: ProGameWinProbability }) {
+export function ProTimeline({
+  game,
+  detail,
+  winProbability,
+}: {
+  game: Game;
+  detail?: HistoricalGameDetail | null | undefined;
+  winProbability?: ProGameWinProbability | null | undefined;
+}) {
+  const teams = gameTeams(game);
+  const teamRows = detail?.participants.filter(({ position }) => position === "team") ?? [];
+  const events = eventFields
+    .flatMap(([label, group, first, timer]) => {
+      const firsts = teamRows.filter(({ statistics }) => statistics[group][first] === 1);
+      const owner = firsts.length === 1 ? firsts[0] : undefined;
+      const times = new Set(
+        teamRows.flatMap(({ statistics }) => {
+          const minute = statistics[group][timer];
+          return minute != null && minute > 0 ? [minute] : [];
+        }),
+      );
+      const minute = owner?.statistics[group][timer] || (times.size === 1 ? [...times][0] : null);
+      if (!minute || minute < 0) return [];
+      const seconds = Math.round(minute * 60);
+      if (detail?.context.durationSeconds && seconds > detail.context.durationSeconds) return [];
+      return [{ label, seconds, side: owner?.side }];
+    })
+    .sort((a, b) => a.seconds - b.seconds);
+  const points = winProbability?.model ? winProbability.points : [];
+  const hasProbability = points.some(({ blueWinProbability }) => blueWinProbability !== null);
+  if (!events.length && !hasProbability) return null;
+  return (
+    <Disclosure title="Timeline" className="ev-timeline">
+      {events.length ? (
+        <div className="ev-timeline-row">
+          <span className="ev-timeline-row__label">Events</span>
+          <ol className="ev-timeline-events" aria-label="Game Events" role="list">
+            {events.map(({ label, seconds, side }) => (
+              <li
+                key={label}
+                data-side={side}
+                title={teams.find((team) => team.side === side)?.name}
+              >
+                <time className="np-meta" dateTime={`PT${seconds}S`}>
+                  {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+                </time>
+                <span>{label}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+      {hasProbability ? (
+        <div className="ev-timeline-row">
+          <span className="ev-timeline-row__label">Win Probability</span>
+          <WinProbabilityPlot points={points} teams={teams} />
+        </div>
+      ) : null}
+    </Disclosure>
+  );
+}
+
+function WinProbabilityPlot({
+  points,
+  teams,
+}: {
+  points: ProGameWinProbability["points"];
+  teams: ReturnType<typeof gameTeams>;
+}) {
   const clipId = useId();
-  const { model, points } = winProbability;
-  if (!model || !points.some((point) => point.blueWinProbability !== null)) return null;
+  const blueTeam = teams.find(({ side }) => side === "blue");
+  const redTeam = teams.find(({ side }) => side === "red");
 
   const start = points[0]!.minute;
   const span = points[points.length - 1]!.minute - start;
@@ -36,79 +113,96 @@ export function ProWinProbability({ winProbability }: { winProbability: ProGameW
     .join(" ");
 
   return (
-    <Disclosure title="Win Probability" className="ev-probability-panel">
-      <div
-        className="ev-probability__chart"
-        role="group"
-        aria-label="Win Probability by Minute. Zero is a 50/50 chance. Blue is above zero and red is below."
-      >
-        <div className="ev-probability__scale" aria-hidden="true">
-          <span data-side="blue">Blue +50</span>
-          <span>0</span>
-          <span data-side="red">Red −50</span>
-        </div>
-        <div className="ev-probability__plot">
-          <svg viewBox={`0 0 ${width} ${middle * 2}`} preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <clipPath id={`${clipId}-blue`}>
-                <rect width={width} height={middle} />
-              </clipPath>
-              <clipPath id={`${clipId}-red`}>
-                <rect y={middle} width={width} height={middle} />
-              </clipPath>
-            </defs>
-            <line className="ev-probability__baseline" x2={width} y1={middle} y2={middle} />
-            {(["blue", "red"] as const).map((side) => (
-              <g key={side} data-side={side} clipPath={`url(#${clipId}-${side})`}>
-                <path className="ev-probability__area" d={area} />
-                <path className="ev-probability__line" d={slope} />
-              </g>
-            ))}
-            {samples.map(({ minute, blue, x, y }) =>
-              y === null ? null : (
-                <circle
-                  key={minute}
-                  cx={x}
-                  cy={y}
-                  r={3.5}
-                  data-side={blue === 0.5 ? undefined : blue! > 0.5 ? "blue" : "red"}
+    <div
+      className="ev-probability__chart"
+      role="group"
+      aria-label="Win Probability by Minute. Zero is a 50/50 chance."
+    >
+      <div className="ev-probability__scale" aria-hidden="true">
+        {([blueTeam, null, redTeam] as const).map((team, index) =>
+          index === 1 ? (
+            <span key="zero">0</span>
+          ) : (
+            <span
+              className="ev-probability__team"
+              data-side={index === 0 ? "blue" : "red"}
+              key={index}
+            >
+              {team?.imageUrl ? (
+                <Avatar
+                  alt=""
+                  fallback={team.name}
+                  src={team.imageUrl}
+                  entityKind="team"
+                  size="small"
                 />
-              ),
-            )}
-          </svg>
-          <ol className="ev-probability__points" role="list">
-            {samples.map(({ minute, blue, x, y }) => {
-              const side = blue === null || blue === 0.5 ? undefined : blue > 0.5 ? "blue" : "red";
-              const description =
-                blue === null
-                  ? `${minute} minutes: win probability unavailable`
-                  : `${minute} minutes: Blue Side ${percent.format(blue)}, Red Side ${percent.format(1 - blue)}`;
-              return (
-                <li
-                  key={minute}
-                  data-side={side}
-                  title={description}
-                  style={{ insetInlineStart: `${(x / width) * 100}%` }}
-                >
-                  <span className="np-visually-hidden">{description}</span>
-                  {y === null ? null : (
-                    <span
-                      className="ev-probability__point"
-                      aria-hidden="true"
-                      style={{ insetBlockStart: `${(y / (middle * 2)) * 100}%` }}
-                    >
-                      {percent.format(Math.max(blue!, 1 - blue!))}
-                    </span>
-                  )}
-                  <span className="ev-probability__minute" aria-hidden="true">
-                    {minute}m
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
+              ) : null}
+              <span title={team?.name}>{team?.name ?? "Unknown Team"}</span>
+            </span>
+          ),
+        )}
       </div>
-    </Disclosure>
+      <div className="ev-probability__plot">
+        <svg viewBox={`0 0 ${width} ${middle * 2}`} preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <clipPath id={`${clipId}-blue`}>
+              <rect width={width} height={middle} />
+            </clipPath>
+            <clipPath id={`${clipId}-red`}>
+              <rect y={middle} width={width} height={middle} />
+            </clipPath>
+          </defs>
+          <line className="ev-probability__baseline" x2={width} y1={middle} y2={middle} />
+          {(["blue", "red"] as const).map((side) => (
+            <g key={side} data-side={side} clipPath={`url(#${clipId}-${side})`}>
+              <path className="ev-probability__area" d={area} />
+              <path className="ev-probability__line" d={slope} />
+            </g>
+          ))}
+          {samples.map(({ minute, blue, x, y }) =>
+            y === null ? null : (
+              <circle
+                key={minute}
+                cx={x}
+                cy={y}
+                r={3.5}
+                data-side={blue === 0.5 ? undefined : blue! > 0.5 ? "blue" : "red"}
+              />
+            ),
+          )}
+        </svg>
+        <ol className="ev-probability__points" role="list">
+          {samples.map(({ minute, blue, x, y }) => {
+            const side = blue === null || blue === 0.5 ? undefined : blue > 0.5 ? "blue" : "red";
+            const description =
+              blue === null
+                ? `${minute} minutes: win probability unavailable`
+                : `${minute} minutes: ${blueTeam?.name ?? "Unknown Team"} ${percent.format(blue)}, ${redTeam?.name ?? "Unknown Team"} ${percent.format(1 - blue)}`;
+            return (
+              <li
+                key={minute}
+                data-side={side}
+                title={description}
+                style={{ insetInlineStart: `${(x / width) * 100}%` }}
+              >
+                <span className="np-visually-hidden">{description}</span>
+                {y === null ? null : (
+                  <span
+                    className="ev-probability__point"
+                    aria-hidden="true"
+                    style={{ insetBlockStart: `${(y / (middle * 2)) * 100}%` }}
+                  >
+                    {percent.format(Math.max(blue!, 1 - blue!))}
+                  </span>
+                )}
+                <span className="ev-probability__minute" aria-hidden="true">
+                  {minute}m
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </div>
   );
 }

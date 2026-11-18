@@ -1,8 +1,15 @@
 import type { HistoricalGameDetail } from "@summonersnet/data";
+import { RoleIcon } from "@summonersnet/ui";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 
 const actions = ["ban", "pick"] as const;
 const phases = [1, 2] as const;
+const roles = ["Top", "Jungle", "Mid", "Bottom", "Support"];
+
+export interface FearlessPick {
+  role: string;
+  champion: string;
+}
 
 function DraftPortrait({
   name,
@@ -21,22 +28,26 @@ function DraftPortrait({
 export function DraftPanel({
   detail,
   portraits,
-  fearless = [],
+  fearless = null,
 }: {
   detail: HistoricalGameDetail;
   portraits?: ChampionPortraits | undefined;
-  fearless?: string[];
+  fearless?: FearlessPick[] | null;
 }) {
   const hasDraft = detail.draft.some((side) =>
     [...side.picks, ...side.bans].some((champion) => champion !== null),
   );
-  if (!hasDraft && !fearless.length) return null;
+  if (!hasDraft && !fearless?.length) return null;
   const firstPicks = detail.draft.filter(({ firstPick }) => firstPick === true);
   const firstPickSide = firstPicks.length === 1 ? firstPicks[0]?.side : null;
   const ordered = detail.draftOrder.length > 0;
 
   return (
-    <section className="ev-draft" aria-label="Draft Order">
+    <section
+      className="ev-draft"
+      aria-label="Draft Order"
+      data-fearless={fearless !== null || undefined}
+    >
       {hasDraft ? (
         <div className="ev-draft__order">
           {!ordered ? <p className="np-meta">Full draft order unavailable.</p> : null}
@@ -106,14 +117,27 @@ export function DraftPanel({
           })}
         </div>
       ) : null}
-      {fearless.length ? (
-        <ol className="ev-fearless" aria-label="Fearless Bans" role="list">
-          {fearless.map((champion) => (
-            <li key={champion}>
-              <ChampionPortrait name={champion} portraits={portraits} size="medium" />
-            </li>
+      {fearless !== null ? (
+        <section
+          className="ev-fearless"
+          aria-label="Fearless Bans"
+          aria-hidden={!fearless.length || undefined}
+        >
+          {roles.map((role) => (
+            <div className="ev-fearless__role" key={role}>
+              <RoleIcon role={role} />
+              <ol aria-label={`${role} Fearless Bans`} role="list">
+                {fearless
+                  .filter((pick) => pick.role === role.toLowerCase())
+                  .map(({ champion }) => (
+                    <li key={champion}>
+                      <ChampionPortrait name={champion} portraits={portraits} size="medium" />
+                    </li>
+                  ))}
+              </ol>
+            </div>
           ))}
-        </ol>
+        </section>
       ) : null}
     </section>
   );

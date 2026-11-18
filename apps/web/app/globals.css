@@ -783,8 +783,26 @@
   margin-inline-start: 0;
   padding: 0;
 }
-.ev-series-page > .np-button {
+.ev-series-page > .np-button,
+.ev-series-content > .np-button {
   align-self: start;
+}
+.ev-series-content {
+  --np-stack-gap: var(--space-4);
+  min-inline-size: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ev-main > .ev-series-shell {
+    animation: none;
+  }
+  .ev-series-content {
+    animation: ev-series-content-enter var(--motion-duration-fast) var(--motion-easing-enter) both;
+  }
+}
+@keyframes ev-series-content-enter {
+  from {
+    opacity: 0.8;
+  }
 }
 .ev-series-games {
   display: grid;
@@ -898,8 +916,43 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
-.ev-probability-panel {
-  max-inline-size: 40rem;
+.ev-timeline .ev-disclosure__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ev-timeline-row {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.ev-timeline-row__label {
+  align-self: center;
+  justify-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.ev-timeline-events {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.ev-timeline-events li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--np-team-side, var(--color-text-primary));
+  font-size: var(--font-size-sm);
 }
 
 .ev-probability__chart {
@@ -926,6 +979,19 @@
 
 .ev-probability__scale [data-side] {
   color: var(--np-team-side);
+}
+
+.ev-probability__team {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ev-probability__team > :last-child {
+  overflow: hidden;
+  max-inline-size: clamp(3.5rem, 12vw, 10rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ev-probability__plot {
@@ -1175,7 +1241,7 @@
 }
 
 @container (min-width: 46.75rem) {
-  .ev-draft:not(:has(> .ev-fearless)) {
+  .ev-draft:not([data-fearless]) {
     inline-size: calc((100% - var(--space-3)) / 2);
   }
 
@@ -1282,17 +1348,59 @@
   line-height: 1;
 }
 
-.ev-fearless {
-  display: flex;
-  flex-wrap: wrap;
+.ev-draft[data-fearless] {
   align-items: center;
-  align-self: center;
+}
+
+.ev-draft[data-fearless] .ev-draft__order {
+  justify-self: center;
+  max-inline-size: 100%;
+}
+
+.ev-fearless {
+  --ev-fearless-portrait: 1.875rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+  align-items: start;
   gap: var(--space-1);
   min-inline-size: 0;
+}
+
+.ev-fearless[aria-hidden="true"] {
+  visibility: hidden;
+}
+
+.ev-fearless__role {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: start;
+  justify-content: center;
+  gap: var(--space-1);
+}
+
+.ev-fearless__role > .np-role-icon {
+  margin-block-start: 2px;
+}
+
+.ev-fearless__role ol {
+  display: grid;
+  grid-template-columns: repeat(2, var(--ev-fearless-portrait));
+  grid-template-rows: repeat(4, var(--ev-fearless-portrait));
+  gap: var(--space-1);
   list-style: none;
 }
 
+.ev-fearless .np-avatar {
+  inline-size: var(--ev-fearless-portrait);
+  block-size: var(--ev-fearless-portrait);
+}
+
 @container (max-width: 24rem) {
+  .ev-fearless {
+    --ev-fearless-portrait: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 5rem), 1fr));
+  }
+
   .ev-draft-side {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);

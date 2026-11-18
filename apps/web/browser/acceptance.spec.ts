@@ -646,13 +646,11 @@ test("win probability added leaderboards rank champions and roles from the activ
   await page.goto("/leaderboards/wpa?kind=team");
   await expect(page.getByText(/Choose a board/)).toBeVisible();
 });
-test("a pro game without checkpoint probabilities omits the win probability panel", async ({
-  page,
-}) => {
+test("a pro game without recorded events or probabilities omits the timeline", async ({ page }) => {
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
   const reveal = page.getByRole("button", { name: "Reveal Game Statistics" });
   if (await reveal.isVisible()) await reveal.click();
-  await expect(page.locator("summary").filter({ hasText: /^Win Probability$/ })).toHaveCount(0);
+  await expect(page.locator("summary").filter({ hasText: /^Timeline$/ })).toHaveCount(0);
 });
 test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");

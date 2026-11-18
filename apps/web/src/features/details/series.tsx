@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Avatar,
@@ -30,9 +31,9 @@ import {
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
-import { DraftPanel } from "./draft";
+import { DraftPanel, type FearlessPick } from "./draft";
 import { LineupTable } from "./lineup";
-import { ProWinProbability } from "./pro-win-probability";
+import { ProTimeline } from "./pro-win-probability";
 
 /** A game counts as played once the provider reports it finished or under way. */
 const played = (game: SeriesGame) => game.state === "finished" || game.state === "running";
@@ -129,7 +130,7 @@ function SeriesShell({
       ? { label: "Past Matches", href: "/history" }
       : { label: "Matches", href: "/" };
   return (
-    <div className="np-stack ev-series-page ev-series-page--wide">
+    <div className="np-stack ev-series-page ev-series-page--wide ev-series-shell">
       <Breadcrumb
         items={
           overview
@@ -222,23 +223,27 @@ function SeriesShell({
         ) : null}
       </header>
       <nav aria-label="Series" className="ev-tabs ev-series-tabs">
-        <a
+        <Link
           className="ev-tab"
           href={seriesHref(match)}
+          prefetch={false}
+          scroll={false}
           aria-current={current === "overview" ? "page" : undefined}
         >
           Overview
-        </a>
+        </Link>
         {games.map((game) =>
           played(game) ? (
-            <a
+            <Link
               key={game.number}
               className="ev-tab"
               href={seriesGameHref(match, game.number)}
+              prefetch={false}
+              scroll={false}
               aria-current={current === game.number ? "page" : undefined}
             >
               Game {game.number}
-            </a>
+            </Link>
           ) : (
             <span key={game.number} className="ev-tab" aria-disabled="true">
               Game {game.number}
@@ -247,7 +252,9 @@ function SeriesShell({
         )}
         {overview ? date : null}
       </nav>
-      {children}
+      <div className="np-stack ev-series-content" key={current}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -382,7 +389,7 @@ export function SeriesGamePage({
   game,
   detail,
   portraits,
-  fearless = [],
+  fearless = null,
   winProbability,
   timezone,
   hideSpoilers,
@@ -395,7 +402,7 @@ export function SeriesGamePage({
   game: Game | null;
   detail: HistoricalGameDetail | null;
   portraits?: ChampionPortraits;
-  fearless?: string[];
+  fearless?: FearlessPick[] | null;
   winProbability: ProGameWinProbability | null;
   timezone: string;
   hideSpoilers: boolean;
@@ -430,7 +437,9 @@ export function SeriesGamePage({
             <DraftPanel detail={detail} portraits={portraits} fearless={fearless} />
           ) : null}
           <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
-          {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
+          {!hidden ? (
+            <ProTimeline game={game} detail={detail} winProbability={winProbability} />
+          ) : null}
         </>
       ) : (
         <EmptyState title="Game Details Not Available Yet" />

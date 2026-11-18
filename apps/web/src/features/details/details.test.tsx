@@ -219,23 +219,23 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   const view = render(
     <GamePage game={game} timezone="UTC" hideSpoilers winProbability={winProbability} />,
   );
-  expect(screen.queryByText("Win Probability")).toBeNull();
+  expect(screen.queryByText("Timeline")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
-  fireEvent.click(screen.getByText("Win Probability", { selector: "summary" }));
+  fireEvent.click(screen.getByText("Timeline", { selector: "summary" }));
   const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
   expect(within(chart).getByText("0", { exact: true })).toBeVisible();
   expect(
-    within(chart).getByText("10 minutes: Blue Side 55%, Red Side 45%").closest("li"),
+    within(chart).getByText("10 minutes: Acceptance Blue 55%, Acceptance Red 45%").closest("li"),
   ).toHaveAttribute("data-side", "blue");
   expect(
-    within(chart).getByText("15 minutes: Blue Side 40%, Red Side 60%").closest("li"),
+    within(chart).getByText("15 minutes: Acceptance Blue 40%, Acceptance Red 60%").closest("li"),
   ).toHaveAttribute("data-side", "red");
   expect(
     within(chart).getByText("20 minutes: win probability unavailable").closest("li"),
   ).not.toHaveAttribute("data-side");
   expect(
-    within(chart).getByText("25 minutes: Blue Side 50%, Red Side 50%").closest("li"),
+    within(chart).getByText("25 minutes: Acceptance Blue 50%, Acceptance Red 50%").closest("li"),
   ).not.toHaveAttribute("data-side");
   expect(screen.queryByRole("link", { name: "Model Diagnostics" })).toBeNull();
   for (const unavailable of [
@@ -245,7 +245,7 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
     view.rerender(
       <GamePage game={game} timezone="UTC" hideSpoilers={false} winProbability={unavailable} />,
     );
-    expect(screen.queryByText("Win Probability", { selector: "summary" })).toBeNull();
+    expect(screen.queryByText("Timeline", { selector: "summary" })).toBeNull();
   }
 });
 
@@ -341,10 +341,12 @@ it("shows the draft by side, team totals and the score through the selected game
         champion: null,
         won: true,
         statistics: {
-          combat: { kills: 14 },
+          combat: { kills: 14, firstblood: 1, fbtime: 2.5 },
           objectives: {
             towers: 7,
             dragons: 3,
+            firstdragon: 1,
+            fdtime: 6.25,
             barons: 0,
             void_grubs: 3,
             heralds: 1,
@@ -447,6 +449,14 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
     "Void Grubs—Rift Herald—Barons—",
   );
+  fireEvent.click(screen.getByText("Timeline", { selector: "summary" }));
+  const events = await screen.findByRole("list", { name: "Game Events" });
+  expect(
+    within(events)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["2:30First Blood", "6:15First Dragon"]);
+  expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
   view.rerender(
     <SeriesGamePage
       match={{ ...match, event: "2026 · Playoffs" }}
@@ -474,7 +484,14 @@ it("shows the draft by side, team totals and the score through the selected game
   ).toBeVisible();
   expect(screen.queryByText(/^Patch/)).toBeNull();
 
-  const priorPicks = ["Orianna", "Gnar", "Vi", "Ezreal", "Lulu", "Ahri"];
+  const priorPicks = [
+    { role: "mid", champion: "Orianna" },
+    { role: "top", champion: "Gnar" },
+    { role: "jungle", champion: "Vi" },
+    { role: "bottom", champion: "Ezreal" },
+    { role: "support", champion: "Lulu" },
+    { role: "mid", champion: "Ahri" },
+  ];
   view.rerender(
     <SeriesGamePage
       match={{ ...match, league: "Worlds", event: "2026 · Playoffs" }}
@@ -490,12 +507,16 @@ it("shows the draft by side, team totals and the score through the selected game
     />,
   );
   const combinedDraft = screen.getByRole("region", { name: "Draft Order" });
-  const fearless = within(combinedDraft).getByRole("list", { name: "Fearless Bans" });
+  const fearless = within(combinedDraft).getByRole("region", { name: "Fearless Bans" });
+  expect(combinedDraft).toHaveAttribute("data-fearless", "true");
   expect(within(fearless).queryByRole("heading")).toBeNull();
   expect(within(fearless).queryByText(/Game \d/)).toBeNull();
-  expect(within(fearless).getAllByRole("img")).toEqual(
-    priorPicks.map((name) => within(fearless).getByRole("img", { name })),
-  );
+  const mid = within(fearless).getByRole("list", { name: "Mid Fearless Bans" });
+  expect(within(mid).getAllByRole("img")).toEqual([
+    within(mid).getByRole("img", { name: "Orianna" }),
+    within(mid).getByRole("img", { name: "Ahri" }),
+  ]);
+  expect(within(fearless).getByRole("img", { name: /^Mid$/ })).toBeVisible();
   expect(fearless.querySelector("[data-action], .ev-draft-portrait")).toBeNull();
 });
 
