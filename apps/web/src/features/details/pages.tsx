@@ -18,7 +18,13 @@ import type {
   ProGameWinProbability,
 } from "@summonersnet/data";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
-import { dateTime, identityHref, gameTeams, seriesGameHref } from "../browse/presentation";
+import {
+  dateTime,
+  identityHref,
+  gameTeams,
+  seriesGameHref,
+  seriesHref,
+} from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
 import type { ProItemIcons } from "./player-build";
@@ -58,39 +64,59 @@ export function GamePage({
       <Breadcrumb
         items={[
           { label: "Past Matches", href: "/history?view=games" },
+          {
+            label: teams.map((team) => team.name).join(" vs "),
+            ...(series ? { href: seriesHref({ id: series.matchId }) } : {}),
+          },
           { label: `Game ${game.number}` },
         ]}
       />
       <header className="ev-title">
         <div>
-          <span className="np-overline">{[game.event, round].filter(Boolean).join(" · ")}</span>
+          <div className="np-cluster ev-series-title__facts">
+            <span className="np-overline">
+              {[game.event, round].filter(Boolean).join(" · ")} ·{" "}
+              <time dateTime={game.occurredAt}>
+                {new Intl.DateTimeFormat("en-US", {
+                  dateStyle: "medium",
+                  timeZone: timezone,
+                }).format(new Date(game.occurredAt))}
+              </time>{" "}
+              · Game {game.number}
+              {game.patch ? ` · Patch ${game.patch}` : ""}
+            </span>
+            {game.complete ? null : <span className="np-meta">Partial Record</span>}
+          </div>
           <h1>
-            {teams.map((team, index) => (
-              <span key={team.id}>
-                {index ? " vs " : null}
-                <a className="ev-series-title__identity" href={identityHref(team)}>
-                  {team.imageUrl ? (
-                    <Avatar
-                      alt=""
-                      aria-hidden="true"
-                      entityKind="team"
-                      fallback={team.name}
-                      size="small"
-                      src={team.imageUrl}
-                    />
-                  ) : null}
-                  <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
-                    {team.name}
+            {teams.map((team, index) => {
+              const logo = team.imageUrl ? (
+                <Avatar
+                  alt=""
+                  aria-hidden="true"
+                  entityKind="team"
+                  fallback={team.name}
+                  size="small"
+                  src={team.imageUrl}
+                />
+              ) : null;
+              const name = (
+                <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
+                  {team.name}
+                </span>
+              );
+              return (
+                <span key={team.id}>
+                  {index ? " vs " : null}
+                  <span className="ev-series-title__team">
+                    <a className="ev-series-title__identity" href={identityHref(team)}>
+                      {index ? logo : name}
+                      {index ? name : logo}
+                    </a>
                   </span>
-                </a>
-              </span>
-            ))}
+                </span>
+              );
+            })}
           </h1>
-          <p className="np-body-sm">
-            {dateTime(game.occurredAt, timezone)} · Game {game.number}
-            {game.patch ? ` · Patch ${game.patch}` : ""}
-            {game.complete ? "" : " · Partial Record"}
-          </p>
         </div>
         {vodUrl ? (
           <TextLink href={vodUrl} target="_blank" rel="noreferrer">
