@@ -221,10 +221,12 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   );
   expect(screen.queryByText("Timeline")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
-  expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
-  fireEvent.click(screen.getByText("Timeline", { selector: "summary" }));
+  expect(screen.getByRole("heading", { name: "Timeline" })).toBeVisible();
   const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
-  expect(within(chart).getByText("0", { exact: true })).toBeVisible();
+  expect(within(chart).getByText("100%", { exact: true })).toBeVisible();
+  expect(within(chart).getByText("0%", { exact: true })).toBeVisible();
+  expect(within(chart).queryByText("Acceptance Blue", { exact: true })).toBeNull();
+  expect(within(chart).queryByText("Acceptance Red", { exact: true })).toBeNull();
   expect(
     within(chart).getByText("10 minutes: Acceptance Blue 55%, Acceptance Red 45%").closest("li"),
   ).toHaveAttribute("data-side", "blue");
@@ -245,7 +247,7 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
     view.rerender(
       <GamePage game={game} timezone="UTC" hideSpoilers={false} winProbability={unavailable} />,
     );
-    expect(screen.queryByText("Timeline", { selector: "summary" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Timeline" })).toBeNull();
   }
 });
 
@@ -449,7 +451,6 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
     "Void Grubs—Rift Herald—Barons—",
   );
-  fireEvent.click(screen.getByText("Timeline", { selector: "summary" }));
   const events = await screen.findByRole("list", { name: "Game Events" });
   expect(
     within(events)

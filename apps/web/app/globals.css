@@ -916,6 +916,11 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
+.ev-timeline__heading {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-md);
+}
+
 .ev-timeline .ev-disclosure__body {
   display: grid;
   gap: var(--space-3);
@@ -934,6 +939,10 @@
   font-size: var(--font-size-xs);
   writing-mode: vertical-rl;
   transform: rotate(180deg);
+}
+
+.ev-timeline-row__label--probability {
+  color: var(--color-text-accent);
 }
 
 .ev-timeline-events {
@@ -956,7 +965,7 @@
 }
 
 .ev-probability__chart {
-  --ev-probability-height: 7.5rem;
+  --ev-probability-height: clamp(11.5rem, 20vw, 16rem);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2);
@@ -966,32 +975,23 @@
 }
 
 .ev-probability__scale {
-  display: grid;
+  position: relative;
+  inline-size: 4rem;
   block-size: var(--ev-probability-height);
-  grid-template-rows: 1fr auto 1fr;
-  justify-items: end;
   color: var(--color-text-muted);
-}
-
-.ev-probability__scale > :last-child {
-  align-self: end;
 }
 
 .ev-probability__scale [data-side] {
   color: var(--np-team-side);
 }
 
-.ev-probability__team {
-  display: inline-flex;
+.ev-probability__tick {
+  position: absolute;
+  inset-inline-end: 0;
+  display: flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.ev-probability__team > :last-child {
-  overflow: hidden;
-  max-inline-size: clamp(3.5rem, 12vw, 10rem);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  transform: translateY(-50%);
 }
 
 .ev-probability__plot {
@@ -1005,10 +1005,15 @@
   block-size: var(--ev-probability-height);
 }
 
+.ev-probability__gridline,
 .ev-probability__baseline,
 .ev-probability__line {
   fill: none;
   vector-effect: non-scaling-stroke;
+}
+
+.ev-probability__gridline {
+  stroke: var(--color-border-subtle);
 }
 
 .ev-probability__baseline {
@@ -1026,8 +1031,11 @@
   opacity: 0.36;
 }
 
-.ev-probability__plot circle {
-  fill: var(--np-team-side, var(--color-text-muted));
+.ev-probability__dot {
+  stroke: var(--np-team-side, var(--color-text-muted));
+  stroke-width: 7;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .ev-probability__points {

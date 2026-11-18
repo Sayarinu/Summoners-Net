@@ -650,7 +650,7 @@ test("a pro game without recorded events or probabilities omits the timeline", a
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
   const reveal = page.getByRole("button", { name: "Reveal Game Statistics" });
   if (await reveal.isVisible()) await reveal.click();
-  await expect(page.locator("summary").filter({ hasText: /^Timeline$/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Timeline" })).toHaveCount(0);
 });
 test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");
