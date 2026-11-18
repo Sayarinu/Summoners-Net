@@ -142,7 +142,7 @@ describe("browse presentation", () => {
       "/history?league=LCK&year=2026",
     );
     expect(screen.getByRole("table", { name: "Historical Games" })).toBeVisible();
-    expect(screen.getByText("Partial")).toBeVisible();
+    expect(screen.queryByRole("columnheader", { name: "Statistics" })).toBeNull();
     expect(screen.getByLabelText("Year")).toHaveValue(2026);
     view.rerender(<Filters query={{ state: "final", date: "2026-03-01", q: "Blue" }} />);
     expect(screen.getByLabelText("Date")).toHaveValue("2026-03-01");

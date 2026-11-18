@@ -223,7 +223,7 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
   expect(screen.getByRole("heading", { name: "Timeline" })).toBeVisible();
   const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
-  expect(within(chart).getByText("100%", { exact: true })).toBeVisible();
+  expect(within(chart).getAllByText("100%", { exact: true })).toHaveLength(2);
   expect(within(chart).getByText("0%", { exact: true })).toBeVisible();
   expect(within(chart).queryByText("Acceptance Blue", { exact: true })).toBeNull();
   expect(within(chart).queryByText("Acceptance Red", { exact: true })).toBeNull();

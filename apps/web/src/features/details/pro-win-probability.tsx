@@ -96,8 +96,8 @@ function WinProbabilityPlot({
   const redTeam = teams.find(({ side }) => side === "red");
   const ticks = [
     { y: inset, label: "100%", team: blueTeam },
-    { y: middle, label: "50%", team: undefined },
-    { y: height - inset, label: "0%", team: redTeam },
+    { y: middle, label: "0%", team: undefined },
+    { y: height - inset, label: "100%", team: redTeam },
   ];
 
   const start = points[0]!.minute;
@@ -127,14 +127,14 @@ function WinProbabilityPlot({
     <div
       className="ev-probability__chart"
       role="group"
-      aria-label={`Win Probability by Minute. The axis shows ${blueTeam?.name ?? "the first team"}'s probability. At 50%, both teams have even odds.`}
+      aria-label="Win Probability by Minute. Zero marks even odds. Each team reaches 100% at its end of the scale."
     >
       <div className="ev-probability__scale" aria-hidden="true">
         {ticks.map(({ y, label, team }) => (
           <span
             className="ev-probability__tick"
             data-side={team?.side}
-            key={label}
+            key={y}
             style={{ insetBlockStart: `${(y / height) * 100}%` }}
             title={team?.name}
           >
