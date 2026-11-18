@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import axe from "axe-core";
 import { expect, it } from "vitest";
-import { ChampionIcon, ItemIcon, RuneIcon, SummonerSpellIcon } from "./catalog-icons.js";
+import {
+  ChampionIcon,
+  ItemIcon,
+  ObjectiveIcon,
+  RuneIcon,
+  SummonerSpellIcon,
+} from "./catalog-icons.js";
 
 it.each([
   [ChampionIcon, "MonkeyKing", "Wukong", "champion"],
@@ -53,4 +59,17 @@ it("has accessible names in both states", async () => {
   expect(
     result.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
   ).toEqual([]);
+});
+
+it("names objective icons by default or by the given label", () => {
+  render(
+    <>
+      <ObjectiveIcon objective="herald" />
+      <ObjectiveIcon objective="grub" label="Void Grubs" />
+      <ObjectiveIcon objective="tower" />
+      <ObjectiveIcon objective="first-blood" />
+    </>,
+  );
+  for (const name of ["Rift Herald", "Void Grubs", "First Tower", "First Blood"])
+    expect(screen.getByRole("img", { name })).toHaveAttribute("title", name);
 });

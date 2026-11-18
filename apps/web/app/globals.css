@@ -1133,7 +1133,8 @@
   border-color: var(--np-team-side, var(--color-border-strong));
 }
 
-.ev-timeline-markers .np-drake-icon {
+.ev-timeline-markers .np-drake-icon,
+.ev-timeline-markers .np-objective-icon {
   inline-size: 0.85rem;
   block-size: 0.85rem;
 }

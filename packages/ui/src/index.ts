@@ -14,6 +14,8 @@ export {
   ChampionIcon,
   RoleIcon,
   DrakeIcon,
+  ObjectiveIcon,
+  type Objective,
   ItemIcon,
   RuneIcon,
   SummonerSpellIcon,

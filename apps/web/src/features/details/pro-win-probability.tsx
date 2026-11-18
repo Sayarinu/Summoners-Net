@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState, type CSSProperties, type PointerEvent } from "react";
-import { Avatar, DrakeIcon } from "@summonersnet/ui";
+import { Avatar, DrakeIcon, ObjectiveIcon, type Objective } from "@summonersnet/ui";
 import type {
   Game,
   HistoricalGameDetail,
@@ -40,16 +40,26 @@ interface TimelinePoint {
 type TimelineEvent = NonNullable<HistoricalGameDetail["telemetry"]>["events"][number];
 
 const eventAbbreviations: Record<string, string> = {
-  "First Blood": "FB",
-  "First Tower": "FT",
   "First Dragon": "DR",
   Dragon: "DR",
   "Elder Dragon": "ED",
-  "Rift Herald": "RH",
   "First Baron": "BN",
   "Baron Nashor": "BN",
-  "Void Grub": "VG",
 };
+
+const eventObjectives: Record<string, Objective> = {
+  "First Blood": "first-blood",
+  "First Tower": "tower",
+  "Rift Herald": "herald",
+  "Void Grub": "grub",
+};
+
+/** The event's icon, or null when it has none and shows as text. */
+function eventIcon(label: string, drake: TimelineEvent["drake"]) {
+  if (drake) return <DrakeIcon drake={drake} />;
+  const objective = eventObjectives[label];
+  return objective ? <ObjectiveIcon objective={objective} label={label} /> : null;
+}
 
 /** Marker rows above the plot: same-side repeats within 45 seconds merge, and overlaps stack. */
 function eventMarkers(events: TimelineEvent[], end: number) {
@@ -245,7 +255,7 @@ export function ProTimeline({
                   <time className="np-meta" dateTime={`PT${seconds}S`}>
                     {clockLabel(seconds)}
                   </time>
-                  {drake ? <DrakeIcon drake={drake} /> : <span>{label}</span>}
+                  {eventIcon(label, drake) ?? <span>{label}</span>}
                 </li>
               ))}
             </ol>
@@ -433,11 +443,7 @@ function SideTimelinePlot({
                 }}
                 onPointerEnter={() => onHover(seconds)}
               >
-                {drake ? (
-                  <DrakeIcon drake={drake} />
-                ) : (
-                  (eventAbbreviations[name] ?? name.slice(0, 2))
-                )}
+                {eventIcon(name, drake) ?? eventAbbreviations[name] ?? name.slice(0, 2)}
                 {count > 1 ? <span>×{count}</span> : null}
               </li>
             ))}
