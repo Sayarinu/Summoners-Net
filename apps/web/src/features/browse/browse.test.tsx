@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, type Mock } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MatchesPage, PastMatchesPage, DirectoryPage, SearchPage } from "./pages";
 import { matchDisplay, dateTime, identityHref } from "./presentation";
@@ -324,7 +324,7 @@ it("uses linked profile destinations and locally cached search images", () => {
 it("filters in place once typing pauses, keeping the field and everything typed", () => {
   vi.useFakeTimers();
   try {
-    const replace = vi.mocked(useRouter().replace);
+    const { replace } = useRouter() as unknown as Record<"replace", Mock>;
     replace.mockClear();
     render(<Filters query={{ timezone: "UTC", league: "LCK" }} history view="games" />);
     const field = screen.getByLabelText<HTMLInputElement>("Filter Games");
@@ -336,7 +336,7 @@ it("filters in place once typing pauses, keeping the field and everything typed"
     expect(replace).not.toHaveBeenCalled();
     vi.advanceTimersByTime(200);
     expect(replace).toHaveBeenCalledTimes(1);
-    const [url, options] = replace.mock.calls[0]!;
+    const [url, options] = replace.mock.calls[0] as [string, object];
     const params = new URL(url, "http://localhost").searchParams;
     expect(params.get("view")).toBe("games");
     expect(params.get("q")).toBe("Gen.G");
