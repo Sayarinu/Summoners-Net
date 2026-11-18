@@ -15,13 +15,14 @@ export const leaguepediaBatchSize = 5;
 const page = z.object({
   title: z.string(),
   missing: z.boolean().optional(),
+  // A reply cut off at its size limit lists a page it could not fit with no revisions.
   revisions: z
     .array(
       z.object({
         slots: z.object({ main: z.object({ content: z.string().max(8_000_000) }) }),
       }),
     )
-    .length(1)
+    .max(1)
     .optional(),
 });
 type Page = z.infer<typeof page>;
@@ -116,7 +117,7 @@ export function parseLeaguepediaGames(input: unknown, ids: readonly string[]): L
     const own = pages.filter(({ title }) => title === score || title === timeline);
     const unread = (title: string) => {
       const found = own.find((entry) => entry.title === title);
-      return !found || (!found.missing && !found.revisions);
+      return !found || (!found.missing && !found.revisions?.length);
     };
     if (continued && (unread(score) || unread(timeline))) {
       games.set(id, { state: "deferred" });

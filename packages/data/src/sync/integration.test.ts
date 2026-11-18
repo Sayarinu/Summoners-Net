@@ -7187,7 +7187,7 @@ describe("Leaguepedia pro game detail batches", () => {
             wrongId(score),
             wrongId(timeline),
             { title: "V5 data:LOLTMNT02 300003" },
-            { title: "V5 data:LOLTMNT02 300003/Timeline" },
+            { title: "V5 data:LOLTMNT02 300003/Timeline", revisions: [] },
           ],
         },
       });
