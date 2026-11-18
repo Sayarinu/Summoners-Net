@@ -104,7 +104,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
     .first()
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Acceptance Blue 2 vs Acceptance Red 1",
+    "Acceptance Blue 2 vs 1 Acceptance Red",
   );
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
@@ -297,25 +297,44 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   );
   await page.setViewportSize({ width: 1920, height: 900 });
   await page.goto(seriesUrl);
-  await expect(page.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Watch Replay" })).toHaveCount(0);
   const frame = page.getByTitle("Match Broadcast");
   await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
   const cardBounds = await page.getByRole("link", { name: "Open Game 1" }).boundingBox();
   const replayBounds = await frame.boundingBox();
   expect(replayBounds!.x).toBeGreaterThan(cardBounds!.x + cardBounds!.width);
+  const streams = page.getByRole("button", { name: /\bStream\b/ });
+  await expect(streams).toContainText("YouTube · English");
+  const streamsBounds = await streams.boundingBox();
+  expect(streamsBounds!.y).toBeGreaterThanOrEqual(replayBounds!.y + replayBounds!.height);
+  expect(streamsBounds!.x + streamsBounds!.width).toBeCloseTo(
+    replayBounds!.x + replayBounds!.width,
+    -1,
+  );
+  await streams.click();
+  await page.getByRole("option", { name: "YouTube · Korean" }).click();
+  await expect(frame).toHaveAttribute("src", /zyxwvutsrqp.*autoplay=0/);
+  await expect(page.getByRole("option", { name: /Twitch/ })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(seriesUrl);
-  const replay = page.locator("summary").filter({ hasText: /^Watch Replay$/ });
+  const replay = page.locator("summary").filter({ hasText: /^Replay$/ });
   await expect(page.locator("iframe")).toHaveCount(0);
   await replay.click();
   await expect(page.locator("iframe")).toHaveCount(1);
   await expect(page.locator("iframe")).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  // Only the stored recording is playable, so there is no broadcast choice.
   await expect(page.getByRole("button", { name: /Broadcast/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Player Not Working" }).click();
-  await expect(page.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open on YouTube/ }).last()).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "Player Not Working" })).toHaveCount(0);
+  await page
+    .frameLocator('iframe[title="Match Broadcast"]')
+    .locator("body")
+    .evaluate((body) =>
+      body.ownerDocument.defaultView?.parent.postMessage(
+        JSON.stringify({ event: "onError", info: 150 }),
+        "*",
+      ),
+    );
+  await expect(page.getByRole("link", { name: "Watch on YouTube" })).toHaveAttribute(
     "href",
     /youtube\.com/,
   );

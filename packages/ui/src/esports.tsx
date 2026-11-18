@@ -432,7 +432,6 @@ export function StreamEmbedShell({
     >
       <header>
         <div>
-          <Icon icon={Radio} size="small" />
           <span>{provider}</span>
         </div>
         <div>

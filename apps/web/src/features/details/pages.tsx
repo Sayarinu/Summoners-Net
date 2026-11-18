@@ -84,7 +84,7 @@ export function GamePage({
       </header>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-      <LineupTable game={game} hidden={hidden} portraits={portraits} />
+      <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
       {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>

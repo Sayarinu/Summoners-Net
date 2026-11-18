@@ -4,16 +4,16 @@ import { useState, type ReactNode } from "react";
 export function Disclosure({
   title,
   children,
-  initiallyOpen = false,
+  className,
 }: {
   title: string;
   children: ReactNode;
-  initiallyOpen?: boolean;
+  className?: string;
 }) {
-  const [open, setOpen] = useState(initiallyOpen);
+  const [open, setOpen] = useState(false);
   return (
     <details
-      className="ev-disclosure"
+      className={className ? `ev-disclosure ${className}` : "ev-disclosure"}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >

@@ -13,7 +13,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("keeps a finished replay collapsed and unloads it on close", async () => {
   const view = render(
-    <MatchPage match={match} games={seriesGames()} timezone="UTC" hideSpoilers now={instant} />,
+    <MatchPage
+      match={{ ...match, teams: match.teams.map((team) => ({ ...team, imageUrl: "/team.png" })) }}
+      games={seriesGames()}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
   );
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
@@ -22,21 +28,28 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
     "href",
     "/matches/pandascore%3Amatch%3A1/games/1",
   );
-  const replay = screen.getByText("Watch Replay", { selector: "summary" });
+  const replay = screen.getByText("Replay", { selector: "summary" });
   expect(screen.queryByTitle("Match Broadcast")).toBeNull();
   fireEvent.click(replay);
   expect(await screen.findByTitle("Match Broadcast")).toHaveAttribute(
     "src",
     expect.stringMatching(/youtube-nocookie\.com.*autoplay=0/),
   );
-  expect(screen.queryByRole("button", { name: /Broadcast/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Stream/ })).toBeNull();
   fireEvent.click(replay);
   await waitFor(() => expect(screen.queryByTitle("Match Broadcast")).toBeNull());
   expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-    "Acceptance Blue 2 vs Acceptance Red 1",
+    "Acceptance Blue 2 vs 1 Acceptance Red",
   );
+  const teams = screen
+    .getByRole("heading", { level: 1 })
+    .querySelectorAll(".ev-series-title__team");
+  expect(teams[0]?.children[0]).toHaveTextContent("Acceptance Blue");
+  expect(teams[0]?.children[1]).toHaveClass("np-avatar");
+  expect(teams[1]?.children[1]).toHaveClass("np-avatar");
+  expect(teams[1]?.children[2]).toHaveTextContent("Acceptance Red");
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
     <MatchPage
@@ -58,7 +71,7 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
     />,
   );
   // Only a live Twitch channel is stored, which would show an unrelated broadcast.
-  expect(screen.queryByText("Watch Replay")).toBeNull();
+  expect(screen.queryByText("Replay")).toBeNull();
   expect(document.querySelector("iframe")).toBeNull();
   view.rerender(
     <MatchPage
@@ -191,29 +204,38 @@ it("keeps canonical destinations and portraits while omitting alternate names", 
   expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
 });
 
-it("shows a coarse checkpoint win probability when opened after revealing statistics", async () => {
+it("shows both sides of zero for the recorded probabilities after reveal", async () => {
   const winProbability = {
     model: { id: 2, modelVersion: 1, brier: 0.2, years: ["2025", "2026"] },
     reason: null,
     points: [
       { minute: 10, blueWinProbability: 0.55 },
-      { minute: 15, blueWinProbability: 0.6 },
+      { minute: 15, blueWinProbability: 0.4 },
       { minute: 20, blueWinProbability: null },
-      { minute: 25, blueWinProbability: 0.8 },
+      { minute: 25, blueWinProbability: 0.5 },
     ],
   };
   const view = render(
     <GamePage game={game} timezone="UTC" hideSpoilers winProbability={winProbability} />,
   );
-  expect(screen.queryByText("Win Probability (Coarse, 4 Checkpoints)")).toBeNull();
+  expect(screen.queryByText("Win Probability")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
-  expect(
-    screen.queryByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
-  ).toBeNull();
+  expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
   fireEvent.click(screen.getByText("Win Probability", { selector: "summary" }));
+  const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
+  expect(within(chart).getByText("0", { exact: true })).toBeVisible();
   expect(
-    await screen.findByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
-  ).toBeVisible();
+    within(chart).getByText("10 minutes: Blue Side 55%, Red Side 45%").closest("li"),
+  ).toHaveAttribute("data-side", "blue");
+  expect(
+    within(chart).getByText("15 minutes: Blue Side 40%, Red Side 60%").closest("li"),
+  ).toHaveAttribute("data-side", "red");
+  expect(
+    within(chart).getByText("20 minutes: win probability unavailable").closest("li"),
+  ).not.toHaveAttribute("data-side");
+  expect(
+    within(chart).getByText("25 minutes: Blue Side 50%, Red Side 50%").closest("li"),
+  ).not.toHaveAttribute("data-side");
   expect(screen.getByRole("link", { name: "Model Diagnostics" })).toHaveAttribute(
     "href",
     "/models?model=2",
@@ -261,7 +283,7 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute("href", "/history");
 });
 
-it("shows the chronological draft above the lineups after spoilers are revealed", async () => {
+it("shows the draft by side, team totals and the score through the selected game after reveal", async () => {
   const vodUrl = "https://www.youtube.com/watch?v=abcdefghijk";
   const games = seriesGames().map((item) => (item.number === 1 ? { ...item, vodUrl } : item));
   const detail = {
@@ -288,8 +310,8 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       durationSeconds: 1865,
     },
     draft: [
-      { side: "blue" as const, firstPick: true, picks: ["Ahri", null], bans: [] },
-      { side: "red" as const, firstPick: false, picks: [null], bans: ["Azir"] },
+      { side: "blue" as const, firstPick: false, picks: ["Ahri", null], bans: [] },
+      { side: "red" as const, firstPick: true, picks: ["Orianna"], bans: ["Azir"] },
     ],
     draftOrder: [
       {
@@ -304,14 +326,32 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       {
         phase: 1,
         action: "pick" as const,
-        slot: 1,
+        slot: 2,
         side: "blue" as const,
         champion: "Ahri",
         role: "mid",
         blind: true,
       },
     ],
-    participants: [],
+    participants: [
+      {
+        slot: "blue:team",
+        side: "blue" as const,
+        position: "team",
+        player: null,
+        team: { name: "Acceptance Blue", sourceId: "10" },
+        champion: null,
+        won: true,
+        statistics: {
+          combat: { kills: 14 },
+          objectives: { towers: 7, dragons: 3, barons: 0 },
+          damage: {},
+          vision: {},
+          economy: { totalgold: 56005 },
+          checkpoints: {},
+        },
+      },
+    ],
   };
   const view = render(
     <SeriesGamePage
@@ -347,23 +387,35 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       name: "Watch Game VOD",
     }),
   ).toHaveAttribute("href", vodUrl);
+  const heading = screen.getByRole("heading", { level: 1 });
+  expect(heading).toHaveTextContent("Acceptance Blue vs Acceptance Red");
+  expect(heading.parentElement?.querySelector("time")).toHaveTextContent("Mar 1, 2026");
+  expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
   expect(screen.queryByText("Draft Order")).toBeNull();
+  expect(screen.queryByText("56,005")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
-  const draft = screen.getByText("Draft Order", { selector: "summary" });
-  expect(tabs.nextElementSibling).toBe(draft.parentElement);
-  const bans = await screen.findByRole("region", { name: "Bans 1–6" });
-  expect(within(bans).getByRole("listitem")).toHaveAttribute("data-side", "red");
+  expect(heading).toHaveTextContent("Acceptance Blue 1 vs 0 Acceptance Red");
+  const draft = screen.getByRole("region", { name: "Draft Order" });
+  expect(tabs.nextElementSibling).toBe(draft);
+  expect(within(draft).getByText("First Pick").parentElement).toHaveTextContent("Red Side");
+  const bans = await screen.findByRole("list", { name: "Red Side Bans 1–6" });
   expect(within(bans).getByRole("img", { name: "Azir" })).toBeVisible();
   expect(
-    within(screen.getByRole("region", { name: "Picks 1–6" })).getByRole("img", { name: "Ahri" }),
+    within(screen.getByRole("list", { name: "Blue Side Picks 1–6" })).getByRole("img", {
+      name: "Ahri",
+    }),
   ).toBeVisible();
   expect(screen.getByRole("table", { name: "Acceptance Blue Lineup" })).toBeVisible();
   expect(screen.getAllByText("Winner")).toHaveLength(1);
   expect(screen.queryByRole("link", { name: "Open Archive Record" })).toBeNull();
-  fireEvent.click(draft);
-  await waitFor(() => expect(screen.queryByRole("region", { name: "Bans 1–6" })).toBeNull());
-  fireEvent.click(draft);
-  expect(await screen.findByRole("region", { name: "Bans 1–6" })).toBeVisible();
+  expect(within(draft).queryByText("Draft Order", { selector: "summary" })).toBeNull();
+  expect(screen.getByText("56,005")).toBeVisible();
+  expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
+    "Barons0",
+  );
+  expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
+    "Barons—",
+  );
   view.rerender(
     <SeriesGamePage
       match={{ ...match, event: "2026 · Playoffs" }}
@@ -378,6 +430,9 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
     />,
   );
   expect(screen.getByText("Game Details Not Available Yet")).toBeVisible();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Acceptance Blue 1 vs 1 Acceptance Red",
+  );
   expect(screen.getByText("2026 · Playoffs · Best of 3")).toBeVisible();
   expect(screen.queryByText(/Grand Final/)).toBeNull();
   expect(screen.queryByRole("link", { name: "Watch Game VOD" })).toBeNull();

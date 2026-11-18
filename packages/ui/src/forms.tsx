@@ -122,6 +122,7 @@ export interface SelectProps
   readonly defaultValue?: string;
   readonly description?: string;
   readonly error?: string;
+  readonly hideLabel?: boolean;
   readonly label: string;
   readonly onValueChange?: (value: string) => void;
   readonly options: readonly SelectOption[];
@@ -135,6 +136,7 @@ export function Select({
   description,
   disabled,
   error,
+  hideLabel = false,
   label,
   name,
   onValueChange,
@@ -164,7 +166,7 @@ export function Select({
       isInvalid={Boolean(error)}
       placeholder={placeholder}
     >
-      <AriaLabel>{label}</AriaLabel>
+      <AriaLabel className={hideLabel ? "np-visually-hidden" : undefined}>{label}</AriaLabel>
       <AriaButton className="np-select__trigger">
         <SelectValue<SelectOption> className="np-select__value">
           {({ isPlaceholder, selectedItems }) => {
@@ -213,7 +215,7 @@ export function Select({
   );
 }
 
-export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "value"> {
+export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "hideLabel" | "value"> {
   readonly defaultValue?: string;
   readonly onSelectionChange?: (value: string) => void;
   readonly value?: string;

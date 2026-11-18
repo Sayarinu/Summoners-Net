@@ -45,6 +45,20 @@ const observedSeconds = (game: SeriesGame) =>
     ? (Date.parse(game.finishedAt) - Date.parse(game.startsAt)) / 1000
     : null;
 
+function seriesScoreAt(teams: Match["teams"], games: SeriesGame[], through: number): number[] {
+  if (teams.length !== 2) return [];
+  const scores = [0, 0];
+  for (let number = 1; number <= through; number++) {
+    const game = games.find((entry) => entry.number === number);
+    if (game?.state === "running" && number === through) break;
+    if (game?.state !== "finished") return [];
+    const winner = teams.findIndex((team) => team.id === game.winnerId);
+    if (winner < 0) return [];
+    scores[winner] = scores[winner]! + 1;
+  }
+  return scores;
+}
+
 function SeriesShell({
   match,
   games,
@@ -73,14 +87,16 @@ function SeriesShell({
   const display = matchDisplay(match, timezone, now);
   const overview = current === "overview";
   const [first, second] = display.teams;
+  const scores = overview
+    ? display.teams.map((team) => team.score)
+    : seriesScoreAt(match.teams, games, current);
   const showScore =
-    overview &&
     match.teams.length > 0 &&
-    (!hidden || match.state !== "final") &&
-    (first.score !== undefined || second.score !== undefined);
+    (!hidden || (overview && match.state !== "final")) &&
+    scores.some((score) => score !== undefined);
   const margin =
-    match.state === "final" && first.score !== undefined && second.score !== undefined
-      ? first.score - second.score
+    (!overview || match.state === "final") && scores[0] !== undefined && scores[1] !== undefined
+      ? scores[0] - scores[1]
       : 0;
   const [firstColor, secondColor] =
     margin > 0
@@ -93,6 +109,13 @@ function SeriesShell({
     ? `${match.league} · ${round === "Grand Final" ? "Grand Finals" : round}`
     : match.event || match.league;
   const startsAt = gameStartsAt ?? match.startsAt;
+  const date = startsAt ? (
+    <time className="np-meta ev-series-date" dateTime={startsAt}>
+      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: timezone }).format(
+        new Date(startsAt),
+      )}
+    </time>
+  ) : null;
   const title =
     match.teams.length > 0 ? display.teams.map((team) => team.name).join(" vs ") : match.name;
   const sides = game
@@ -126,41 +149,48 @@ function SeriesShell({
               ? display.teams.map((team, index) => {
                   const identity = match.teams[index];
                   const side = identity && sides?.get(identity.entityId ?? identity.id);
+                  const name = (
+                    <span
+                      className="ev-side-name"
+                      data-side={side}
+                      title={side ? `${side} side` : undefined}
+                    >
+                      {team.name}
+                    </span>
+                  );
+                  const logo = team.logo ? (
+                    <Avatar
+                      alt=""
+                      aria-hidden="true"
+                      entityKind="team"
+                      fallback={team.shortName}
+                      size="small"
+                      src={team.logo}
+                    />
+                  ) : null;
+                  const score = showScore ? (
+                    <span
+                      className={`ev-series-title__score ${(index ? secondColor : firstColor) ?? ""}`}
+                    >
+                      {index ? null : " "}
+                      {scores[index] ?? "—"}
+                      {index ? " " : null}
+                    </span>
+                  ) : null;
                   return (
                     <span key={index}>
                       {index ? " vs " : null}
                       <span className="ev-series-title__team">
-                        {overview && team.logo ? (
-                          <Avatar
-                            alt=""
-                            aria-hidden="true"
-                            entityKind="team"
-                            fallback={team.shortName}
-                            size="small"
-                            src={team.logo}
-                          />
-                        ) : null}
-                        <span
-                          className="ev-side-name"
-                          data-side={side}
-                          title={side ? `${side} side` : undefined}
-                        >
-                          {team.name}
-                        </span>
-                        {showScore ? (
-                          <span
-                            className={`ev-series-title__score ${(index ? secondColor : firstColor) ?? ""}`}
-                          >
-                            {" "}
-                            {team.score ?? "—"}
-                          </span>
-                        ) : null}
+                        {index ? score : name}
+                        {logo}
+                        {index ? name : score}
                       </span>
                     </span>
                   );
                 })
               : title}
           </h1>
+          {overview ? null : date}
         </div>
         {overview && hidden && match.state === "final" ? (
           <Button
@@ -200,13 +230,7 @@ function SeriesShell({
             </span>
           ),
         )}
-        {startsAt ? (
-          <time className="np-meta ev-series-date" dateTime={startsAt}>
-            {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: timezone }).format(
-              new Date(startsAt),
-            )}
-          </time>
-        ) : null}
+        {overview ? date : null}
       </nav>
       {children}
     </div>
@@ -227,17 +251,10 @@ function SeriesReplay({ broadcasts }: { broadcasts: Broadcast[] }) {
     () => window.matchMedia(replayLayout).matches,
     () => false,
   );
-  const player = (
-    <WatchPlayer
-      broadcasts={broadcasts}
-      mode="replay"
-      showHeading={wide}
-      showBroadcastSelect={broadcasts.length > 1}
-    />
-  );
+  const player = <WatchPlayer broadcasts={broadcasts} mode="replay" compact />;
   return (
     <aside className="ev-series-replay">
-      {wide ? player : <Disclosure title="Watch Replay">{player}</Disclosure>}
+      {wide ? player : <Disclosure title="Replay">{player}</Disclosure>}
     </aside>
   );
 }
@@ -393,7 +410,7 @@ export function SeriesGamePage({
             <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button>
           ) : null}
           {detail && !hidden ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-          <LineupTable game={game} hidden={hidden} portraits={portraits} />
+          <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
           {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
         </>
       ) : (
