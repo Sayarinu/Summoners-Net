@@ -293,7 +293,16 @@ export function historicalQueries(pool: Pool) {
               String(candidate.participantId) === entry.participant_id,
           );
           return player
-            ? [[entry.slot, { inventory: player.inventory, purchases: player.purchases }]]
+            ? [
+                [
+                  entry.slot,
+                  {
+                    inventory: player.inventory,
+                    purchases: player.purchases,
+                    damage: player.damage ?? null,
+                  },
+                ],
+              ]
             : [];
         }),
       );

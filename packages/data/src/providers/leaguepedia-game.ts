@@ -52,8 +52,9 @@ const objectiveNames = {
 /**
  * Raised when a stored detail lacks something a newer parser keeps, so stored games load again.
  * 2: checkpoints for every recorded minute, not only 10 to 25.
+ * 3: physical, magic and true damage to champions per player.
  */
-export const proGameDetailVersion = 2;
+export const proGameDetailVersion = 3;
 
 export interface ProGameDetails extends Omit<HistoricalGameTelemetry, "builds" | "patch"> {
   detailVersion: number;
@@ -162,12 +163,24 @@ function parseGame(pages: readonly Page[], id: string): ProGameDetails | null {
   if (match && match.platformId !== id.split("_")[0])
     throw new Error("Pro game platform mismatch.");
   const events = timelineInfo ? parseRiotTimeline({ metadata, info: timelineInfo }, id) : null;
-  const players = (match?.participants ?? []).map(({ participantId, side, items }) => ({
-    participantId,
-    side,
-    inventory: items.map(({ itemId }) => itemId),
+  const players = (match?.participants ?? []).map((participant) => ({
+    participantId: participant.participantId,
+    side: participant.side,
+    inventory: participant.items.map(({ itemId }) => itemId),
+    damage:
+      participant.physicalDamageDealtToChampions !== null &&
+      participant.magicDamageDealtToChampions !== null &&
+      participant.trueDamageDealtToChampions !== null
+        ? {
+            physical: participant.physicalDamageDealtToChampions,
+            magic: participant.magicDamageDealtToChampions,
+            true: participant.trueDamageDealtToChampions,
+          }
+        : null,
     purchases: events
-      ? purchases(events.events.filter((event) => event.participantId === participantId))
+      ? purchases(
+          events.events.filter((event) => event.participantId === participant.participantId),
+        )
       : null,
   }));
   const sides = new Map(players.map(({ participantId, side }) => [participantId, side]));

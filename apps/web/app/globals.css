@@ -1307,6 +1307,7 @@
 }
 
 .ev-game-distribution__value {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1315,6 +1316,44 @@
 
 .ev-game-distribution__value[data-side="blue"] {
   direction: rtl;
+}
+
+.ev-game-distribution__tip {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  direction: ltr;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ev-game-distribution__value:is(:hover, :focus-visible) > .ev-game-distribution__tip {
+  visibility: visible;
+}
+
+.ev-game-distribution__tip ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev-game-distribution__amount {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .ev-game-distribution__value > .np-meta {

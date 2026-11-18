@@ -539,14 +539,47 @@ it("shows the draft by side, team totals and the score through the selected game
   const damageShare = within(screen.getByRole("table", { name: "Damage Distribution" }));
   expect(goldShare.getByText("26.6%")).toBeVisible();
   expect(damageShare.getByText("25%")).toBeVisible();
-  expect(goldShare.getByText("26.6%").closest("[title]")).toHaveAttribute(
-    "title",
-    expect.stringMatching(/^[\d,]+ gold$/),
+  const goldTip = within(goldShare.getByText("26.6%").closest("[aria-describedby]")!);
+  expect(goldTip.getByRole("tooltip")).toHaveTextContent(/^[\d,]+$/);
+  expect(goldTip.getByRole("img", { name: "Gold" })).toBeInTheDocument();
+  const damageValue = () =>
+    damageShare.getByText("25%").closest<HTMLElement>("[aria-describedby]")!;
+  expect(within(damageValue()).getByRole("tooltip")).toHaveTextContent("Damage 20,819");
+  expect(within(damageValue()).queryByRole("list", { name: "Damage by Type" })).toBeNull();
+  view.rerender(
+    <SeriesGamePage
+      match={{ ...match, name: `Grand final: ${match.name}`, event: "2026 · Playoffs" }}
+      games={games}
+      number={1}
+      game={game}
+      detail={{
+        ...detail,
+        telemetry: {
+          patch: null,
+          gold: [],
+          events: [],
+          builds: {
+            [game.participants[0]!.slot]: {
+              inventory: [],
+              purchases: null,
+              damage: { physical: 3000, magic: 16819, true: 1000 },
+            },
+          },
+        },
+      }}
+      winProbability={null}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
   );
-  expect(damageShare.getByText("25%").closest("[title]")).toHaveAttribute(
-    "title",
-    expect.stringMatching(/^[\d,]+ damage$/),
-  );
+  const types = within(within(damageValue()).getByRole("list", { name: "Damage by Type" }));
+  expect(types.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "3,000",
+    "16,819",
+    "1,000",
+  ]);
+  expect(types.getByRole("img", { name: "Magic Damage" })).toBeInTheDocument();
   expect(goldShare.getByRole("img", { name: "Acceptance Blue" })).toBeVisible();
   expect(goldShare.getByRole("img", { name: "Ahri" }).closest("tr")).toContainElement(
     goldShare.getByRole("img", { name: /^Mid$/ }),

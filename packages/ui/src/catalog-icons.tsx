@@ -138,3 +138,24 @@ export function ObjectiveIcon({
     />
   );
 }
+
+const statNames = {
+  gold: "Gold",
+  physical: "Physical Damage",
+  magic: "Magic Damage",
+  true: "True Damage",
+} as const;
+
+export type Stat = keyof typeof statNames;
+
+export function StatIcon({ stat }: { readonly stat: Stat }) {
+  return (
+    <span
+      className="np-stat-icon"
+      data-stat={stat}
+      role="img"
+      aria-label={statNames[stat]}
+      title={statNames[stat]}
+    />
+  );
+}

@@ -15,6 +15,8 @@ export {
   RoleIcon,
   DrakeIcon,
   ObjectiveIcon,
+  StatIcon,
+  type Stat,
   type Objective,
   ItemIcon,
   RuneIcon,

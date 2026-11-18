@@ -37,6 +37,9 @@ const participant = z.object({
   totalMinionsKilled: optionalCount,
   neutralMinionsKilled: optionalCount,
   totalDamageDealtToChampions: optionalCount,
+  physicalDamageDealtToChampions: optionalCount,
+  magicDamageDealtToChampions: optionalCount,
+  trueDamageDealtToChampions: optionalCount,
   visionScore: optionalCount,
   summoner1Id: optionalInt,
   summoner2Id: optionalInt,
@@ -129,6 +132,9 @@ export interface RiotParticipant {
   totalMinionsKilled: number | null;
   neutralMinionsKilled: number | null;
   totalDamageDealtToChampions: number | null;
+  physicalDamageDealtToChampions: number | null;
+  magicDamageDealtToChampions: number | null;
+  trueDamageDealtToChampions: number | null;
   visionScore: number | null;
   summoner1Id: number | null;
   summoner2Id: number | null;
@@ -199,6 +205,9 @@ export function parseRiotMatch(input: unknown, matchId: string): RiotMatch {
       totalMinionsKilled: p.totalMinionsKilled,
       neutralMinionsKilled: p.neutralMinionsKilled,
       totalDamageDealtToChampions: p.totalDamageDealtToChampions,
+      physicalDamageDealtToChampions: p.physicalDamageDealtToChampions,
+      magicDamageDealtToChampions: p.magicDamageDealtToChampions,
+      trueDamageDealtToChampions: p.trueDamageDealtToChampions,
       visionScore: p.visionScore,
       summoner1Id: p.summoner1Id,
       summoner2Id: p.summoner2Id,
