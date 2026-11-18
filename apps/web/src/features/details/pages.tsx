@@ -50,7 +50,7 @@ export function GamePage({
   const [hidden, setHidden] = useState(hideSpoilers);
   const teams = gameTeams(game);
   return (
-    <div className="np-stack ev-series-page">
+    <div className="np-stack ev-series-page ev-series-page--wide">
       <Breadcrumb
         items={[
           { label: "Past Matches", href: "/history?view=games" },

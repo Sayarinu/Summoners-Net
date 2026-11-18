@@ -72,6 +72,8 @@ export function LineupTable({
     stats?.economy.totalgold ?? null,
     stats?.objectives.towers ?? null,
     stats?.objectives.dragons ?? null,
+    stats?.objectives.void_grubs ?? null,
+    stats?.objectives.heralds ?? null,
     stats?.objectives.barons ?? null,
   ]);
   const drakes = teamStats.map((stats) =>
@@ -80,14 +82,7 @@ export function LineupTable({
       return count !== null && count > 0 ? [{ type, count }] : [];
     }),
   );
-  const hasDrakes =
-    !hidden &&
-    teamStats.some(
-      (stats, index) =>
-        stats?.objectives.elementaldrakes != null ||
-        stats?.objectives.elders != null ||
-        drakes[index]!.length > 0,
-    );
+  const hasDrakes = !hidden && drakes.some((side) => side.length > 0);
   const playersBySlot = new Map(
     detail?.participants
       .filter((entry) => entry.player)
@@ -98,7 +93,15 @@ export function LineupTable({
     : playerMetrics.filter(({ read }) =>
         game.participants.some((p) => p.player && read(playersBySlot.get(p.slot)) != null),
       );
-  const metrics = ["Kills", "Gold", "Towers", "Dragons", "Barons"].flatMap((label, index) =>
+  const metrics = [
+    "Kills",
+    "Gold",
+    "Towers",
+    "Dragons",
+    "Void Grubs",
+    "Rift Herald",
+    "Barons",
+  ].flatMap((label, index) =>
     !hidden && facts.some((side) => side[index] !== null) ? [{ label, index }] : [],
   );
   return (
@@ -146,18 +149,21 @@ export function LineupTable({
                 aria-label={`${team.name} Dragon Breakdown`}
                 role="group"
               >
-                <div className="np-meta">
-                  Elemental {formatMetric(teamStats[index]?.objectives.elementaldrakes)}
-                  {" · "}
-                  Elder {formatMetric(teamStats[index]?.objectives.elders)}
-                </div>
-                <ul role="list">
-                  {drakes[index]!.map(({ type, count }) => (
-                    <li key={type}>
-                      <DrakeIcon drake={type} />
-                      <span>{count}</span>
-                    </li>
-                  ))}
+                <ul aria-label="Captured Dragons by Type" role="list">
+                  {drakes[index]!.flatMap(({ type, count }) =>
+                    Number.isInteger(count) && count <= 24 ? (
+                      Array.from({ length: count }, (_, slot) => (
+                        <li key={`${type}-${slot}`}>
+                          <DrakeIcon drake={type} />
+                        </li>
+                      ))
+                    ) : (
+                      <li key={type}>
+                        <DrakeIcon drake={type} />
+                        <span>×{formatMetric(count)}</span>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             ) : null}

@@ -346,6 +346,8 @@ it("shows the draft by side, team totals and the score through the selected game
             towers: 7,
             dragons: 3,
             barons: 0,
+            void_grubs: 3,
+            heralds: 1,
             elementaldrakes: 2,
             elders: 1,
             infernals: 2,
@@ -435,15 +437,15 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(within(draft).queryByText("Draft Order", { selector: "summary" })).toBeNull();
   expect(screen.getByText("56,005")).toBeVisible();
   const dragons = within(screen.getByRole("group", { name: "Acceptance Blue Dragon Breakdown" }));
-  expect(dragons.getByRole("img", { name: "Infernal Drake" })).toBeVisible();
+  expect(dragons.getAllByRole("img", { name: "Infernal Drake" })).toHaveLength(2);
   expect(dragons.getByRole("img", { name: "Elder Dragon" })).toBeVisible();
-  expect(dragons.getByText("Elemental 2 · Elder 1")).toBeVisible();
+  expect(dragons.queryByText(/Elemental|Elder/)).toBeNull();
   expect(screen.getByText("20,819")).toBeVisible();
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
-    "Barons0",
+    "Void Grubs3Rift Herald1Barons0",
   );
   expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
-    "Barons—",
+    "Void Grubs—Rift Herald—Barons—",
   );
   view.rerender(
     <SeriesGamePage
