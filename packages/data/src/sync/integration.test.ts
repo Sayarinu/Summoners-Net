@@ -3720,7 +3720,7 @@ describe("Champion aggregates", () => {
     expect((await wpaLeaderboard(pool, { kind: "player" })).page.total).toBe(0);
     await expect(wpaLeaderboard(pool, { kind: "team" as "role" })).rejects.toThrow();
   });
-  it("trains a separate pro checkpoint model and scores a pro game's four checkpoints", async () => {
+  it("trains a separate pro checkpoint model on reported checkpoints and recorded minutes", async () => {
     const ids = ["g1", "g2", "g3", "g4", "g5", "g6"];
     for (const id of ids) await importCsv(historyCsv({ id }));
     // Checkpoints on each blue team row: blue leads and wins the odd games, trails and loses the rest.
@@ -3743,16 +3743,34 @@ describe("Champion aggregates", () => {
         [id, JSON.stringify(statistics), lead > 0],
       );
     }
+    // Frame timelines: g1 to g4 record minutes 0 to 30, and g5 runs on to minute 40.
+    for (const [n, id] of ids.slice(0, 5).entries()) {
+      const lead = n % 2 === 0 ? 1500 : -1500;
+      const checkpoints = Array.from({ length: id === "g5" ? 41 : 31 }, (_, minute) => ({
+        minute,
+        goldDiff: (lead * minute) / 10,
+        xpDiff: (lead * minute) / 20,
+        csDiff: (lead * minute) / 1000,
+        killDiff: Math.sign(lead) * Math.floor(minute / 10),
+      }));
+      await pool.query(
+        `INSERT INTO pro_game_details(source_game_id,checked_at,observed_at,document)
+         SELECT source_game_id,$2,$2,$3 FROM oracle_archive_games WHERE source_game_id=$1`,
+        [id, now, JSON.stringify({ detailVersion: 2, checkpoints, gold: [] })],
+      );
+    }
     expect((await proGameWinProbability(pool, "oracle:game:g1")).reason).toMatch(
       /No pro win probability model/,
     );
-    await trainCheckpointModel(pool, now, { minimumGames: 2, seed: 4 });
+    await trainCheckpointModel(pool, now, { minimumGames: 2, minimumGamesPerMinute: 4, seed: 4 });
     const model = (await activeWinProbabilityModel(pool, "pro-checkpoints"))!;
     expect(model).toMatchObject({
       kind: "pro-checkpoints",
       patchWindow: ["2026"],
       status: "active",
     });
+    // Minutes 31 to 40 have one game, too few to cover.
+    expect(model.coefficients.minutes).toEqual({ first: 0, last: 30 });
     expect(model.coefficients.features).toEqual([
       "minute",
       "goldDiff",
@@ -3765,13 +3783,18 @@ describe("Champion aggregates", () => {
     expect(await activeWinProbabilityModel(pool)).toBeNull();
     const ahead = await proGameWinProbability(pool, "oracle:game:g1");
     expect(ahead.model).toMatchObject({ id: model.id, years: ["2026"] });
-    expect(ahead.points.map((p) => p.minute)).toEqual([10, 15, 20, 25]);
-    expect(ahead.points.every((p) => p.blueWinProbability! > 0.5)).toBe(true);
+    expect(ahead.points.map((p) => p.minute)).toEqual(Array.from({ length: 31 }, (_, m) => m));
+    expect(ahead.points.slice(5).every((p) => p.blueWinProbability! > 0.5)).toBe(true);
+    expect(
+      (await proGameWinProbability(pool, "oracle:game:g5")).points.map((p) => p.minute).at(-1),
+    ).toBe(30);
     expect(
       (await proGameWinProbability(pool, "oracle:game:g2")).points[0]!.blueWinProbability,
     ).toBeLessThan(0.5);
-    // A missing checkpoint is a gap.
-    expect((await queries.proGameWinProbability("oracle:game:g6")).points[3]).toEqual({
+    // Without a timeline, the reported checkpoints are scored, and a missing one is a gap.
+    const reported = await queries.proGameWinProbability("oracle:game:g6");
+    expect(reported.points.map((p) => p.minute)).toEqual([10, 15, 20, 25]);
+    expect(reported.points[3]).toEqual({
       minute: 25,
       blueWinProbability: null,
     });
@@ -3782,7 +3805,7 @@ describe("Champion aggregates", () => {
       reason: expect.stringContaining("no checkpoint data") as string,
     });
     // Too few games: stored as rejected, the active checkpoint model stays.
-    await trainCheckpointModel(pool, now, { minimumGames: 100, seed: 4 });
+    await trainCheckpointModel(pool, now, { minimumGames: 100, minimumGamesPerMinute: 4, seed: 4 });
     expect((await activeWinProbabilityModel(pool, "pro-checkpoints"))!.id).toBe(model.id);
   });
   it("lists stored models of both kinds with calibration and named feature weights", async () => {
@@ -7006,6 +7029,40 @@ it("joins pro game inventories and purchases by source game and participant IDs"
   const [icon] = await queries.catalogIcons({ patch: "16.22", kind: "item", ids: ["3089"] });
   expect(icon?.name).toBe("Rabadon's Deathcap");
   expect(icon?.imageUrl).toMatch(/^\/api\/images\//);
+  fetcher.mockClear();
+  expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 0 });
+  expect(fetcher).not.toHaveBeenCalled();
+  const frameMinutes = async () =>
+    (
+      await pool.query<{ minutes: number[] }>(
+        `SELECT array(SELECT (c->>'minute')::int FROM jsonb_array_elements(document->'checkpoints') c)
+           AS minutes FROM pro_game_details`,
+      )
+    ).rows[0]!.minutes;
+  expect(await frameMinutes()).toEqual(expect.arrayContaining([0, 1, 11]));
+  // A record from an older parser loads once more and is replaced.
+  const outdated = { detailVersion: 1, checkpoints: [], gold: [{ seconds: 60, lead: 5 }] };
+  await pool.query("UPDATE pro_game_details SET document=document||$1::jsonb", [
+    JSON.stringify(outdated),
+  ]);
+  instant = new Date(instant.valueOf() + 60_000);
+  expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 1 });
+  expect(await frameMinutes()).toEqual(expect.arrayContaining([0, 1, 11]));
+  // A failed reload keeps the older record and is not retried.
+  await pool.query("UPDATE pro_game_details SET document=document||$1::jsonb", [
+    JSON.stringify(outdated),
+  ]);
+  instant = new Date(instant.valueOf() + 60_000);
+  fetcher.mockImplementation((input) => {
+    const url = endpoint(input);
+    if (!url.startsWith("https://lol.fandom.com/api.php?")) throw new Error("Unexpected request");
+    const titles = new URL(url).searchParams.get("titles")!.split("|");
+    return Promise.resolve(
+      json({ query: { pages: titles.map((title) => ({ title, missing: true })) } }),
+    );
+  });
+  expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 0 });
+  expect(await frameMinutes()).toEqual([]);
   fetcher.mockClear();
   expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 0 });
   expect(fetcher).not.toHaveBeenCalled();

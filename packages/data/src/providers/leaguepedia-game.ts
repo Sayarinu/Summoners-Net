@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { purchases } from "../domain/builds.js";
 import type { HistoricalGameTelemetry, HistoricalPlayerBuild } from "../domain/historical.js";
-import { checkpointMinutes, type Checkpoint } from "../domain/wp-checkpoints.js";
+import type { Checkpoint } from "../domain/wp-checkpoints.js";
 import { parseRiotMatch } from "./riot-match.js";
 import { parseRiotTimeline, type TimelineEvent, type TimelineFrame } from "./riot-timeline.js";
 
@@ -48,8 +48,16 @@ const objectiveNames = {
   HORDE: "Void Grub",
 } as const;
 
+/**
+ * Raised when a stored detail lacks something a newer parser keeps, so stored games load again.
+ * 2: checkpoints for every recorded minute, not only 10 to 25.
+ */
+export const proGameDetailVersion = 2;
+
 export interface ProGameDetails extends Omit<HistoricalGameTelemetry, "builds" | "patch"> {
+  detailVersion: number;
   version: string | null;
+  /** The game state at each whole minute that has a frame, from blue side's point of view. */
   checkpoints: Checkpoint[];
   players: ({ participantId: number; side: "blue" | "red" } & HistoricalPlayerBuild)[];
 }
@@ -182,11 +190,7 @@ function parseGame(pages: readonly Page[], id: string): ProGameDetails | null {
     };
     const goldDiff = difference(({ totalGold }) => totalGold);
     const minute = Math.round(timestampMs / 60_000);
-    if (
-      minute >= checkpointMinutes[0] &&
-      minute <= checkpointMinutes[3] &&
-      Math.abs(timestampMs - minute * 60_000) < 2000
-    ) {
+    if (Math.abs(timestampMs - minute * 60_000) < 2000) {
       const xpDiff = difference(({ xp }) => xp);
       const csDiff = difference(({ minionsKilled, jungleMinionsKilled }) =>
         minionsKilled === null || jungleMinionsKilled === null
@@ -235,6 +239,7 @@ function parseGame(pages: readonly Page[], id: string): ProGameDetails | null {
     }),
   );
   return {
+    detailVersion: proGameDetailVersion,
     version: match?.gameVersion ?? null,
     players,
     checkpoints,

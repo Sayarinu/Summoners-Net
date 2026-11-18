@@ -229,16 +229,16 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
   expect(within(chart).queryByText("Acceptance Blue", { exact: true })).toBeNull();
   expect(within(chart).queryByText("Acceptance Red", { exact: true })).toBeNull();
   expect(
-    within(chart).getByText("10 minutes: Acceptance Blue 55%, Acceptance Red 45%").closest("li"),
+    within(chart).getByText("10:00: Acceptance Blue 55%, Acceptance Red 45%").closest("li"),
   ).toHaveAttribute("data-side", "blue");
   expect(
-    within(chart).getByText("15 minutes: Acceptance Blue 40%, Acceptance Red 60%").closest("li"),
+    within(chart).getByText("15:00: Acceptance Blue 40%, Acceptance Red 60%").closest("li"),
   ).toHaveAttribute("data-side", "red");
   expect(
-    within(chart).getByText("20 minutes: win probability unavailable").closest("li"),
+    within(chart).getByText("20:00: win probability unavailable").closest("li"),
   ).not.toHaveAttribute("data-side");
   expect(
-    within(chart).getByText("25 minutes: Acceptance Blue 50%, Acceptance Red 50%").closest("li"),
+    within(chart).getByText("25:00: Acceptance Blue 50%, Acceptance Red 50%").closest("li"),
   ).not.toHaveAttribute("data-side");
   expect(screen.queryByRole("link", { name: "Model Diagnostics" })).toBeNull();
   for (const unavailable of [

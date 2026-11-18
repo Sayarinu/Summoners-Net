@@ -121,9 +121,15 @@ export interface WorkerOptions {
   riotRetainPatches?: number;
   /**
    * Win probability training: the fewest training matches (solo queue) and games (pro
-   * checkpoints) to publish a model, and the seed.
+   * checkpoints) to publish a model, the fewest pro games a minute needs before the pro model
+   * covers it beyond the reported 10 to 25 minutes, and the seed.
    */
-  winProbability?: { minimumMatches?: number; minimumProGames?: number; seed?: number };
+  winProbability?: {
+    minimumMatches?: number;
+    minimumProGames?: number;
+    minimumProGamesPerMinute?: number;
+    seed?: number;
+  };
   /**
    * Riot match and timeline runs fetch until the queue is empty or the rate limit defers them,
    * but yield after this many items or milliseconds (by the injected clock) and requeue
@@ -636,6 +642,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (trained.active) await scoreActiveWpa();
       const pro = await trainCheckpointModel(pool, clock(), {
         minimumGames: options.winProbability?.minimumProGames ?? 200,
+        minimumGamesPerMinute: options.winProbability?.minimumProGamesPerMinute ?? 100,
         seed: options.winProbability?.seed ?? 20261116,
       });
       const draft = await trainDraftModel(pool, clock(), {

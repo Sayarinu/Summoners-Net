@@ -4,7 +4,7 @@ import type { ModelDiagnostics, ModelSummary } from "@summonersnet/data/contract
 
 const kindLabels = {
   timeline: "Solo Queue (Timelines)",
-  "pro-checkpoints": "Pro (4 checkpoints)",
+  "pro-checkpoints": "Pro (Game Checkpoints)",
   draft: "Solo Queue (Pre-Game Draft)",
 };
 const statusTones = { active: "success", retired: "neutral", rejected: "warning" } as const;
