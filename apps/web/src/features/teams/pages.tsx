@@ -89,7 +89,8 @@ function Roster({ roster }: { roster: Profile["roster"] }) {
   );
 }
 
-function ChampionPool({
+/** The most-played champions first, expandable to the whole pool. */
+export function ChampionPool({
   champions,
   portraits,
 }: {

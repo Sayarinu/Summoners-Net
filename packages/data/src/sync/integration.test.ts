@@ -466,6 +466,57 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect((await queries.search({ q: "%" })).total).toBe(0);
     expect((await queries.search()).total).toBe(0);
   });
+  it("aggregates a player's recorded statistics per game, keeping missing ones null with samples", async () => {
+    await importCsv(
+      historyCsv({
+        metrics: {
+          gamelength: "1800",
+          teamkills: "12",
+          totalgold: "15000",
+          cspm: "9",
+          dpm: "600",
+          damageshare: "0.3",
+          earnedgoldshare: "0.25",
+          vspm: "1.5",
+          golddiffat15: "300",
+          firstbloodkill: "1",
+          firstbloodassist: "0",
+          pentakills: "1",
+        },
+      }),
+    );
+    await importCsv(
+      historyCsv({
+        id: "other",
+        kills: "7",
+        metrics: { gamelength: "", teamkills: "", cspm: "11", golddiffat15: "-100" },
+      }),
+    );
+    await importCsv(historyCsv({ id: "older", year: 2024, league: "LEC" }), 2024);
+    const context = await queries.playerContext("player-blue-mid");
+    expect(context?.identity.id).toBe("oracle:player:10-mid");
+    expect(context?.seasons).toEqual([
+      { year: 2026, league: "LCK" },
+      { year: 2024, league: "LEC" },
+    ]);
+    expect(await queries.playerContext("acceptance-blue")).toBeNull();
+    const stats = await queries.playerPerformance("oracle:player:10-mid", { year: 2026 });
+    expect(stats.games).toBe(2);
+    expect(stats.killsPerGame).toEqual({ value: 6, sampleCount: 2 });
+    expect(stats.killParticipation).toEqual({ value: 1, sampleCount: 1 });
+    expect(stats.csPerMinute).toEqual({ value: 10, sampleCount: 2 });
+    expect(stats.goldDiffAt15).toEqual({ value: 100, sampleCount: 2 });
+    expect(stats.goldPerMinute).toEqual({ value: 500, sampleCount: 1 });
+    expect(stats.damageShare).toEqual({ value: 0.3, sampleCount: 1 });
+    expect(stats.goldShare).toEqual({ value: 0.25, sampleCount: 1 });
+    expect(stats.firstBloodParticipation).toEqual({ value: 1, sampleCount: 1 });
+    expect(stats.pentakills).toEqual({ value: 1, sampleCount: 1 });
+    expect(stats.xpDiffAt15).toEqual({ value: null, sampleCount: 0 });
+    expect((await queries.playerPerformance("oracle:player:10-mid", { q: "older" })).games).toBe(1);
+    expect(
+      (await queries.playerPerformance("oracle:player:10-mid", { league: "LPL" })).killsPerGame,
+    ).toEqual({ value: null, sampleCount: 0 });
+  });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
     const matchesRun = await run({ kind: "matches" });

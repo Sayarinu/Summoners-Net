@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
-import { MatchPage, GamePage, ProfilePage, SeriesGamePage } from "./pages";
-import { match, game, profile, blue, instant, page, seriesGames } from "../../../tests/fixtures";
+import { MatchPage, GamePage, SeriesGamePage } from "./pages";
+import { PlayerProfile } from "../players/profile";
+import { match, game, profile, instant, performance, seriesGames } from "../../../tests/fixtures";
 beforeEach(() => {
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -117,35 +118,6 @@ it("shows played lineups with null statistics and explicit partial eligibility",
   expect(screen.getByText(/Partial Record/)).toBeVisible();
   expect(screen.queryByText("Winner")).toBeNull();
 });
-it("separates roster observations, filtered game pages and full-sample summaries", () => {
-  const view = render(<ProfilePage profile={profile} query={{ timezone: "UTC" }} hideSpoilers />);
-  expect(screen.getByRole("table", { name: "Current Roster" })).toBeVisible();
-  expect(screen.queryByText("100.0%")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Reveal Summary Statistics" }));
-  expect(screen.getByText("100.0%")).toBeVisible();
-  expect(screen.getByText("6.00")).toBeVisible();
-  expect(screen.getByText("Champion Usage")).toBeVisible();
-  view.rerender(
-    <ProfilePage
-      profile={{
-        ...profile,
-        identity: blue,
-        roster: [],
-        games: page([]),
-        summary: {
-          ...profile.summary,
-          winRate: null,
-          kda: null,
-          champions: [],
-        },
-      }}
-      query={{}}
-      hideSpoilers={false}
-    />,
-  );
-  expect(screen.getByText("No Current Roster")).toBeVisible();
-  expect(screen.getAllByText("—")).toHaveLength(2);
-});
 it("keeps canonical destinations and portraits while omitting alternate names", () => {
   const image = "/api/images/" + "a".repeat(64);
   const identity = {
@@ -167,7 +139,15 @@ it("keeps canonical destinations and portraits while omitting alternate names", 
       team: { ...r.team, imageUrl: image },
     })),
   };
-  const view = render(<ProfilePage profile={linked} query={{}} hideSpoilers={false} />);
+  const view = render(
+    <PlayerProfile
+      profile={linked}
+      performance={performance}
+      seasons={[]}
+      query={{}}
+      hideSpoilers={false}
+    />,
+  );
   expect(
     screen.getAllByRole("img", { name: `${identity.name} portrait` })[0]!.querySelector("img"),
   ).toHaveAttribute("src", image);

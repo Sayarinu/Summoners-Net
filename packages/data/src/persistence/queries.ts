@@ -1,4 +1,5 @@
 import { teamDirectory, teamSeasons } from "./team-directory.js";
+import { playerPerformance, playerSeasons } from "./player-stats.js";
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championDirectory, patchDirectory } from "./directories.js";
 import { championMatchups } from "./matchups.js";
@@ -314,6 +315,17 @@ export function queries(pool: Pool, clock: () => Date) {
       const identity = await profileIdentity(id, "team");
       if (identity?.kind !== "team") return null;
       return { identity, seasons: await teamSeasons(pool, identity.id) };
+    },
+    async playerContext(id: string) {
+      const identity = await profileIdentity(id, "player");
+      if (identity?.kind !== "player") return null;
+      return { identity, seasons: await playerSeasons(pool, identity.id) };
+    },
+    /** Per-game statistics for a player entity over the complete games matching the filters. */
+    async playerPerformance(entityId: string, input: BrowseQuery = {}) {
+      const { values, clauses } = filters(input, "games");
+      clauses.push("complete");
+      return playerPerformance(pool, idSchema.parse(entityId), clauses.join(" AND "), values);
     },
     async matches(input: BrowseQuery = {}, teamEntityId?: string) {
       const { q, values, clauses } = filters(input, "matches");
