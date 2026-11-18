@@ -1,5 +1,13 @@
 "use client";
-import { DrakeIcon, RoleIcon, Table, TeamIdentity, TextLink } from "@summonersnet/ui";
+import type { ReactNode } from "react";
+import {
+  DrakeIcon,
+  ObjectiveIcon,
+  RoleIcon,
+  Table,
+  TeamIdentity,
+  TextLink,
+} from "@summonersnet/ui";
 import type { Game, HistoricalGameDetail, HistoricalParticipant } from "@summonersnet/data";
 import { roleKey } from "@summonersnet/data/contracts";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
@@ -46,6 +54,48 @@ const drakeStats = [
 ] as const;
 const formatMetric = (value: number | null | undefined) =>
   value == null ? "—" : teamNumber.format(value);
+/** Counts drawn as one icon each; larger or fractional counts show one icon and the count. */
+const iconLimit = 24;
+
+type DrakeType = (typeof drakeStats)[number][0];
+
+/** A row of icons, one per capture; a large or fractional count shows one icon and the count. */
+function IconRow({
+  label,
+  entries,
+}: {
+  label: string;
+  entries: { key: string; count: number; icon: ReactNode }[];
+}) {
+  return (
+    <ul className="ev-lineup-card__icons" aria-label={label} role="list">
+      {entries.flatMap(({ key, count, icon }) =>
+        Number.isInteger(count) && count <= iconLimit ? (
+          Array.from({ length: count }, (_, slot) => <li key={`${key}-${slot}`}>{icon}</li>)
+        ) : (
+          <li key={key}>
+            {icon}
+            <span>×{formatMetric(count)}</span>
+          </li>
+        ),
+      )}
+    </ul>
+  );
+}
+
+/** Dragons as icons: elemental drakes first, then Elder Dragons on their own row. */
+function DragonIcons({ drakes }: { drakes: { type: DrakeType; count: number }[] }) {
+  return (["Elemental Dragons", "Elder Dragons"] as const).map((label) => {
+    const entries = drakes
+      .filter(({ type }) => (type === "elder") === (label === "Elder Dragons"))
+      .map(({ type, count }, index) => ({
+        key: `${type}-${index}`,
+        count,
+        icon: <DrakeIcon drake={type} />,
+      }));
+    return entries.length ? <IconRow key={label} label={label} entries={entries} /> : null;
+  });
+}
 
 function roleOrder(role: string) {
   const index = roles.indexOf(roleKey(role.toLowerCase()) ?? "");
@@ -80,19 +130,20 @@ export function LineupTable({
     stats?.objectives.heralds ?? null,
     stats?.objectives.barons ?? null,
   ]);
-  const drakes = teamStats.map((stats) =>
+  const drakeCounts = teamStats.map((stats) =>
     drakeStats.flatMap(([type, key, legacy]) => {
       const count = stats?.objectives[key] ?? stats?.objectives[legacy] ?? null;
       return count !== null && count > 0 ? [{ type, count }] : [];
     }),
   );
-  const timedDrakes = teams.map(
-    ({ side }) =>
+  /** Timed captures keep their order; otherwise the per-type totals stand in. */
+  const drakes = teams.map(({ side }, index) => {
+    const timed =
       detail?.telemetry?.events.flatMap((event) =>
-        event.side === side && event.drake ? [event.drake] : [],
-      ) ?? [],
-  );
-  const hasDrakes = !hidden && [...timedDrakes, ...drakes].some((side) => side.length > 0);
+        event.side === side && event.drake ? [{ type: event.drake, count: 1 }] : [],
+      ) ?? [];
+    return timed.length ? timed : drakeCounts[index]!;
+  });
   const playersBySlot = new Map(
     detail?.participants
       .filter((entry) => entry.player)
@@ -154,41 +205,28 @@ export function LineupTable({
                   return (
                     <div key={label}>
                       <dt>{label}</dt>
-                      <dd>{formatMetric(value)}</dd>
+                      <dd>
+                        {label === "Dragons" && value && drakes[index]!.length ? (
+                          <DragonIcons drakes={drakes[index]!} />
+                        ) : label === "Void Grubs" && value ? (
+                          <IconRow
+                            label="Captured Void Grubs"
+                            entries={[
+                              {
+                                key: "grub",
+                                count: value,
+                                icon: <ObjectiveIcon objective="grub" />,
+                              },
+                            ]}
+                          />
+                        ) : (
+                          formatMetric(value)
+                        )}
+                      </dd>
                     </div>
                   );
                 })}
               </dl>
-            ) : null}
-            {hasDrakes ? (
-              <div
-                className="ev-lineup-card__drakes"
-                aria-label={`${team.name} Dragon Breakdown`}
-                role="group"
-              >
-                <ul aria-label="Captured Dragons by Type" role="list">
-                  {timedDrakes[index]!.length
-                    ? timedDrakes[index]!.map((type, index) => (
-                        <li key={index}>
-                          <DrakeIcon drake={type} />
-                        </li>
-                      ))
-                    : drakes[index]!.flatMap(({ type, count }) =>
-                        Number.isInteger(count) && count <= 24 ? (
-                          Array.from({ length: count }, (_, slot) => (
-                            <li key={`${type}-${slot}`}>
-                              <DrakeIcon drake={type} />
-                            </li>
-                          ))
-                        ) : (
-                          <li key={type}>
-                            <DrakeIcon drake={type} />
-                            <span>×{formatMetric(count)}</span>
-                          </li>
-                        ),
-                      )}
-                </ul>
-              </div>
             ) : null}
             <Table
               className={
