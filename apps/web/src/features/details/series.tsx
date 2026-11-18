@@ -30,7 +30,7 @@ import {
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
-import { DraftPanel, FearlessBans, type FearlessGame } from "./draft";
+import { DraftPanel, type FearlessPick } from "./draft";
 import { LineupTable } from "./lineup";
 import { ProWinProbability } from "./pro-win-probability";
 
@@ -395,7 +395,7 @@ export function SeriesGamePage({
   game: Game | null;
   detail: HistoricalGameDetail | null;
   portraits?: ChampionPortraits;
-  fearless?: FearlessGame[];
+  fearless?: FearlessPick[];
   winProbability: ProGameWinProbability | null;
   timezone: string;
   hideSpoilers: boolean;
@@ -427,10 +427,7 @@ export function SeriesGamePage({
             <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button>
           ) : null}
           {detail && !hidden ? (
-            <div className="ev-drafts">
-              <DraftPanel detail={detail} portraits={portraits} />
-              {fearless.length ? <FearlessBans games={fearless} portraits={portraits} /> : null}
-            </div>
+            <DraftPanel detail={detail} portraits={portraits} fearless={fearless} />
           ) : null}
           <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
           {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
