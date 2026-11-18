@@ -254,7 +254,20 @@ it("shows both sides of zero for the recorded probabilities after reveal", async
 it("moves between a series overview and its played games with spoilers kept", () => {
   const games = seriesGames();
   const view = render(
-    <MatchPage match={match} games={games} timezone="UTC" hideSpoilers now={instant} />,
+    <MatchPage
+      match={match}
+      games={games}
+      summaries={[
+        {
+          number: 1,
+          durationSeconds: 1976,
+          teams: [{ id: match.teams[0]!.entityId ?? match.teams[0]!.id, side: "blue", kills: 19 }],
+        },
+      ]}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
   );
   const tabs = screen.getByRole("navigation", { name: "Series" });
   expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute(
@@ -273,10 +286,18 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(screen.getByText("0:00")).toBeVisible();
   expect(screen.getByText("Mar 1, 2026", { selector: "time" })).toBeVisible();
   expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Series Summary" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Result hidden")).toBeNull();
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveTextContent("Acceptance Blue");
   expect(screen.getByRole("link", { name: "Open Game 2" })).toHaveTextContent("Acceptance Red");
+  const summary = within(screen.getByRole("region", { name: "Series Summary" }));
+  expect(summary.getByRole("link", { name: "Game 1" })).toHaveAttribute(
+    "href",
+    "/matches/1/games/1",
+  );
+  expect(summary.getByText("19 kills").parentElement).toHaveAttribute("data-side", "blue");
+  expect(summary.getByText("32:56")).toBeVisible();
   view.rerender(
     <MatchPage match={match} games={[]} timezone="UTC" hideSpoilers={false} now={instant} />,
   );

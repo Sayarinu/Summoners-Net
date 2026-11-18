@@ -7,6 +7,7 @@ import {
   Button,
   EmptyState,
   MatchLifecycleLabel,
+  Table,
   TeamIdentity,
   TextLink,
 } from "@summonersnet/ui";
@@ -294,15 +295,87 @@ function Winner({ match, game, hidden }: { match: Match; game: SeriesGame; hidde
   );
 }
 
+export interface SeriesGameSummary {
+  number: number;
+  durationSeconds: number | null;
+  teams: { id: string; side: "blue" | "red"; kills: number | null }[];
+}
+
+function SeriesSummary({
+  match,
+  games,
+  summaries,
+}: {
+  match: Match;
+  games: SeriesGame[];
+  summaries: SeriesGameSummary[];
+}) {
+  const byNumber = new Map(summaries.map((summary) => [summary.number, summary]));
+  const finished = games.filter((game) => game.state === "finished");
+  const hasLength = summaries.some((summary) => summary.durationSeconds !== null);
+  return (
+    <section className="ev-series-summary" aria-labelledby="series-summary-heading">
+      <h2 id="series-summary-heading">Series Summary</h2>
+      <Table
+        caption="Series Games at a Glance"
+        compact
+        rows={finished}
+        getRowKey={(game) => String(game.number)}
+        columns={[
+          {
+            id: "game",
+            header: "Game",
+            render: (game) => (
+              <TextLink href={seriesGameHref(match, game.number)}>Game {game.number}</TextLink>
+            ),
+          },
+          ...match.teams.map((team) => ({
+            id: team.id,
+            header: team.name,
+            render: (game: SeriesGame) => {
+              const entry = byNumber
+                .get(game.number)
+                ?.teams.find((item) => item.id === (team.entityId ?? team.id));
+              const winner = game.winnerId === team.id;
+              return (
+                <span className="ev-series-summary__score" data-side={entry?.side}>
+                  <span className={winner ? "ev-outcome--win" : undefined}>
+                    {entry?.kills == null ? (winner ? "Winner" : "—") : `${entry.kills} kills`}
+                  </span>
+                  {winner && entry?.kills != null ? (
+                    <span className="np-visually-hidden">Winner</span>
+                  ) : null}
+                </span>
+              );
+            },
+          })),
+          ...(hasLength
+            ? [
+                {
+                  id: "length",
+                  header: "Length",
+                  render: (game: SeriesGame) =>
+                    length(byNumber.get(game.number)?.durationSeconds ?? null) ?? "—",
+                },
+              ]
+            : []),
+        ]}
+      />
+    </section>
+  );
+}
+
 export function MatchPage({
   match,
   games,
+  summaries = [],
   timezone,
   hideSpoilers,
   now,
 }: {
   match: Match;
   games: SeriesGame[];
+  summaries?: SeriesGameSummary[];
   timezone: string;
   hideSpoilers: boolean;
   now: string;
@@ -311,6 +384,12 @@ export function MatchPage({
   const [revealed, setRevealed] = useState(false);
   const hidden = preferenceHidden && !revealed;
   const broadcasts = watchableBroadcasts(match);
+  const hasReplay = match.state === "final" && broadcasts.length > 0;
+  const hasSummary =
+    match.state === "final" &&
+    !hidden &&
+    match.teams.length === 2 &&
+    games.some((game) => game.state === "finished");
   return (
     <SeriesShell
       match={match}
@@ -372,8 +451,13 @@ export function MatchPage({
         ) : (
           <EmptyState title="No Games Reported Yet" />
         )}
-        {match.state === "final" && broadcasts.length ? (
-          <SeriesReplay broadcasts={broadcasts} />
+        {hasReplay || hasSummary ? (
+          <div className="ev-series-media">
+            {hasReplay ? <SeriesReplay broadcasts={broadcasts} /> : null}
+            {hasSummary ? (
+              <SeriesSummary match={match} games={games} summaries={summaries} />
+            ) : null}
+          </div>
         ) : null}
       </div>
     </SeriesShell>

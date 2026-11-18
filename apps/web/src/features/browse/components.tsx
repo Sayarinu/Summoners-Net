@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Input,
   Select,
@@ -163,12 +163,15 @@ export function Filters({
     </form>
   );
 }
-export function Pages({ data }: { data: Page<unknown> }) {
+export function Pages({ data, afterCount }: { data: Page<unknown>; afterCount?: ReactNode }) {
   return (
     <div className="ev-pagination">
-      <span className="np-meta">
-        {data.total.toLocaleString()} {data.total === 1 ? "record" : "records"} · Page {data.page}
-      </span>
+      <div className="ev-pagination__summary">
+        <span className="np-meta">
+          {data.total.toLocaleString()} {data.total === 1 ? "record" : "records"} · Page {data.page}
+        </span>
+        {afterCount}
+      </div>
       <Pagination
         currentPage={data.page}
         totalPages={Math.max(1, Math.ceil(data.total / data.pageSize))}

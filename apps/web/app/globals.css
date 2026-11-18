@@ -354,12 +354,19 @@
   gap: var(--space-2) var(--space-4);
   padding-block: var(--space-4);
 }
-.ev-pagination > .np-meta {
+.ev-pagination > .np-meta,
+.ev-pagination__summary > .np-meta {
   color: var(--color-text-accent);
 }
 .ev-pagination > .np-pagination {
   min-inline-size: 0;
   margin-inline-start: auto;
+}
+.ev-pagination__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }
 .ev-pagination .np-pagination__pages {
   flex-wrap: wrap;
@@ -890,6 +897,39 @@
 }
 .ev-series-overview__games {
   --np-stack-gap: var(--space-2);
+}
+
+.ev-series-media {
+  display: grid;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.ev-series-summary {
+  min-inline-size: 0;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.ev-series-summary h2 {
+  padding: var(--space-2) var(--space-3);
+}
+
+.ev-series-summary .np-table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ev-series-summary__score[data-side] {
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--np-team-side);
+}
+
+@container (min-width: 70rem) {
+  .ev-series-media:has(> .ev-series-replay + .ev-series-summary) {
+    grid-template-columns: minmax(0, 67.5rem) minmax(20rem, 1fr);
+  }
 }
 
 .ev-series-replay {

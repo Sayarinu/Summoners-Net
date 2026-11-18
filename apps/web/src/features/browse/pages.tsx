@@ -53,10 +53,14 @@ export function MatchesPage({
         );
       })}
       {!data.items.length && <EmptyState title="No Matches in This View" />}
-      <Pages data={data} />
-      <TextLink href="/history" variant="accent">
-        Browse Past Matches
-      </TextLink>
+      <Pages
+        data={data}
+        afterCount={
+          <TextLink href="/history" variant="accent">
+            Browse Past Matches
+          </TextLink>
+        }
+      />
     </div>
   );
 }

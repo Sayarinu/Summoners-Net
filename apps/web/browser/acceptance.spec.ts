@@ -92,7 +92,11 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByText(/30 records · Page 2/)).toBeVisible();
   await page.goto("/?state=scheduled");
   await expect(page.locator(".np-match-row").getByText("Scheduled", { exact: true })).toBeVisible();
-  await expect(page.getByText(/1 records/)).toBeVisible();
+  const record = page.getByText("1 record · Page 1");
+  await expect(record).toBeVisible();
+  await expect(
+    record.locator("..").getByRole("link", { name: "Browse Past Matches" }),
+  ).toBeVisible();
   await page.goto("/?date=2026-02-28&league=LCK");
   await expect(page.getByText(/29 records/)).toBeVisible();
   await expect(page.getByText("Result Hidden")).toHaveCount(0);
@@ -333,6 +337,12 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   const playerBounds = await page.getByRole("region", { name: "Match Player" }).boundingBox();
   expect(playerBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height);
   expect(playerBounds!.width).toBeCloseTo(1080, 0);
+  const summary = page.getByRole("region", { name: "Series Summary" });
+  await expect(summary.getByRole("link", { name: "Game 1" })).toHaveAttribute(
+    "href",
+    "/matches/1/games/1",
+  );
+  expect((await summary.boundingBox())!.x).toBeGreaterThan(playerBounds!.x + playerBounds!.width);
   const streams = page.getByRole("button", { name: /\bStream\b/ });
   await expect(streams).toContainText("YouTube · English");
   const streamsBounds = await streams.boundingBox();
