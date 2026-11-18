@@ -3,6 +3,7 @@ import { DrakeIcon, RoleIcon, Table, TeamIdentity, TextLink } from "@summonersne
 import type { Game, HistoricalGameDetail, HistoricalParticipant } from "@summonersnet/data";
 import { roleKey } from "@summonersnet/data/contracts";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
+import { PlayerBuild, type ProItemIcons } from "./player-build";
 import { gameTeams, identityHref } from "../browse/presentation";
 
 const roles = ["top", "jungle", "mid", "bottom", "support"];
@@ -56,11 +57,13 @@ export function LineupTable({
   detail,
   hidden,
   portraits,
+  items,
 }: {
   game: Game;
   detail?: HistoricalGameDetail | null | undefined;
   hidden: boolean;
   portraits?: ChampionPortraits | undefined;
+  items?: ProItemIcons | undefined;
 }) {
   const teams = gameTeams(game);
   const teamStats = teams.map(
@@ -83,7 +86,13 @@ export function LineupTable({
       return count !== null && count > 0 ? [{ type, count }] : [];
     }),
   );
-  const hasDrakes = !hidden && drakes.some((side) => side.length > 0);
+  const timedDrakes = teams.map(
+    ({ side }) =>
+      detail?.telemetry?.events.flatMap((event) =>
+        event.side === side && event.drake ? [event.drake] : [],
+      ) ?? [],
+  );
+  const hasDrakes = !hidden && [...timedDrakes, ...drakes].some((side) => side.length > 0);
   const playersBySlot = new Map(
     detail?.participants
       .filter((entry) => entry.player)
@@ -114,6 +123,12 @@ export function LineupTable({
         const players = game.participants
           .filter((p) => p.team.id === team.id && p.side === team.side && p.player)
           .sort((a, b) => roleOrder(a.role) - roleOrder(b.role));
+        const builds = detail?.telemetry?.builds;
+        const hasBuilds =
+          !hidden &&
+          players.some(
+            (p) => builds?.[p.slot]?.inventory.length || builds?.[p.slot]?.purchases?.length,
+          );
         return (
           <div
             key={team.id}
@@ -152,25 +167,37 @@ export function LineupTable({
                 role="group"
               >
                 <ul aria-label="Captured Dragons by Type" role="list">
-                  {drakes[index]!.flatMap(({ type, count }) =>
-                    Number.isInteger(count) && count <= 24 ? (
-                      Array.from({ length: count }, (_, slot) => (
-                        <li key={`${type}-${slot}`}>
+                  {timedDrakes[index]!.length
+                    ? timedDrakes[index]!.map((type, index) => (
+                        <li key={index}>
                           <DrakeIcon drake={type} />
                         </li>
                       ))
-                    ) : (
-                      <li key={type}>
-                        <DrakeIcon drake={type} />
-                        <span>×{formatMetric(count)}</span>
-                      </li>
-                    ),
-                  )}
+                    : drakes[index]!.flatMap(({ type, count }) =>
+                        Number.isInteger(count) && count <= 24 ? (
+                          Array.from({ length: count }, (_, slot) => (
+                            <li key={`${type}-${slot}`}>
+                              <DrakeIcon drake={type} />
+                            </li>
+                          ))
+                        ) : (
+                          <li key={type}>
+                            <DrakeIcon drake={type} />
+                            <span>×{formatMetric(count)}</span>
+                          </li>
+                        ),
+                      )}
                 </ul>
               </div>
             ) : null}
             <Table
-              className={playerColumns.length ? "ev-lineup-card__player-stats" : ""}
+              className={
+                hasBuilds
+                  ? "ev-lineup-card__equipment"
+                  : playerColumns.length
+                    ? "ev-lineup-card__player-stats"
+                    : ""
+              }
               caption={`${team.name} Lineup`}
               compact
               getRowKey={(p) => p.slot}
@@ -198,18 +225,24 @@ export function LineupTable({
                 {
                   id: "player",
                   header: "Player",
-                  render: (p) =>
-                    p.player ? (
-                      <TextLink
-                        className="ev-lineup-player"
-                        href={identityHref(p.player)}
-                        title={p.player.name}
-                      >
-                        {p.player.name}
-                      </TextLink>
-                    ) : (
-                      "—"
-                    ),
+                  render: (p) => {
+                    if (!p.player) return "—";
+                    const build = !hidden ? builds?.[p.slot] : undefined;
+                    return (
+                      <>
+                        <TextLink
+                          className="ev-lineup-player"
+                          href={identityHref(p.player)}
+                          title={p.player.name}
+                        >
+                          {p.player.name}
+                        </TextLink>
+                        {build ? (
+                          <PlayerBuild build={build} items={items} player={p.player.name} />
+                        ) : null}
+                      </>
+                    );
+                  },
                 },
                 {
                   id: "kda",

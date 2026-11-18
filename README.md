@@ -266,5 +266,7 @@ isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot G
 officially involved in producing or managing Riot Games properties.
 
 Match data comes from [PandaScore](https://pandascore.co) and historical data from
-[Oracle's Elixir](https://oracleselixir.com), each used under its own terms. Please follow those
-terms when you run Summoners Net.
+[Oracle's Elixir](https://oracleselixir.com). The worker fills in recent pro game inventories,
+purchase history, gold snapshots and timed objectives where matching postgame records are available
+from [Leaguepedia](https://lol.fandom.com/wiki/League_of_Legends_Esports_Wiki). Each source has its
+own terms.

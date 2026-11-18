@@ -18,6 +18,37 @@ export class ChampionMappingError extends Error {
 const column = <K extends keyof CatalogEntry>(rows: CatalogEntry[], key: K) =>
   rows.map((r) => r[key]);
 
+export async function saveItemCatalog(
+  c: Executor,
+  patchKey: string,
+  version: string,
+  items: GameCatalog["items"],
+  now: Date,
+) {
+  await c.query(
+    `INSERT INTO catalog_items(patch_key,version,observed_at,item_id,name,image,tags,builds_from,
+       builds_into,total_gold)
+     SELECT $1,$2,$3,i.id,i.name,i.image,
+       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'tags')),
+       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'from')::integer),
+       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'into')::integer),
+       (i.attrs->>'totalGold')::integer
+     FROM unnest($4::integer[],$5::text[],$6::text[],$7::jsonb[]) AS i(id,name,image,attrs)
+     ON CONFLICT(patch_key,item_id) DO UPDATE SET name=EXCLUDED.name,image=EXCLUDED.image,
+       tags=EXCLUDED.tags,builds_from=EXCLUDED.builds_from,builds_into=EXCLUDED.builds_into,
+       total_gold=EXCLUDED.total_gold,version=EXCLUDED.version,observed_at=EXCLUDED.observed_at`,
+    [
+      patchKey,
+      version,
+      now,
+      column(items, "id"),
+      column(items, "name"),
+      column(items, "image"),
+      items.map((i) => JSON.stringify(i.item ?? { tags: [], from: [], into: [], totalGold: null })),
+    ],
+  );
+}
+
 /**
  * Upserts one patch's catalog and rebuilds the Oracle champion name mapping in the caller's
  * transaction. Rows absent from a newer file are kept. The mapping is validated as a whole: if
@@ -44,28 +75,7 @@ export async function saveGameCatalog(
       column(catalog.champions, "image"),
     ],
   );
-  await c.query(
-    `INSERT INTO catalog_items(patch_key,version,observed_at,item_id,name,image,tags,builds_from,
-       builds_into,total_gold)
-     SELECT $1,$2,$3,i.id,i.name,i.image,
-       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'tags')),
-       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'from')::integer),
-       ARRAY(SELECT jsonb_array_elements_text(i.attrs->'into')::integer),
-       (i.attrs->>'totalGold')::integer
-     FROM unnest($4::integer[],$5::text[],$6::text[],$7::jsonb[]) AS i(id,name,image,attrs)
-     ON CONFLICT(patch_key,item_id) DO UPDATE SET name=EXCLUDED.name,image=EXCLUDED.image,
-       tags=EXCLUDED.tags,builds_from=EXCLUDED.builds_from,builds_into=EXCLUDED.builds_into,
-       total_gold=EXCLUDED.total_gold,version=EXCLUDED.version,observed_at=EXCLUDED.observed_at`,
-    [
-      ...common,
-      column(catalog.items, "id"),
-      column(catalog.items, "name"),
-      column(catalog.items, "image"),
-      catalog.items.map((i) =>
-        JSON.stringify(i.item ?? { tags: [], from: [], into: [], totalGold: null }),
-      ),
-    ],
-  );
+  await saveItemCatalog(c, patchKey, version, catalog.items, now);
   await c.query(
     `INSERT INTO catalog_runes(patch_key,version,observed_at,rune_id,rune_key,name,icon,tree_id,slot)
      SELECT $1,$2,$3,* FROM unnest($4::integer[],$5::text[],$6::text[],$7::text[],$8::integer[],$9::integer[])

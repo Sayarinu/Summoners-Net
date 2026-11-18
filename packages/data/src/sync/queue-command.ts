@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 
 export const queueUsage =
-  "Usage: pnpm queue KIND [FILE] [PLATFORM]. Kinds without a file: matches, running, rosters, metadata, entities, riot-key, riot-match-ids, wp-train. With a file: replay-track FILE, replay-metadata FILE [PLATFORM], pro-account-links FILE.";
+  "Usage: pnpm queue KIND [FILE] [PLATFORM]. Kinds without a file: matches, running, rosters, metadata, entities, riot-key, riot-match-ids, pro-game-details, wp-train. With a file: replay-track FILE, replay-metadata FILE [PLATFORM], pro-account-links FILE.";
 
 const fileKinds = new Set(["replay-track", "replay-metadata", "pro-account-links"]);
 

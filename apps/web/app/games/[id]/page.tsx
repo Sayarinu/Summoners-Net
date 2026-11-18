@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { GamePage } from "../../../src/features/details/pages";
 import { seriesRound } from "../../../src/features/browse/presentation";
 import { data, preferences, sourceIdFromRoute } from "../../../src/server/data";
+import { proItemIcons } from "../../../src/server/pro-items";
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const id = await sourceIdFromRoute(params);
   const record = await data().game(id);
@@ -13,7 +14,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     data().gameSeries(record.id),
     /^oracle:archive:[a-f0-9]{64}$/.test(record.id) ? data().historicalGame(record.id) : null,
   ]);
-  const [match, portraits] = await Promise.all([
+  const [match, portraits, items] = await Promise.all([
     series ? data().match(series.matchId) : null,
     data().championIconsByName(
       [
@@ -22,6 +23,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       ],
       record.patch,
     ),
+    proItemIcons(detail),
   ]);
   const game = match?.games.find((item) => item.number === series?.number);
   const vodUrl =
@@ -35,6 +37,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       series={series}
       detail={detail}
       portraits={portraits}
+      items={items}
       vodUrl={vodUrl}
       round={match ? seriesRound(match) : null}
     />

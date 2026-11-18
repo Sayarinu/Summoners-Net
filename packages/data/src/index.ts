@@ -26,6 +26,8 @@ export type {
   HistoricalSubject,
   HistoricalGameListItem,
   HistoricalGameDetail,
+  HistoricalGameTelemetry,
+  HistoricalPlayerBuild,
   HistoricalParticipant,
   HistoricalSummary,
   HistoricalCoverage,

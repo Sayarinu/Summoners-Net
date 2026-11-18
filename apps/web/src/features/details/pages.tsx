@@ -21,6 +21,7 @@ import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/
 import { dateTime, identityHref, gameTeams, seriesGameHref } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
+import type { ProItemIcons } from "./player-build";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
 import { GameDistributions } from "./game-distributions";
@@ -32,6 +33,7 @@ export function GamePage({
   winProbability,
   detail,
   portraits,
+  items,
   vodUrl,
   round,
   series = null,
@@ -41,9 +43,10 @@ export function GamePage({
   timezone: string;
   hideSpoilers: boolean;
   portraits?: ChampionPortraits;
+  items?: ProItemIcons | undefined;
   vodUrl?: string | null;
   round?: string | null;
-  /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
+  /** Win probability estimates from recorded game states. */
   winProbability?: ProGameWinProbability | null;
   /** The series this archive game is confirmed to belong to, if any. */
   series?: { matchId: string; number: number } | null;
@@ -97,7 +100,13 @@ export function GamePage({
       </header>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-      <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
+      <LineupTable
+        game={game}
+        detail={detail}
+        hidden={hidden}
+        portraits={portraits}
+        items={items}
+      />
       {!hidden ? (
         <>
           <ProTimeline game={game} detail={detail} winProbability={winProbability} />

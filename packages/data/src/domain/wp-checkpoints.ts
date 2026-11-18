@@ -1,6 +1,5 @@
-// A coarse win probability for pro games from Oracle's Elixir checkpoints, the only in-game
-// state those games have: gold, XP, CS and kill differences at 10, 15, 20 and 25 minutes, from
-// blue side's point of view. Trained and calibrated separately from the timeline model.
+// The pro model is trained at 10, 15, 20 and 25 minutes on blue-side gold, XP,
+// CS and kill leads. Recorded frames can supply the same inputs within that time range.
 export const checkpointMinutes = [10, 15, 20, 25] as const;
 export const checkpointModelVersion = 1;
 export const checkpointFeatures = [
@@ -12,7 +11,7 @@ export const checkpointFeatures = [
   { name: "goldDiffByMinute", scale: 150000 },
 ] as const;
 export interface Checkpoint {
-  minute: (typeof checkpointMinutes)[number];
+  minute: number;
   goldDiff: number | null;
   xpDiff: number | null;
   csDiff: number | null;

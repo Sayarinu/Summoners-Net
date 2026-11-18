@@ -1,6 +1,6 @@
 "use client";
 import { useId } from "react";
-import { Avatar } from "@summonersnet/ui";
+import { Avatar, DrakeIcon } from "@summonersnet/ui";
 import type {
   Game,
   HistoricalGameDetail,
@@ -83,7 +83,14 @@ export function ProTimeline({
   const blueName = teams.find(({ side }) => side === "blue")?.name ?? "Unknown Team";
   const redName = teams.find(({ side }) => side === "red")?.name ?? "Unknown Team";
   const teamRows = detail?.participants.filter(({ position }) => position === "team") ?? [];
-  const events = eventFields
+  const timedEvents = detail?.telemetry?.events ?? [];
+  const checkpointEvents = eventFields
+    .filter(([label]) => {
+      if (label === "First Dragon") return !timedEvents.some(({ label }) => label === "Dragon");
+      if (label === "First Baron")
+        return !timedEvents.some(({ label }) => label === "Baron Nashor");
+      return !timedEvents.some((event) => event.label === label);
+    })
     .flatMap(([label, group, first, timer]) => {
       const firsts = teamRows.filter(({ statistics }) => statistics[group][first] === 1);
       const owner = firsts.length === 1 ? firsts[0] : undefined;
@@ -97,9 +104,9 @@ export function ProTimeline({
       if (!minute || minute < 0) return [];
       const seconds = Math.round(minute * 60);
       if (detail?.context.durationSeconds && seconds > detail.context.durationSeconds) return [];
-      return [{ label, seconds, side: owner?.side }];
-    })
-    .sort((a, b) => a.seconds - b.seconds);
+      return [{ label, seconds, side: owner?.side ?? null, drake: null }];
+    });
+  const events = [...checkpointEvents, ...timedEvents].sort((a, b) => a.seconds - b.seconds);
   const duration = detail?.context.durationSeconds ?? null;
   const probability = (winProbability?.model ? winProbability.points : []).map(
     ({ minute, blueWinProbability: value }): TimelinePoint => ({
@@ -113,20 +120,27 @@ export function ProTimeline({
           : `${minute} minutes: ${blueName} ${percent.format(value)}, ${redName} ${percent.format(1 - value)}`,
     }),
   );
-  const gold = goldCheckpoints(teamRows, duration).map(
-    ({ seconds, time, lead }): TimelinePoint => ({
-      seconds,
-      time,
-      lead,
-      label: lead === null ? "" : `${lead ? "+" : ""}${goldAmount.format(Math.abs(lead))}`,
-      description:
-        lead == null
-          ? `${clockLabel(seconds)}: gold difference unavailable`
-          : lead === 0
-            ? `${clockLabel(seconds)}: tied on gold`
-            : `${clockLabel(seconds)}: ${lead > 0 ? blueName : redName} ahead by ${goldAmount.format(Math.abs(lead))} gold`,
-    }),
-  );
+  const trackedGold = detail?.telemetry?.gold ?? [];
+  const gold = (
+    trackedGold.length
+      ? trackedGold.map(({ seconds, lead }) => ({
+          seconds,
+          time: clockLabel(seconds),
+          lead,
+        }))
+      : goldCheckpoints(teamRows, duration)
+  ).map(({ seconds, time, lead }): TimelinePoint => ({
+    seconds,
+    time,
+    lead,
+    label: lead === null ? "" : `${lead ? "+" : ""}${goldAmount.format(Math.abs(lead))}`,
+    description:
+      lead == null
+        ? `${clockLabel(seconds)}: gold difference unavailable`
+        : lead === 0
+          ? `${clockLabel(seconds)}: tied on gold`
+          : `${clockLabel(seconds)}: ${lead > 0 ? blueName : redName} ahead by ${goldAmount.format(Math.abs(lead))} gold`,
+  }));
   const hasProbability = probability.some(({ lead }) => lead !== null);
   const hasGold = gold.some(({ lead }) => lead !== null);
   if (!events.length && !hasProbability && !hasGold) return null;
@@ -148,16 +162,16 @@ export function ProTimeline({
           <div className="ev-timeline-row">
             <span className="ev-timeline-row__label">Events</span>
             <ol className="ev-timeline-events" aria-label="Game Events" role="list">
-              {events.map(({ label, seconds, side }) => (
+              {events.map(({ label, seconds, side, drake }, index) => (
                 <li
-                  key={label}
-                  data-side={side}
+                  key={index}
+                  data-side={side ?? undefined}
                   title={teams.find((team) => team.side === side)?.name}
                 >
                   <time className="np-meta" dateTime={`PT${seconds}S`}>
                     {clockLabel(seconds)}
                   </time>
-                  <span>{label}</span>
+                  {drake ? <DrakeIcon drake={drake} /> : <span>{label}</span>}
                 </li>
               ))}
             </ol>
@@ -222,7 +236,11 @@ function SideTimelinePlot({
     { y: height - inset, label: edgeLabel, team: redTeam },
   ];
 
+  const dense = points.length > 8;
+  const last = points.at(-1)?.seconds ?? 0;
   const samples = points.map((point) => ({
+    showLabel:
+      !dense || point.seconds === last || (point.seconds % 300 === 0 && last - point.seconds > 90),
     ...point,
     side: sideInLead(point.lead),
     x: inset + (point.seconds / end) * (width - 2 * inset),
@@ -292,8 +310,8 @@ function SideTimelinePlot({
               <path className="ev-probability__line" d={slope} />
             </g>
           ))}
-          {samples.map(({ seconds, side, x, y }) =>
-            y === null ? null : (
+          {samples.map(({ seconds, side, x, y, showLabel }) =>
+            y === null || !showLabel ? null : (
               <line
                 className="ev-probability__dot"
                 key={seconds}
@@ -307,28 +325,32 @@ function SideTimelinePlot({
           )}
         </svg>
         <ol className="ev-probability__points" role="list">
-          {samples.map(({ seconds, time, side, label: valueLabel, description, x, y }) => (
-            <li
-              key={seconds}
-              data-side={side}
-              title={description}
-              style={{ insetInlineStart: `${(x / width) * 100}%` }}
-            >
-              <span className="np-visually-hidden">{description}</span>
-              {y === null ? null : (
-                <span
-                  className="ev-probability__point"
-                  aria-hidden="true"
-                  style={{ insetBlockStart: `${(y / height) * 100}%` }}
-                >
-                  {valueLabel}
-                </span>
-              )}
-              <span className="ev-probability__minute" aria-hidden="true">
-                {time}
-              </span>
-            </li>
-          ))}
+          {samples.map(
+            ({ seconds, time, side, label: valueLabel, description, x, y, showLabel }) => (
+              <li
+                key={seconds}
+                data-side={side}
+                title={description}
+                style={{ insetInlineStart: `${(x / width) * 100}%` }}
+              >
+                <span className="np-visually-hidden">{description}</span>
+                {y === null || !showLabel ? null : (
+                  <span
+                    className="ev-probability__point"
+                    aria-hidden="true"
+                    style={{ insetBlockStart: `${(y / height) * 100}%` }}
+                  >
+                    {valueLabel}
+                  </span>
+                )}
+                {showLabel ? (
+                  <span className="ev-probability__minute" aria-hidden="true">
+                    {time}
+                  </span>
+                ) : null}
+              </li>
+            ),
+          )}
         </ol>
       </div>
     </div>

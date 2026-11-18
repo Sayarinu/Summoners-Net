@@ -83,6 +83,7 @@ import { cacheCatalogImages } from "./catalog-images.js";
 import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
+import { refreshProGameDetails } from "./pro-game-details.js";
 import {
   riotKeyCheckResult,
   riotKeyCheckPath,
@@ -143,6 +144,7 @@ class ProviderError extends Error {
 const tracksSource = (r: SyncRequest) =>
   r.kind !== "resolve" &&
   r.kind !== "drafts" &&
+  r.kind !== "pro-game-details" &&
   r.kind !== "pro-account-links" &&
   r.kind !== "replay-track" &&
   r.kind !== "replay-metadata" &&
@@ -602,6 +604,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
   }
   const minimumMatches = () => options.winProbability?.minimumMatches ?? 500;
   async function perform(r: SyncRequest): Promise<number> {
+    if (r.kind === "pro-game-details")
+      return refreshProGameDetails(pool, clock, (url) => request(url, false, 15000));
     if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
     if (r.kind === "wp-train") {
       const trained = await trainWinProbabilityModel(pool, clock(), {

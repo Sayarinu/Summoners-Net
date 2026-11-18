@@ -59,6 +59,23 @@ export interface HistoricalParticipant {
     checkpoints: Record<string, number | null>;
   };
 }
+export interface HistoricalPlayerBuild {
+  inventory: number[];
+  purchases: { itemId: number; timestampMs: number }[] | null;
+}
+
+export interface HistoricalGameTelemetry {
+  patch: string | null;
+  builds: Record<string, HistoricalPlayerBuild>;
+  gold: { seconds: number; lead: number }[];
+  events: {
+    seconds: number;
+    label: string;
+    side: "blue" | "red" | null;
+    drake: "infernal" | "mountain" | "cloud" | "ocean" | "chemtech" | "hextech" | "elder" | null;
+  }[];
+}
+
 export interface HistoricalGameDetail extends HistoricalGameListItem {
   context: {
     sourceYear: number | null;
@@ -77,6 +94,7 @@ export interface HistoricalGameDetail extends HistoricalGameListItem {
   }[];
   draftOrder: DraftEvent[];
   participants: HistoricalParticipant[];
+  telemetry?: HistoricalGameTelemetry;
 }
 export interface HistoricalSummary {
   subject: z.output<typeof historicalSubjectSchema>;

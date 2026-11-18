@@ -33,6 +33,7 @@ import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 import { Disclosure } from "./disclosure";
 import { DraftPanel, type FearlessPick } from "./draft";
+import type { ProItemIcons } from "./player-build";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
 import { GameDistributions } from "./game-distributions";
@@ -472,6 +473,7 @@ export function SeriesGamePage({
   game,
   detail,
   portraits,
+  items,
   fearless = null,
   winProbability,
   timezone,
@@ -485,6 +487,7 @@ export function SeriesGamePage({
   game: Game | null;
   detail: HistoricalGameDetail | null;
   portraits?: ChampionPortraits;
+  items?: ProItemIcons | undefined;
   fearless?: FearlessPick[] | null;
   winProbability: ProGameWinProbability | null;
   timezone: string;
@@ -519,7 +522,13 @@ export function SeriesGamePage({
           {detail && !hidden ? (
             <DraftPanel detail={detail} portraits={portraits} fearless={fearless} />
           ) : null}
-          <LineupTable game={game} detail={detail} hidden={hidden} portraits={portraits} />
+          <LineupTable
+            game={game}
+            detail={detail}
+            hidden={hidden}
+            portraits={portraits}
+            items={items}
+          />
           {!hidden ? (
             <>
               <ProTimeline game={game} detail={detail} winProbability={winProbability} />

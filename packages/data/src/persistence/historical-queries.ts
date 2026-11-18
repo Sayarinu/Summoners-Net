@@ -14,7 +14,9 @@ import {
   type HistoricalSummary,
   type SampledValue,
 } from "../domain/historical.js";
+import { normalizePatch } from "../domain/patches.js";
 import type { Page } from "../domain/models.js";
+import type { ProGameDetails } from "../providers/leaguepedia-game.js";
 import { archiveYears } from "../providers/oracle.js";
 
 const historicalIdSchema = z.string().regex(/^oracle:archive:[a-f0-9]{64}$/);
@@ -239,21 +241,26 @@ export function historicalQueries(pool: Pool) {
     async historicalGame(id: string): Promise<HistoricalGameDetail | null> {
       const game = await pool.query<
         GameRow & {
+          telemetry: ProGameDetails | null;
           split: string | null;
           playoffs: boolean | null;
           game_number: string | null;
           duration_seconds: number | null;
           context: { sourceYear?: number | null; sourceUrl?: string | null; week?: string | null };
         }
-      >(`SELECT g.*,${teamJson} AS teams FROM oracle_archive_games g WHERE g.id=$1`, [
-        historicalIdSchema.parse(id),
-      ]);
+      >(
+        `SELECT g.*,${teamJson} AS teams,detail.document AS telemetry
+         FROM oracle_archive_games g LEFT JOIN pro_game_details detail USING (source_game_id)
+         WHERE g.id=$1`,
+        [historicalIdSchema.parse(id)],
+      );
       const row = game.rows[0];
       if (!row) return null;
       const participants = await pool.query<{
         slot: string;
         side: "blue" | "red";
         position: string;
+        participant_id: string | null;
         player_name: string | null;
         player_source_id: string | null;
         team_name: string;
@@ -263,7 +270,7 @@ export function historicalQueries(pool: Pool) {
         statistics: Record<string, number | null>;
         draft: Record<string, string | null>;
       }>(
-        `SELECT slot,side,position,player_name,player_source_id,team_name,team_source_id,champion,
+        `SELECT slot,side,position,participant_id,player_name,player_source_id,team_name,team_source_id,champion,
             result,statistics,draft
           FROM oracle_archive_participants
           WHERE game_id=$1
@@ -276,8 +283,32 @@ export function historicalQueries(pool: Pool) {
       const draftOrder = deriveDraft(row.summary_eligible, participants.rows).events.sort(
         (a, b) => a.phase - b.phase || a.action.localeCompare(b.action) || a.slot - b.slot,
       );
+      const details = row.telemetry;
+      const builds = Object.fromEntries(
+        participants.rows.flatMap((entry) => {
+          if (!entry.player_name) return [];
+          const player = details?.players.find(
+            (candidate) =>
+              candidate.side === entry.side &&
+              String(candidate.participantId) === entry.participant_id,
+          );
+          return player
+            ? [[entry.slot, { inventory: player.inventory, purchases: player.purchases }]]
+            : [];
+        }),
+      );
       return {
         ...listItem(row),
+        ...(details
+          ? {
+              telemetry: {
+                patch: normalizePatch(details.version)?.key ?? null,
+                builds,
+                gold: details.gold,
+                events: details.events,
+              },
+            }
+          : {}),
         context: {
           sourceYear: row.context.sourceYear ?? null,
           sourceUrl: row.context.sourceUrl ?? null,

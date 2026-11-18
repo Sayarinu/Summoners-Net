@@ -474,6 +474,7 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
     "Tower Plates5",
   );
+  expect(screen.queryByText("Build Path")).toBeNull();
   const goldShare = within(screen.getByRole("table", { name: "Gold Distribution" }));
   const damageShare = within(screen.getByRole("table", { name: "Damage Distribution" }));
   expect(goldShare.getByText("26.6%")).toBeVisible();
@@ -582,4 +583,74 @@ it("links an archive game back to its confirmed series", () => {
   );
   view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
   expect(screen.queryByRole("link", { name: "Open in Series" })).toBeNull();
+});
+
+it("shows a player's final items and reveals their recorded purchases by minute", async () => {
+  render(
+    <GamePage
+      game={game}
+      detail={{
+        id: game.id,
+        sourceGameId: game.sourceId,
+        sourceLeague: "Worlds",
+        competition: "Worlds",
+        year: 2026,
+        occurredAt: instant,
+        patch: game.patch,
+        complete: true,
+        summaryEligible: true,
+        teams: [],
+        context: {
+          sourceYear: 2026,
+          sourceUrl: null,
+          split: null,
+          week: null,
+          playoffs: null,
+          gameNumber: "1",
+          durationSeconds: 1865,
+        },
+        draft: [],
+        draftOrder: [],
+        participants: [],
+        telemetry: {
+          patch: "16.22",
+          gold: [
+            { seconds: 60, lead: 200 },
+            { seconds: 120, lead: -120 },
+          ],
+          events: [{ seconds: 402, label: "Dragon", side: "blue", drake: "cloud" }],
+          builds: {
+            "blue:mid": {
+              inventory: [3089],
+              purchases: [
+                { itemId: 1056, timestampMs: 551 },
+                { itemId: 3089, timestampMs: 550100 },
+              ],
+            },
+          },
+        },
+      }}
+      items={{
+        "3089": { name: "Rabadon's Deathcap", imageUrl: null },
+        "1056": { name: "Doran's Ring", imageUrl: null },
+      }}
+      timezone="UTC"
+      hideSpoilers={false}
+    />,
+  );
+  expect(
+    within(screen.getByRole("group", { name: /Final Items$/ })).getByRole("img", {
+      name: "Rabadon's Deathcap",
+    }),
+  ).toBeVisible();
+  const trigger = screen.getByLabelText(/Build Path$/);
+  expect(trigger.closest("details")).not.toHaveAttribute("open");
+  fireEvent.click(trigger);
+  expect(trigger.closest("details")).toHaveAttribute("open");
+  const path = within(screen.getByRole("list", { name: /Purchase Order$/ }));
+  expect(path.getByText("9m")).toBeVisible();
+  expect(path.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  const gold = await screen.findByRole("group", { name: /^Gold Difference by Time/ });
+  expect(within(gold).getByText("2:00: Acceptance Red ahead by 120 gold")).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: "Game Events" })).getByText("6:42")).toBeVisible();
 });

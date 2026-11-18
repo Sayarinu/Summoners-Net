@@ -8,6 +8,7 @@ import {
   sourceIdFromRoute,
 } from "../../../../../src/server/data";
 import { previousFearlessPicks } from "../../../../../src/server/fearless";
+import { proItemIcons } from "../../../../../src/server/pro-items";
 export default async function Page({
   params,
 }: {
@@ -33,7 +34,7 @@ export default async function Page({
       ])
     : [null, null, null];
   const fearless = detail ? await previousFearlessPicks(record, games, number) : null;
-  const [prefs, portraits] = await Promise.all([
+  const [prefs, portraits, items] = await Promise.all([
     preferences(),
     data().championIconsByName(
       [
@@ -43,6 +44,7 @@ export default async function Page({
       ],
       archive?.patch,
     ),
+    proItemIcons(detail),
   ]);
   return (
     <SeriesGamePage
@@ -52,6 +54,7 @@ export default async function Page({
       game={archive}
       detail={detail}
       portraits={portraits}
+      items={items}
       fearless={fearless}
       winProbability={winProbability}
       timezone={prefs.timezone}

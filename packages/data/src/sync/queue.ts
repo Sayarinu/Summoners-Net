@@ -31,6 +31,7 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
     { request: { kind: "rosters" }, interval: 86400 },
     { request: { kind: "metadata" }, interval: 86400 },
     { request: { kind: "drafts" }, interval: 86400 },
+    { request: { kind: "pro-game-details" }, interval: 600 },
     {
       request: {
         kind: "history",

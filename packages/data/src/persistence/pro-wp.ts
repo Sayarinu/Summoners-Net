@@ -4,6 +4,7 @@ import {
   checkpointModelVersion,
   checkpointsFrom,
   vectorizeCheckpoint,
+  type Checkpoint,
 } from "../domain/wp-checkpoints.js";
 import { evaluate, predict, splitByMatch, train, type Example } from "../domain/wp-model.js";
 import { transaction, type Executor } from "./database.js";
@@ -78,18 +79,20 @@ export async function trainCheckpointModel(
 export interface ProGameWinProbability {
   model: { id: number; modelVersion: number; brier: number | null; years: string[] } | null;
   reason: string | null;
-  /** The four checkpoints; null where the game has no value for that minute. */
+  /** Estimated minutes in the supported range, with null for unavailable checkpoints. */
   points: { minute: number; blueWinProbability: number | null }[];
 }
-/** Coarse blue-side win probability at a pro game's checkpoints, from the active checkpoint model. */
+/** Blue-side estimates from recorded game states within the checkpoint model's training range. */
 export async function proGameWinProbability(
   db: Executor,
   gameId: string,
 ): Promise<ProGameWinProbability> {
   const row = (
-    await db.query<{ statistics: Record<string, unknown> }>(
-      `SELECT p.statistics FROM games g
+    await db.query<{ statistics: Record<string, unknown>; frames: Checkpoint[] | null }>(
+      `SELECT p.statistics,detail.document->'checkpoints' AS frames FROM games g
        JOIN oracle_archive_participants p ON p.game_id=g.archive_game_id
+       JOIN oracle_archive_games archive ON archive.id=g.archive_game_id
+       LEFT JOIN pro_game_details detail ON detail.source_game_id=archive.source_game_id
        WHERE (g.id=$1 OR ($1 LIKE 'oracle:game:%' AND g.source_id=substring($1 from 13)))
          AND p.position='team' AND p.side='blue'
        ORDER BY (g.id=$1) DESC LIMIT 1`,
@@ -105,13 +108,21 @@ export async function proGameWinProbability(
         years: model.patchWindow,
       }
     : null;
-  const checkpoints = row ? checkpointsFrom(row.statistics) : [];
+  const checkpoints = new Map(
+    (row ? checkpointsFrom(row.statistics) : []).map((checkpoint) => [
+      checkpoint.minute,
+      checkpoint,
+    ]),
+  );
+  for (const frame of row?.frames ?? []) checkpoints.set(frame.minute, frame);
   if (!model)
     return { model: null, reason: "No pro win probability model is active yet.", points: [] };
-  const points = checkpoints.map((c) => {
-    const x = vectorizeCheckpoint(c);
-    return { minute: c.minute, blueWinProbability: x ? predict(model.coefficients, x) : null };
-  });
+  const points = [...checkpoints.values()]
+    .sort((a, b) => a.minute - b.minute)
+    .map((c) => {
+      const x = vectorizeCheckpoint(c);
+      return { minute: c.minute, blueWinProbability: x ? predict(model.coefficients, x) : null };
+    });
   if (!points.some((p) => p.blueWinProbability !== null))
     return { model: meta, reason: "This game has no checkpoint data to score.", points: [] };
   return { model: meta, reason: null, points };

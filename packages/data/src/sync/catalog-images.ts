@@ -9,6 +9,7 @@ export async function cacheCatalogImages(
   patch: string,
   request: (url: string) => Promise<Response>,
   clock: () => Date,
+  itemIds?: string[],
 ) {
   const candidates = (
     await pool.query<{
@@ -21,8 +22,9 @@ export async function cacheCatalogImages(
      LEFT JOIN catalog_images i ON (i.patch_key,i.kind,i.catalog_id)=(c.patch_key,c.kind,c.id)
      WHERE c.patch_key=$1 AND (i.fetched_at IS NULL OR i.fetched_at<$2::timestamptz-interval '7 days')
        AND (i.attempted_at IS NULL OR i.error IS NULL OR i.attempted_at<$2::timestamptz-interval '1 day')
+       AND ($3::text[] IS NULL OR (c.kind='item' AND c.id=ANY($3)))
      ORDER BY i.attempted_at NULLS FIRST,c.kind,c.id LIMIT 1000`,
-      [patch, clock()],
+      [patch, clock(), itemIds ?? null],
     )
   ).rows;
   for (let offset = 0; offset < candidates.length; offset += 4)
