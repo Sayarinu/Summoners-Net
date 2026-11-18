@@ -466,10 +466,22 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(screen.queryByRole("link", { name: "Open Archive Record" })).toBeNull();
   expect(within(draft).queryByText("Draft Order", { selector: "summary" })).toBeNull();
   expect(screen.getByText("56,005")).toBeVisible();
-  const dragons = within(screen.getByRole("group", { name: "Acceptance Blue Dragon Breakdown" }));
-  expect(dragons.getAllByRole("img", { name: "Infernal Drake" })).toHaveLength(2);
-  expect(dragons.getByRole("img", { name: "Elder Dragon" })).toBeVisible();
-  expect(dragons.queryByText(/Elemental|Elder/)).toBeNull();
+  const blueTotals = within(
+    document.querySelector<HTMLElement>('[aria-label="Acceptance Blue Team Totals"]')!,
+  );
+  expect(
+    within(blueTotals.getByRole("list", { name: "Elemental Dragons" })).getAllByRole("img", {
+      name: "Infernal Drake",
+    }),
+  ).toHaveLength(2);
+  expect(
+    within(blueTotals.getByRole("list", { name: "Elder Dragons" })).getAllByRole("img"),
+  ).toEqual([blueTotals.getByRole("img", { name: "Elder Dragon" })]);
+  expect(
+    within(blueTotals.getByRole("list", { name: "Captured Void Grubs" })).getAllByRole("img", {
+      name: "Void Grub",
+    }),
+  ).toHaveLength(3);
   expect(screen.getByText("20,819")).toBeVisible();
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
     "Tower Plates5",
@@ -492,7 +504,7 @@ it("shows the draft by side, team totals and the score through the selected game
     goldShare.getByRole("img", { name: /^Mid$/ }),
   );
   expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
-    "Void Grubs3Rift Herald1Barons0",
+    "Void GrubsRift Herald1Barons0",
   );
   expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
     "Void Grubs—Rift Herald—Barons—",
