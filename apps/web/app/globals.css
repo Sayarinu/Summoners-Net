@@ -1232,13 +1232,19 @@
 }
 
 .ev-draft-phase li {
-  position: relative;
   display: grid;
   justify-items: center;
-  grid-template-rows: 1.25em auto;
+  grid-template-rows: minmax(1rem, auto) auto;
+  gap: 1px;
   padding: 2px;
   background: var(--color-bg-surface);
   border-radius: var(--radius-sm);
+}
+
+.ev-draft-portrait {
+  position: relative;
+  display: grid;
+  grid-row: 2;
 }
 
 .ev-draft-phase li .np-avatar {
@@ -1255,24 +1261,29 @@
   content: "";
 }
 
-.ev-draft-phase [data-action="ban"] li::after {
+.ev-draft-phase [data-action="ban"] .ev-draft-portrait::after {
   position: absolute;
-  inset: 50% 0 auto;
-  border-block-start: 2px solid var(--color-text-primary);
-  transform: rotate(-45deg);
+  inset: 1px;
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 1px),
+    var(--color-text-primary) 50%,
+    transparent calc(50% + 1px)
+  );
   opacity: 0.7;
   pointer-events: none;
   content: "";
 }
 
 .ev-draft-slot {
-  color: var(--color-text-muted);
+  display: grid;
+  place-items: center;
+  color: var(--color-text-primary);
   font-family: var(--font-family-mono);
-}
-
-.ev-draft-slot + :is(a, .np-avatar),
-.ev-draft-phase li > :is(a, .np-avatar) {
-  grid-row: 2;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .ev-fearless__game {

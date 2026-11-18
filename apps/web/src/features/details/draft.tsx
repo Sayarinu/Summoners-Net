@@ -86,11 +86,13 @@ export function DraftPanel({
                               {action === "pick" ? (
                                 <span className="ev-draft-slot">{slot}</span>
                               ) : null}
-                              <ChampionPortrait
-                                name={champion}
-                                portraits={portraits}
-                                size="medium"
-                              />
+                              <span className="ev-draft-portrait">
+                                <ChampionPortrait
+                                  name={champion}
+                                  portraits={portraits}
+                                  size="medium"
+                                />
+                              </span>
                             </li>
                           ))}
                       </ol>
@@ -108,7 +110,9 @@ export function DraftPanel({
                     >
                       {(action === "ban" ? bans : picks).map((champion, index) => (
                         <li key={index}>
-                          <ChampionPortrait name={champion} portraits={portraits} />
+                          <span className="ev-draft-portrait">
+                            <ChampionPortrait name={champion} portraits={portraits} />
+                          </span>
                         </li>
                       ))}
                     </ol>
