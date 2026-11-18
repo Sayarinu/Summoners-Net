@@ -68,8 +68,9 @@ it("names objective icons by default or by the given label", () => {
       <ObjectiveIcon objective="grub" label="Void Grubs" />
       <ObjectiveIcon objective="tower" />
       <ObjectiveIcon objective="first-blood" />
+      <ObjectiveIcon objective="baron" />
     </>,
   );
-  for (const name of ["Rift Herald", "Void Grubs", "First Tower", "First Blood"])
+  for (const name of ["Rift Herald", "Void Grubs", "First Tower", "First Blood", "Baron Nashor"])
     expect(screen.getByRole("img", { name })).toHaveAttribute("title", name);
 });
