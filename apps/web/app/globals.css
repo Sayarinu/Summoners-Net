@@ -956,7 +956,7 @@
 
 @container (min-width: 70rem) {
   .ev-series-media:has(> .ev-series-replay + .ev-series-summary) {
-    grid-template-columns: minmax(0, 2fr) minmax(26rem, 1fr);
+    grid-template-columns: minmax(0, 67.5rem) minmax(26rem, 1fr);
   }
 }
 
