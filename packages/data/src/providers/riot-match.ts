@@ -60,7 +60,7 @@ const participant = z.object({
 const objective = z.object({ first: optionalBool, kills: optionalCount });
 const matchSchema = z.object({
   metadata: z.object({
-    matchId: z.string().regex(/^[A-Z0-9]{2,5}_\d{1,15}$/),
+    matchId: z.string().regex(/^(?:[A-Z0-9]{2,5}|(?:LOL|ESPORTS)TMNT\d{2})_\d{1,15}$/),
     dataVersion: optionalText(10),
   }),
   info: z.object({

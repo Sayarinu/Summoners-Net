@@ -152,7 +152,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
+    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,pro_game_details,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -6939,4 +6939,74 @@ describe("lane matchup aggregates", () => {
       (await queries.championMatchups({ champion: "Ahri", source: "solo" }))?.page.items,
     ).toEqual([]);
   });
+});
+
+it("joins pro game inventories and purchases by source game and participant IDs", async () => {
+  const sourceId = "LOLTMNT02_487405";
+  const [header, ...rows] = historyCsv({ id: sourceId, league: "Worlds" }).trim().split("\n");
+  const csv =
+    [
+      `${header},participantid`,
+      ...rows.map(
+        (row, index) =>
+          `${row},${index < 5 ? index + 1 : index === 5 ? 11 : index + (index === 11 ? 1 : 0)}`,
+      ),
+    ].join("\n") + "\n";
+  expect(await importCsv(csv)).toMatchObject({ state: "done" });
+  await savePatchCatalog(pool, ["16.22.1"], instant);
+  const match = JSON.parse(
+    await readFile(new URL("../../tests/riot/match-euw1.json", import.meta.url), "utf8"),
+  ) as { info: Record<string, unknown> };
+  const timeline = JSON.parse(
+    await readFile(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
+  ) as { info: { frames: { timestamp: number }[] } };
+  timeline.info.frames[2]!.timestamp = 660_000;
+  const page = (title: string, content: unknown) => ({
+    title,
+    revisions: [{ slots: { main: { content: JSON.stringify(content) } } }],
+  });
+  const scoreTitle = "V5 data:LOLTMNT02 487405";
+  const scoreboard = page(scoreTitle, { ...match.info, platformId: "LOLTMNT02", gameId: 487405 });
+  const events = page(`${scoreTitle}/Timeline`, { ...timeline.info, gameId: 487405 });
+  const reply = (pages: ReturnType<typeof page>[]) => ({ query: { pages } });
+  fetcher.mockImplementation((input) => {
+    const url = endpoint(input);
+    if (url.startsWith("https://lol.fandom.com/api.php?")) {
+      expect(new URL(url).searchParams.get("titles")).toBe(`${scoreTitle}|${scoreTitle}/Timeline`);
+      return Promise.resolve(json(reply([scoreboard, events])));
+    }
+    if (url.endsWith("/item.json")) return Promise.resolve(json(dataDragonFixtures.item));
+    if (url.includes("/img/item/")) return Promise.resolve(mapResponse());
+    throw new Error("Unexpected provider request");
+  });
+
+  expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 1 });
+  const [game] = (await queries.historicalGames()).items;
+  expect(game?.sourceGameId).toBe(sourceId);
+  const telemetry = (await queries.historicalGame(game!.id))?.telemetry;
+  expect(telemetry).toMatchObject({
+    patch: "16.22",
+    builds: {
+      "blue:top": { inventory: [3089, 3020, 4645, 3340], purchases: [{ itemId: 1056 }] },
+    },
+  });
+  expect(telemetry?.gold.map(({ seconds }) => seconds)).toContain(60);
+  expect(telemetry?.events.map(({ drake }) => drake)).toContain("infernal");
+  await pool.query(
+    `INSERT INTO wp_models(kind,model_version,feature_version,patch_window,seed,
+       train_matches,train_rows,eval_matches,eval_rows,coefficients,brier,bins,status,trained_at)
+     VALUES('pro-checkpoints',1,1,ARRAY['2026'],1,1,1,1,1,$1,0.2,'[]','active',$2)`,
+    [JSON.stringify({ intercept: 0, weights: [0, 0, 0, 0, 10, 0], features: [] }), instant],
+  );
+  const forecast = await queries.proGameWinProbability(game!.id);
+  expect(forecast.points.map(({ minute }) => minute)).toEqual([10, 11, 15, 20, 25]);
+  expect(forecast.points.find(({ minute }) => minute === 11)?.blueWinProbability).toBeCloseTo(
+    0.7311,
+  );
+  const [icon] = await queries.catalogIcons({ patch: "16.22", kind: "item", ids: ["3089"] });
+  expect(icon?.name).toBe("Rabadon's Deathcap");
+  expect(icon?.imageUrl).toMatch(/^\/api\/images\//);
+  fetcher.mockClear();
+  expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "done", records: 0 });
+  expect(fetcher).not.toHaveBeenCalled();
 });

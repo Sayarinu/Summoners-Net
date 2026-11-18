@@ -1,20 +1,16 @@
 import { it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ShellHeader, ShellFooter, sectionOf } from "./shell";
+import { ShellHeader, sectionOf } from "./shell";
 import { defaultPreferences } from "../preferences/model";
 const path = vi.hoisted(() => ({ value: "/matches/1" }));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => path.value,
   useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(),
 }));
 it("keeps route navigation, skip link and local controls available", () => {
-  const view = render(
-    <>
-      <ShellHeader preferences={defaultPreferences} />
-      <ShellFooter />
-    </>,
-  );
+  const view = render(<ShellHeader preferences={defaultPreferences} />);
   expect(screen.getByRole("link", { name: "Matches" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute(
     "href",
@@ -28,7 +24,7 @@ it("keeps route navigation, skip link and local controls available", () => {
   );
   path.value = "/search";
   view.rerender(<ShellHeader preferences={defaultPreferences} />);
-  expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("searchbox", { name: "Search App" })).toBeVisible();
   fireEvent.click(screen.getByRole("link", { name: "Players" }));
   expect(router.push).toHaveBeenCalledWith("/players");
   // Settings is its own page, marked current like any other section.

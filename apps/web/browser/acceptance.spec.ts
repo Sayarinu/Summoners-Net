@@ -92,7 +92,11 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page.getByText(/30 records · Page 2/)).toBeVisible();
   await page.goto("/?state=scheduled");
   await expect(page.locator(".np-match-row").getByText("Scheduled", { exact: true })).toBeVisible();
-  await expect(page.getByText(/1 records/)).toBeVisible();
+  const record = page.getByText("1 record · Page 1");
+  await expect(record).toBeVisible();
+  await expect(
+    record.locator("..").getByRole("link", { name: "Browse Past Matches" }),
+  ).toBeVisible();
   await page.goto("/?date=2026-02-28&league=LCK");
   await expect(page.getByText(/29 records/)).toBeVisible();
   await expect(page.getByText("Result Hidden")).toHaveCount(0);
@@ -104,11 +108,13 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
     .first()
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Acceptance Blue 2 vs Acceptance Red 1",
+    "Acceptance Blue 2 vs 1 Acceptance Red",
   );
+  await expect(page).toHaveURL(/\/matches\/\d+$/);
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
-  await expect(tabs.locator("time")).toHaveText("Feb 28, 2026");
+  await expect(page.locator(".ev-series-title__facts time")).toHaveText("Feb 28, 2026");
+  await expect(tabs.locator("time")).toHaveCount(0);
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -177,6 +183,19 @@ test("team finder and profile keep season, series and archive games accessible",
   if (info.project.name === "desktop-chromium")
     await page.setViewportSize({ width: 1960, height: 1160 });
   await page.goto("/teams?q=Acceptance&league=LCK");
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  const records = page.getByText(/^\d+ records? · Page 1$/);
+  const pagination = page.getByRole("navigation", { name: "Pagination" });
+  await expect(records).toBeVisible();
+  await expect(pagination.getByRole("button", { name: "Page 1" })).toBeVisible();
+  const [recordBounds, pageBounds] = await Promise.all([
+    records.boundingBox(),
+    pagination.boundingBox(),
+  ]);
+  expect(pageBounds!.x).toBeGreaterThan(recordBounds!.x + recordBounds!.width);
+  expect(
+    Math.abs(pageBounds!.y + pageBounds!.height / 2 - recordBounds!.y - recordBounds!.height / 2),
+  ).toBeLessThan(2);
   await page.getByRole("link", { name: /Acceptance Blue/ }).click();
   await expect(page.getByRole("heading", { name: "Current Roster" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Observed Player/ })).toBeVisible();
@@ -222,9 +241,19 @@ test("team profile links use readable routes and legacy URLs settle without a re
 test("search, history, observed rosters and independently accessible played lineups", async ({
   page,
 }) => {
-  await page.goto("/search");
-  await page.getByRole("searchbox", { name: "Search" }).fill("Player Blue mid");
+  await page.goto("/");
+  const search = page.getByRole("searchbox", { name: "Search App" });
+  await search.fill("Player Blue");
+  const suggestions = page.getByRole("list", { name: "Search Suggestions" });
+  await expect(suggestions.getByRole("link")).toHaveCount(5);
+  await search.press("ArrowDown");
+  await expect(suggestions.getByRole("link").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(search).toBeFocused();
+  await search.fill("Player Blue mid");
+  await search.press("Enter");
   await expect(page).toHaveURL(/q=Player\+Blue\+mid/);
+  await expect(suggestions).toHaveCount(0);
   await page.getByRole("link", { name: /Player Blue mid/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Player Blue mid");
   await expect(page.getByRole("table", { name: "Current Roster" })).toBeVisible();
@@ -251,14 +280,16 @@ test("search, history, observed rosters and independently accessible played line
   await expect(page).toHaveURL(/year=2014&view=games/);
   await expect(page.getByText("No games match these filters.")).toBeVisible();
 });
-test("search typed before hydration still runs once the page hydrates", async ({ page }) => {
+test("global search submits before hydration", async ({ page }) => {
   // Hold back the client bundles so the text lands while the form is still server-rendered HTML.
   await page.route("**/_next/static/**/*.js", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await route.continue();
   });
-  await page.goto("/search", { waitUntil: "domcontentloaded" });
-  await page.getByRole("searchbox", { name: "Search" }).fill("Player Blue mid");
+  await page.goto("/teams", { waitUntil: "domcontentloaded" });
+  const search = page.getByRole("searchbox", { name: "Search App" });
+  await search.fill("Player Blue mid");
+  await search.press("Enter");
   await expect(page).toHaveURL(/q=Player\+Blue\+mid/, { timeout: 15000 });
   await expect(page.getByRole("link", { name: /Player Blue mid/ })).toHaveCount(1);
 });
@@ -286,36 +317,65 @@ test("timezone boundaries and spoiler preferences persist across navigation", as
   await expect(page.getByRole("heading", { name: "February 2026", level: 2 })).toBeVisible();
   await expect(page.getByText("Result Hidden")).not.toHaveCount(0);
   await page.goto("/history?view=games");
-  await expect(page.getByRole("link", { name: /02\/28\/2026/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "02/28/2026", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Statistics" })).toHaveCount(0);
 });
 test("a finished match loads its paused replay and keeps an external fallback", async ({
   page,
 }) => {
-  const seriesUrl = "/matches/pandascore%3Amatch%3A1";
+  const seriesUrl = "/matches/1";
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ status: 200, contentType: "text/html", body: "<p>Test player shell</p>" }),
   );
   await page.setViewportSize({ width: 1920, height: 900 });
-  await page.goto(seriesUrl);
-  await expect(page.getByRole("heading", { name: "Watch Replay" })).toBeVisible();
+  await page.goto("/matches/pandascore%3Amatch%3A1");
+  await expect(page).toHaveURL(/\/matches\/1$/);
+  await expect(page.getByRole("heading", { name: "Watch Replay" })).toHaveCount(0);
   const frame = page.getByTitle("Match Broadcast");
   await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  const cardBounds = await page.getByRole("link", { name: "Open Game 1" }).boundingBox();
+  const cardBounds = await page.locator(".ev-series-games").boundingBox();
   const replayBounds = await frame.boundingBox();
-  expect(replayBounds!.x).toBeGreaterThan(cardBounds!.x + cardBounds!.width);
+  const playerBounds = await page.getByRole("region", { name: "Match Player" }).boundingBox();
+  expect(playerBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height);
+  expect(playerBounds!.width).toBeCloseTo(1080, 0);
+  const summary = page.getByRole("region", { name: "Series Summary" });
+  await expect(summary.getByRole("link", { name: "Game 1" })).toHaveAttribute(
+    "href",
+    "/matches/1/games/1",
+  );
+  expect((await summary.boundingBox())!.x).toBeGreaterThan(playerBounds!.x + playerBounds!.width);
+  const streams = page.getByRole("button", { name: /\bStream\b/ });
+  await expect(streams).toContainText("YouTube · English");
+  const streamsBounds = await streams.boundingBox();
+  expect(streamsBounds!.y).toBeGreaterThanOrEqual(replayBounds!.y + replayBounds!.height);
+  expect(streamsBounds!.x + streamsBounds!.width).toBeCloseTo(
+    replayBounds!.x + replayBounds!.width,
+    -1,
+  );
+  await streams.click();
+  await page.getByRole("option", { name: "YouTube · Korean" }).click();
+  await expect(frame).toHaveAttribute("src", /zyxwvutsrqp.*autoplay=0/);
+  await expect(page.getByRole("option", { name: /Twitch/ })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(seriesUrl);
-  const replay = page.locator("summary").filter({ hasText: /^Watch Replay$/ });
+  const replay = page.locator("summary").filter({ hasText: /^Replay$/ });
   await expect(page.locator("iframe")).toHaveCount(0);
   await replay.click();
   await expect(page.locator("iframe")).toHaveCount(1);
   await expect(page.locator("iframe")).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  // Only the stored recording is playable, so there is no broadcast choice.
   await expect(page.getByRole("button", { name: /Broadcast/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Player Not Working" }).click();
-  await expect(page.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open on YouTube/ }).last()).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "Player Not Working" })).toHaveCount(0);
+  await page
+    .frameLocator('iframe[title="Match Broadcast"]')
+    .locator("body")
+    .evaluate((body) =>
+      body.ownerDocument.defaultView?.parent.postMessage(
+        JSON.stringify({ event: "onError", info: 150 }),
+        "*",
+      ),
+    );
+  await expect(page.getByRole("link", { name: "Watch on YouTube" })).toHaveAttribute(
     "href",
     /youtube\.com/,
   );
@@ -623,13 +683,11 @@ test("win probability added leaderboards rank champions and roles from the activ
   await page.goto("/leaderboards/wpa?kind=team");
   await expect(page.getByText(/Choose a board/)).toBeVisible();
 });
-test("a pro game without checkpoint probabilities omits the win probability panel", async ({
-  page,
-}) => {
+test("a pro game without recorded events or probabilities omits the timeline", async ({ page }) => {
   await page.goto("/games/oracle%3Agame%3Aacceptance-game");
   const reveal = page.getByRole("button", { name: "Reveal Game Statistics" });
   if (await reveal.isVisible()) await reveal.click();
-  await expect(page.locator("summary").filter({ hasText: /^Win Probability$/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Timeline" })).toHaveCount(0);
 });
 test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");

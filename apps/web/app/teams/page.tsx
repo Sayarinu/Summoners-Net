@@ -5,6 +5,9 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = await browseQuery(searchParams);
+  const filters = await searchParams;
+  const query = await browseQuery(
+    Promise.resolve({ ...filters, pageSize: filters.pageSize || "24" }),
+  );
   return <TeamFinder data={await data().teamDirectory(query)} query={query} />;
 }

@@ -13,30 +13,44 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("keeps a finished replay collapsed and unloads it on close", async () => {
   const view = render(
-    <MatchPage match={match} games={seriesGames()} timezone="UTC" hideSpoilers now={instant} />,
+    <MatchPage
+      match={{ ...match, teams: match.teams.map((team) => ({ ...team, imageUrl: "/team.png" })) }}
+      games={seriesGames()}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
   );
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
     "Acceptance Blue vs Acceptance Red",
   );
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/1",
+    "/matches/1/games/1",
   );
-  const replay = screen.getByText("Watch Replay", { selector: "summary" });
+  const replay = screen.getByText("Replay", { selector: "summary" });
   expect(screen.queryByTitle("Match Broadcast")).toBeNull();
   fireEvent.click(replay);
   expect(await screen.findByTitle("Match Broadcast")).toHaveAttribute(
     "src",
     expect.stringMatching(/youtube-nocookie\.com.*autoplay=0/),
   );
-  expect(screen.queryByRole("button", { name: /Broadcast/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Stream/ })).toBeNull();
   fireEvent.click(replay);
   await waitFor(() => expect(screen.queryByTitle("Match Broadcast")).toBeNull());
   expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-    "Acceptance Blue 2 vs Acceptance Red 1",
+    "Acceptance Blue 2 vs 1 Acceptance Red",
   );
+  const matchup = within(screen.getByRole("heading", { level: 1 }));
+  const blueLink = matchup.getByRole("link", { name: "Acceptance Blue" });
+  const redLink = matchup.getByRole("link", { name: "Acceptance Red" });
+  expect(blueLink.children[0]).toHaveTextContent("Acceptance Blue");
+  expect(blueLink.children[1]).toHaveClass("np-avatar");
+  expect(redLink.children[0]).toHaveClass("np-avatar");
+  expect(redLink.children[1]).toHaveTextContent("Acceptance Red");
+  expect(blueLink).toHaveAttribute("href", "/teams/acceptance-blue");
   expect(screen.queryByText("Hidden")).toBeNull();
   view.rerender(
     <MatchPage
@@ -58,7 +72,7 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
     />,
   );
   // Only a live Twitch channel is stored, which would show an unrelated broadcast.
-  expect(screen.queryByText("Watch Replay")).toBeNull();
+  expect(screen.queryByText("Replay")).toBeNull();
   expect(document.querySelector("iframe")).toBeNull();
   view.rerender(
     <MatchPage
@@ -191,33 +205,42 @@ it("keeps canonical destinations and portraits while omitting alternate names", 
   expect(screen.getAllByRole("img").length).toBeGreaterThan(1);
 });
 
-it("shows a coarse checkpoint win probability when opened after revealing statistics", async () => {
+it("shows both sides of zero for the recorded probabilities after reveal", async () => {
   const winProbability = {
     model: { id: 2, modelVersion: 1, brier: 0.2, years: ["2025", "2026"] },
     reason: null,
     points: [
       { minute: 10, blueWinProbability: 0.55 },
-      { minute: 15, blueWinProbability: 0.6 },
+      { minute: 15, blueWinProbability: 0.4 },
       { minute: 20, blueWinProbability: null },
-      { minute: 25, blueWinProbability: 0.8 },
+      { minute: 25, blueWinProbability: 0.5 },
     ],
   };
   const view = render(
     <GamePage game={game} timezone="UTC" hideSpoilers winProbability={winProbability} />,
   );
-  expect(screen.queryByText("Win Probability (Coarse, 4 Checkpoints)")).toBeNull();
+  expect(screen.queryByText("Timeline")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
+  expect(screen.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  const chart = await screen.findByRole("group", { name: /^Win Probability by Minute/ });
+  expect(within(chart).getAllByText("100%", { exact: true })).toHaveLength(2);
+  expect(within(chart).getByText("0%", { exact: true })).toBeVisible();
+  expect(screen.queryByRole("table", { name: "Win Probability Checkpoints" })).toBeNull();
+  expect(within(chart).queryByText("Acceptance Blue", { exact: true })).toBeNull();
+  expect(within(chart).queryByText("Acceptance Red", { exact: true })).toBeNull();
   expect(
-    screen.queryByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
-  ).toBeNull();
-  fireEvent.click(screen.getByText("Win Probability", { selector: "summary" }));
+    within(chart).getByText("10 minutes: Acceptance Blue 55%, Acceptance Red 45%").closest("li"),
+  ).toHaveAttribute("data-side", "blue");
   expect(
-    await screen.findByRole("heading", { name: "Win Probability (Coarse, 4 Checkpoints)" }),
-  ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Model Diagnostics" })).toHaveAttribute(
-    "href",
-    "/models?model=2",
-  );
+    within(chart).getByText("15 minutes: Acceptance Blue 40%, Acceptance Red 60%").closest("li"),
+  ).toHaveAttribute("data-side", "red");
+  expect(
+    within(chart).getByText("20 minutes: win probability unavailable").closest("li"),
+  ).not.toHaveAttribute("data-side");
+  expect(
+    within(chart).getByText("25 minutes: Acceptance Blue 50%, Acceptance Red 50%").closest("li"),
+  ).not.toHaveAttribute("data-side");
+  expect(screen.queryByRole("link", { name: "Model Diagnostics" })).toBeNull();
   for (const unavailable of [
     { model: null, reason: "No pro win probability model is active yet.", points: [] },
     { ...winProbability, points: [{ minute: 10, blueWinProbability: null }] },
@@ -225,14 +248,27 @@ it("shows a coarse checkpoint win probability when opened after revealing statis
     view.rerender(
       <GamePage game={game} timezone="UTC" hideSpoilers={false} winProbability={unavailable} />,
     );
-    expect(screen.queryByText("Win Probability", { selector: "summary" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Timeline" })).toBeNull();
   }
 });
 
 it("moves between a series overview and its played games with spoilers kept", () => {
   const games = seriesGames();
   const view = render(
-    <MatchPage match={match} games={games} timezone="UTC" hideSpoilers now={instant} />,
+    <MatchPage
+      match={match}
+      games={games}
+      summaries={[
+        {
+          number: 1,
+          durationSeconds: 1976,
+          teams: [{ id: match.teams[0]!.entityId ?? match.teams[0]!.id, side: "blue", kills: 19 }],
+        },
+      ]}
+      timezone="UTC"
+      hideSpoilers
+      now={instant}
+    />,
   );
   const tabs = screen.getByRole("navigation", { name: "Series" });
   expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute(
@@ -241,7 +277,7 @@ it("moves between a series overview and its played games with spoilers kept", ()
   );
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/2",
+    "/matches/1/games/2",
   );
   // An unplayed game is listed but cannot be opened.
   expect(within(tabs).queryByRole("link", { name: "Game 3" })).toBeNull();
@@ -249,11 +285,20 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(screen.getAllByText("Result hidden")).toHaveLength(2);
   expect(screen.getByText("31:05")).toBeVisible();
   expect(screen.getByText("0:00")).toBeVisible();
-  expect(within(tabs).getByText("Mar 1, 2026")).toBeVisible();
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" })).toBeVisible();
+  expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Series Summary" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Reveal score/ }));
   expect(screen.queryByText("Result hidden")).toBeNull();
   expect(screen.getByRole("link", { name: "Open Game 1" })).toHaveTextContent("Acceptance Blue");
   expect(screen.getByRole("link", { name: "Open Game 2" })).toHaveTextContent("Acceptance Red");
+  const summary = within(screen.getByRole("region", { name: "Series Summary" }));
+  expect(summary.getByRole("link", { name: "Game 1" })).toHaveAttribute(
+    "href",
+    "/matches/1/games/1",
+  );
+  expect(summary.getByText("19 kills").parentElement).toHaveAttribute("data-side", "blue");
+  expect(summary.getByText("32:56")).toBeVisible();
   view.rerender(
     <MatchPage match={match} games={[]} timezone="UTC" hideSpoilers={false} now={instant} />,
   );
@@ -261,7 +306,7 @@ it("moves between a series overview and its played games with spoilers kept", ()
   expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute("href", "/history");
 });
 
-it("shows the chronological draft above the lineups after spoilers are revealed", async () => {
+it("shows the draft by side, team totals and the score through the selected game after reveal", async () => {
   const vodUrl = "https://www.youtube.com/watch?v=abcdefghijk";
   const games = seriesGames().map((item) => (item.number === 1 ? { ...item, vodUrl } : item));
   const detail = {
@@ -288,8 +333,8 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       durationSeconds: 1865,
     },
     draft: [
-      { side: "blue" as const, firstPick: true, picks: ["Ahri", null], bans: [] },
-      { side: "red" as const, firstPick: false, picks: [null], bans: ["Azir"] },
+      { side: "blue" as const, firstPick: false, picks: ["Ahri", null], bans: [] },
+      { side: "red" as const, firstPick: true, picks: ["Orianna"], bans: ["Azir"] },
     ],
     draftOrder: [
       {
@@ -304,14 +349,61 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       {
         phase: 1,
         action: "pick" as const,
-        slot: 1,
+        slot: 2,
         side: "blue" as const,
         champion: "Ahri",
         role: "mid",
         blind: true,
       },
     ],
-    participants: [],
+    participants: [
+      {
+        slot: "blue:team",
+        side: "blue" as const,
+        position: "team",
+        player: null,
+        team: { name: "Acceptance Blue", sourceId: "10" },
+        champion: null,
+        won: true,
+        statistics: {
+          combat: { kills: 14, firstblood: 1, fbtime: 2.5 },
+          objectives: {
+            towers: 7,
+            turretplates: 5,
+            dragons: 3,
+            firstdragon: 1,
+            fdtime: 6.25,
+            barons: 0,
+            void_grubs: 3,
+            heralds: 1,
+            elementaldrakes: 2,
+            elders: 1,
+            infernals: 2,
+          },
+          damage: {},
+          vision: {},
+          economy: { totalgold: 56005 },
+          checkpoints: { golddiffat10: 2750, golddiffat15: -1500 },
+        },
+      },
+      {
+        slot: game.participants[0]!.slot,
+        side: "blue" as const,
+        position: "mid",
+        player: { name: "Player Blue mid", sourceId: "10-mid" },
+        team: { name: "Acceptance Blue", sourceId: "10" },
+        champion: "Ahri",
+        won: true,
+        statistics: {
+          combat: {},
+          objectives: {},
+          damage: { damagetochampions: 20819, damageshare: 0.25 },
+          vision: { visionscore: 28 },
+          economy: { totalgold: 14912, "total cs": 236 },
+          checkpoints: {},
+        },
+      },
+    ],
   };
   const view = render(
     <SeriesGamePage
@@ -334,12 +426,14 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
   const tabs = screen.getByRole("navigation", { name: "Series" });
   expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1",
+    "/matches/1",
   );
   expect(within(tabs).getByRole("link", { name: "Game 2" })).toBeVisible();
   expect(screen.queryByText("31:05")).toBeNull();
   expect(screen.queryByText(/^Patch/)).toBeNull();
-  expect(screen.getByText("LCK · Grand Finals · Best of 3")).toBeVisible();
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" }).parentElement).toHaveTextContent(
+    "LCK · Grand Finals · Mar 1, 2026 · Best of 3",
+  );
   expect(screen.queryByText(/Playoffs/)).toBeNull();
   expect(screen.queryByText("Final", { exact: true })).toBeNull();
   expect(
@@ -347,23 +441,68 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
       name: "Watch Game VOD",
     }),
   ).toHaveAttribute("href", vodUrl);
+  const heading = screen.getByRole("heading", { level: 1 });
+  expect(heading).toHaveTextContent("Acceptance Blue vs Acceptance Red");
+  expect(heading.parentElement?.querySelector("time")).toHaveTextContent("Mar 1, 2026");
+  expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
   expect(screen.queryByText("Draft Order")).toBeNull();
+  expect(screen.queryByText("56,005")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reveal Game Statistics" }));
-  const draft = screen.getByText("Draft Order", { selector: "summary" });
-  expect(tabs.nextElementSibling).toBe(draft.parentElement);
-  const bans = await screen.findByRole("region", { name: "Bans 1–6" });
-  expect(within(bans).getByRole("listitem")).toHaveAttribute("data-side", "red");
+  expect(heading).toHaveTextContent("Acceptance Blue 1 vs 0 Acceptance Red");
+  const draft = screen.getByRole("region", { name: "Draft Order" });
+  expect(tabs.nextElementSibling).toContainElement(draft);
+  expect(within(draft).getByText("First Pick").parentElement).toHaveTextContent("Red Side");
+  expect(within(draft).getByText("Second Pick").parentElement).toHaveTextContent("Blue Side");
+  const bans = await screen.findByRole("list", { name: "Red Side First Phase Bans" });
   expect(within(bans).getByRole("img", { name: "Azir" })).toBeVisible();
+  expect(bans.querySelector(".ev-draft-slot")).toBeNull();
   expect(
-    within(screen.getByRole("region", { name: "Picks 1–6" })).getByRole("img", { name: "Ahri" }),
+    within(screen.getByRole("list", { name: "Blue Side First Phase Picks" })).getByRole("img", {
+      name: "Ahri",
+    }),
   ).toBeVisible();
   expect(screen.getByRole("table", { name: "Acceptance Blue Lineup" })).toBeVisible();
   expect(screen.getAllByText("Winner")).toHaveLength(1);
   expect(screen.queryByRole("link", { name: "Open Archive Record" })).toBeNull();
-  fireEvent.click(draft);
-  await waitFor(() => expect(screen.queryByRole("region", { name: "Bans 1–6" })).toBeNull());
-  fireEvent.click(draft);
-  expect(await screen.findByRole("region", { name: "Bans 1–6" })).toBeVisible();
+  expect(within(draft).queryByText("Draft Order", { selector: "summary" })).toBeNull();
+  expect(screen.getByText("56,005")).toBeVisible();
+  const dragons = within(screen.getByRole("group", { name: "Acceptance Blue Dragon Breakdown" }));
+  expect(dragons.getAllByRole("img", { name: "Infernal Drake" })).toHaveLength(2);
+  expect(dragons.getByRole("img", { name: "Elder Dragon" })).toBeVisible();
+  expect(dragons.queryByText(/Elemental|Elder/)).toBeNull();
+  expect(screen.getByText("20,819")).toBeVisible();
+  expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
+    "Tower Plates5",
+  );
+  expect(screen.queryByText("Build Path")).toBeNull();
+  const goldShare = within(screen.getByRole("table", { name: "Gold Distribution" }));
+  const damageShare = within(screen.getByRole("table", { name: "Damage Distribution" }));
+  expect(goldShare.getByText("26.6%")).toBeVisible();
+  expect(damageShare.getByText("25%")).toBeVisible();
+  expect(goldShare.getByRole("img", { name: "Acceptance Blue" })).toBeVisible();
+  expect(goldShare.getByRole("img", { name: "Ahri" }).closest("tr")).toContainElement(
+    goldShare.getByRole("img", { name: /^Mid$/ }),
+  );
+  expect(document.querySelector('[aria-label="Acceptance Blue Team Totals"]')).toHaveTextContent(
+    "Void Grubs3Rift Herald1Barons0",
+  );
+  expect(document.querySelector('[aria-label="Acceptance Red Team Totals"]')).toHaveTextContent(
+    "Void Grubs—Rift Herald—Barons—",
+  );
+  const events = await screen.findByRole("list", { name: "Game Events" });
+  expect(
+    within(events)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["2:30First Blood", "6:15First Dragon"]);
+  const goldPlot = within(screen.getByRole("group", { name: /^Gold Difference by Time/ }));
+  expect(
+    goldPlot.getByText("10:00: Acceptance Blue ahead by 2,750 gold").closest("li"),
+  ).toHaveAttribute("data-side", "blue");
+  expect(
+    goldPlot.getByText("15:00: Acceptance Red ahead by 1,500 gold").closest("li"),
+  ).toHaveAttribute("data-side", "red");
+  expect(screen.queryByRole("group", { name: /^Win Probability by Minute/ })).toBeNull();
   view.rerender(
     <SeriesGamePage
       match={{ ...match, event: "2026 · Playoffs" }}
@@ -378,7 +517,12 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
     />,
   );
   expect(screen.getByText("Game Details Not Available Yet")).toBeVisible();
-  expect(screen.getByText("2026 · Playoffs · Best of 3")).toBeVisible();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Acceptance Blue 1 vs 1 Acceptance Red",
+  );
+  expect(screen.getByText("Mar 1, 2026", { selector: "time" }).parentElement).toHaveTextContent(
+    "2026 · Playoffs · Mar 1, 2026 · Best of 3",
+  );
   expect(screen.queryByText(/Grand Final/)).toBeNull();
   expect(screen.queryByRole("link", { name: "Watch Game VOD" })).toBeNull();
   expect(
@@ -387,6 +531,41 @@ it("shows the chronological draft above the lineups after spoilers are revealed"
     }),
   ).toBeVisible();
   expect(screen.queryByText(/^Patch/)).toBeNull();
+
+  const priorPicks = [
+    { role: "mid", champion: "Orianna" },
+    { role: "top", champion: "Gnar" },
+    { role: "jungle", champion: "Vi" },
+    { role: "bottom", champion: "Ezreal" },
+    { role: "support", champion: "Lulu" },
+    { role: "mid", champion: "Ahri" },
+  ];
+  view.rerender(
+    <SeriesGamePage
+      match={{ ...match, league: "Worlds", event: "2026 · Playoffs" }}
+      games={games}
+      number={2}
+      game={{ ...game, number: 2 }}
+      detail={detail}
+      fearless={priorPicks}
+      winProbability={null}
+      timezone="UTC"
+      hideSpoilers={false}
+      now={instant}
+    />,
+  );
+  const combinedDraft = screen.getByRole("region", { name: "Draft Order" });
+  const fearless = within(combinedDraft).getByRole("region", { name: "Fearless Bans" });
+  expect(combinedDraft).toHaveAttribute("data-fearless", "true");
+  expect(within(fearless).queryByRole("heading")).toBeNull();
+  expect(within(fearless).queryByText(/Game \d/)).toBeNull();
+  const mid = within(fearless).getByRole("list", { name: "Mid Fearless Bans" });
+  expect(within(mid).getAllByRole("img")).toEqual([
+    within(mid).getByRole("img", { name: "Orianna" }),
+    within(mid).getByRole("img", { name: "Ahri" }),
+  ]);
+  expect(within(fearless).getByRole("img", { name: /^Mid$/ })).toBeVisible();
+  expect(fearless.querySelector("[data-action], .ev-draft-portrait")).toBeNull();
 });
 
 it("links an archive game back to its confirmed series", () => {
@@ -400,8 +579,78 @@ it("links an archive game back to its confirmed series", () => {
   );
   expect(screen.getByRole("link", { name: "Open in Series" })).toHaveAttribute(
     "href",
-    "/matches/pandascore%3Amatch%3A1/games/1",
+    "/matches/1/games/1",
   );
   view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
   expect(screen.queryByRole("link", { name: "Open in Series" })).toBeNull();
+});
+
+it("shows a player's final items and reveals their recorded purchases by minute", async () => {
+  render(
+    <GamePage
+      game={game}
+      detail={{
+        id: game.id,
+        sourceGameId: game.sourceId,
+        sourceLeague: "Worlds",
+        competition: "Worlds",
+        year: 2026,
+        occurredAt: instant,
+        patch: game.patch,
+        complete: true,
+        summaryEligible: true,
+        teams: [],
+        context: {
+          sourceYear: 2026,
+          sourceUrl: null,
+          split: null,
+          week: null,
+          playoffs: null,
+          gameNumber: "1",
+          durationSeconds: 1865,
+        },
+        draft: [],
+        draftOrder: [],
+        participants: [],
+        telemetry: {
+          patch: "16.22",
+          gold: [
+            { seconds: 60, lead: 200 },
+            { seconds: 120, lead: -120 },
+          ],
+          events: [{ seconds: 402, label: "Dragon", side: "blue", drake: "cloud" }],
+          builds: {
+            "blue:mid": {
+              inventory: [3089],
+              purchases: [
+                { itemId: 1056, timestampMs: 551 },
+                { itemId: 3089, timestampMs: 550100 },
+              ],
+            },
+          },
+        },
+      }}
+      items={{
+        "3089": { name: "Rabadon's Deathcap", imageUrl: null },
+        "1056": { name: "Doran's Ring", imageUrl: null },
+      }}
+      timezone="UTC"
+      hideSpoilers={false}
+    />,
+  );
+  expect(
+    within(screen.getByRole("group", { name: /Final Items$/ })).getByRole("img", {
+      name: "Rabadon's Deathcap",
+    }),
+  ).toBeVisible();
+  const trigger = screen.getByLabelText(/Build Path$/);
+  expect(trigger.closest("details")).not.toHaveAttribute("open");
+  fireEvent.click(trigger);
+  expect(trigger.closest("details")).toHaveAttribute("open");
+  const path = within(screen.getByRole("list", { name: /Purchase Order$/ }));
+  expect(path.getByText("9m")).toBeVisible();
+  expect(path.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  const gold = await screen.findByRole("group", { name: /^Gold Difference by Time/ });
+  expect(within(gold).getByText("2:00: Acceptance Red ahead by 120 gold")).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: "Game Events" })).getByText("6:42")).toBeVisible();
 });

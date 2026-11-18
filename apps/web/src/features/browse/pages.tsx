@@ -2,7 +2,7 @@
 import { ChampionIcon, EmptyState, SearchResult, TextLink, RoleIcon } from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { identityHref } from "./presentation";
+import { identityHref, searchHitHref } from "./presentation";
 import { MatchSection, useMatchRows } from "./match-group";
 
 const matchSections = [
@@ -53,10 +53,14 @@ export function MatchesPage({
         );
       })}
       {!data.items.length && <EmptyState title="No Matches in This View" />}
-      <Pages data={data} />
-      <TextLink href="/history" variant="accent">
-        Browse Past Matches
-      </TextLink>
+      <Pages
+        data={data}
+        afterCount={
+          <TextLink href="/history" variant="accent">
+            Browse Past Matches
+          </TextLink>
+        }
+      />
     </div>
   );
 }
@@ -111,7 +115,7 @@ export function PastMatchesPage({
           <h1>Past Matches</h1>
         </div>
       </header>
-      <div className="ev-history-toolbar">
+      <div className="ev-browse-toolbar">
         <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
           {(["series", "games"] as const).map((option) => (
             <a
@@ -144,7 +148,12 @@ export function PastMatchesPage({
       ) : null}
       {view === "games" && games ? (
         <>
-          <GamesTable games={games.items} timezone={timezone} hideSpoilers={rows.spoilersHidden} />
+          <GamesTable
+            games={games.items}
+            timezone={timezone}
+            hideSpoilers={rows.spoilersHidden}
+            pastMatches
+          />
           <Pages data={games} />
         </>
       ) : null}
@@ -195,7 +204,6 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
           <h1>Search</h1>
         </div>
       </header>
-      <Filters query={query} search />
       {data.items.map((i) =>
         i.kind === "champion" ? (
           <ChampionIcon
@@ -203,7 +211,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
             id={i.id}
             name={i.name}
             imageUrl={i.imageUrl ?? null}
-            href={`/champions/${encodeURIComponent(i.id)}`}
+            href={searchHitHref(i)}
           />
         ) : (
           <SearchResult
@@ -212,13 +220,7 @@ export function SearchPage({ data, query }: { data: Page<SearchHit>; query: Brow
             shortName={i.name}
             type={i.kind === "game" ? "match" : i.kind}
             showType={false}
-            href={
-              i.kind === "team" || i.kind === "player"
-                ? identityHref({ ...i, kind: i.kind })
-                : i.kind === "summoner"
-                  ? `/summoners/${encodeURIComponent(i.id)}`
-                  : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
-            }
+            href={searchHitHref(i)}
             {...(i.imageUrl ? { image: i.imageUrl } : {})}
           />
         ),

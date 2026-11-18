@@ -97,7 +97,7 @@ export function ErrorState({
 
 export interface TableColumn<Row> {
   readonly align?: "center" | "end" | "start";
-  readonly header: string;
+  readonly header: ReactNode;
   readonly id: string;
   readonly render: (row: Row) => ReactNode;
   readonly width?: string;

@@ -10,7 +10,6 @@ export function InlineMatchStream({ match, id }: { match: Match; id: string }) {
         defaultProvider={replay ? "youtube" : "twitch"}
         mode={replay ? "replay" : "live"}
         showHeading={false}
-        showPlayerActions={false}
       />
     </div>
   );

@@ -8,7 +8,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@summonersnet/tokens/generated/tokens.css";
 import "@summonersnet/ui/styles.css";
 import "./globals.css";
-import { ShellHeader, ShellFooter } from "../src/features/shell/shell";
+import { ShellHeader } from "../src/features/shell/shell";
 import { SoftNavigation } from "../src/features/shell/soft-navigation";
 import { preferencesState } from "../src/server/data";
 export const metadata: Metadata = {
@@ -30,7 +30,6 @@ export default async function Layout({ children }: { children: ReactNode }) {
         <main id="main-content" className="ev-main" tabIndex={-1}>
           {children}
         </main>
-        <ShellFooter />
       </body>
     </html>
   );

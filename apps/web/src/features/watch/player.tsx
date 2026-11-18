@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { Button, EmptyState, Select, StreamEmbedShell } from "@summonersnet/ui";
+import { EmptyState, Select, StreamEmbedShell } from "@summonersnet/ui";
 import type { Broadcast, Match } from "@summonersnet/data";
 import { isRecording } from "@summonersnet/data/contracts";
 export function embedUrl(b: Broadcast, siteOrigin: string) {
@@ -28,7 +28,14 @@ export function embedUrl(b: Broadcast, siteOrigin: string) {
  * a VOD) and Twitch videos.
  */
 export function watchableBroadcasts(match: Pick<Match, "broadcasts" | "state">) {
-  return match.state === "final" ? match.broadcasts.filter(isRecording) : match.broadcasts;
+  const seen = new Set<string>();
+  return match.broadcasts.filter((broadcast) => {
+    if (match.state === "final" && !isRecording(broadcast)) return false;
+    const id = `${broadcast.provider}:${broadcast.externalId || broadcast.url}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
 /**
@@ -54,6 +61,18 @@ function providerLabel(provider: Broadcast["provider"]) {
   return provider === "youtube" ? "YouTube" : "Twitch";
 }
 
+const languageNames = new Intl.DisplayNames("en", { type: "language", fallback: "none" });
+function broadcastLabel(broadcast: Broadcast) {
+  const provider = providerLabel(broadcast.provider);
+  const language = broadcast.language.trim();
+  if (!language || /^(unknown|und)$/i.test(language)) return provider;
+  try {
+    return `${provider} · ${languageNames.of(language.replaceAll("_", "-")) ?? language}`;
+  } catch {
+    return `${provider} · ${language}`;
+  }
+}
+
 /**
  * Embeds the selected broadcast as soon as it shows, with autoplay off, so nothing plays until
  * the viewer presses the player's own play button.
@@ -63,15 +82,13 @@ export function WatchPlayer({
   defaultProvider = "youtube",
   mode = "live",
   showHeading = true,
-  showPlayerActions = true,
-  showBroadcastSelect = true,
+  compact = false,
 }: {
   broadcasts: Broadcast[];
   defaultProvider?: Broadcast["provider"];
   mode?: "live" | "replay";
   showHeading?: boolean;
-  showPlayerActions?: boolean;
-  showBroadcastSelect?: boolean;
+  compact?: boolean;
 }) {
   const orderedBroadcasts = [...broadcasts].sort(
     (a, b) => Number(b.provider === "youtube") - Number(a.provider === "youtube"),
@@ -80,7 +97,6 @@ export function WatchPlayer({
     (broadcast) => broadcast.provider === defaultProvider,
   );
   const [selected, setSelected] = useState(String(Math.max(0, preferredBroadcast)));
-  const [failed, setFailed] = useState(false);
   const [refused, setRefused] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   // The embed needs this page's origin, which only exists in the browser.
@@ -104,37 +120,45 @@ export function WatchPlayer({
     return (
       <EmptyState title={mode === "replay" ? "No Replay Available" : "No Broadcast Supplied"} />
     );
+  const labels = orderedBroadcasts.map(broadcastLabel);
+  const streamSelect =
+    !compact || orderedBroadcasts.length > 1 ? (
+      <Select
+        label={compact ? "Stream" : "Broadcast"}
+        hideLabel={compact}
+        value={selected}
+        onValueChange={(value) => {
+          setSelected(value);
+          setRefused(false);
+        }}
+        options={orderedBroadcasts.map((broadcast, index) => {
+          const label = labels[index]!;
+          return {
+            value: String(index),
+            label:
+              labels.indexOf(label) === labels.lastIndexOf(label)
+                ? label
+                : `${label} · ${broadcast.externalId || broadcast.url}`,
+          };
+        })}
+      />
+    ) : null;
   return (
     <section className="np-stack ev-watch-player" aria-label="Watch Match">
-      {showHeading || showBroadcastSelect ? (
+      {!compact ? (
         <div className="np-split">
           {showHeading ? <h2>{mode === "replay" ? "Watch Replay" : "Watch"}</h2> : null}
-          {showBroadcastSelect ? (
-            <Select
-              label="Broadcast"
-              value={selected}
-              onValueChange={(value) => {
-                setSelected(value);
-                setFailed(false);
-                setRefused(false);
-              }}
-              options={orderedBroadcasts.map((b, i) => ({
-                value: String(i),
-                label: providerLabel(b.provider),
-              }))}
-            />
-          ) : null}
+          {streamSelect}
         </div>
       ) : null}
       <StreamEmbedShell
         provider={providerLabel(b.provider)}
         title="Match Player"
         mode={mode}
-        state={!origin ? "loading" : failed || !src ? "failed" : "ready"}
+        state={!origin ? "loading" : !src ? "failed" : "ready"}
         fallbackHref={b.url}
-        onRetry={() => setFailed(false)}
       >
-        {src && !failed && refused ? (
+        {src && refused ? (
           <a className="ev-replay-link" href={b.url} target="_blank" rel="noreferrer">
             {/^[\w-]{11}$/.test(b.externalId) ? (
               <img alt="" src={`https://i.ytimg.com/vi/${b.externalId}/hqdefault.jpg`} />
@@ -144,10 +168,9 @@ export function WatchPlayer({
                 ▶
               </span>
               <strong>Watch on {providerLabel(b.provider)}</strong>
-              <small>The channel only lets this video play on {providerLabel(b.provider)}.</small>
             </span>
           </a>
-        ) : src && !failed ? (
+        ) : src ? (
           <iframe
             key={src}
             ref={frame}
@@ -167,12 +190,8 @@ export function WatchPlayer({
           />
         ) : null}
       </StreamEmbedShell>
-      {showPlayerActions ? (
-        <div className="np-cluster">
-          <Button variant="ghost" onPress={() => setFailed(true)}>
-            Player Not Working
-          </Button>
-        </div>
+      {compact && streamSelect ? (
+        <div className="ev-watch-player__streams">{streamSelect}</div>
       ) : null}
     </section>
   );

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import {
+  Avatar,
   Breadcrumb,
   Button,
   Table,
@@ -17,12 +18,13 @@ import type {
   ProGameWinProbability,
 } from "@summonersnet/data";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
-import { dateTime, identityHref, gameTeams } from "../browse/presentation";
+import { dateTime, identityHref, gameTeams, seriesGameHref } from "../browse/presentation";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { DraftPanel } from "./draft";
+import type { ProItemIcons } from "./player-build";
 import { LineupTable } from "./lineup";
-import { ProWinProbability } from "./pro-win-probability";
-import { seriesGameHref } from "./series";
+import { ProTimeline } from "./pro-win-probability";
+import { GameDistributions } from "./game-distributions";
 export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
@@ -31,6 +33,7 @@ export function GamePage({
   winProbability,
   detail,
   portraits,
+  items,
   vodUrl,
   round,
   series = null,
@@ -40,9 +43,10 @@ export function GamePage({
   timezone: string;
   hideSpoilers: boolean;
   portraits?: ChampionPortraits;
+  items?: ProItemIcons | undefined;
   vodUrl?: string | null;
   round?: string | null;
-  /** Coarse checkpoint win probability; shown with the other statistics, never while hidden. */
+  /** Win probability estimates from recorded game states. */
   winProbability?: ProGameWinProbability | null;
   /** The series this archive game is confirmed to belong to, if any. */
   series?: { matchId: string; number: number } | null;
@@ -50,7 +54,7 @@ export function GamePage({
   const [hidden, setHidden] = useState(hideSpoilers);
   const teams = gameTeams(game);
   return (
-    <div className="np-stack ev-series-page">
+    <div className="np-stack ev-series-page ev-series-page--wide">
       <Breadcrumb
         items={[
           { label: "Past Matches", href: "/history?view=games" },
@@ -64,9 +68,21 @@ export function GamePage({
             {teams.map((team, index) => (
               <span key={team.id}>
                 {index ? " vs " : null}
-                <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
-                  {team.name}
-                </span>
+                <a className="ev-series-title__identity" href={identityHref(team)}>
+                  {team.imageUrl ? (
+                    <Avatar
+                      alt=""
+                      aria-hidden="true"
+                      entityKind="team"
+                      fallback={team.name}
+                      size="small"
+                      src={team.imageUrl}
+                    />
+                  ) : null}
+                  <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
+                    {team.name}
+                  </span>
+                </a>
               </span>
             ))}
           </h1>
@@ -84,8 +100,19 @@ export function GamePage({
       </header>
       {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
-      <LineupTable game={game} hidden={hidden} portraits={portraits} />
-      {!hidden && winProbability ? <ProWinProbability winProbability={winProbability} /> : null}
+      <LineupTable
+        game={game}
+        detail={detail}
+        hidden={hidden}
+        portraits={portraits}
+        items={items}
+      />
+      {!hidden ? (
+        <>
+          <ProTimeline game={game} detail={detail} winProbability={winProbability} />
+          <GameDistributions game={game} detail={detail} portraits={portraits} />
+        </>
+      ) : null}
       {series ? (
         <TextLink href={seriesGameHref({ id: series.matchId }, series.number)}>
           Open in Series

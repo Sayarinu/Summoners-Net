@@ -47,7 +47,9 @@ const event = z.object({
   assistingParticipantIds: z.array(int).max(9).nullish(),
 });
 const timelineSchema = z.object({
-  metadata: z.object({ matchId: z.string().regex(/^[A-Z0-9]{2,5}_\d{1,15}$/) }),
+  metadata: z.object({
+    matchId: z.string().regex(/^(?:[A-Z0-9]{2,5}|(?:LOL|ESPORTS)TMNT\d{2})_\d{1,15}$/),
+  }),
   info: z.object({
     frameInterval: int.positive().nullish(),
     frames: z

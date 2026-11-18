@@ -14,11 +14,11 @@ it("loads one paused player without a consent step, switches safely and offers a
     "src",
     expect.stringContaining("autoplay=0"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Player Not Working" }));
-  expect(screen.getByRole("heading", { name: "Stream unavailable" })).toBeVisible();
-  expect(screen.getAllByRole("link", { name: /Open on YouTube/ }).length).toBeGreaterThan(0);
-  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(document.querySelectorAll("iframe")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Player Not Working" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Open on YouTube" })).toHaveAttribute(
+    "href",
+    match.broadcasts[0]!.url,
+  );
   fireEvent.click(screen.getByRole("button", { name: /Broadcast/ }));
   fireEvent.click(screen.getByRole("option", { name: /Twitch/ }));
   expect(document.querySelectorAll("iframe")).toHaveLength(1);
@@ -34,10 +34,31 @@ it("loads one paused player without a consent step, switches safely and offers a
 it("keeps only recordings for finished matches, since a Twitch channel shows what is live now", () => {
   const [youtube, twitch] = match.broadcasts;
   const vod = { ...twitch!, externalId: "v123", url: "https://www.twitch.tv/videos/123" };
-  const broadcasts = [youtube!, twitch!, vod];
-  expect(watchableBroadcasts({ state: "live", broadcasts })).toEqual(broadcasts);
+  const duplicate = { ...youtube!, url: `https://youtu.be/${youtube!.externalId}` };
+  const broadcasts = [youtube!, duplicate, twitch!, vod];
+  expect(watchableBroadcasts({ state: "live", broadcasts })).toEqual([youtube, twitch, vod]);
   expect(watchableBroadcasts({ state: "final", broadcasts })).toEqual([youtube, vod]);
   expect(watchableBroadcasts({ state: "final", broadcasts: [twitch!] })).toEqual([]);
+});
+it("identifies recordings by language and uses the video ID when languages match", () => {
+  const [youtube] = match.broadcasts;
+  const other = { ...youtube!, externalId: "ABCDEFGHIJK" };
+  render(
+    <WatchPlayer
+      mode="replay"
+      compact
+      broadcasts={[youtube!, other, { ...youtube!, language: "ko", externalId: "zyxwvutsrqp" }]}
+    />,
+  );
+  expect(screen.queryByRole("heading", { name: "Watch Replay" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /\bStream\b/ }));
+  expect(screen.getByRole("option", { name: "YouTube · English · abcdefghijk" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "YouTube · English · ABCDEFGHIJK" })).toBeVisible();
+  fireEvent.click(screen.getByRole("option", { name: "YouTube · Korean" }));
+  expect(screen.getByTitle("Match Broadcast")).toHaveAttribute(
+    "src",
+    expect.stringContaining("/zyxwvutsrqp?"),
+  );
 });
 it("validates embed IDs and keeps unsupported provider links accessible", () => {
   expect(embedUrl(match.broadcasts[0]!, "127.0.0.1")).toContain("origin=http%3A%2F%2F127.0.0.1");

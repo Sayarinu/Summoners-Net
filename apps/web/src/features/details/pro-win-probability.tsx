@@ -1,31 +1,358 @@
 "use client";
-import { LineChart, TextLink } from "@summonersnet/ui";
-import type { ProGameWinProbability } from "@summonersnet/data";
-import { Disclosure } from "./disclosure";
+import { useId } from "react";
+import { Avatar, DrakeIcon } from "@summonersnet/ui";
+import type {
+  Game,
+  HistoricalGameDetail,
+  HistoricalParticipant,
+  ProGameWinProbability,
+} from "@summonersnet/data";
+import { gameTeams } from "../browse/presentation";
 
-/** Blue side's coarse win probability at the four Oracle's Elixir checkpoints. */
-export function ProWinProbability({ winProbability }: { winProbability: ProGameWinProbability }) {
-  const { model, points } = winProbability;
-  if (!model || !points.some((point) => point.blueWinProbability !== null)) return null;
+const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
+const goldAmount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const compactGold = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const width = 600;
+const height = 200;
+const middle = height / 2;
+const inset = 16;
+const eventFields = [
+  ["First Blood", "combat", "firstblood", "fbtime"],
+  ["First Dragon", "objectives", "firstdragon", "fdtime"],
+  ["Rift Herald", "objectives", "firstherald", "heraldtime"],
+  ["First Baron", "objectives", "firstbaron", "fbarontime"],
+  ["First Tower", "objectives", "firsttower", "fttime"],
+] as const;
+
+interface TimelinePoint {
+  seconds: number;
+  time: string;
+  lead: number | null;
+  label: string;
+  description: string;
+}
+
+const sideInLead = (lead: number | null) => (lead ? (lead > 0 ? "blue" : "red") : undefined);
+
+function clockLabel(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function goldCheckpoints(rows: HistoricalParticipant[], duration: number | null) {
+  const blue = rows.find(({ side }) => side === "blue")?.statistics;
+  const red = rows.find(({ side }) => side === "red")?.statistics;
+  const points = [10, 15, 20, 25].flatMap((minute) => {
+    const seconds = minute * 60;
+    if (duration !== null && seconds > duration) return [];
+    const blueDiff = blue?.checkpoints[`golddiffat${minute}`];
+    const redDiff = red?.checkpoints[`golddiffat${minute}`];
+    const blueGold = blue?.checkpoints[`goldat${minute}`];
+    const redGold = red?.checkpoints[`goldat${minute}`];
+    const lead =
+      blueDiff ??
+      (redDiff != null
+        ? -redDiff
+        : blueGold != null && redGold != null
+          ? blueGold - redGold
+          : null);
+    return [{ seconds, time: `${minute}m`, lead }];
+  });
+  const lastBlue = blue?.economy.totalgold;
+  const lastRed = red?.economy.totalgold;
+  if (duration && lastBlue != null && lastRed != null) {
+    const current = points.find((point) => point.seconds === duration);
+    if (current) current.lead ??= lastBlue - lastRed;
+    else points.push({ seconds: duration, time: clockLabel(duration), lead: lastBlue - lastRed });
+  }
+  return points;
+}
+
+export function ProTimeline({
+  game,
+  detail,
+  winProbability,
+}: {
+  game: Game;
+  detail?: HistoricalGameDetail | null | undefined;
+  winProbability?: ProGameWinProbability | null | undefined;
+}) {
+  const teams = gameTeams(game);
+  const blueName = teams.find(({ side }) => side === "blue")?.name ?? "Unknown Team";
+  const redName = teams.find(({ side }) => side === "red")?.name ?? "Unknown Team";
+  const teamRows = detail?.participants.filter(({ position }) => position === "team") ?? [];
+  const timedEvents = detail?.telemetry?.events ?? [];
+  const checkpointEvents = eventFields
+    .filter(([label]) => {
+      if (label === "First Dragon") return !timedEvents.some(({ label }) => label === "Dragon");
+      if (label === "First Baron")
+        return !timedEvents.some(({ label }) => label === "Baron Nashor");
+      return !timedEvents.some((event) => event.label === label);
+    })
+    .flatMap(([label, group, first, timer]) => {
+      const firsts = teamRows.filter(({ statistics }) => statistics[group][first] === 1);
+      const owner = firsts.length === 1 ? firsts[0] : undefined;
+      const times = new Set(
+        teamRows.flatMap(({ statistics }) => {
+          const minute = statistics[group][timer];
+          return minute != null && minute > 0 ? [minute] : [];
+        }),
+      );
+      const minute = owner?.statistics[group][timer] || (times.size === 1 ? [...times][0] : null);
+      if (!minute || minute < 0) return [];
+      const seconds = Math.round(minute * 60);
+      if (detail?.context.durationSeconds && seconds > detail.context.durationSeconds) return [];
+      return [{ label, seconds, side: owner?.side ?? null, drake: null }];
+    });
+  const events = [...checkpointEvents, ...timedEvents].sort((a, b) => a.seconds - b.seconds);
+  const duration = detail?.context.durationSeconds ?? null;
+  const probability = (winProbability?.model ? winProbability.points : []).map(
+    ({ minute, blueWinProbability: value }): TimelinePoint => ({
+      seconds: minute * 60,
+      time: `${minute}m`,
+      lead: value === null ? null : value - 0.5,
+      label: value === null ? "" : percent.format(Math.max(value, 1 - value)),
+      description:
+        value === null
+          ? `${minute} minutes: win probability unavailable`
+          : `${minute} minutes: ${blueName} ${percent.format(value)}, ${redName} ${percent.format(1 - value)}`,
+    }),
+  );
+  const trackedGold = detail?.telemetry?.gold ?? [];
+  const gold = (
+    trackedGold.length
+      ? trackedGold.map(({ seconds, lead }) => ({
+          seconds,
+          time: clockLabel(seconds),
+          lead,
+        }))
+      : goldCheckpoints(teamRows, duration)
+  ).map(({ seconds, time, lead }): TimelinePoint => ({
+    seconds,
+    time,
+    lead,
+    label: lead === null ? "" : `${lead ? "+" : ""}${goldAmount.format(Math.abs(lead))}`,
+    description:
+      lead == null
+        ? `${clockLabel(seconds)}: gold difference unavailable`
+        : lead === 0
+          ? `${clockLabel(seconds)}: tied on gold`
+          : `${clockLabel(seconds)}: ${lead > 0 ? blueName : redName} ahead by ${goldAmount.format(Math.abs(lead))} gold`,
+  }));
+  const hasProbability = probability.some(({ lead }) => lead !== null);
+  const hasGold = gold.some(({ lead }) => lead !== null);
+  if (!events.length && !hasProbability && !hasGold) return null;
+  const end = Math.max(
+    1,
+    duration ?? 0,
+    ...probability.map(({ seconds }) => seconds),
+    ...gold.map(({ seconds }) => seconds),
+    ...events.map(({ seconds }) => seconds),
+  );
+  const peakGold = Math.max(1, ...gold.map(({ lead }) => Math.abs(lead ?? 0)));
+  const magnitude = 10 ** Math.floor(Math.log10(peakGold));
+  const goldLimit = Math.ceil(peakGold / magnitude) * magnitude;
   return (
-    <Disclosure title="Win Probability">
-      <section className="np-stack" aria-labelledby="pro-wp-heading">
-        <h2 id="pro-wp-heading">Win Probability (Coarse, 4 Checkpoints)</h2>
-        <LineChart
-          title="Blue Side Win Probability at Checkpoints (Coarse)"
-          xLabel="Minute"
-          yLabel="Blue Win Probability (%)"
-          color="blue"
-          points={points.map((p) => ({
-            id: String(p.minute),
-            label: `${p.minute} min`,
-            x: p.minute,
-            y: p.blueWinProbability === null ? null : Math.round(p.blueWinProbability * 1000) / 10,
-            sampleCount: null,
-          }))}
-        />
-        <TextLink href={`/models?model=${model.id}`}>Model Diagnostics</TextLink>
-      </section>
-    </Disclosure>
+    <section className="ev-disclosure ev-timeline" aria-label="Timeline">
+      <h2 className="ev-timeline__heading">Timeline</h2>
+      <div className="ev-disclosure__body">
+        {events.length ? (
+          <div className="ev-timeline-row">
+            <span className="ev-timeline-row__label">Events</span>
+            <ol className="ev-timeline-events" aria-label="Game Events" role="list">
+              {events.map(({ label, seconds, side, drake }, index) => (
+                <li
+                  key={index}
+                  data-side={side ?? undefined}
+                  title={teams.find((team) => team.side === side)?.name}
+                >
+                  <time className="np-meta" dateTime={`PT${seconds}S`}>
+                    {clockLabel(seconds)}
+                  </time>
+                  {drake ? <DrakeIcon drake={drake} /> : <span>{label}</span>}
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+        {hasGold ? (
+          <div className="ev-timeline-row">
+            <span className="ev-timeline-row__label">Gold Difference</span>
+            <SideTimelinePlot
+              points={gold}
+              teams={teams}
+              end={end}
+              limit={goldLimit}
+              edgeLabel={compactGold.format(goldLimit)}
+              centerLabel="0"
+              label="Gold Difference by Time. Zero marks a tie."
+            />
+          </div>
+        ) : null}
+        {hasProbability ? (
+          <div className="ev-timeline-row">
+            <span className="ev-timeline-row__label">Win Probability</span>
+            <SideTimelinePlot
+              points={probability}
+              teams={teams}
+              end={end}
+              limit={0.5}
+              edgeLabel="100%"
+              centerLabel="0%"
+              label="Win Probability by Minute. Zero marks even odds. Each team reaches 100% at its end of the scale."
+            />
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function SideTimelinePlot({
+  points,
+  teams,
+  end,
+  limit,
+  edgeLabel,
+  centerLabel,
+  label,
+}: {
+  points: TimelinePoint[];
+  teams: ReturnType<typeof gameTeams>;
+  end: number;
+  limit: number;
+  edgeLabel: string;
+  centerLabel: string;
+  label: string;
+}) {
+  const clipId = useId();
+  const blueTeam = teams.find(({ side }) => side === "blue");
+  const redTeam = teams.find(({ side }) => side === "red");
+  const ticks = [
+    { y: inset, label: edgeLabel, team: blueTeam },
+    { y: middle, label: centerLabel, team: undefined },
+    { y: height - inset, label: edgeLabel, team: redTeam },
+  ];
+
+  const dense = points.length > 8;
+  const last = points.at(-1)?.seconds ?? 0;
+  const samples = points.map((point) => ({
+    showLabel:
+      !dense || point.seconds === last || (point.seconds % 300 === 0 && last - point.seconds > 90),
+    ...point,
+    side: sideInLead(point.lead),
+    x: inset + (point.seconds / end) * (width - 2 * inset),
+    y: point.lead === null ? null : middle - (point.lead / limit) * (middle - inset),
+  }));
+  const segments = samples.flatMap((sample, index) => {
+    const previous = samples[index - 1];
+    if (!previous || previous.y === null || sample.y === null) return [];
+    return [{ previous, sample }];
+  });
+  const slope = segments
+    .map(({ previous, sample }) => `M ${previous.x} ${previous.y} L ${sample.x} ${sample.y}`)
+    .join(" ");
+  const area = segments
+    .map(
+      ({ previous, sample }) =>
+        `M ${previous.x} ${middle} L ${previous.x} ${previous.y} L ${sample.x} ${sample.y} L ${sample.x} ${middle} Z`,
+    )
+    .join(" ");
+
+  return (
+    <div className="ev-probability__chart" role="group" aria-label={label}>
+      <div className="ev-probability__scale" aria-hidden="true">
+        {ticks.map(({ y, label, team }) => (
+          <span
+            className="ev-probability__tick"
+            data-side={team?.side}
+            key={y}
+            style={{ insetBlockStart: `${(y / height) * 100}%` }}
+            title={team?.name}
+          >
+            {team ? (
+              <Avatar
+                alt=""
+                fallback={team.name}
+                src={team.imageUrl ?? undefined}
+                entityKind="team"
+                size="small"
+              />
+            ) : null}
+            <span>{label}</span>
+          </span>
+        ))}
+      </div>
+      <div className="ev-probability__plot">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <clipPath id={`${clipId}-blue`}>
+              <rect width={width} height={middle} />
+            </clipPath>
+            <clipPath id={`${clipId}-red`}>
+              <rect y={middle} width={width} height={middle} />
+            </clipPath>
+          </defs>
+          {ticks.map(({ y }) => (
+            <line
+              className={y === middle ? "ev-probability__baseline" : "ev-probability__gridline"}
+              key={y}
+              x2={width}
+              y1={y}
+              y2={y}
+            />
+          ))}
+          {(["blue", "red"] as const).map((side) => (
+            <g key={side} data-side={side} clipPath={`url(#${clipId}-${side})`}>
+              <path className="ev-probability__area" d={area} />
+              <path className="ev-probability__line" d={slope} />
+            </g>
+          ))}
+          {samples.map(({ seconds, side, x, y, showLabel }) =>
+            y === null || !showLabel ? null : (
+              <line
+                className="ev-probability__dot"
+                key={seconds}
+                x1={x}
+                x2={x}
+                y1={y}
+                y2={y}
+                data-side={side}
+              />
+            ),
+          )}
+        </svg>
+        <ol className="ev-probability__points" role="list">
+          {samples.map(
+            ({ seconds, time, side, label: valueLabel, description, x, y, showLabel }) => (
+              <li
+                key={seconds}
+                data-side={side}
+                title={description}
+                style={{ insetInlineStart: `${(x / width) * 100}%` }}
+              >
+                <span className="np-visually-hidden">{description}</span>
+                {y === null || !showLabel ? null : (
+                  <span
+                    className="ev-probability__point"
+                    aria-hidden="true"
+                    style={{ insetBlockStart: `${(y / height) * 100}%` }}
+                  >
+                    {valueLabel}
+                  </span>
+                )}
+                {showLabel ? (
+                  <span className="ev-probability__minute" aria-hidden="true">
+                    {time}
+                  </span>
+                ) : null}
+              </li>
+            ),
+          )}
+        </ol>
+      </div>
+    </div>
   );
 }
