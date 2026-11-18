@@ -113,7 +113,8 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page).toHaveURL(/\/matches\/\d+$/);
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
-  await expect(tabs.locator("time")).toHaveText("Feb 28, 2026");
+  await expect(page.locator(".ev-series-title__facts time")).toHaveText("Feb 28, 2026");
+  await expect(tabs.locator("time")).toHaveCount(0);
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
     "aria-current",
     "page",
