@@ -261,7 +261,9 @@ The dragon, Rift Herald, Void Grub and turret icons are Riot Games'
 [minimap icons](https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons/), and the first
 blood sword is from the
 [League Client postgame assets](https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-postgame/global/default/),
-both archived by CommunityDragon.
+both archived by CommunityDragon. The gold and damage type icons are the game's
+[floating text icons](https://raw.communitydragon.org/latest/game/assets/ux/floatingtext/), from the
+same archive.
 
 ## Disclaimer
 
