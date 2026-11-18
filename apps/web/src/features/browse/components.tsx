@@ -1,5 +1,14 @@
 "use client";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Input,
   Select,
@@ -45,6 +54,9 @@ export function Filters({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timeoutRef = useRef<number | undefined>(undefined);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pending, startTransition] = useTransition();
   const defaultDate = todayInputValue(query.timezone ?? "UTC");
   const [dateValue, setDateValue] = useState(query.date ?? defaultDate);
   const [dateIsFilter, setDateIsFilter] = useState(Boolean(query.date));
@@ -75,8 +87,27 @@ export function Filters({
     }, 350);
   }
 
+  /** Applies the filters in place, so the field keeps focus and anything typed meanwhile. */
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    for (const [name, value] of new FormData(event.currentTarget)) {
+      if (typeof value === "string") params.append(name, value);
+    }
+    const search = params.toString();
+    startTransition(() => {
+      router.replace(`${pathname}${search ? `?${search}` : ""}`, { scroll: false });
+    });
+  }
+
   return (
-    <form ref={formRef} className="ev-filters" method="get">
+    <form
+      ref={formRef}
+      className="ev-filters"
+      method="get"
+      onSubmit={submit}
+      aria-busy={pending || undefined}
+    >
       {view === "games" ? <input type="hidden" name="view" value="games" /> : null}
       <Input
         type="search"

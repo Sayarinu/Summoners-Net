@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MatchesPage, PastMatchesPage, DirectoryPage, SearchPage } from "./pages";
 import { matchDisplay, dateTime, identityHref } from "./presentation";
 import { Pages, Filters } from "./components";
+import { useRouter } from "next/navigation";
 import { match, game, blue, red, player, page, instant } from "../../../tests/fixtures";
 describe("browse presentation", () => {
   it("formats timezone boundaries and incomplete match identities without invented scores", () => {
@@ -318,4 +319,32 @@ it("uses linked profile destinations and locally cached search images", () => {
     />,
   );
   expect(screen.getByRole("img").querySelector("img")).toHaveAttribute("src", image);
+});
+
+it("filters in place once typing pauses, keeping the field and everything typed", () => {
+  vi.useFakeTimers();
+  try {
+    const replace = vi.mocked(useRouter().replace);
+    replace.mockClear();
+    render(<Filters query={{ timezone: "UTC", league: "LCK" }} history view="games" />);
+    const field = screen.getByLabelText<HTMLInputElement>("Filter Games");
+    field.focus();
+    fireEvent.change(field, { target: { value: "Gen" } });
+    vi.advanceTimersByTime(200);
+    fireEvent.change(field, { target: { value: "Gen.G" } });
+    vi.advanceTimersByTime(200);
+    expect(replace).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(200);
+    expect(replace).toHaveBeenCalledTimes(1);
+    const [url, options] = replace.mock.calls[0]!;
+    const params = new URL(url, "http://localhost").searchParams;
+    expect(params.get("view")).toBe("games");
+    expect(params.get("q")).toBe("Gen.G");
+    expect(params.get("league")).toBe("LCK");
+    expect(options).toEqual({ scroll: false });
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue("Gen.G");
+  } finally {
+    vi.useRealTimers();
+  }
 });
