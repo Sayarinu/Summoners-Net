@@ -7,12 +7,18 @@ import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 
 const roles = ["top", "jungle", "mid", "bottom", "support"];
 const percentage = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
+const count = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 type Statistics = HistoricalParticipant["statistics"];
 
 const metrics = [
-  { label: "Gold Distribution", read: (stats?: Statistics) => stats?.economy.totalgold },
+  {
+    label: "Gold Distribution",
+    unit: "gold",
+    read: (stats?: Statistics) => stats?.economy.totalgold,
+  },
   {
     label: "Damage Distribution",
+    unit: "damage",
     read: (stats?: Statistics) => stats?.damage.damagetochampions,
     share: (stats?: Statistics) => stats?.damage.damageshare,
   },
@@ -48,24 +54,28 @@ export function GameDistributions({
       }),
     };
   });
-  const cards = metrics.flatMap(({ label, read, share }) => {
+  const cards = metrics.flatMap(({ label, unit, read, share }) => {
     const values = sides.map(({ team, players }) => {
       const amounts = players.map((player) => read(player?.statistics));
       const total = read(team) ?? measuredTotal(amounts);
       return players.map((player, index) => {
+        const amount = amounts[index] ?? null;
         const recorded = share?.(player?.statistics);
-        if (recorded != null && recorded >= 0 && recorded <= 1) return recorded;
-        const amount = amounts[index];
-        return total && amount != null && amount >= 0 && amount <= total ? amount / total : null;
+        if (recorded != null && recorded >= 0 && recorded <= 1) return { share: recorded, amount };
+        return total && amount != null && amount >= 0 && amount <= total
+          ? { share: amount / total, amount }
+          : null;
       });
     });
-    return values.some((side) => side.some((value) => value !== null)) ? [{ label, values }] : [];
+    return values.some((side) => side.some((value) => value !== null))
+      ? [{ label, unit, values }]
+      : [];
   });
   if (!cards.length) return null;
 
   return (
     <div className="ev-game-distributions">
-      {cards.map(({ label, values }) => {
+      {cards.map(({ label, unit, values }) => {
         const teamColumns = teams.map((team, index) => ({
           id: team.id,
           header: (
@@ -83,11 +93,15 @@ export function GameDistributions({
             return value == null ? (
               "—"
             ) : (
-              <span className="ev-game-distribution__value" data-side={team.side}>
+              <span
+                className="ev-game-distribution__value"
+                data-side={team.side}
+                title={value.amount == null ? undefined : `${count.format(value.amount)} ${unit}`}
+              >
                 <span className="ev-game-distribution__track" aria-hidden="true">
-                  <span style={{ inlineSize: `${value * 100}%` }} />
+                  <span style={{ inlineSize: `${value.share * 100}%` }} />
                 </span>
-                <span className="np-meta">{percentage.format(value)}</span>
+                <span className="np-meta">{percentage.format(value.share)}</span>
               </span>
             );
           },
