@@ -167,13 +167,13 @@ export function ProTimeline({
   const probability = (winProbability?.model ? winProbability.points : []).map(
     ({ minute, blueWinProbability: value }): TimelinePoint => ({
       seconds: minute * 60,
-      time: `${minute}m`,
+      time: clockLabel(minute * 60),
       lead: value === null ? null : value - 0.5,
       label: value === null ? "" : percent.format(Math.max(value, 1 - value)),
       description:
         value === null
-          ? `${minute} minutes: win probability unavailable`
-          : `${minute} minutes: ${blueName} ${percent.format(value)}, ${redName} ${percent.format(1 - value)}`,
+          ? `${clockLabel(minute * 60)}: win probability unavailable`
+          : `${clockLabel(minute * 60)}: ${blueName} ${percent.format(value)}, ${redName} ${percent.format(1 - value)}`,
       readout:
         value === null
           ? null

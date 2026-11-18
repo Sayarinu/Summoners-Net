@@ -6,6 +6,7 @@ import {
   leaguepediaBatchSize,
   leaguepediaGamesUrl,
   parseLeaguepediaGames,
+  proGameDetailVersion,
   proGamePlatformPattern,
   type ProGameDetails,
 } from "../providers/leaguepedia-game.js";
@@ -25,9 +26,9 @@ export interface ProGameDetailOptions extends ProGameDetailRun {
 }
 
 /**
- * Games still to check: never checked, or checked over a week ago without gold data. Games in a
- * covered competition (projected into `games`) come first, then every other eligible game, each
- * newest first.
+ * Games still to check: never checked, stored once by an older parser, or checked over a week
+ * ago without gold data. Never-checked games come first; within each group, games in a covered
+ * competition (projected into `games`) come first, then every other eligible game, newest first.
  */
 async function pendingGames(pool: Pool, now: Date, skip: readonly string[], limit: number) {
   const games = await pool.query<{ source_game_id: string }>(
@@ -38,12 +39,15 @@ async function pendingGames(pool: Pool, now: Date, skip: readonly string[], limi
        AND (d.checked_at IS NULL OR (
          d.checked_at < $2::timestamptz - interval '7 days'
          AND (d.document IS NULL OR d.document->'gold' = '[]'::jsonb)
-       ))
+       ) OR (d.document->'gold' <> '[]'::jsonb
+         AND coalesce((d.document->>'detailVersion')::int, 1) < $5
+         -- One attempt: a failed reload moves checked_at past observed_at and keeps the old record.
+         AND d.checked_at <= d.observed_at))
      GROUP BY g.source_game_id, d.checked_at
      ORDER BY d.checked_at IS NOT NULL, bool_or(c.id IS NOT NULL) DESC, max(g.occurred_at) DESC,
        g.source_game_id
      LIMIT $4`,
-    [proGamePlatformPattern, now, skip, limit],
+    [proGamePlatformPattern, now, skip, limit, proGameDetailVersion],
   );
   return games.rows.map(({ source_game_id: id }) => id);
 }

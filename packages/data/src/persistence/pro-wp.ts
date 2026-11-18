@@ -3,6 +3,8 @@ import {
   checkpointFeatures,
   checkpointModelVersion,
   checkpointsFrom,
+  coveredMinutes,
+  reportedMinutes,
   vectorizeCheckpoint,
   type Checkpoint,
 } from "../domain/wp-checkpoints.js";
@@ -10,34 +12,57 @@ import { evaluate, predict, splitByMatch, train, type Example } from "../domain/
 import { transaction, type Executor } from "./database.js";
 import { activeWinProbabilityModel } from "./wp-models.js";
 
+/** A game's checkpoints by minute: the reported ones, replaced by recorded frames where present. */
+function gameCheckpoints(statistics: Record<string, unknown> | null, frames: Checkpoint[] | null) {
+  const checkpoints = new Map(
+    (statistics ? checkpointsFrom(statistics) : []).map((checkpoint) => [
+      checkpoint.minute,
+      checkpoint,
+    ]),
+  );
+  for (const frame of frames ?? []) checkpoints.set(frame.minute, frame);
+  return [...checkpoints.values()].sort((a, b) => a.minute - b.minute);
+}
+
 /**
  * Trains the pro checkpoint model on blue team rows of summary-eligible games from the two
- * newest archive years, split by game. Published only with at least minimumGames training games;
- * otherwise stored as rejected and the active checkpoint model stays.
+ * newest archive years, split by game: the reported checkpoints, and every recorded minute of
+ * games with a frame timeline. It covers the reported minutes, widened to neighbouring minutes
+ * that at least minimumGamesPerMinute games reach. Published only with at least minimumGames
+ * training games; otherwise stored as rejected and the active checkpoint model stays.
  */
 export async function trainCheckpointModel(
   pool: Pool,
   now: Date,
-  options: { minimumGames: number; seed: number },
+  options: { minimumGames: number; minimumGamesPerMinute: number; seed: number },
 ) {
   const rows = await pool.query<{
     game_id: string;
     year: number;
     result: boolean;
     statistics: Record<string, unknown>;
+    frames: Checkpoint[] | null;
   }>(
-    `SELECT p.game_id,g.archive_year AS year,p.result,p.statistics
+    `SELECT p.game_id,g.archive_year AS year,p.result,p.statistics,
+       detail.document->'checkpoints' AS frames
      FROM oracle_archive_participants p JOIN oracle_archive_games g ON g.id=p.game_id
+     LEFT JOIN pro_game_details detail ON detail.source_game_id=g.source_game_id
      WHERE p.position='team' AND p.side='blue' AND p.result IS NOT NULL AND g.summary_eligible
        AND g.archive_year>=(SELECT max(archive_year)-1 FROM oracle_archive_games)
      ORDER BY p.game_id`,
   );
   const years = [...new Set(rows.rows.map((r) => String(r.year)))].sort();
-  const examples = rows.rows.flatMap((r): Example[] =>
-    checkpointsFrom(r.statistics).flatMap((c) => {
+  const scored = rows.rows.flatMap((r) =>
+    gameCheckpoints(r.statistics, r.frames).flatMap((c) => {
       const x = vectorizeCheckpoint(c);
-      return x ? [{ matchId: r.game_id, x, y: r.result ? 1 : 0 }] : [];
+      return x ? [{ minute: c.minute, matchId: r.game_id, x, y: r.result ? 1 : 0 } as const] : [];
     }),
+  );
+  const gamesByMinute = new Map<number, number>();
+  for (const { minute } of scored) gamesByMinute.set(minute, (gamesByMinute.get(minute) ?? 0) + 1);
+  const minutes = coveredMinutes(gamesByMinute, options.minimumGamesPerMinute);
+  const examples = scored.flatMap(({ minute, ...example }): Example[] =>
+    minute >= minutes.first && minute <= minutes.last ? [example] : [],
   );
   const split = splitByMatch(examples, options.seed);
   const games = (list: Example[]) => new Set(list.map((e) => e.matchId)).size;
@@ -62,7 +87,7 @@ export async function trainCheckpointModel(
         split.train.length,
         games(split.evaluate),
         split.evaluate.length,
-        JSON.stringify({ ...model, features: checkpointFeatures.map((f) => f.name) }),
+        JSON.stringify({ ...model, features: checkpointFeatures.map((f) => f.name), minutes }),
         result.brier,
         JSON.stringify(result.bins),
         enough ? "active" : "rejected",
@@ -79,10 +104,10 @@ export async function trainCheckpointModel(
 export interface ProGameWinProbability {
   model: { id: number; modelVersion: number; brier: number | null; years: string[] } | null;
   reason: string | null;
-  /** Estimated minutes in the supported range, with null for unavailable checkpoints. */
+  /** Estimated minutes in the model's covered range, with null for unavailable checkpoints. */
   points: { minute: number; blueWinProbability: number | null }[];
 }
-/** Blue-side estimates from recorded game states within the checkpoint model's training range. */
+/** Blue-side estimates from recorded game states within the minutes the model covers. */
 export async function proGameWinProbability(
   db: Executor,
   gameId: string,
@@ -108,17 +133,11 @@ export async function proGameWinProbability(
         years: model.patchWindow,
       }
     : null;
-  const checkpoints = new Map(
-    (row ? checkpointsFrom(row.statistics) : []).map((checkpoint) => [
-      checkpoint.minute,
-      checkpoint,
-    ]),
-  );
-  for (const frame of row?.frames ?? []) checkpoints.set(frame.minute, frame);
   if (!model)
     return { model: null, reason: "No pro win probability model is active yet.", points: [] };
-  const points = [...checkpoints.values()]
-    .sort((a, b) => a.minute - b.minute)
+  const { first, last } = model.coefficients.minutes ?? reportedMinutes;
+  const points = gameCheckpoints(row?.statistics ?? null, row?.frames ?? null)
+    .filter(({ minute }) => minute >= first && minute <= last)
     .map((c) => {
       const x = vectorizeCheckpoint(c);
       return { minute: c.minute, blueWinProbability: x ? predict(model.coefficients, x) : null };

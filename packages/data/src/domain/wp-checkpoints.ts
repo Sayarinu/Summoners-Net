@@ -1,7 +1,28 @@
-// The pro model is trained at 10, 15, 20 and 25 minutes on blue-side gold, XP,
-// CS and kill leads. Recorded frames can supply the same inputs within that time range.
+// The pro model is trained on blue-side gold, XP, CS and kill leads. Oracle's Elixir reports
+// them at 10, 15, 20 and 25 minutes; Leaguepedia frame timelines supply them for every minute.
 export const checkpointMinutes = [10, 15, 20, 25] as const;
-export const checkpointModelVersion = 1;
+/** 2: trained on every recorded minute and stores the minutes it covers. */
+export const checkpointModelVersion = 2;
+export interface MinuteRange {
+  first: number;
+  last: number;
+}
+/** The minutes a model without a stored range was trained on: the reported checkpoints. */
+export const reportedMinutes: MinuteRange = {
+  first: checkpointMinutes[0],
+  last: checkpointMinutes.at(-1)!,
+};
+/**
+ * The reported checkpoint minutes, widened one minute at a time in each direction while every
+ * added minute has at least `minimum` games, so the model never scores a sparsely seen minute.
+ */
+export function coveredMinutes(gamesByMinute: ReadonlyMap<number, number>, minimum: number) {
+  const enough = (minute: number) => (gamesByMinute.get(minute) ?? 0) >= minimum;
+  let { first, last } = reportedMinutes;
+  while (first > 0 && enough(first - 1)) first--;
+  while (enough(last + 1)) last++;
+  return { first, last };
+}
 export const checkpointFeatures = [
   { name: "minute", scale: 30 },
   { name: "goldDiff", scale: 5000 },

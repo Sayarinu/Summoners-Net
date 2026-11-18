@@ -47,7 +47,7 @@ it("lists model versions and shows the selected model's calibration and weights"
   render(<ModelsPage diagnostics={diagnostics} error={null} />);
   const versions = screen.getByRole("table", { name: "Model Versions" });
   expect(versions).toHaveTextContent(
-    "#3 · v1Pro (4 checkpoints)activeYears 2025, 2026800 games · 24000 statesv10.181",
+    "#3 · v1Pro (Game Checkpoints)activeYears 2025, 2026800 games · 24000 statesv10.181",
   );
   expect(versions).toHaveTextContent("Patches 16.22");
   expect(versions).toHaveTextContent(

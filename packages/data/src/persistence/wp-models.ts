@@ -26,7 +26,8 @@ export interface WinProbabilityModel {
   trainRows: number;
   evalMatches: number;
   evalRows: number;
-  coefficients: Coefficients & { features: string[] };
+  /** `minutes`: the game minutes a pro checkpoint model covers; absent before version 2. */
+  coefficients: Coefficients & { features: string[]; minutes?: { first: number; last: number } };
   brier: number | null;
   bins: ReliabilityBin[];
   status: "active" | "retired" | "rejected";
