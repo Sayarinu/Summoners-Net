@@ -916,9 +916,25 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.ev-series-summary .np-table {
+  min-width: 0;
+}
+
 .ev-series-summary .np-table th {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.ev-series-summary__team {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .ev-series-summary__score[data-side] {
@@ -940,7 +956,7 @@
 
 @container (min-width: 70rem) {
   .ev-series-media:has(> .ev-series-replay + .ev-series-summary) {
-    grid-template-columns: minmax(0, 67.5rem) minmax(20rem, 1fr);
+    grid-template-columns: minmax(0, 67.5rem) minmax(26rem, 1fr);
   }
 }
 

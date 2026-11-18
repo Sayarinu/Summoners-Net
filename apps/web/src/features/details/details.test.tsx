@@ -673,8 +673,23 @@ it("links an archive game back to its confirmed series", () => {
     "href",
     "/matches/1/games/1",
   );
+  const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+  expect(crumbs.getByRole("link", { name: "Acceptance Blue vs Acceptance Red" })).toHaveAttribute(
+    "href",
+    "/matches/1",
+  );
+  expect(screen.getByText(/· Game 1/, { selector: ".np-overline" })).toHaveTextContent(
+    new RegExp(
+      `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(game.occurredAt))}`,
+    ),
+  );
   view.rerender(<GamePage game={game} timezone="UTC" hideSpoilers={false} />);
   expect(screen.queryByRole("link", { name: "Open in Series" })).toBeNull();
+  expect(
+    within(screen.getByRole("navigation", { name: "Breadcrumb" })).queryByRole("link", {
+      name: "Acceptance Blue vs Acceptance Red",
+    }),
+  ).toBeNull();
 });
 
 it("shows a player's final items and reveals their recorded purchases by minute", async () => {

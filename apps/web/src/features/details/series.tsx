@@ -306,6 +306,19 @@ export interface SeriesGameSummary {
   teams: { id: string; side: "blue" | "red"; kills: number | null }[];
 }
 
+function TeamLogo({ team }: { team: Match["teams"][number] }) {
+  return team.imageUrl && team.name !== "TBD" ? (
+    <Avatar
+      alt=""
+      aria-hidden="true"
+      entityKind="team"
+      fallback={team.name}
+      size="small"
+      src={team.imageUrl}
+    />
+  ) : null;
+}
+
 function SeriesSummary({
   match,
   games,
@@ -319,7 +332,13 @@ function SeriesSummary({
   const finished = games.filter((game) => game.state === "finished");
   const teamColumns = match.teams.map((team, index) => ({
     id: team.id,
-    header: team.name,
+    header: (
+      <span className="ev-series-summary__team">
+        {index ? <TeamLogo team={team} /> : null}
+        {team.name}
+        {index ? null : <TeamLogo team={team} />}
+      </span>
+    ),
     align: index === 0 ? ("end" as const) : ("start" as const),
     render: (game: SeriesGame) => {
       const entry = byNumber
