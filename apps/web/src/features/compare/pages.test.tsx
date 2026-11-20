@@ -32,7 +32,7 @@ it("shows two champions side by side with each value's sample", () => {
   expect(row("Win Rate 52")).toHaveTextContent("Win Rate52.5%118Not stored0");
   expect(row("Ban Rate")).toHaveTextContent("Ban RateUnknown0Not stored0");
   expect(row("Games")).toHaveTextContent("Games120120Not stored0");
-  expect(screen.getByLabelText("First champion id")).toHaveValue("Ahri");
+  expect(screen.getByLabelText("First Champion ID")).toHaveValue("Ahri");
   expect(screen.getByRole("button", { name: "Save This View" })).toBeVisible();
 });
 it("prompts for champions and shows validation errors", () => {

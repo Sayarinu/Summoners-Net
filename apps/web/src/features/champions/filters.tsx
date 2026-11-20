@@ -1,5 +1,5 @@
 "use client";
-import { RoleIcon, Button, Select } from "@summonersnet/ui";
+import { RoleIcon, Button, FilterBar, Select } from "@summonersnet/ui";
 import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/contracts";
 import { roleLabels, sortLabels } from "./presentation";
 
@@ -23,20 +23,17 @@ export function ChampionFilters({
   facets,
   sortable = false,
   scopeOnly = false,
+  className,
 }: {
   action: string;
   query: Filters | undefined;
   facets: TierList["facets"] | undefined;
   sortable?: boolean;
   scopeOnly?: boolean;
+  className?: string;
 }) {
   return (
-    <form
-      action={action}
-      method="get"
-      className={`ev-filters${scopeOnly ? " ev-filters--compact" : ""}`}
-      key={JSON.stringify(query)}
-    >
+    <FilterBar action={action} method="get" className={className} key={JSON.stringify(query)}>
       {scopeOnly ? (
         <>
           <input type="hidden" name="source" value={query?.source ?? "solo"} />
@@ -106,6 +103,6 @@ export function ChampionFilters({
         </>
       )}
       <Button type="submit">Apply Filters</Button>
-    </form>
+    </FilterBar>
   );
 }

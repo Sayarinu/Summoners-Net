@@ -25,7 +25,7 @@ function layout({ columns, top, height }: { columns: number; top: number; height
 function grid(props: { page: number; pageSize: number; total: number }) {
   return (
     <div>
-      <FillingGrid className="ev-directory-grid" label="Players" {...props}>
+      <FillingGrid className="grid" label="Players" {...props}>
         <li>One</li>
         <li>Two</li>
       </FillingGrid>

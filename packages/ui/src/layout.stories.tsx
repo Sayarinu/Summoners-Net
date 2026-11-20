@@ -4,6 +4,7 @@ import { PlayerIdentity, TeamIdentity, TeamVersus } from "./esports.js";
 import { Input, Select } from "./forms.js";
 import {
   Card,
+  CardLink,
   DisclosurePanel,
   FilterBar,
   PageHeader,
@@ -111,6 +112,7 @@ function PageLayoutGallery() {
 
         <Panel aria-label="Bilibili Gaming">
           <TeamIdentity detail="LPL" name="Bilibili Gaming" shortName="BLG" size="display" />
+          <PlayerIdentity handle="Knight" role="mid" size="display" />
         </Panel>
 
         <ul
@@ -123,7 +125,10 @@ function PageLayoutGallery() {
           </li>
           <li>
             <Card>
-              <PlayerIdentity handle="Chovy" layout="stacked" role="mid" />
+              <CardLink href="#player">
+                <PlayerIdentity handle="Chovy" role="mid" />
+              </CardLink>
+              <TeamIdentity href="#team" name="Gen.G" shortName="GEN" size="compact" />
             </Card>
           </li>
           <li>

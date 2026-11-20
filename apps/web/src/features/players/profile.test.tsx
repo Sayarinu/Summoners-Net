@@ -52,21 +52,30 @@ it("formats every statistic and keeps missing values and partial samples explici
       hideSpoilers={false}
     />,
   );
-  const stat = (label: string) => screen.getByText(label, { selector: "dt" }).nextElementSibling;
-  expect(stat("Game Record")).toHaveTextContent("1 – 01 unknown result");
-  expect(stat("KDA")).toHaveTextContent("6.001 game");
-  expect(stat("Kill Participation")).toHaveTextContent("75.0%");
-  expect(stat("Average Kills")).toHaveTextContent("5.0");
-  expect(stat("Pentakills")).toHaveTextContent("1");
-  expect(stat("CS per Minute")).toHaveTextContent("8.5");
-  expect(stat("Gold per Minute")).toHaveTextContent("412");
-  expect(stat("Gold Share")).toHaveTextContent("23.1%");
-  expect(stat("Damage per Minute")).toHaveTextContent("613");
-  expect(stat("Vision Score per Minute")).toHaveTextContent("1.23");
-  expect(stat("Gold Diff at 15")).toHaveTextContent("-1231 game");
-  expect(stat("CS Diff at 15")).toHaveTextContent("+8");
-  expect(stat("XP Diff at 15")).toHaveTextContent("—0 games");
-  expect(stat("First Blood Victim")).toHaveTextContent("0.0%");
+  // Each figure is a term and its value; a partial sample is noted under the term.
+  const stat = (label: string) => {
+    const term = screen.getAllByRole("term").find((dt) => dt.firstChild?.textContent === label);
+    if (!term) throw new Error(`No statistic labelled ${label}`);
+    return { value: term.nextElementSibling, sample: term.querySelector("small") };
+  };
+  expect(stat("Game Record").value).toHaveTextContent("1 – 01 unknown result");
+  expect(stat("KDA").value).toHaveTextContent("6.00");
+  expect(stat("KDA").sample).toHaveTextContent("1 game");
+  expect(stat("Kill Participation").value).toHaveTextContent("75.0%");
+  expect(stat("Average Kills").value).toHaveTextContent("5.0");
+  expect(stat("Pentakills").value).toHaveTextContent("1");
+  expect(stat("CS per Minute").value).toHaveTextContent("8.5");
+  expect(stat("Gold per Minute").value).toHaveTextContent("412");
+  expect(stat("Gold Share").value).toHaveTextContent("23.1%");
+  expect(stat("Damage per Minute").value).toHaveTextContent("613");
+  expect(stat("Vision Score per Minute").value).toHaveTextContent("1.23");
+  expect(stat("Gold Diff at 15").value).toHaveTextContent("-123");
+  expect(stat("Gold Diff at 15").sample).toHaveTextContent("1 game");
+  expect(stat("CS Diff at 15").value).toHaveTextContent("+8");
+  expect(stat("CS Diff at 15").sample).toBeNull();
+  expect(stat("XP Diff at 15").value).toHaveTextContent("—");
+  expect(stat("XP Diff at 15").sample).toHaveTextContent("0 games");
+  expect(stat("First Blood Victim").value).toHaveTextContent("0.0%");
   const row = screen.getByRole("link", { name: /Game 1: Acceptance Blue versus Acceptance Red/ });
   expect(row).toHaveAttribute("href", `/games/${encodeURIComponent(game.id)}`);
   expect(within(row.closest("article")!).getByText("LCK · Game 1")).toBeVisible();

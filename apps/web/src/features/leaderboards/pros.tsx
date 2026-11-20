@@ -1,6 +1,16 @@
 "use client";
 import { GameResult } from "../browse/visuals";
-import { ChampionIcon, EmptyState, Pagination, Select, Table, TextLink } from "@summonersnet/ui";
+import {
+  ChampionIcon,
+  EmptyState,
+  FilterBar,
+  PageHeader,
+  Pagination,
+  Panel,
+  Select,
+  Table,
+  TextLink,
+} from "@summonersnet/ui";
 import type { ProFeed } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
 import { dateTime, identityHref } from "../browse/presentation";
@@ -26,17 +36,19 @@ export function ProFeedPage({
     router.push(`/leaderboards/pros?${params}`);
   }
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Pros in Solo Queue</h1>
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[{ label: "Leaderboards", href: "/leaderboards" }, { label: "Pro Accounts" }]}
+        title="Pros in Solo Queue"
+      />
       {error ? (
         <p role="alert">{error}</p>
       ) : feed ? (
         <>
-          <div className="ev-filters">
+          <FilterBar
+            className="border-y border-line py-3"
+            onSubmit={(event) => event.preventDefault()}
+          >
             <Select
               label="Team"
               value={feed.query.team || "all"}
@@ -61,15 +73,17 @@ export function ProFeedPage({
               ]}
               onValueChange={(v) => navigate({ league: v === "all" ? "" : v })}
             />
-            <TextLink href="/leaderboards/pros">Clear Filters</TextLink>
-          </div>
+            <TextLink className="self-end py-2.5" href="/leaderboards/pros">
+              Clear Filters
+            </TextLink>
+          </FilterBar>
           {feed.page.total === 0 ? (
             <EmptyState
               title="No Linked Solo Queue Games"
               description="No pro account links or matching ranked solo games are stored for these filters yet. Try clearing the filters."
             />
           ) : (
-            <>
+            <Panel title="Recent Games" padding="none">
               <Table
                 caption="Recent Pro Solo Queue Games"
                 rows={feed.page.items}
@@ -80,7 +94,7 @@ export function ProFeedPage({
                     id: "player",
                     header: "Player",
                     render: (r) => (
-                      <div className="np-stack">
+                      <div className="grid gap-1">
                         <TextLink href={identityHref(r.player)}>{r.player.name}</TextLink>
                         <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}`}>
                           Solo Queue Profile
@@ -109,7 +123,7 @@ export function ProFeedPage({
                     id: "champion",
                     header: "Champion",
                     render: (r) => (
-                      <span className="ev-champion">
+                      <span className="inline-flex items-center gap-2">
                         <ChampionIcon
                           id={r.championId ?? String(r.championKey)}
                           name={r.championName ?? `Champion ${r.championKey}`}
@@ -131,8 +145,8 @@ export function ProFeedPage({
                   },
                 ]}
               />
-              <div className="ev-pagination">
-                <span className="np-meta">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-4 py-4">
+                <span className="np-meta text-accent">
                   {feed.page.total} player games · Page {feed.page.page}
                 </span>
                 <Pagination
@@ -142,7 +156,7 @@ export function ProFeedPage({
                   onPageChange={(page) => navigate({ page: String(page) })}
                 />
               </div>
-            </>
+            </Panel>
           )}
         </>
       ) : null}

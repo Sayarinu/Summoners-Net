@@ -1,4 +1,13 @@
-import { RoleIcon, EmptyState, Minimap, TextLink } from "@summonersnet/ui";
+import {
+  EmptyState,
+  Minimap,
+  PageHeader,
+  Panel,
+  RoleIcon,
+  Stat,
+  StatGroup,
+  TabNav,
+} from "@summonersnet/ui";
 import {
   heatmapKinds,
   heatmapRoles,
@@ -19,6 +28,7 @@ const roleLabels: Record<string, string> = {
   UTILITY: "Support",
 };
 const subjectLabels = { champion: "Champion", player: "Player", role: "Role" } as const;
+const plural = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"}`;
 
 function href(h: Pick<Heatmap, "subjectKind" | "subject">, kind: HeatmapKind, patch?: string) {
   const params = new URLSearchParams({ subjectKind: h.subjectKind, subject: h.subject, kind });
@@ -29,8 +39,8 @@ function href(h: Pick<Heatmap, "subjectKind" | "subject">, kind: HeatmapKind, pa
 export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error: string | null }) {
   if (!heatmap)
     return (
-      <div className="np-stack">
-        <h1>Heatmap</h1>
+      <div className="flex min-w-0 flex-col gap-6">
+        <PageHeader eyebrow="Solo Queue" title="Heatmap" />
         <p role="alert">{error}</p>
       </div>
     );
@@ -41,82 +51,93 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
       : (h.label ?? (h.subjectKind === "player" ? "Riot ID not resolved" : h.subject));
   const selected = h.patch ?? undefined;
   const kind = kindLabels[h.kind].toLowerCase();
+  const drawable = h.patch && h.patches.some((p) => p.patch === h.patch);
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">
-            Solo queue heatmap · {subjectLabels[h.subjectKind]}
-            {h.patch ? ` · Patch ${h.patch}` : ""}
-          </span>
-          <h1 aria-label={h.subjectKind === "role" ? `${name}: ${kind}` : undefined}>
-            {h.subjectKind === "role" ? <RoleIcon role={h.subject} /> : name}: {kind}
-          </h1>
-        </div>
-      </header>
-      <nav aria-label="Heatmap Type" className="ev-filters">
-        {heatmapKinds.map((k) => (
-          <TextLink
-            key={k}
-            href={href(h, k, selected)}
-            aria-current={k === h.kind ? "page" : undefined}
-          >
-            {kindLabels[k]}
-          </TextLink>
-        ))}
-      </nav>
-      {h.patches.length ? (
-        <nav aria-label="Patch" className="ev-filters">
-          {h.patches.map((p) => (
-            <TextLink
-              key={p.patch}
-              href={href(h, h.kind, p.patch)}
-              aria-current={p.patch === h.patch ? "page" : undefined}
-            >
-              {`${p.patch} (${p.games} ${p.games === 1 ? "game" : "games"})`}
-            </TextLink>
-          ))}
-        </nav>
-      ) : null}
-      <nav aria-label="Role Heatmaps" className="ev-filters">
-        {heatmapRoles.map((r) => (
-          <TextLink
-            key={r}
-            href={href({ subjectKind: "role", subject: r }, h.kind, selected)}
-            aria-current={h.subjectKind === "role" && h.subject === r ? "page" : undefined}
-          >
-            <RoleIcon role={r} />
-          </TextLink>
-        ))}
-      </nav>
-      {!h.patch || !h.patches.some((p) => p.patch === h.patch) ? (
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        eyebrow={`Solo Queue · ${subjectLabels[h.subjectKind]}${h.patch ? ` · Patch ${h.patch}` : ""}`}
+        title={
+          h.subjectKind === "role" ? (
+            // The icon shows the role; screen readers hear the heading as "Jungle: kills".
+            <>
+              <span className="np-visually-hidden">
+                {name}: {kind}
+              </span>
+              <span aria-hidden="true">
+                <RoleIcon role={h.subject} />: {kind}
+              </span>
+            </>
+          ) : (
+            `${name}: ${kind}`
+          )
+        }
+      />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-line py-3">
+        <TabNav
+          label="Heatmap Type"
+          variant="segmented"
+          items={heatmapKinds.map((k) => ({
+            href: href(h, k, selected),
+            label: kindLabels[k],
+            current: k === h.kind,
+          }))}
+        />
+        <TabNav
+          label="Role Heatmaps"
+          variant="segmented"
+          items={heatmapRoles.map((r) => ({
+            href: href({ subjectKind: "role", subject: r }, h.kind, selected),
+            label: <RoleIcon role={r} />,
+            current: h.subjectKind === "role" && h.subject === r,
+          }))}
+        />
+        {h.patches.length ? (
+          <TabNav
+            label="Patch"
+            variant="segmented"
+            items={h.patches.map((p) => ({
+              href: href(h, h.kind, p.patch),
+              label: `${p.patch} (${plural(p.games, "game")})`,
+              current: p.patch === h.patch,
+            }))}
+          />
+        ) : null}
+      </div>
+      {!drawable ? (
         <EmptyState title="No Heatmap Yet" />
       ) : (
-        <>
-          <p role="status">
-            Sample: {h.games} {h.games === 1 ? "game" : "games"} and {h.points}{" "}
-            {h.points === 1 ? "point" : "points"} on patch {h.patch}.
-          </p>
-          {h.games < h.minimumGames ? (
-            <EmptyState
-              title="Too Few Games to Draw"
-              description={`A heatmap is drawn from ${h.minimumGames} games; this one has ${h.games}.`}
-            />
-          ) : (
-            <Minimap
-              title={`${name} ${kind} heatmap, patch ${h.patch}`}
-              heat={h.cells.map((c) => ({
-                id: `${c.cellX}:${c.cellY}`,
-                label: `Cell ${c.cellX + 1}, ${c.cellY + 1}`,
-                side: "blue",
-                x: c.x,
-                y: c.y,
-                value: c.points,
-                sampleCount: c.points,
-              }))}
-            />
-          )}
-        </>
+        <div className="grid grid-cols-[minmax(0,560px)_minmax(240px,1fr)] items-start gap-4 max-[900px]:grid-cols-1">
+          <Panel title="Map">
+            {h.games < h.minimumGames ? (
+              <EmptyState
+                title="Too Few Games to Draw"
+                description={`A heatmap is drawn from ${h.minimumGames} games; this one has ${h.games}.`}
+              />
+            ) : (
+              <Minimap
+                title={`${name} ${kind} heatmap, patch ${h.patch}`}
+                heat={h.cells.map((c) => ({
+                  id: `${c.cellX}:${c.cellY}`,
+                  label: `Cell ${c.cellX + 1}, ${c.cellY + 1}`,
+                  side: "blue",
+                  x: c.x,
+                  y: c.y,
+                  value: c.points,
+                  sampleCount: c.points,
+                }))}
+              />
+            )}
+          </Panel>
+          <Panel title="Sample">
+            <div role="status" aria-label="Sample">
+              <StatGroup>
+                <Stat label="Games" value={h.games} detail={`Patch ${h.patch}`} />
+                <Stat label="Points" value={h.points} />
+                <Stat label="Minimum to Draw" value={plural(h.minimumGames, "game")} size="sm" />
+              </StatGroup>
+            </div>
+          </Panel>
+        </div>
       )}
     </div>
   );

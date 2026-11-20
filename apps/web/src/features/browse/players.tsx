@@ -1,15 +1,33 @@
 "use client";
-import "./directory.css";
 import { useEffect, useRef, useTransition, type FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EmptyState, Input, PlayerIdentity, Select, TeamIdentity } from "@summonersnet/ui";
+import {
+  Card,
+  CardLink,
+  EmptyState,
+  FilterBar,
+  Input,
+  PageHeader,
+  PlayerIdentity,
+  Select,
+  TeamIdentity,
+} from "@summonersnet/ui";
 import type { BrowseQuery, Page, PlayerDirectoryEntry } from "@summonersnet/data";
 import { regions } from "@summonersnet/data/contracts";
 import { Pages } from "./components";
 import { FillingGrid } from "./page-fill";
 import { identityHref } from "./presentation";
+import { directoryGrid } from "../teams/pages";
 
-function PlayerFilters({ query, pageSize }: { query: BrowseQuery; pageSize: number }) {
+function PlayerFilters({
+  query,
+  pageSize,
+  className,
+}: {
+  query: BrowseQuery;
+  pageSize: number;
+  className?: string;
+}) {
   const form = useRef<HTMLFormElement>(null);
   const timeout = useRef<number | undefined>(undefined);
   const router = useRouter();
@@ -37,14 +55,13 @@ function PlayerFilters({ query, pageSize }: { query: BrowseQuery; pageSize: numb
     });
   }
   return (
-    <form
+    <FilterBar
       ref={form}
-      className="ev-filters"
+      className={className}
       method="get"
       onSubmit={submit}
       aria-busy={pending || undefined}
     >
-      <input type="hidden" name="pageSize" value={pageSize} />
       <Input
         type="search"
         label="Search Players"
@@ -63,7 +80,8 @@ function PlayerFilters({ query, pageSize }: { query: BrowseQuery; pageSize: numb
           ...regions.map((r) => ({ value: r, label: r })),
         ]}
       />
-    </form>
+      <input type="hidden" name="pageSize" value={pageSize} />
+    </FilterBar>
   );
 }
 
@@ -75,44 +93,41 @@ export function PlayerFinder({
   query: BrowseQuery;
 }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Players</h1>
-        </div>
-      </header>
-      <div className="ev-browse-toolbar">
-        <PlayerFilters query={query} pageSize={data.pageSize} />
-      </div>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader title="Players" />
+      <PlayerFilters query={query} pageSize={data.pageSize} className="border-y border-line py-3" />
       {data.items.length ? (
         <FillingGrid
-          className="ev-directory-grid"
+          className={directoryGrid}
           label="Players"
           page={data.page}
           pageSize={data.pageSize}
           total={data.total}
         >
           {data.items.map((p) => (
-            <li key={p.id} className="ev-player-card">
-              <PlayerIdentity
-                handle={p.name}
-                href={identityHref(p)}
-                role={p.role}
-                {...(p.imageUrl ? { portrait: p.imageUrl } : {})}
-              />
-              <div className="ev-player-card__team">
-                {p.team ? (
-                  <TeamIdentity
-                    name={p.team.name}
-                    shortName={p.team.name}
-                    href={identityHref(p.team)}
-                    size="compact"
-                    {...(p.team.imageUrl ? { logo: p.team.imageUrl } : {})}
+            <li key={p.id}>
+              <Card className="justify-between">
+                <CardLink href={identityHref(p)}>
+                  <PlayerIdentity
+                    handle={p.name}
+                    role={p.role}
+                    {...(p.imageUrl ? { portrait: p.imageUrl } : {})}
                   />
-                ) : (
-                  <span>No current team</span>
-                )}
-              </div>
+                </CardLink>
+                <div className="border-t border-line pt-3 text-sm text-fg-muted">
+                  {p.team ? (
+                    <TeamIdentity
+                      name={p.team.name}
+                      shortName={p.team.name}
+                      href={identityHref(p.team)}
+                      size="compact"
+                      {...(p.team.imageUrl ? { logo: p.team.imageUrl } : {})}
+                    />
+                  ) : (
+                    <span>No current team</span>
+                  )}
+                </div>
+              </Card>
             </li>
           ))}
         </FillingGrid>

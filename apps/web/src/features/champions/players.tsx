@@ -1,5 +1,5 @@
 "use client";
-import { Button, Pagination, Select, Table, TextLink } from "@summonersnet/ui";
+import { Button, FilterBar, Panel, Select, Table, TextLink } from "@summonersnet/ui";
 import {
   championPlayerMinimumGames,
   championPlayerSorts,
@@ -7,6 +7,7 @@ import {
 } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
 import { identityHref } from "../browse/presentation";
+import { PageFooter } from "./paging";
 import { percent } from "./presentation";
 export function PlayersSection({
   overview,
@@ -17,42 +18,40 @@ export function PlayersSection({
   const { players, query: q } = overview;
   if (!players) return null;
   return (
-    <section className="np-stack" aria-labelledby="champion-players-heading">
-      <h2 id="champion-players-heading">Top Sampled Ladder Players</h2>
-      <p>
+    <Panel
+      title="Top Sampled Ladder Players"
+      padding="none"
+      actions={
+        <FilterBar action={`/champions/${overview.champion.id}`} method="get" key={players.sort}>
+          {Object.entries(q)
+            .filter(
+              ([key, value]) =>
+                value !== undefined && !["champion", "playersSort", "playersPage"].includes(key),
+            )
+            .map(([key, value]) => (
+              <input key={key} type="hidden" name={key} value={value} />
+            ))}
+          <Select
+            label="Sort Players By"
+            hideLabel
+            name="playersSort"
+            defaultValue={players.sort}
+            options={championPlayerSorts.map((value) => ({
+              value,
+              label: value === "games" ? "Games" : "Win Rate",
+            }))}
+          />
+          <Button type="submit">Sort Players</Button>
+        </FilterBar>
+      }
+    >
+      <p className="max-w-reading px-4 pt-3 text-sm text-fg-muted">
         At least {championPlayerMinimumGames} retained ranked solo games on this champion in the
         selected patch and role. Win rate needs {championPlayerMinimumGames} known results; its
-        sample is shown separately. These samples do not cover every game played.
+        sample is shown separately. These samples do not cover every game played. Only players in
+        the last successful apex ladder snapshot appear. Rank is from that snapshot, not the time of
+        each game. The tier filter uses the player&apos;s ladder tier.
       </p>
-      <p>
-        Only players in the last successful apex ladder snapshot appear. Rank is from that snapshot,
-        not the time of each game. The tier filter uses the player&apos;s ladder tier.
-      </p>
-      <form
-        action={`/champions/${overview.champion.id}`}
-        method="get"
-        className="ev-filters"
-        key={players.sort}
-      >
-        {Object.entries(q)
-          .filter(
-            ([key, value]) =>
-              value !== undefined && !["champion", "playersSort", "playersPage"].includes(key),
-          )
-          .map(([key, value]) => (
-            <input key={key} type="hidden" name={key} value={value} />
-          ))}
-        <Select
-          label="Sort Players By"
-          name="playersSort"
-          defaultValue={players.sort}
-          options={championPlayerSorts.map((value) => ({
-            value,
-            label: value === "games" ? "Games" : "Win Rate",
-          }))}
-        />
-        <Button type="submit">Sort Players</Button>
-      </form>
       <Table
         caption="Sampled Champion Players"
         rows={players.page.items}
@@ -63,7 +62,7 @@ export function PlayersSection({
             id: "player",
             header: "Player",
             render: (r) => (
-              <div className="np-stack">
+              <div className="flex flex-col gap-1">
                 <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}?platform=${r.platform}`}>
                   {r.gameName && r.tagLine ? `${r.gameName}#${r.tagLine}` : r.puuid}
                 </TextLink>
@@ -81,7 +80,7 @@ export function PlayersSection({
             id: "rank",
             header: "Current Stored Rank",
             render: (r) => (
-              <div className="np-stack">
+              <div className="flex flex-col gap-1">
                 <span>
                   {r.platform.toUpperCase()} · {r.tier} · {r.leaguePoints} LP
                 </span>
@@ -93,25 +92,22 @@ export function PlayersSection({
           },
         ]}
       />
-      <div className="ev-pagination">
-        <span className="np-meta">
-          {players.page.total} player accounts · Page {players.page.page}
-        </span>
-        <Pagination
-          label="Champion Player Pages"
-          currentPage={players.page.page}
-          totalPages={Math.max(1, Math.ceil(players.page.total / players.page.pageSize))}
-          onPageChange={(page) => {
-            const params = new URLSearchParams(
-              Object.entries(q)
-                .filter(([key, value]) => value !== undefined && key !== "champion")
-                .map(([key, value]) => [key, String(value)]),
-            );
-            params.set("playersPage", String(page));
-            router.push(`/champions/${overview.champion.id}?${params}`);
-          }}
-        />
-      </div>
-    </section>
+      <PageFooter
+        summary={`${players.page.total} player accounts · Page ${players.page.page}`}
+        label="Champion Player Pages"
+        page={players.page.page}
+        total={players.page.total}
+        pageSize={players.page.pageSize}
+        onPageChange={(page) => {
+          const params = new URLSearchParams(
+            Object.entries(q)
+              .filter(([key, value]) => value !== undefined && key !== "champion")
+              .map(([key, value]) => [key, String(value)]),
+          );
+          params.set("playersPage", String(page));
+          router.push(`/champions/${overview.champion.id}?${params}`);
+        }}
+      />
+    </Panel>
   );
 }

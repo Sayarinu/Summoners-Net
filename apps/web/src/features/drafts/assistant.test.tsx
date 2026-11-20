@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { draftAssistantQuerySchema, type DraftAssistant } from "@summonersnet/data/contracts";
 import { DraftAssistantPage } from "./assistant";
 import type { DraftWinProbability } from "@summonersnet/data/contracts";
@@ -38,7 +38,7 @@ const assistant: DraftAssistant = {
     },
   ],
 };
-it("ranks candidates with each part's sample and explains the score", () => {
+it("ranks candidates with each part's sample and explains the score", async () => {
   render(
     <DraftAssistantPage
       assistant={assistant}
@@ -60,8 +60,8 @@ it("ranks candidates with each part's sample and explains the score", () => {
     "href",
     "/champions/Ahri/matchups?source=solo&patch=16.22&role=MIDDLE",
   );
-  expect(screen.getByText("How Candidates Are Ranked")).toBeVisible();
-  expect(screen.getByText(/score = mean of the known parts/)).toBeInTheDocument();
+  fireEvent.click(screen.getByText("How Candidates Are Ranked"));
+  expect(await screen.findByText(/score = mean of the known parts/)).toBeInTheDocument();
 });
 it("shows validation errors without results and keeps the typed draft", () => {
   render(

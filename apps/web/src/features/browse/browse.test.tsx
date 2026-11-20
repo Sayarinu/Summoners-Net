@@ -271,7 +271,7 @@ describe("browse presentation", () => {
       target: { value: "Faker" },
     });
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    expect(replace.mock.calls[0]).toEqual(["/?pageSize=36&q=Faker&league=LCK", { scroll: false }]);
+    expect(replace.mock.calls[0]).toEqual(["/?q=Faker&league=LCK&pageSize=36", { scroll: false }]);
     view.rerender(<PlayerFinder data={page([])} query={{ q: "none" }} />);
     expect(screen.getByText("No Players Found")).toBeVisible();
     view.rerender(

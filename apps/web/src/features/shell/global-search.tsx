@@ -55,7 +55,7 @@ export function GlobalSearch() {
   return (
     <form
       action="/search"
-      className="ev-global-search"
+      className="relative w-[min(100%,26rem)] min-w-0 max-[850px]:flex-1"
       role="search"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
@@ -97,10 +97,18 @@ export function GlobalSearch() {
         />
       </div>
       {suggestions.length ? (
-        <ul className="ev-global-search__suggestions" aria-label="Search Suggestions" role="list">
+        <ul
+          className="absolute inset-x-0 top-[calc(100%+var(--space-1))] z-10 list-none rounded-md border border-line-strong bg-raised p-1 max-[850px]:left-auto max-[850px]:w-[max(100%,min(22rem,calc(100vw-2*var(--space-3))))]"
+          aria-label="Search Suggestions"
+          role="list"
+        >
           {suggestions.map(({ name, href, kind }) => (
             <li key={`${kind}:${href}:${name}`}>
-              <a href={href} onClick={() => setOpen(false)}>
+              <a
+                className="flex items-center justify-between gap-2 rounded-sm px-3 py-2 [overflow-wrap:anywhere] text-fg no-underline hover:bg-interactive focus-visible:bg-interactive"
+                href={href}
+                onClick={() => setOpen(false)}
+              >
                 <span>{name}</span>
                 <span className="np-meta">{suggestionKind[kind]}</span>
               </a>

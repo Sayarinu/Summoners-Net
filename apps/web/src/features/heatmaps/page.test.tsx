@@ -25,9 +25,9 @@ const base: Heatmap = {
 it("draws a heatmap with its sample, side normalization and navigation", () => {
   const { container } = render(<HeatmapPage heatmap={base} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri: deaths" })).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Sample: 12 games and 3 points on patch 16.22.",
-  );
+  const sample = screen.getByRole("status", { name: "Sample" });
+  expect(sample).toHaveTextContent("GamesPatch 16.2212");
+  expect(sample).toHaveTextContent("Points3");
   expect(container.querySelectorAll(".np-minimap circle")).toHaveLength(2);
   const types = screen.getByRole("navigation", { name: "Heatmap Type" });
   expect(within(types).getByRole("link", { name: "Kills" })).toHaveAttribute(
@@ -64,7 +64,8 @@ it("reports the sample but does not draw below the minimum", () => {
     />,
   );
   expect(screen.getByRole("heading", { name: "Jungle: deaths" })).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("Sample: 1 game and 1 point");
+  expect(screen.getByRole("status", { name: "Sample" })).toHaveTextContent("Games");
+  expect(screen.getByRole("status", { name: "Sample" })).toHaveTextContent("Points1");
   expect(screen.getByText("Too Few Games to Draw")).toBeVisible();
   expect(container.querySelector(".np-minimap")).toBeNull();
   expect(screen.getByRole("link", { name: "Jungle" })).toHaveAttribute("aria-current", "page");

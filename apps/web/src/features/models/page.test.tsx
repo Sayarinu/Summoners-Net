@@ -55,7 +55,8 @@ it("lists model versions and shows the selected model's calibration and weights"
   );
   expect(versions).toHaveTextContent("Unknown");
   expect(screen.getByRole("link", { name: "#2 · v1" })).toHaveAttribute("aria-current", "page");
-  expect(screen.getByText(/Evaluated on 200 held-out games \(6000 states\)/)).toBeVisible();
+  const evaluation = screen.getByLabelText("Held-Out Evaluation");
+  expect(evaluation).toHaveTextContent("Held-Out Games6000 states, never used for training200");
   expect(
     screen.getAllByText("Reliability: Predicted vs Observed Blue Win Rate (%)")[0],
   ).toBeInTheDocument();

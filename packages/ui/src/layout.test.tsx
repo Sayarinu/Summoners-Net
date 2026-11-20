@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { TeamVersus } from "./esports.js";
 import {
   Card,
+  CardLink,
   DisclosurePanel,
   FilterBar,
   PageHeader,
@@ -127,5 +128,17 @@ describe("page layout", () => {
       "href",
       "/teams/blg",
     );
+  });
+
+  it("lets a card hold its main link beside secondary links", () => {
+    render(
+      <Card>
+        <CardLink href="/players/faker">Faker</CardLink>
+        <a href="/teams/t1">T1</a>
+      </Card>,
+    );
+
+    expect(screen.getByRole("link", { name: "Faker" })).toHaveAttribute("href", "/players/faker");
+    expect(screen.getByRole("link", { name: "T1" })).toHaveAttribute("href", "/teams/t1");
   });
 });

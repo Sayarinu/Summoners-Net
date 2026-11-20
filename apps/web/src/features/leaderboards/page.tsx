@@ -1,5 +1,14 @@
 "use client";
-import { ChampionIcon, EmptyState, Pagination, Table, TextLink } from "@summonersnet/ui";
+import {
+  ChampionIcon,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  Panel,
+  TabNav,
+  Table,
+  TextLink,
+} from "@summonersnet/ui";
 import { riotPlatforms, type Leaderboard } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
 import { dateTime } from "../browse/presentation";
@@ -16,23 +25,26 @@ export function LeaderboardPage({
 }) {
   const router = useRouter();
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>{region.toUpperCase()} leaderboard</h1>
-        </div>
-      </header>
-      <nav aria-label="Ladder Regions" className="ev-filters">
-        {riotPlatforms.map((r) => (
-          <TextLink
-            key={r}
-            href={`/leaderboards/${r}`}
-            aria-current={r === region ? "page" : undefined}
-          >
-            {r.toUpperCase()}
-          </TextLink>
-        ))}
-      </nav>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Leaderboards", href: "/leaderboards" },
+          { label: region.toUpperCase() },
+        ]}
+        eyebrow={
+          list?.lastSuccess ? `Last Refreshed ${dateTime(list.lastSuccess, timezone)}` : undefined
+        }
+        title={`${region.toUpperCase()} Leaderboard`}
+      >
+        <TabNav
+          label="Ladder Regions"
+          items={riotPlatforms.map((r) => ({
+            href: `/leaderboards/${r}`,
+            label: r.toUpperCase(),
+            current: r === region,
+          }))}
+        />
+      </PageHeader>
       {error ? (
         <p role="alert">{error}</p>
       ) : !list?.lastSuccess ? (
@@ -41,89 +53,90 @@ export function LeaderboardPage({
           description="The ladder appears once the worker synchronizes this region."
         />
       ) : (
-        <section className="np-stack" aria-label="Regional Ladder">
-          <p className="np-meta">Last Refreshed {dateTime(list.lastSuccess, timezone)}</p>
+        <>
           {list.refreshFailed ? (
-            <p role="status">
+            <p role="status" className="text-sm text-warning">
               The last refresh failed
               {list.lastAttempt ? ` at ${dateTime(list.lastAttempt, timezone)}` : ""}. Showing the
               previous successful ladder.
             </p>
           ) : null}
-          <Table
-            caption={`${region.toUpperCase()} solo queue ladder`}
-            rows={list.page.items}
-            getRowKey={(r) => r.puuid}
-            emptyMessage="No ladder entries on this page."
-            columns={[
-              { id: "rank", header: "Rank", align: "end", render: (r) => r.rank },
-              {
-                id: "name",
-                header: "Riot ID",
-                render: (r) => (
-                  <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}`}>
-                    {r.gameName && r.tagLine
-                      ? `${r.gameName}#${r.tagLine}`
-                      : "Riot ID not resolved"}
-                  </TextLink>
-                ),
-              },
-              { id: "tier", header: "Tier", render: (r) => r.tier },
-              { id: "lp", header: "LP", align: "end", render: (r) => r.leaguePoints },
-              { id: "wins", header: "Wins", align: "end", render: (r) => r.wins },
-              { id: "losses", header: "Losses", align: "end", render: (r) => r.losses },
-              {
-                id: "rate",
-                header: "Win Rate",
-                align: "end",
-                render: (r) => (
-                  <span>
-                    {r.winRate.value === null
-                      ? "Unknown"
-                      : `${(100 * r.winRate.value).toFixed(1)}%`}{" "}
-                    · {r.winRate.sampleCount} games
-                  </span>
-                ),
-              },
-              {
-                id: "champions",
-                header: "Most Played",
-                render: (r) =>
-                  r.champions.length ? (
-                    <div className="np-stack">
-                      {r.champions.map((c) => (
-                        <span key={c.championKey} className="ev-champion">
-                          <ChampionIcon
-                            id={c.championId ?? String(c.championKey)}
-                            name={c.name ?? `Champion ${c.championKey}`}
-                            imageUrl={c.imageUrl}
-                            size="small"
-                          />
-                          {c.games} {c.games === 1 ? "game" : "games"}
-                        </span>
-                      ))}
-                      <span className="np-meta">{r.sampledGames} sampled games</span>
-                    </div>
-                  ) : (
-                    "No sampled games"
+          <Panel title="Regional Ladder" padding="none">
+            <Table
+              caption={`${region.toUpperCase()} solo queue ladder`}
+              rows={list.page.items}
+              getRowKey={(r) => r.puuid}
+              emptyMessage="No ladder entries on this page."
+              columns={[
+                { id: "rank", header: "Rank", align: "end", render: (r) => r.rank },
+                {
+                  id: "name",
+                  header: "Riot ID",
+                  render: (r) => (
+                    <TextLink href={`/summoners/${encodeURIComponent(r.puuid)}`}>
+                      {r.gameName && r.tagLine
+                        ? `${r.gameName}#${r.tagLine}`
+                        : "Riot ID not resolved"}
+                    </TextLink>
                   ),
-              },
-            ]}
-          />
-          <div className="ev-pagination">
-            <span className="np-meta">
-              {list.page.total} players · Page {list.page.page}
-            </span>
-            <Pagination
-              label="Ladder Pages"
-              currentPage={list.page.page}
-              totalPages={Math.max(1, Math.ceil(list.page.total / list.page.pageSize))}
-              onPageChange={(page) =>
-                router.push(`/leaderboards/${region}?page=${page}&pageSize=${list.page.pageSize}`)
-              }
+                },
+                { id: "tier", header: "Tier", render: (r) => r.tier },
+                { id: "lp", header: "LP", align: "end", render: (r) => r.leaguePoints },
+                { id: "wins", header: "Wins", align: "end", render: (r) => r.wins },
+                { id: "losses", header: "Losses", align: "end", render: (r) => r.losses },
+                {
+                  id: "rate",
+                  header: "Win Rate",
+                  align: "end",
+                  render: (r) => (
+                    <span>
+                      {r.winRate.value === null
+                        ? "Unknown"
+                        : `${(100 * r.winRate.value).toFixed(1)}%`}{" "}
+                      · {r.winRate.sampleCount} games
+                    </span>
+                  ),
+                },
+                {
+                  id: "champions",
+                  header: "Most Played",
+                  render: (r) =>
+                    r.champions.length ? (
+                      <div className="grid gap-1">
+                        {r.champions.map((c) => (
+                          <span key={c.championKey} className="inline-flex items-center gap-2">
+                            <ChampionIcon
+                              id={c.championId ?? String(c.championKey)}
+                              name={c.name ?? `Champion ${c.championKey}`}
+                              imageUrl={c.imageUrl}
+                              size="small"
+                            />
+                            {c.games} {c.games === 1 ? "game" : "games"}
+                          </span>
+                        ))}
+                        <span className="np-meta">{r.sampledGames} sampled games</span>
+                      </div>
+                    ) : (
+                      "No sampled games"
+                    ),
+                },
+              ]}
             />
-          </div>
-        </section>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-4 py-4">
+              <span className="np-meta text-accent">
+                {list.page.total} players · Page {list.page.page}
+              </span>
+              <Pagination
+                label="Ladder Pages"
+                currentPage={list.page.page}
+                totalPages={Math.max(1, Math.ceil(list.page.total / list.page.pageSize))}
+                onPageChange={(page) =>
+                  router.push(`/leaderboards/${region}?page=${page}&pageSize=${list.page.pageSize}`)
+                }
+              />
+            </div>
+          </Panel>
+        </>
       )}
     </div>
   );

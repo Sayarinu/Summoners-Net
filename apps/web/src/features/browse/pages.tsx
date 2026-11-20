@@ -3,6 +3,7 @@ import {
   ChampionIcon,
   EmptyState,
   PageHeader,
+  Panel,
   SearchResult,
   TabNav,
   TextLink,
@@ -159,37 +160,57 @@ export function PastMatchesPage({
 }
 export function SearchPage({ data, query }: { data: Page<SearchHit>; query: BrowseQuery }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Search</h1>
-        </div>
-      </header>
-      {data.items.map((i) =>
-        i.kind === "champion" ? (
-          <ChampionIcon
-            key={i.id}
-            id={i.id}
-            name={i.name}
-            imageUrl={i.imageUrl ?? null}
-            href={searchHitHref(i)}
-          />
-        ) : (
-          <SearchResult
-            key={i.id}
-            name={i.name}
-            shortName={i.name}
-            type={i.kind === "game" ? "match" : i.kind}
-            showType={false}
-            href={searchHitHref(i)}
-            {...(i.imageUrl ? { image: i.imageUrl } : {})}
-          />
-        ),
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader
+        title="Search"
+        {...(query.q
+          ? {
+              eyebrow: `“${query.q}” · ${data.total.toLocaleString()} ${data.total === 1 ? "Result" : "Results"}`,
+            }
+          : {})}
+      />
+      {data.items.length ? (
+        <Panel title="Results" padding="none">
+          <ul className="flex list-none flex-col">
+            {data.items.map((i) => (
+              <li key={i.id} className="px-2 py-1">
+                {i.kind === "champion" ? (
+                  <span className="flex items-center gap-3 px-2 py-2">
+                    <ChampionIcon
+                      id={i.id}
+                      name={i.name}
+                      imageUrl={i.imageUrl ?? null}
+                      href={searchHitHref(i)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-medium">{i.name}</span>
+                      <small className="text-xs text-fg-muted">{i.detail}</small>
+                    </span>
+                  </span>
+                ) : (
+                  <SearchResult
+                    name={i.name}
+                    shortName={i.name}
+                    type={i.kind === "game" ? "match" : i.kind}
+                    showType={false}
+                    href={searchHitHref(i)}
+                    {...(i.detail ? { description: i.detail } : {})}
+                    {...(i.imageUrl ? { image: i.imageUrl } : {})}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="px-4">
+            <Pages data={data} />
+          </div>
+        </Panel>
+      ) : (
+        <>
+          <EmptyState title={query.q ? "No Results" : "Find a Team, Player or Match"} />
+          <Pages data={data} />
+        </>
       )}
-      {!data.items.length && (
-        <EmptyState title={query.q ? "No Results" : "Find a Team, Player or Match"} />
-      )}
-      <Pages data={data} />
     </div>
   );
 }

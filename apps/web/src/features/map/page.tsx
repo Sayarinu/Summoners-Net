@@ -1,7 +1,17 @@
 "use client";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
 import { useEffect, useId, useState } from "react";
-import { Button, Minimap, RoleIcon, Select, Switch, Table, TextLink } from "@summonersnet/ui";
+import {
+  Button,
+  Minimap,
+  PageHeader,
+  Panel,
+  RoleIcon,
+  Select,
+  SideName,
+  Switch,
+  Table,
+} from "@summonersnet/ui";
 import type {
   MapEvent,
   MatchTrackSummary,
@@ -12,6 +22,7 @@ import type {
 } from "@summonersnet/data/contracts";
 import { clock, positionAt, timelineEnd } from "./interpolate";
 import { staleAfterMs, trackPositionAt, trailAt, useTrackSamples } from "./track";
+import { SoloGameTabs, soloGameEyebrow } from "../solo-games/page";
 
 /** Game milliseconds advanced per real second. */
 const speeds = [
@@ -154,23 +165,15 @@ export function GameMapPage({
       return `Roam: ${names}, ${zoneLabels[m.from ?? ""] ?? "unknown"} to ${zoneLabels[m.to]}`;
     return `Rotation: ${names} to ${zoneLabels[m.to]}`;
   };
-  const gameHref = `/solo-games/${encodeURIComponent(game.matchId)}`;
   const hasFrames = end > 0;
 
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Solo queue · {game.matchId}</span>
-          <h1>Game Map</h1>
-          <p className="np-meta">
-            {game.patch ? `Patch ${game.patch}` : "Unknown patch"} ·{" "}
-            <TextLink href={gameHref}>Back to the Game</TextLink>
-          </p>
-        </div>
-      </header>
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader eyebrow={soloGameEyebrow(game)} title="Game Map">
+        <SoloGameTabs matchId={game.matchId} current="map" />
+      </PageHeader>
       {inTrack ? (
-        <p className="np-meta" role="note">
+        <p className="text-sm text-fg-secondary" role="note">
           Source at {clock(time)}: imported replay track, about {track.sampleRateHz} samples per
           second ({track.sampleCount.toLocaleString("en")} samples from {clock(track.firstMs)} to{" "}
           {clock(track.lastMs)}, imported {track.importedAt.slice(0, 10)}). Each champion is shown
@@ -179,7 +182,7 @@ export function GameMapPage({
           {loaded.failed ? " Some track samples could not be loaded." : ""}
         </p>
       ) : (
-        <p className="np-meta" role="note">
+        <p className="text-sm text-fg-secondary" role="note">
           Source at {clock(time)}: Riot match timeline, one position per champion per minute.
           Between those samples the map draws a straight-line estimate, so a champion did not
           necessarily take that path. When a minute frame is missing on either side of the current
@@ -193,233 +196,285 @@ export function GameMapPage({
         </p>
       )}
       {!hasFrames ? (
-        <p role="status">
+        <p role="status" className="rounded-md border border-line bg-raised p-4">
           {positions.timelineState === "fetched"
             ? "This game's timeline has no position frames."
             : "This game's timeline has not been stored, so there are no positions to show."}
         </p>
       ) : (
         <>
-          <div className="ev-map-controls" role="group" aria-label="Playback">
-            <Button
-              variant="primary"
-              onPress={() => {
-                if (!playing && time >= end) setTime(0);
-                setPlaying(!playing);
-              }}
-            >
-              {playing ? "Pause" : "Play"}
-            </Button>
-            <Select
-              label="Playback Speed"
-              options={speeds}
-              value={speed}
-              onValueChange={setSpeed}
-            />
-            <div className="ev-map-scrubber">
-              <label htmlFor={scrubberId}>
-                Game time {clock(time)} of {clock(end)}
-              </label>
-              <input
-                id={scrubberId}
-                type="range"
-                min={0}
-                max={end}
-                step={inTrack ? Math.max(100, Math.round(1000 / track.sampleRateHz)) : 1000}
-                value={time}
-                aria-valuetext={clock(time)}
-                onChange={(e) => {
-                  setPlaying(false);
-                  setTime(Number(e.currentTarget.value));
-                }}
-              />
+          <div className="grid grid-cols-[minmax(0,560px)_minmax(0,1fr)] items-start gap-4 max-[1150px]:grid-cols-1">
+            <Panel title="Map">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-end gap-3" role="group" aria-label="Playback">
+                  <Button
+                    variant="primary"
+                    onPress={() => {
+                      if (!playing && time >= end) setTime(0);
+                      setPlaying(!playing);
+                    }}
+                  >
+                    {playing ? "Pause" : "Play"}
+                  </Button>
+                  <Select
+                    label="Playback Speed"
+                    options={speeds}
+                    value={speed}
+                    onValueChange={setSpeed}
+                  />
+                  <div className="grid min-w-50 flex-1 gap-2">
+                    <label htmlFor={scrubberId} className="font-mono text-sm text-fg-secondary">
+                      Game time {clock(time)} of {clock(end)}
+                    </label>
+                    <input
+                      className="w-full [accent-color:var(--color-border-accent)]"
+                      id={scrubberId}
+                      type="range"
+                      min={0}
+                      max={end}
+                      step={inTrack ? Math.max(100, Math.round(1000 / track.sampleRateHz)) : 1000}
+                      value={time}
+                      aria-valuetext={clock(time)}
+                      onChange={(e) => {
+                        setPlaying(false);
+                        setTime(Number(e.currentTarget.value));
+                      }}
+                    />
+                  </div>
+                </div>
+                <Minimap
+                  title={`Champion positions and events at ${clock(time)}`}
+                  paths={
+                    inTrack
+                      ? visible.map((c) => ({
+                          id: String(c.participantId),
+                          label: `${c.name} trail`,
+                          side: c.side,
+                          positions: trailAt(loaded.samples, c.participantId, time),
+                        }))
+                      : []
+                  }
+                  points={[
+                    ...listed
+                      .filter((e) => near(e) && drawn(e))
+                      .map((e) => ({
+                        id: e.id,
+                        label: `${clock(e.timestampMs)} ${describe(e)}`,
+                        side: e.side ?? ("neutral" as const),
+                        marker: e.kind,
+                        x: e.x,
+                        y: e.y,
+                      })),
+                    ...visible.flatMap((c) =>
+                      c.position
+                        ? [
+                            {
+                              id: String(c.participantId),
+                              label: c.name,
+                              side: c.side,
+                              x: c.position.x,
+                              y: c.position.y,
+                              lowConfidence: c.position.low,
+                            },
+                          ]
+                        : [],
+                    ),
+                  ]}
+                />
+                <p className="text-sm text-fg-secondary">
+                  Events within 30 seconds of the current time are drawn: kills as crosses,
+                  objectives as squares and wards as diamonds, in the credited team&apos;s color.
+                  Events without coordinates, including every ward placement because Riot records
+                  none, are listed below but not drawn.
+                  {events.truncated ? " Only the first 1,000 events of this game are shown." : ""}
+                </p>
+              </div>
+            </Panel>
+            <div className="flex min-w-0 flex-col gap-4">
+              <Panel title="Show on the Map">
+                <div className="flex flex-col gap-3">
+                  <div
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2"
+                    role="group"
+                    aria-label="Show Champions"
+                  >
+                    <Switch
+                      selected={!hiddenSides.has("blue")}
+                      onChange={toggle(setHiddenSides, "blue")}
+                    >
+                      Blue team
+                    </Switch>
+                    <Switch
+                      selected={!hiddenSides.has("red")}
+                      onChange={toggle(setHiddenSides, "red")}
+                    >
+                      Red team
+                    </Switch>
+                    {roles.map((r) => (
+                      <Switch
+                        key={r}
+                        selected={!hiddenRoles.has(r)}
+                        onChange={toggle(setHiddenRoles, r)}
+                      >
+                        <RoleIcon role={r} />
+                      </Switch>
+                    ))}
+                  </div>
+                  <div
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2"
+                    role="group"
+                    aria-label="Show Events"
+                  >
+                    {eventKinds.map(({ kind, label }) => (
+                      <Switch
+                        key={kind}
+                        selected={!hiddenKinds.has(kind)}
+                        onChange={toggle(setHiddenKinds, kind)}
+                      >
+                        {label}
+                      </Switch>
+                    ))}
+                  </div>
+                </div>
+              </Panel>
+              <Panel title={`Positions at ${clock(time)}`} padding="none">
+                <Table
+                  caption={`Positions at ${clock(time)}`}
+                  compact
+                  rows={visible}
+                  getRowKey={(c) => String(c.participantId)}
+                  emptyMessage="Every champion is hidden by the team and role toggles."
+                  columns={[
+                    {
+                      id: "champion",
+                      header: "Champion",
+                      render: (c) => (
+                        <ChampionPortrait
+                          name={c.name}
+                          portraits={portraits}
+                          championId={c.championId}
+                        />
+                      ),
+                    },
+                    {
+                      id: "team",
+                      header: "Team",
+                      render: (c) => <SideName side={c.side}>{sideLabel(c.side)}</SideName>,
+                    },
+                    { id: "role", header: "Role", render: (c) => <RoleIcon role={c.roleKey} /> },
+                    {
+                      id: "position",
+                      header: "Position (X, Y)",
+                      render: (c) =>
+                        c.position
+                          ? `${c.position.x}, ${c.position.y} (${c.position.label})`
+                          : inTrack
+                            ? loaded.loaded
+                              ? "Gap: no sample"
+                              : "Loading track samples"
+                            : "Gap: no frame",
+                    },
+                  ]}
+                />
+              </Panel>
             </div>
           </div>
-          <div className="ev-map-controls" role="group" aria-label="Show Champions">
-            <Switch selected={!hiddenSides.has("blue")} onChange={toggle(setHiddenSides, "blue")}>
-              Blue team
-            </Switch>
-            <Switch selected={!hiddenSides.has("red")} onChange={toggle(setHiddenSides, "red")}>
-              Red team
-            </Switch>
-            {roles.map((r) => (
-              <Switch key={r} selected={!hiddenRoles.has(r)} onChange={toggle(setHiddenRoles, r)}>
-                <RoleIcon role={r} />
-              </Switch>
-            ))}
-          </div>
-          <div className="ev-map-controls" role="group" aria-label="Show Events">
-            {eventKinds.map(({ kind, label }) => (
-              <Switch
-                key={kind}
-                selected={!hiddenKinds.has(kind)}
-                onChange={toggle(setHiddenKinds, kind)}
-              >
-                {label}
-              </Switch>
-            ))}
-          </div>
-          <p className="np-meta">
-            Events within 30 seconds of the current time are drawn: kills as crosses, objectives as
-            squares and wards as diamonds, in the credited team&apos;s color. Events without
-            coordinates, including every ward placement because Riot records none, are listed below
-            but not drawn.
-            {events.truncated ? " Only the first 1,000 events of this game are shown." : ""}
-          </p>
-          <Minimap
-            title={`Champion positions and events at ${clock(time)}`}
-            paths={
-              inTrack
-                ? visible.map((c) => ({
-                    id: String(c.participantId),
-                    label: `${c.name} trail`,
-                    side: c.side,
-                    positions: trailAt(loaded.samples, c.participantId, time),
-                  }))
-                : []
-            }
-            points={[
-              ...listed
-                .filter((e) => near(e) && drawn(e))
-                .map((e) => ({
-                  id: e.id,
-                  label: `${clock(e.timestampMs)} ${describe(e)}`,
-                  side: e.side ?? ("neutral" as const),
-                  marker: e.kind,
-                  x: e.x,
-                  y: e.y,
-                })),
-              ...visible.flatMap((c) =>
-                c.position
-                  ? [
-                      {
-                        id: String(c.participantId),
-                        label: c.name,
-                        side: c.side,
-                        x: c.position.x,
-                        y: c.position.y,
-                        lowConfidence: c.position.low,
-                      },
-                    ]
-                  : [],
-              ),
-            ]}
-          />
-          <Table
-            caption={`Positions at ${clock(time)}`}
-            compact
-            rows={visible}
-            getRowKey={(c) => String(c.participantId)}
-            emptyMessage="Every champion is hidden by the team and role toggles."
-            columns={[
-              {
-                id: "champion",
-                header: "Champion",
-                render: (c) => (
-                  <ChampionPortrait name={c.name} portraits={portraits} championId={c.championId} />
-                ),
-              },
-              { id: "team", header: "Team", render: (c) => (c.side === "blue" ? "Blue" : "Red") },
-              { id: "role", header: "Role", render: (c) => <RoleIcon role={c.roleKey} /> },
-              {
-                id: "position",
-                header: "Position (X, Y)",
-                render: (c) =>
-                  c.position
-                    ? `${c.position.x}, ${c.position.y} (${c.position.label})`
-                    : inTrack
-                      ? loaded.loaded
-                        ? "Gap: no sample"
-                        : "Loading track samples"
-                      : "Gap: no frame",
-              },
-            ]}
-          />
           {useTrack ? (
             track.movements ? (
-              <Table
-                caption="Detected Movements"
-                compact
-                rows={track.movements}
-                getRowKey={(m) => `${m.kind}:${m.startMs}:${m.participantIds.join(",")}`}
-                emptyMessage="No rotations, roams or recalls were detected in this track."
-                columns={[
-                  {
-                    id: "time",
-                    header: "Time",
-                    render: (m) => (
-                      <Button
-                        size="small"
-                        variant="ghost"
-                        onPress={() => {
-                          setPlaying(false);
-                          setTime(Math.min(end, m.startMs));
-                        }}
-                      >
-                        {`Go to ${clock(m.startMs)}`}
-                      </Button>
-                    ),
-                  },
-                  {
-                    id: "team",
-                    header: "Team",
-                    render: (m) => (m.teamId === 100 ? "Blue" : "Red"),
-                  },
-                  { id: "movement", header: "Movement", render: movementLabel },
-                  {
-                    id: "until",
-                    header: "Confirmed At",
-                    align: "end",
-                    render: (m) => clock(m.endMs),
-                  },
-                ]}
-              />
+              <Panel title="Detected Movements" padding="none">
+                <Table
+                  caption="Detected Movements"
+                  compact
+                  rows={track.movements}
+                  getRowKey={(m) => `${m.kind}:${m.startMs}:${m.participantIds.join(",")}`}
+                  emptyMessage="No rotations, roams or recalls were detected in this track."
+                  columns={[
+                    {
+                      id: "time",
+                      header: "Time",
+                      render: (m) => (
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          onPress={() => {
+                            setPlaying(false);
+                            setTime(Math.min(end, m.startMs));
+                          }}
+                        >
+                          {`Go to ${clock(m.startMs)}`}
+                        </Button>
+                      ),
+                    },
+                    {
+                      id: "team",
+                      header: "Team",
+                      render: (m) => {
+                        const side = m.teamId === 100 ? "blue" : "red";
+                        return <SideName side={side}>{sideLabel(side)}</SideName>;
+                      },
+                    },
+                    { id: "movement", header: "Movement", render: movementLabel },
+                    {
+                      id: "until",
+                      header: "Confirmed At",
+                      align: "end",
+                      render: (m) => clock(m.endMs),
+                    },
+                  ]}
+                />
+              </Panel>
             ) : (
-              <p className="np-meta">
+              <p className="text-sm text-fg-secondary">
                 Movements are detected when a track is imported; this track was imported before
                 detection existed. Import it again to list rotations, roams and recalls.
               </p>
             )
           ) : null}
-          <Table
-            caption="Events"
-            compact
-            rows={listed}
-            getRowKey={(e) => e.id}
-            emptyMessage={
-              events.events.length
-                ? "Every event is hidden by the event toggles."
-                : "No kills, objectives or ward placements are stored for this game."
-            }
-            columns={[
-              {
-                id: "time",
-                header: "Time",
-                render: (e) => (
-                  <Button
-                    size="small"
-                    variant="ghost"
-                    onPress={() => {
-                      setPlaying(false);
-                      setTime(Math.min(end, e.timestampMs));
-                    }}
-                  >
-                    {`Go to ${clock(e.timestampMs)}`}
-                  </Button>
-                ),
-              },
-              { id: "team", header: "Team", render: (e) => sideLabel(e.side) },
-              { id: "event", header: "Event", render: describe },
-              {
-                id: "map",
-                header: "On the Map",
-                render: (e) =>
-                  !drawn(e)
-                    ? "Not drawn: no coordinates"
-                    : `${e.x}, ${e.y}${near(e) ? " (drawn now)" : ""}`,
-              },
-            ]}
-          />
+          <Panel title="Events" padding="none">
+            <Table
+              caption="Events"
+              compact
+              rows={listed}
+              getRowKey={(e) => e.id}
+              emptyMessage={
+                events.events.length
+                  ? "Every event is hidden by the event toggles."
+                  : "No kills, objectives or ward placements are stored for this game."
+              }
+              columns={[
+                {
+                  id: "time",
+                  header: "Time",
+                  render: (e) => (
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      onPress={() => {
+                        setPlaying(false);
+                        setTime(Math.min(end, e.timestampMs));
+                      }}
+                    >
+                      {`Go to ${clock(e.timestampMs)}`}
+                    </Button>
+                  ),
+                },
+                {
+                  id: "team",
+                  header: "Team",
+                  render: (e) => <SideName side={e.side}>{sideLabel(e.side)}</SideName>,
+                },
+                { id: "event", header: "Event", render: describe },
+                {
+                  id: "map",
+                  header: "On the Map",
+                  render: (e) =>
+                    !drawn(e)
+                      ? "Not drawn: no coordinates"
+                      : `${e.x}, ${e.y}${near(e) ? " (drawn now)" : ""}`,
+                },
+              ]}
+            />
+          </Panel>
         </>
       )}
     </div>

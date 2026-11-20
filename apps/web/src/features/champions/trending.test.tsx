@@ -60,7 +60,7 @@ const trends: TrendingChampions = {
     ],
   },
 };
-it("shows both samples, signed changes and qualified directions, preserving filters on pagination", () => {
+it("shows both samples, signed changes and qualified directions, preserving filters on pagination", async () => {
   render(<TrendingPage trends={trends} error={null} />);
   const rows = within(screen.getByRole("table")).getAllByRole("row");
   expect(rows[1]).toHaveTextContent("Current: 80.0% · n=100");
@@ -77,7 +77,7 @@ it("shows both samples, signed changes and qualified directions, preserving filt
   fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   expect(push).toHaveBeenLastCalledWith("/trending?source=solo&patch=16.22&role=MIDDLE&page=2");
   fireEvent.click(screen.getByText("How a Trend Qualifies"));
-  expect(screen.getByText(/Both patches need at least 50/)).toBeVisible();
+  expect(await screen.findByText(/Both patches need at least 50/)).toBeVisible();
 });
 it("explains missing preceding patches, sparse outcomes, neutral deltas and empty selections", () => {
   const view = render(

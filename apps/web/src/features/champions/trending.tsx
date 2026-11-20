@@ -1,7 +1,17 @@
 "use client";
-import { RoleIcon } from "@summonersnet/ui";
 import { ExportLink } from "../shell/export-link";
-import { Button, ChampionIcon, EmptyState, Pagination, Select, Table } from "@summonersnet/ui";
+import {
+  Button,
+  ChampionIdentity,
+  DisclosurePanel,
+  EmptyState,
+  FilterBar,
+  PageHeader,
+  Panel,
+  RoleIcon,
+  Select,
+  Table,
+} from "@summonersnet/ui";
 import {
   championRoles,
   trendMinimumSample,
@@ -11,6 +21,8 @@ import {
   type TrendingChampions,
 } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
+import { ChampionViews } from "./directory";
+import { PageFooter } from "./paging";
 import { percent, roleLabels } from "./presentation";
 function Change({ value }: { value: ProportionTrend }) {
   const rate = (r: ProportionTrend["current"]) => `${percent(r)} · n=${r.sampleCount}`;
@@ -22,7 +34,7 @@ function Change({ value }: { value: ProportionTrend }) {
     significant: value.direction === "rising" ? "Rising" : "Falling",
   }[value.reason];
   return (
-    <div className="np-stack">
+    <div className="flex flex-col gap-0.5">
       <span>Current: {rate(value.current)}</span>
       <span>Previous: {rate(value.previous)}</span>
       <span>
@@ -45,13 +57,23 @@ export function TrendingPage({
   const q = trends?.query;
   const patches = [...new Set([...(trends?.patches ?? []), ...(q?.patch ? [q.patch] : [])])];
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Trending Champions</h1>
-        </div>
-      </header>
-      <form action="/trending" method="get" className="ev-filters" key={JSON.stringify(q)}>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        title="Trending Champions"
+        {...(trends?.patch
+          ? {
+              eyebrow: `Patch ${trends.patch}${trends.previousPatch ? ` vs ${trends.previousPatch}` : ""} · ${trends.currentGames} vs ${trends.previousGames} stored games`,
+            }
+          : {})}
+      >
+        <ChampionViews current="trending" />
+      </PageHeader>
+      <FilterBar
+        action="/trending"
+        method="get"
+        className="border-y border-line py-3"
+        key={JSON.stringify(q)}
+      >
         <Select
           label="Source"
           name="source"
@@ -81,21 +103,22 @@ export function TrendingPage({
           }))}
         />
         <Button type="submit">Apply Filters</Button>
-      </form>
-      <details>
-        <summary>How a Trend Qualifies</summary>
-        <p>
-          Both patches need at least {trendMinimumSample} observations and {trendMinimumOutcomes}{" "}
-          successes and failures each. A pooled two-proportion test must exceed |z| ={" "}
-          {trendCriticalZ} (nominal two-sided 5%). Pick samples count match opportunities; win
-          samples count known champion results. This exploratory test treats observations as
-          independent and does not adjust for multiple comparisons.
-        </p>
-        <p>
-          Solo queue uses ranked solo games only. Missing champions, results or patch samples stay
-          unknown. A missing previous patch sample is never replaced by an older patch.
-        </p>
-      </details>
+      </FilterBar>
+      <DisclosurePanel title="How a Trend Qualifies">
+        <div className="flex max-w-reading flex-col gap-3 text-sm text-fg-secondary">
+          <p>
+            Both patches need at least {trendMinimumSample} observations and {trendMinimumOutcomes}{" "}
+            successes and failures each. A pooled two-proportion test must exceed |z| ={" "}
+            {trendCriticalZ} (nominal two-sided 5%). Pick samples count match opportunities; win
+            samples count known champion results. This exploratory test treats observations as
+            independent and does not adjust for multiple comparisons.
+          </p>
+          <p>
+            Solo queue uses ranked solo games only. Missing champions, results or patch samples stay
+            unknown. A missing previous patch sample is never replaced by an older patch.
+          </p>
+        </div>
+      </DisclosurePanel>
       {error ? (
         <p role="alert">{error}</p>
       ) : !trends?.patch ? (
@@ -105,14 +128,6 @@ export function TrendingPage({
         />
       ) : (
         <>
-          <p>
-            Patch {trends.patch}
-            {trends.previousPatch ? ` vs ${trends.previousPatch}` : ""}
-          </p>
-          <p className="np-meta">
-            Current: {trends.currentGames} stored games · Previous: {trends.previousGames} stored
-            games
-          </p>
           {!trends.previousPatch ? (
             <p role="status">No preceding catalog patch is stored. Changes are unknown.</p>
           ) : trends.previousGames === 0 ? (
@@ -120,57 +135,70 @@ export function TrendingPage({
               No aggregate sample is stored for the preceding patch. Changes are unknown.
             </p>
           ) : null}
-          <ExportLink
-            table="trending"
-            filters={{ source: trends.query.source, patch: trends.patch, role: trends.query.role }}
-          />
-          <Table
-            caption="Champion Changes Between Patches"
-            rows={trends.page.items}
-            getRowKey={(r) => String(r.championKey)}
-            emptyMessage="No champion aggregates for this role and page."
-            columns={[
-              {
-                id: "champion",
-                header: "Champion",
-                render: (r) => (
-                  <ChampionIcon
-                    id={r.championId ?? String(r.championKey)}
-                    name={r.name ?? `Champion ${r.championKey}`}
-                    imageUrl={r.imageUrl}
-                    size="small"
-                    href={
-                      r.championId
-                        ? `/champions/${r.championId}?source=${q!.source}&patch=${trends.patch}&role=${r.role}`
-                        : undefined
-                    }
-                  />
-                ),
-              },
-              { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
-              {
-                id: "pick",
-                header: "Pick Rate Change",
-                render: (r) => <Change value={r.pickRate} />,
-              },
-              { id: "win", header: "Win Rate Change", render: (r) => <Change value={r.winRate} /> },
-            ]}
-          />
-          <div className="ev-pagination">
-            <span className="np-meta">
-              {trends.page.total} champions · Page {trends.page.page}
-            </span>
-            <Pagination
+          <Panel
+            title={`${roleLabels[trends.query.role]} · ${trends.query.source === "solo" ? "Solo Queue" : "Pro"}`}
+            padding="none"
+            actions={
+              <ExportLink
+                table="trending"
+                filters={{
+                  source: trends.query.source,
+                  patch: trends.patch,
+                  role: trends.query.role,
+                }}
+              />
+            }
+          >
+            <Table
+              caption="Champion Changes Between Patches"
+              rows={trends.page.items}
+              getRowKey={(r) => String(r.championKey)}
+              emptyMessage="No champion aggregates for this role and page."
+              columns={[
+                {
+                  id: "champion",
+                  header: "Champion",
+                  render: (r) => (
+                    <ChampionIdentity
+                      id={r.championId ?? String(r.championKey)}
+                      name={r.name ?? `Champion ${r.championKey}`}
+                      imageUrl={r.imageUrl}
+                      size="compact"
+                      className="min-w-max"
+                      href={
+                        r.championId
+                          ? `/champions/${r.championId}?source=${q!.source}&patch=${trends.patch}&role=${r.role}`
+                          : undefined
+                      }
+                    />
+                  ),
+                },
+                { id: "role", header: "Role", render: (r) => <RoleIcon role={r.role} /> },
+                {
+                  id: "pick",
+                  header: "Pick Rate Change",
+                  render: (r) => <Change value={r.pickRate} />,
+                },
+                {
+                  id: "win",
+                  header: "Win Rate Change",
+                  render: (r) => <Change value={r.winRate} />,
+                },
+              ]}
+            />
+            <PageFooter
+              summary={`${trends.page.total} champions · Page ${trends.page.page}`}
               label="Champion Trend Pages"
-              currentPage={trends.page.page}
-              totalPages={Math.max(1, Math.ceil(trends.page.total / trends.page.pageSize))}
+              page={trends.page.page}
+              total={trends.page.total}
+              pageSize={trends.page.pageSize}
               onPageChange={(page) =>
                 router.push(
                   `/trending?${new URLSearchParams({ source: q!.source, patch: trends.patch!, role: q!.role, page: String(page) })}`,
                 )
               }
             />
-          </div>
+          </Panel>
         </>
       )}
     </div>

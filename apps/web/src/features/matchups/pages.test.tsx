@@ -70,8 +70,8 @@ const matchups: ChampionMatchups = {
 };
 it("shows shrunk estimates, independent samples and team labels with raw values available", () => {
   const { rerender } = render(<ChampionMatchupsPage matchups={matchups} error={null} />);
-  expect(screen.getByRole("heading", { name: "Ahri matchups" })).toBeVisible();
-  const table = screen.getByRole("table", { name: "Ahri lane opponents" });
+  expect(screen.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
+  const table = screen.getByRole("table", { name: "Ahri Lane Opponents" });
   expect(table).toHaveTextContent("55.0% · n=10");
   expect(table).toHaveTextContent("+37.5 · n=10");
   expect(table).toHaveTextContent("-20.0 · n=10");
@@ -122,21 +122,21 @@ it("shows the blindability score, its coverage and the method with the formula",
     <ChampionMatchupsPage matchups={matchups} blindability={scored} error={null} />,
   );
   const stats = screen.getByLabelText("Blindability Statistics");
-  expect(stats).toHaveTextContent("Blindability score45.0%");
-  expect(stats).toHaveTextContent("Pick-weighted win rate51.5%");
-  expect(stats).toHaveTextContent("Counter-pick worst case45.0% · against Nunu & Willump");
-  expect(stats).toHaveTextContent("Lower-tail win rate (20% of picks)45.0%");
+  expect(stats).toHaveTextContent("Blindability Score45.0%");
+  expect(stats).toHaveTextContent("Pick-Weighted Win Rate51.5%");
+  expect(stats).toHaveTextContent("Counter-Pick Worst Caseagainst Nunu & Willump45.0%");
+  expect(stats).toHaveTextContent("Lower-Tail Win Rate (20% of Picks)45.0%");
   expect(stats).toHaveTextContent("Variance0.0015");
-  expect(stats).toHaveTextContent("Covered pick share62.5% · 100 of 160 opponent picks");
+  expect(stats).toHaveTextContent("Covered Pick Share100 of 160 opponent picks62.5%");
   expect(screen.getByText(/3 of 4 sampled opponents meet the minimum/)).toBeVisible();
   expect(screen.getByText("How Blindability Is Calculated")).toBeVisible();
   expect(screen.getByText(/E = Σ wᵢ·pᵢ \/ Σ wᵢ/)).toBeInTheDocument();
   expect(screen.queryByRole("status")).toBeNull();
   const counter = screen.getByLabelText("Counter-Pick Statistics");
-  expect(counter).toHaveTextContent("Blind win rate51.5%");
-  expect(counter).toHaveTextContent("Counter-pick win rate55.0%");
-  expect(counter).toHaveTextContent("Counter-pick value+3.5 pts");
-  expect(counter).toHaveTextContent("Best response to1 opponent · 50 of 160 opponent picks");
+  expect(counter).toHaveTextContent("Blind Win Rate51.5%");
+  expect(counter).toHaveTextContent("Counter-Pick Win Rate55.0%");
+  expect(counter).toHaveTextContent("Counter-Pick Value+3.5 pts");
+  expect(counter).toHaveTextContent("Best Response Toopponent · 50 of 160 opponent picks1");
   expect(screen.getByRole("link", { name: "Compare the Role" })).toHaveAttribute(
     "href",
     "/matchups/MIDDLE/counter-picks?source=solo&patch=16.22",
@@ -163,7 +163,7 @@ it("shows the blindability score, its coverage and the method with the formula",
     />,
   );
   expect(screen.getByLabelText("Blindability Statistics")).toHaveTextContent(
-    "Blindability scoreUnknown",
+    "Blindability ScoreUnknown",
   );
   expect(screen.getByText(/Counter-pick value unavailable/)).toHaveTextContent(
     "nothing to compare with",
@@ -284,8 +284,8 @@ it("lists a role's counter-pick values with unknown reasons and validation error
     },
   };
   const { rerender } = render(<CounterPickListPage list={list} error={null} role="MIDDLE" />);
-  expect(screen.getByRole("heading", { name: "Mid counter-pick values" })).toBeVisible();
-  const table = screen.getByRole("table", { name: "Mid counter-pick values" });
+  expect(screen.getByRole("heading", { name: "Mid Counter-Pick Values" })).toBeVisible();
+  const table = screen.getByRole("table", { name: "Mid Counter-Pick Values" });
   expect(table).toHaveTextContent("+7.0 pts");
   expect(table).toHaveTextContent("93.8% · 30 of 32 picks");
   expect(table).toHaveTextContent("Fewer than 3 opponents");
@@ -294,6 +294,6 @@ it("lists a role's counter-pick values with unknown reasons and validation error
     "/champions/Ahri/matchups?source=solo&value=shrunk&patch=16.22&role=MIDDLE",
   );
   rerender(<CounterPickListPage list={null} error="Choose a sort" role="TOP" />);
-  expect(screen.getByRole("heading", { name: "Top counter-pick values" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Top Counter-Pick Values" })).toBeVisible();
   expect(screen.getByRole("alert")).toHaveTextContent("Choose a sort");
 });

@@ -33,11 +33,11 @@ export function GameRecord({ wins, known, total }: { wins: number; known: number
     <>
       {known ? (
         <span aria-label={`Wins ${wins}, losses ${known - wins}`} role="img">
-          <span aria-hidden="true" className="ev-outcome--win">
+          <span aria-hidden="true" className="text-success">
             {wins}
           </span>
           {" – "}
-          <span aria-hidden="true" className="ev-outcome--loss">
+          <span aria-hidden="true" className="text-loss">
             {known - wins}
           </span>
         </span>
@@ -45,7 +45,7 @@ export function GameRecord({ wins, known, total }: { wins: number; known: number
         "—"
       )}
       {total > known && (
-        <small className="ev-unknown-results">
+        <small className="block font-sans text-xs">
           {total - known} unknown {total - known === 1 ? "result" : "results"}
         </small>
       )}
@@ -59,7 +59,7 @@ export function GameResult({ won }: { won: boolean | null }) {
   return (
     <span
       aria-label={label}
-      className={won ? "ev-outcome--win" : "ev-outcome--loss"}
+      className={won ? "text-success" : "text-loss"}
       role="img"
       title={label}
     >

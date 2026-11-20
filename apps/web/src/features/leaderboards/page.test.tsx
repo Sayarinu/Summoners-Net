@@ -47,7 +47,7 @@ const list: Leaderboard = {
 };
 it("shows ranks, samples, missing statistics and refresh failure without losing the ladder", () => {
   render(<LeaderboardPage list={list} error={null} region="euw1" timezone="UTC" />);
-  expect(screen.getByRole("heading", { name: "EUW1 leaderboard" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "EUW1 Leaderboard" })).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Showing the previous successful ladder");
   expect(screen.getByText(/Last Refreshed/)).toHaveTextContent("03/01/2026");
   const rows = within(screen.getByRole("table")).getAllByRole("row");

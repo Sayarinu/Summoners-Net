@@ -1,5 +1,5 @@
 import { it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ChampionOverview, MatchupRow } from "@summonersnet/data/contracts";
 import { ChampionOverviewPage } from "./overview";
 
@@ -248,9 +248,15 @@ it("shows the most common build as icons with win rates and games", () => {
   expect(screen.queryByRole("region", { name: "Most Common Build" })).toBeNull();
   expect(screen.queryByText("All Builds, Runes and Skills")).toBeNull();
 });
-it("keeps every build option in tables under All Builds", () => {
+/** The section renders its tables once its toggle event arrives. */
+async function openAllBuilds() {
+  fireEvent.click(screen.getByText("All Builds, Runes and Skills"));
+  await screen.findByRole("table", { name: "Keystones" });
+}
+it("keeps every build option in tables under All Builds", async () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   expect(screen.getByText("All Builds, Runes and Skills")).toBeVisible();
+  await openAllBuilds();
   const start = screen.getByRole("table", { name: "Starting Items" });
   expect(start).toHaveTextContent(/Doran's Ring.*Health Potion/);
   expect(start).toHaveTextContent("60.0% · 30 results");
@@ -261,8 +267,9 @@ it("keeps every build option in tables under All Builds", () => {
     "No games with timelines yet.",
   );
 });
-it("shows rune pages, shards and spells with pick and win rates", () => {
+it("shows rune pages, shards and spells with pick and win rates", async () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
+  await openAllBuilds();
   const keystones = screen.getByRole("table", { name: "Keystones" });
   expect(keystones).toHaveTextContent("Electrocute");
   expect(keystones).toHaveTextContent("62.5%");
@@ -273,13 +280,14 @@ it("shows rune pages, shards and spells with pick and win rates", () => {
   expect(screen.getByRole("table", { name: "Summoner Spells" })).toHaveTextContent(/Flash.*Ignite/);
   expect(screen.getByRole("table", { name: "Rune Pages" })).toHaveTextContent("No games yet.");
 });
-it("shows skill orders and how many games were left out", () => {
+it("shows skill orders and how many games were left out", async () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
+  await openAllBuilds();
   expect(screen.getByRole("table", { name: "First Levels" })).toHaveTextContent(/Q.*E.*W/);
   expect(screen.getByRole("table", { name: "Max Order" })).toHaveTextContent(
     "No games with a decided max order yet.",
   );
-  // The tables sit in the collapsed All Builds section.
+  // The tables sit in the All Builds section, which renders them once opened.
   expect(
     screen.getByText(/Games left out: 2 for the first levels, 7 for the max order/),
   ).toBeInTheDocument();
@@ -355,7 +363,7 @@ it("shows the stored counter-pick value for a lane role", () => {
   );
   expect(screen.getByRole("heading", { name: "Counter-Pick Value" })).toBeVisible();
   expect(screen.getByLabelText("Counter-Pick Statistics")).toHaveTextContent(
-    "Counter-pick value+6.0 pts",
+    "Counter-Pick Value+6.0 pts",
   );
   view.rerender(<ChampionOverviewPage overview={overview} draftValue={null} error={null} />);
   expect(screen.queryByRole("heading", { name: "Counter-Pick Value" })).toBeNull();

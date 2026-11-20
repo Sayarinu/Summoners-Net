@@ -1,11 +1,15 @@
 "use client";
 import {
+  Button,
   ChampionIcon,
+  EmptyState,
+  FilterBar,
+  Input,
+  PageHeader,
+  Panel,
   RoleIcon,
   Select,
-  Button,
-  EmptyState,
-  Input,
+  TabNav,
   Table,
   TextLink,
 } from "@summonersnet/ui";
@@ -31,6 +35,20 @@ const percent = (v: SampledValue) =>
 const value = (v: SampledValue | null) => (v ? percent(v) : "Not stored");
 const sample = (v: SampledValue | null) => (v ? String(v.sampleCount) : "0");
 
+function Header({ title, current }: { title: string; current: "champions" | "patches" }) {
+  return (
+    <PageHeader eyebrow="Compare" title={title}>
+      <TabNav
+        label="Compare"
+        items={[
+          { href: "/compare/champions", label: "Champions", current: current === "champions" },
+          { href: "/compare/patches", label: "Patches", current: current === "patches" },
+        ]}
+      />
+    </PageHeader>
+  );
+}
+
 function Filters({
   action,
   a,
@@ -47,16 +65,23 @@ function Filters({
   extra?: { source: string; role: string; patch?: string };
 }) {
   return (
-    <form method="get" action={action} className="ev-filters" aria-label="Compare">
+    <FilterBar
+      method="get"
+      action={action}
+      className="border-y border-line py-3"
+      aria-label="Compare"
+    >
       <Input name="a" label={aLabel} defaultValue={a} required />
       <Input name="b" label={bLabel} defaultValue={b} required />
-      <label className="np-field">
-        <span>Source</span>
-        <select name="source" defaultValue={extra?.source ?? "solo"}>
-          <option value="solo">Solo queue</option>
-          <option value="pro">Pro play</option>
-        </select>
-      </label>
+      <Select
+        label="Source"
+        name="source"
+        defaultValue={extra?.source ?? "solo"}
+        options={[
+          { value: "solo", label: "Solo Queue" },
+          { value: "pro", label: "Pro Play" },
+        ]}
+      />
       <Select
         label="Role"
         name="role"
@@ -73,7 +98,7 @@ function Filters({
       <Button type="submit" variant="primary">
         Compare
       </Button>
-    </form>
+    </FilterBar>
   );
 }
 
@@ -124,46 +149,47 @@ export function ChampionComparePage({
       }))
     : [];
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Champion Against Champion</h1>
-          <TextLink href="/compare/patches">Compare Patches</TextLink>
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-6">
+      <Header title="Champion Against Champion" current="champions" />
       <Filters
         action="/compare/champions"
         a={q?.a ?? ""}
         b={q?.b ?? ""}
-        aLabel="First champion id"
-        bLabel="Second champion id"
+        aLabel="First Champion ID"
+        bLabel="Second Champion ID"
         extra={{ source: q?.source ?? "solo", role: q?.role ?? "ALL", patch: q?.patch ?? "" }}
       />
       {error ? <p role="alert">{error}</p> : null}
-      {comparison ? (
-        <Table
-          caption={`${name(comparison.a, comparison.query.a)} and ${name(comparison.b, comparison.query.b)}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
-          rows={rows}
-          getRowKey={(r) => r.metric}
-          columns={[
-            { id: "metric", header: "Statistic", render: (r) => r.metric },
-            { id: "a", header: name(comparison.a, comparison.query.a), render: (r) => r.a },
-            { id: "aSample", header: "Sample", align: "end", render: (r) => r.aSample },
-            { id: "b", header: name(comparison.b, comparison.query.b), render: (r) => r.b },
-            { id: "bSample", header: "Sample", align: "end", render: (r) => r.bSample },
-          ]}
+      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] items-start gap-4 max-[1150px]:grid-cols-1">
+        {comparison ? (
+          <Panel title="Comparison" padding="none">
+            <Table
+              caption={`${name(comparison.a, comparison.query.a)} and ${name(comparison.b, comparison.query.b)}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
+              rows={rows}
+              getRowKey={(r) => r.metric}
+              columns={[
+                { id: "metric", header: "Statistic", render: (r) => r.metric },
+                { id: "a", header: name(comparison.a, comparison.query.a), render: (r) => r.a },
+                { id: "aSample", header: "Sample", align: "end", render: (r) => r.aSample },
+                { id: "b", header: name(comparison.b, comparison.query.b), render: (r) => r.b },
+                { id: "bSample", header: "Sample", align: "end", render: (r) => r.bSample },
+              ]}
+            />
+          </Panel>
+        ) : !error ? (
+          <EmptyState
+            title="Choose Two Champions"
+            description="Enter two Data Dragon champion ids, such as Ahri and Zed."
+          />
+        ) : (
+          <div />
+        )}
+        <SavedViewsPanel
+          path="/compare/champions"
+          query={search}
+          defaultName={q ? `${q.a} vs ${q.b}` : ""}
         />
-      ) : !error ? (
-        <EmptyState
-          title="Choose Two Champions"
-          description="Enter two Data Dragon champion ids, such as Ahri and Zed."
-        />
-      ) : null}
-      <SavedViewsPanel
-        path="/compare/champions"
-        query={search}
-        defaultName={q ? `${q.a} vs ${q.b}` : ""}
-      />
+      </div>
     </div>
   );
 }
@@ -198,20 +224,14 @@ export function PatchComparePage({
     return `/compare/patches?${params.toString()}`;
   };
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Compare</span>
-          <h1>Patch Against Patch</h1>
-          <TextLink href="/compare/champions">Compare Champions</TextLink>
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-6">
+      <Header title="Patch Against Patch" current="patches" />
       <Filters
         action="/compare/patches"
         a={q?.a ?? ""}
         b={q?.b ?? ""}
-        aLabel="First patch"
-        bLabel="Second patch"
+        aLabel="First Patch"
+        bLabel="Second Patch"
         extra={{ source: q?.source ?? "solo", role: q?.role ?? "ALL" }}
       />
       {error ? <p role="alert">{error}</p> : null}
@@ -224,69 +244,71 @@ export function PatchComparePage({
       {comparison?.a ? (
         <>
           {!comparison.b || !comparison.b.rows.length ? (
-            <p role="status">
+            <p role="status" className="text-sm text-fg-secondary">
               Patch {comparison.query.b} has no stored statistics for this source and role.
             </p>
           ) : null}
-          <Table
-            caption={`Patch ${comparison.query.a} and patch ${comparison.query.b}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
-            rows={rows}
-            getRowKey={(r) => `${r.championKey}:${r.role}`}
-            columns={[
-              {
-                id: "champion",
-                header: "Champion",
-                render: (r) => (
-                  <ChampionIcon
-                    id={r.championId ?? String(r.championKey)}
-                    name={r.name ?? r.championId ?? `Champion ${r.championKey}`}
-                    imageUrl={r.imageUrl}
-                    size="small"
-                    href={r.championId ? `/champions/${r.championId}` : undefined}
-                  />
-                ),
-              },
-              {
-                id: "aWin",
-                header: `Win rate ${comparison.query.a}`,
-                render: (r) => `${percent(r.winRate)} (${r.winRate.sampleCount})`,
-              },
-              {
-                id: "bWin",
-                header: `Win rate ${comparison.query.b}`,
-                render: (r) =>
-                  r.other
-                    ? `${percent(r.other.winRate)} (${r.other.winRate.sampleCount})`
-                    : "Not stored (0)",
-              },
-              {
-                id: "aPick",
-                header: `Pick rate ${comparison.query.a}`,
-                render: (r) => `${percent(r.pickRate)} (${r.pickRate.sampleCount})`,
-              },
-              {
-                id: "bPick",
-                header: `Pick rate ${comparison.query.b}`,
-                render: (r) =>
-                  r.other
-                    ? `${percent(r.other.pickRate)} (${r.other.pickRate.sampleCount})`
-                    : "Not stored (0)",
-              },
-            ]}
-          />
-          {page && page.total > page.pageSize ? (
-            <nav aria-label="Pages" className="ev-filters">
-              {page.page > 1 ? (
-                <TextLink href={pageHref(page.page - 1)}>Previous Page</TextLink>
-              ) : null}
-              <span className="np-meta">
-                Page {page.page} of {Math.ceil(page.total / page.pageSize)}
-              </span>
-              {page.page * page.pageSize < page.total ? (
-                <TextLink href={pageHref(page.page + 1)}>Next Page</TextLink>
-              ) : null}
-            </nav>
-          ) : null}
+          <Panel title="Comparison" padding="none">
+            <Table
+              caption={`Patch ${comparison.query.a} and patch ${comparison.query.b}, ${roleLabels[comparison.query.role as keyof typeof roleLabels]}`}
+              rows={rows}
+              getRowKey={(r) => `${r.championKey}:${r.role}`}
+              columns={[
+                {
+                  id: "champion",
+                  header: "Champion",
+                  render: (r) => (
+                    <ChampionIcon
+                      id={r.championId ?? String(r.championKey)}
+                      name={r.name ?? r.championId ?? `Champion ${r.championKey}`}
+                      imageUrl={r.imageUrl}
+                      size="small"
+                      href={r.championId ? `/champions/${r.championId}` : undefined}
+                    />
+                  ),
+                },
+                {
+                  id: "aWin",
+                  header: `Win Rate ${comparison.query.a}`,
+                  render: (r) => `${percent(r.winRate)} (${r.winRate.sampleCount})`,
+                },
+                {
+                  id: "bWin",
+                  header: `Win Rate ${comparison.query.b}`,
+                  render: (r) =>
+                    r.other
+                      ? `${percent(r.other.winRate)} (${r.other.winRate.sampleCount})`
+                      : "Not stored (0)",
+                },
+                {
+                  id: "aPick",
+                  header: `Pick Rate ${comparison.query.a}`,
+                  render: (r) => `${percent(r.pickRate)} (${r.pickRate.sampleCount})`,
+                },
+                {
+                  id: "bPick",
+                  header: `Pick Rate ${comparison.query.b}`,
+                  render: (r) =>
+                    r.other
+                      ? `${percent(r.other.pickRate)} (${r.other.pickRate.sampleCount})`
+                      : "Not stored (0)",
+                },
+              ]}
+            />
+            {page && page.total > page.pageSize ? (
+              <nav aria-label="Pages" className="flex items-center justify-between gap-4 px-4 py-3">
+                {page.page > 1 ? (
+                  <TextLink href={pageHref(page.page - 1)}>Previous Page</TextLink>
+                ) : null}
+                <span className="np-meta text-accent">
+                  Page {page.page} of {Math.ceil(page.total / page.pageSize)}
+                </span>
+                {page.page * page.pageSize < page.total ? (
+                  <TextLink href={pageHref(page.page + 1)}>Next Page</TextLink>
+                ) : null}
+              </nav>
+            ) : null}
+          </Panel>
         </>
       ) : null}
       {!comparison && !error ? (

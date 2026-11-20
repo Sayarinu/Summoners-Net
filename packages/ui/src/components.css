@@ -516,8 +516,9 @@
   }
 
   .np-select__popover {
+    width: min(var(--trigger-width), 300px);
     min-width: var(--trigger-width);
-    max-height: 320px;
+    max-height: min(280px, calc(100svh - 96px));
     overflow: auto;
   }
 
@@ -712,6 +713,15 @@
   .np-navigation a[aria-current="page"] {
     color: var(--color-text-primary);
     background: var(--color-bg-selected);
+  }
+
+  .np-navigation--large ul {
+    gap: var(--space-2, 8px);
+  }
+
+  .np-navigation--large a {
+    min-height: var(--size-control, 44px);
+    font-size: var(--font-size-md, 16px);
   }
 
   .np-navigation a > span:nth-last-child(2) {
