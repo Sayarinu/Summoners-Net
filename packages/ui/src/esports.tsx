@@ -13,7 +13,8 @@ export interface TeamIdentityProps {
   readonly logo?: string;
   readonly name: string;
   readonly shortName: string;
-  readonly size?: "compact" | "large" | "medium";
+  /** `display` is the page-heading size used on a team's own profile. */
+  readonly size?: "compact" | "display" | "large" | "medium";
   readonly side?: "blue" | "red";
   readonly winner?: boolean;
 }
@@ -34,7 +35,7 @@ export function TeamIdentity({
         alt={`${name} logo`}
         entityKind="team"
         fallback={shortName}
-        size={size === "large" ? "large" : "small"}
+        size={size === "large" || size === "display" ? "large" : "small"}
         src={logo}
       />
       <span className="np-identity__copy">
@@ -57,11 +58,28 @@ export function TeamIdentity({
   );
 }
 
+/** Two teams side by side, each edged in its side's color, reading outward from "vs". */
+export function TeamVersus({
+  teams,
+}: {
+  readonly teams: readonly [TeamIdentityProps, TeamIdentityProps];
+}) {
+  return (
+    <div className="np-team-versus">
+      <TeamIdentity {...teams[0]} />
+      <span className="np-team-versus__sep">vs</span>
+      <TeamIdentity {...teams[1]} />
+    </div>
+  );
+}
+
 export interface PlayerIdentityProps {
   readonly country?: string;
   readonly fullName?: string;
   readonly handle: string;
   readonly href?: string;
+  /** `stacked` puts the portrait above the handle and role, as a roster tile. */
+  readonly layout?: "inline" | "stacked";
   readonly portrait?: string;
   readonly role?: string | null | undefined;
 }
@@ -71,6 +89,7 @@ export function PlayerIdentity({
   fullName,
   handle,
   href,
+  layout = "inline",
   portrait,
   role,
 }: PlayerIdentityProps) {
@@ -92,12 +111,17 @@ export function PlayerIdentity({
     </>
   );
 
+  const className = cx(
+    "np-identity",
+    "np-identity--player",
+    layout === "stacked" && "np-identity--stacked",
+  );
   return href ? (
-    <a className="np-identity np-identity--player" href={href}>
+    <a className={className} href={href}>
       {content}
     </a>
   ) : (
-    <div className="np-identity np-identity--player">{content}</div>
+    <div className={className}>{content}</div>
   );
 }
 
@@ -407,6 +431,8 @@ export function StreamConsent({
 
 export interface StreamEmbedShellProps {
   readonly children?: ReactNode;
+  /** A tighter header for a player beside other content; a ready player shows no status. */
+  readonly compact?: boolean;
   readonly fallbackHref?: string;
   readonly mode?: "live" | "replay";
   readonly onRetry?: () => void;
@@ -417,6 +443,7 @@ export interface StreamEmbedShellProps {
 
 export function StreamEmbedShell({
   children,
+  compact = false,
   fallbackHref,
   mode = "live",
   onRetry,
@@ -428,7 +455,11 @@ export function StreamEmbedShell({
     <section
       aria-busy={state === "loading"}
       aria-label={title}
-      className={cx("np-stream-shell", `np-stream-shell--${state}`)}
+      className={cx(
+        "np-stream-shell",
+        `np-stream-shell--${state}`,
+        compact && "np-stream-shell--compact",
+      )}
     >
       <header>
         <div>
@@ -436,7 +467,7 @@ export function StreamEmbedShell({
         </div>
         <div>
           {state === "ready" ? (
-            mode === "live" ? (
+            compact ? null : mode === "live" ? (
               <LiveIndicator />
             ) : (
               <StatusIndicator label="Replay" tone="info" />

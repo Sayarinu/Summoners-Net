@@ -1,6 +1,8 @@
 @layer np-reset, np-base, np-components, np-layout, np-utilities;
 
 @import "./components.css";
+@import "./layout.css";
+@import "./game.css";
 
 @layer np-reset {
   *,

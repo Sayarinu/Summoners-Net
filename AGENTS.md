@@ -53,6 +53,21 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
   are kept, and source identifiers are never merged by name alone: cross-source links need
   corroborating lineups or fixtures.
 
+## Design system
+
+- The game detail page sets the visual standard. Every page is built from titled panels, a page
+  header with a mono eyebrow, blue and red side accents, and tabular mono figures.
+- `packages/tokens` is the only source of colors, spacing, type and radii. Its build generates the
+  Tailwind theme, so layout utilities use token names: `bg-raised`, `text-fg-muted`, `text-accent`,
+  `border-line`, `text-side-blue`, `gap-4` (a 4px scale), `text-sm`, `rounded-md`, `font-mono`.
+  Tailwind's default palette and reset are not loaded.
+- `packages/ui` components own their appearance in the package's stylesheets. Before adding a
+  component, check whether `PageHeader`, `Panel`, `TabNav`, `Stat`, `Card`, `Table` or the identity
+  and match components already cover the need. Show each new component or variant in Storybook.
+- Pages and features compose those components and lay them out with Tailwind classes. They do not
+  add stylesheets or target a component's internal `np-` classes; add a prop or variant to the
+  component instead.
+
 ## Checks
 
 Run these before opening a pull request, and say in the PR exactly which ones ran:

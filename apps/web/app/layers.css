@@ -1,2 +1,3 @@
-/* Declare the reviewed cascade before Next hoists the library's CSS imports. */
-@layer np-reset, np-base, np-components, np-layout, np-utilities;
+/* Declare the reviewed cascade before Next hoists the library's CSS imports. Tailwind utilities
+   come last, so page layout classes win over component defaults. */
+@layer np-reset, np-base, np-components, np-layout, np-utilities, utilities;
