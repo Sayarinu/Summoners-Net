@@ -9,6 +9,32 @@ async function openSettings(page: Page) {
   await expect(page).toHaveURL(/\/settings$/);
 }
 
+test("the stream player shows what the embedded Twitch player reports", async ({ page }) => {
+  // A stand-in for Twitch's player that reports playback the way the real one does.
+  await page.route("https://player.twitch.tv/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<p>Test Twitch player</p><script>
+        const send = (playback) => parent.postMessage(
+          { eventName: "UPDATE_STATE", params: { playback, channelName: "test_channel" } }, "*");
+        send("Idle");
+        setTimeout(() => send("Playing"), 200);
+      </script>`,
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /^Watch (Stream|Live)$/ })
+    .first()
+    .click();
+  await expect(page.getByRole("button", { name: /Broadcast/ })).toContainText("Twitch");
+  await expect(page.getByRole("status").filter({ hasText: /on Twitch/ })).toHaveText(
+    /^Playing on Twitch · /,
+  );
+});
+
 test("browse filters, SQL pages, match details and spoiler control", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("https://www.youtube-nocookie.com/**", (route) =>

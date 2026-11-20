@@ -4,6 +4,7 @@ import { z } from "zod";
 import { EmptyState, Select, StreamEmbedShell } from "@summonersnet/ui";
 import type { Broadcast, Match } from "@summonersnet/data";
 import { isRecording } from "@summonersnet/data/contracts";
+import { playbackLabel, playerPlayback, youtubeOrigin, type Playback } from "./playback";
 export function embedUrl(b: Broadcast, siteOrigin: string) {
   const origin = siteOrigin.includes("://") ? siteOrigin : `http://${siteOrigin}`;
   if (b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId)) {
@@ -44,7 +45,6 @@ export function watchableBroadcasts(match: Pick<Match, "broadcasts" | "state">) 
  * its own site), 153 missing referrer.
  */
 const embedRefusedCodes = new Set([100, 101, 150, 153]);
-const youtubeOrigin = /^https:\/\/www\.youtube(?:-nocookie)?\.com$/;
 const youtubeErrorSchema = z.object({ event: z.literal("onError"), info: z.number() });
 
 /** The error code in a YouTube player message, or null for any other message. */
@@ -101,24 +101,38 @@ export function WatchPlayer({
   );
   const [selected, setSelected] = useState(String(Math.max(0, preferredBroadcast)));
   const [refused, setRefused] = useState(false);
+  // What the embedded player last reported; null until it reports anything.
+  const [playback, setPlayback] = useState<Playback | "blocked" | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   // The embed needs this page's origin, which only exists in the browser.
   const [origin, setOrigin] = useState<string | null>(null);
   useEffect(() => setOrigin(window.location.origin), []);
   const b = orderedBroadcasts[Number(selected)];
   const src = origin && b ? embedUrl(b, origin) : null;
-  const listensForErrors = b?.provider === "youtube" && Boolean(src);
+  const provider = b?.provider;
   useEffect(() => {
-    if (!listensForErrors) return;
+    if (!src || !provider) return;
+    setPlayback(null);
     const onMessage = (event: MessageEvent) => {
-      if (!youtubeOrigin.test(event.origin) || event.source !== frame.current?.contentWindow)
-        return;
-      const code = youtubePlayerError(event.data);
-      if (code !== null && embedRefusedCodes.has(code)) setRefused(true);
+      if (event.source !== frame.current?.contentWindow) return;
+      if (provider === "youtube" && youtubeOrigin.test(event.origin)) {
+        const code = youtubePlayerError(event.data);
+        if (code !== null && embedRefusedCodes.has(code)) setRefused(true);
+      }
+      const state = playerPlayback(provider, event.origin, event.data);
+      if (state) setPlayback(state);
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [listensForErrors, src]);
+    // A Twitch player that never reports was blocked before it loaded: offer Twitch itself.
+    const silent =
+      provider === "twitch"
+        ? window.setTimeout(() => setPlayback((state) => (state ? state : "blocked")), 10_000)
+        : undefined;
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(silent);
+    };
+  }, [provider, src]);
   if (!b)
     return (
       <EmptyState title={mode === "replay" ? "No Replay Available" : "No Broadcast Supplied"} />
@@ -133,6 +147,7 @@ export function WatchPlayer({
         onValueChange={(value) => {
           setSelected(value);
           setRefused(false);
+          setPlayback(null);
         }}
         options={orderedBroadcasts.map((broadcast, index) => {
           const label = labels[index]!;
@@ -180,14 +195,14 @@ export function WatchPlayer({
           state={!origin ? "loading" : !src ? "failed" : "ready"}
           fallbackHref={b.url}
         >
-          {src && refused ? (
+          {src && (refused || playback === "blocked") ? (
             <a
               className="group absolute inset-0 grid place-items-center overflow-hidden bg-canvas text-fg no-underline"
               href={b.url}
               target="_blank"
               rel="noreferrer"
             >
-              {/^[\w-]{11}$/.test(b.externalId) ? (
+              {b.provider === "youtube" && /^[\w-]{11}$/.test(b.externalId) ? (
                 <img
                   className="absolute inset-0 size-full object-cover opacity-45"
                   alt=""
@@ -214,7 +229,7 @@ export function WatchPlayer({
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
               onLoad={(event) => {
-                // Ask the YouTube player for its events so a refused embed can be detected.
+                // Ask the YouTube player for its events: playback state, and a refused embed.
                 if (b.provider === "youtube")
                   event.currentTarget.contentWindow?.postMessage(
                     JSON.stringify({ event: "listening", id: 1, channel: "widget" }),
@@ -224,6 +239,12 @@ export function WatchPlayer({
             />
           ) : null}
         </StreamEmbedShell>
+        {playback && playback !== "blocked" && !refused ? (
+          <p role="status" className="mt-2 font-mono text-xs text-fg-muted">
+            {playbackLabel(playback, providerLabel(b.provider))}
+            {b.provider === "twitch" && !b.externalId.startsWith("v") ? ` · ${b.externalId}` : ""}
+          </p>
+        ) : null}
       </div>
       {compact && streamSelect ? <div className="max-w-full self-end">{streamSelect}</div> : null}
     </section>

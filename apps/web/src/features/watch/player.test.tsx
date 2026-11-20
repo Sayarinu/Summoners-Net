@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { it, expect, vi } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import { WatchPlayer, embedUrl, watchableBroadcasts, youtubePlayerError } from "./player";
 import { match } from "../../../tests/fixtures";
@@ -92,4 +92,42 @@ it("replaces a replay its channel will not embed with a link to watch it on YouT
     "href",
     match.broadcasts[0]!.url,
   );
+});
+it("shows what the player reports, and links to Twitch when its player never loads", () => {
+  vi.useFakeTimers();
+  try {
+    const twitch = match.broadcasts[1]!;
+    const view = render(<WatchPlayer broadcasts={[twitch]} defaultProvider="twitch" />);
+    const frame = screen.getByTitle<HTMLIFrameElement>("Match Broadcast");
+    const post = (data: unknown, origin = "https://player.twitch.tv") =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", { data, origin, source: frame.contentWindow }),
+        );
+      });
+    post({ eventName: "UPDATE_STATE", params: { playback: "Playing" } }, "https://evil.example");
+    expect(screen.queryByRole("status")).toBeNull();
+    post({ eventName: "UPDATE_STATE", params: { playback: "Playing", channelName: "x" } });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      `Playing on Twitch · ${twitch.externalId}`,
+    );
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    // A player that has reported is never replaced.
+    expect(screen.getByTitle("Match Broadcast")).toBeInTheDocument();
+
+    view.unmount();
+    render(<WatchPlayer broadcasts={[twitch]} defaultProvider="twitch" />);
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(screen.queryByTitle("Match Broadcast")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Watch on Twitch/ })).toHaveAttribute(
+      "href",
+      twitch.url,
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
