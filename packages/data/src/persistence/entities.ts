@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { Identity, Match } from "../domain/models.js";
 import { resolveIdentities, type ContextTeam, type PlayedSquad } from "../domain/resolution.js";
+import { mergeOracleTeams, type TeamLineup } from "../domain/team-merges.js";
 import { transaction } from "./database.js";
 import { saveIdentity } from "./write.js";
 
@@ -73,11 +74,13 @@ export async function resolveStored(pool: Pool, at: Date) {
         "SELECT identity_id AS id,name FROM identity_aliases ORDER BY identity_id,name",
       )
     ).rows;
-    const squads = (
-      await c.query<PlayedSquad>(
+    const lineups = (
+      await c.query<TeamLineup>(
         `SELECT
             g.id AS "gameId",
             p.team_id AS "teamId",
+            min(member->'team'->>'name') AS "teamName",
+            g.league,
             to_char(g.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "playedAt",
             jsonb_agg(jsonb_build_object(
               'id', p.player_id,
@@ -92,6 +95,20 @@ export async function resolveStored(pool: Pool, at: Date) {
           ORDER BY g.occurred_at DESC,g.id`,
       )
     ).rows;
+    // One Oracle team recorded under several identities becomes one team before provider linking,
+    // so the survivor carries every game's lineup and name as evidence.
+    const merged = mergeOracleTeams(lineups);
+    const survivor = new Map(merged.merges.map((m) => [m.sourceId, m.targetId]));
+    const team = (id: string) => survivor.get(id) ?? id;
+    const squads: PlayedSquad[] = lineups.map(({ gameId, teamId, playedAt, players }) => ({
+      gameId,
+      teamId: team(teamId),
+      playedAt,
+      players,
+    }));
+    for (const game of games) game.teams = game.teams.map((t) => ({ ...t, id: team(t.id) }));
+    for (const alias of [...aliases])
+      if (survivor.has(alias.id)) aliases.push({ id: team(alias.id), name: alias.name });
     const catalog = (
       await c.query<{ document: ContextTeam }>("SELECT document FROM identity_catalog ORDER BY id")
     ).rows.map((r) => r.document);
@@ -162,6 +179,14 @@ export async function resolveStored(pool: Pool, at: Date) {
       }
       for (const player of team.players) if (linked.has(player.id)) await saveIdentity(c, player);
     }
+    await c.query("DELETE FROM identity_merges");
+    for (const merge of merged.merges)
+      await c.query("INSERT INTO identity_merges VALUES($1,$2,$3,$4)", [
+        merge.sourceId,
+        merge.targetId,
+        merge.evidence,
+        at,
+      ]);
     await c.query("DELETE FROM identity_links");
     for (const link of result.links)
       await c.query("INSERT INTO identity_links VALUES($1,$2,$3,$4)", [
@@ -187,6 +212,11 @@ export async function resolveStored(pool: Pool, at: Date) {
       catalogTeams: teams.size,
       links: result.links.length,
       ambiguous: result.ambiguous,
+      merges: {
+        observation: merged.merges.filter((m) => m.evidence.kind === "observation").length,
+        nameVariant: merged.merges.filter((m) => m.evidence.kind === "name-variant").length,
+        ambiguous: merged.ambiguous,
+      },
       counts,
     };
     await c.query("INSERT INTO identity_resolution_runs(resolved_at,report) VALUES($1,$2)", [
