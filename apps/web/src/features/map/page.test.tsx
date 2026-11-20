@@ -121,9 +121,14 @@ it("scrubs to interpolated positions and shows missing frames as gaps", () => {
   // Lee Sin's minute 1 frame is missing: no point and a gap, never the map origin.
   expect(within(table()).getByRole("row", { name: /Lee Sin/ })).toHaveTextContent("Gap: no frame");
   expect(points(container)).toHaveLength(2);
-  expect(screen.getByRole("link", { name: "Back to the Game" })).toHaveAttribute(
+  const views = screen.getByRole("navigation", { name: "Game Views" });
+  expect(within(views).getByRole("link", { name: "Game" })).toHaveAttribute(
     "href",
     "/solo-games/EUW1_1",
+  );
+  expect(within(views).getByRole("link", { name: "Game Map" })).toHaveAttribute(
+    "aria-current",
+    "page",
   );
 });
 it("toggles teams and roles", () => {

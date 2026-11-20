@@ -1,5 +1,5 @@
 "use client";
-import { BarChart } from "@summonersnet/ui";
+import { BarChart, Panel } from "@summonersnet/ui";
 import type { BucketKind, ChampionBuckets } from "@summonersnet/data/contracts";
 
 const charts: { kind: BucketKind; title: string; xLabel: string }[] = [
@@ -14,10 +14,9 @@ export function BucketsSection({ buckets }: { buckets: ChampionBuckets | null })
   // Charts without a single known rate are left out rather than drawn empty.
   const shown = charts.filter(({ kind }) => buckets[kind].some((b) => b.winRate.value !== null));
   return (
-    <section className="np-stack" aria-labelledby="buckets-heading">
-      <h2 id="buckets-heading">When It Wins</h2>
+    <Panel title="When It Wins">
       {shown.length ? null : <p className="np-meta">No bucket has enough results yet.</p>}
-      <div className="ev-chart-grid">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5 max-[420px]:grid-cols-1">
         {shown.map(({ kind, title, xLabel }) => (
           <BarChart
             key={kind}
@@ -34,6 +33,6 @@ export function BucketsSection({ buckets }: { buckets: ChampionBuckets | null })
           />
         ))}
       </div>
-    </section>
+    </Panel>
   );
 }

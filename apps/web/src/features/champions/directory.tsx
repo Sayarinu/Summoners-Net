@@ -1,68 +1,118 @@
 "use client";
-import { ChampionIcon, RoleIcon, EmptyState, Table, TextLink } from "@summonersnet/ui";
+import { useState } from "react";
+import {
+  Card,
+  ChampionIdentity,
+  EmptyState,
+  FilterBar,
+  Input,
+  PageHeader,
+  Panel,
+  RoleIcon,
+  TabNav,
+  TextLink,
+} from "@summonersnet/ui";
 import { matchupRoles, type ChampionDirectory } from "@summonersnet/data/contracts";
+import { roleLabels } from "./presentation";
 
-/** Every catalog champion, and the champion and matchup analytics reachable from here. */
-export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }) {
+/** The champion section's sibling pages, shown as tabs on each of them. */
+export function ChampionViews({ current }: { current: "champions" | "tier-list" | "trending" }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">{d.patch ? `Catalog patch ${d.patch}` : "Catalog"}</span>
-          <h1>Champions</h1>
-        </div>
-      </header>
-      <nav aria-label="Champion Analytics" className="np-stack">
-        <p>
-          <TextLink href="/tier-list">Tier List</TextLink> ·{" "}
-          <TextLink href="/trending">Trending Champions</TextLink> ·{" "}
-          <TextLink href="/drafts/assistant">Draft Assistant</TextLink>
-        </p>
-        <h2>Matchups by Role</h2>
-        <ul>
+    <TabNav
+      label="Champion Views"
+      items={[
+        { href: "/champions", label: "Champions", current: current === "champions" },
+        { href: "/tier-list", label: "Tier List", current: current === "tier-list" },
+        { href: "/trending", label: "Trending", current: current === "trending" },
+      ]}
+    />
+  );
+}
+
+/** Every catalog champion as a card, filtered by name in place, and the role matchup pages. */
+export function ChampionsPage({ directory: d }: { directory: ChampionDirectory }) {
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLocaleLowerCase();
+  const shown = term
+    ? d.champions.filter(
+        (c) =>
+          c.name.toLocaleLowerCase().includes(term) ||
+          c.championId.toLocaleLowerCase().includes(term),
+      )
+    : d.champions;
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        title="Champions"
+        eyebrow={`${d.patch ? `Catalog Patch ${d.patch}` : "Catalog"} · ${d.champions.length} champions`}
+        actions={<TextLink href="/drafts/assistant">Draft Assistant</TextLink>}
+      >
+        <ChampionViews current="champions" />
+      </PageHeader>
+      <Panel title="Matchups by Role">
+        <ul className="grid list-none grid-cols-5 gap-3 max-[1150px]:grid-cols-3 max-[700px]:grid-cols-2">
           {matchupRoles.map((r) => (
-            <li key={r}>
-              <RoleIcon role={r} /> <TextLink href={`/matchups/${r}`}>Matchup Matrix</TextLink> ·{" "}
-              <TextLink href={`/matchups/${r}/counter-picks`}>Counter-Pick Values</TextLink>
+            <li key={r} className="flex flex-col gap-1">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <RoleIcon role={r} />
+                {roleLabels[r]}
+              </span>
+              <span className="flex flex-wrap gap-x-3 text-sm">
+                <TextLink href={`/matchups/${r}`} aria-label={`${roleLabels[r]} Matchup Matrix`}>
+                  Matrix
+                </TextLink>
+                <TextLink
+                  href={`/matchups/${r}/counter-picks`}
+                  aria-label={`${roleLabels[r]} Counter-Pick Values`}
+                >
+                  Counter Picks
+                </TextLink>
+              </span>
             </li>
           ))}
         </ul>
-      </nav>
+      </Panel>
       {d.champions.length ? (
-        <Table
-          caption="Champions in the Catalog"
-          rows={d.champions}
-          getRowKey={(c) => c.championId}
-          columns={[
-            {
-              id: "champion",
-              header: "Champion",
-              render: (c) => (
-                <span className="ev-champion">
-                  <ChampionIcon
-                    id={c.championId}
-                    name={c.name}
-                    imageUrl={c.imageUrl}
-                    size="small"
-                    href={`/champions/${c.championId}`}
-                  />
-                </span>
-              ),
-            },
-            {
-              id: "matchups",
-              header: "Lane Matchups",
-              render: (c) => (
-                <TextLink
-                  href={`/champions/${c.championId}/matchups`}
-                  aria-label={`${c.name} lane matchups`}
-                >
-                  Matchups
-                </TextLink>
-              ),
-            },
-          ]}
-        />
+        <>
+          <FilterBar
+            className="border-y border-line py-3"
+            role="search"
+            onSubmit={(event) => event.preventDefault()}
+          >
+            <Input
+              type="search"
+              label="Search Champions"
+              name="q"
+              value={search}
+              onChange={(event) => setSearch(event.currentTarget.value)}
+              placeholder="Champion name"
+            />
+          </FilterBar>
+          {shown.length ? (
+            <ul
+              aria-label="Champions in the Catalog"
+              className="grid list-none grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 max-[600px]:grid-cols-2"
+            >
+              {shown.map((c) => (
+                <li key={c.championId}>
+                  <Card
+                    href={`/champions/${encodeURIComponent(c.championId)}`}
+                    className="max-[600px]:p-3"
+                  >
+                    <ChampionIdentity
+                      id={c.championId}
+                      name={c.name}
+                      imageUrl={c.imageUrl}
+                      size="large"
+                    />
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title="No Champions Match This Search" />
+          )}
+        </>
       ) : (
         <EmptyState
           title="No Champion Catalog Yet"

@@ -5,7 +5,10 @@ import {
   RoleIcon,
   Button,
   EmptyState,
+  FilterBar,
+  PageHeader,
   Pagination,
+  Panel,
   Select,
   StatusIndicator,
   Table,
@@ -14,7 +17,7 @@ import {
 import type { WpaLeaderboard, WpaLeaderboardRow } from "@summonersnet/data/contracts";
 
 const kindLabels = { champion: "Champions", player: "Players", role: "Roles" } as const;
-const sortLabels = { perGame: "Per game", total: "Total", games: "Games" } as const;
+const sortLabels = { perGame: "Per Game", total: "Total", games: "Games" } as const;
 const points = (value: number | null, digits = 2) =>
   value === null ? "Unknown" : `${value >= 0 ? "+" : ""}${value.toFixed(digits)} pts`;
 function Subject({
@@ -51,13 +54,28 @@ export function WpaLeaderboardPage({
 }) {
   const q = board?.query;
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Win Probability Added</h1>
-        </div>
-      </header>
-      <form action="/leaderboards/wpa" method="get" className="ev-filters" key={JSON.stringify(q)}>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Leaderboards", href: "/leaderboards" },
+          { label: "Win Probability Added" },
+        ]}
+        eyebrow={
+          board?.model && board.patch ? (
+            <span>
+              Patch {board.patch} · model v{board.model.modelVersion} (#{board.model.id}
+              {board.model.brier === null ? "" : `, Brier ${board.model.brier.toFixed(3)}`})
+            </span>
+          ) : undefined
+        }
+        title="Win Probability Added"
+      />
+      <FilterBar
+        action="/leaderboards/wpa"
+        method="get"
+        className="border-y border-line py-3"
+        key={JSON.stringify(q)}
+      >
         <Select
           label="Board"
           name="kind"
@@ -80,7 +98,7 @@ export function WpaLeaderboardPage({
           options={Object.entries(sortLabels).map(([value, label]) => ({ label, value }))}
         />
         <Button type="submit">Apply Filters</Button>
-      </form>
+      </FilterBar>
       {error ? (
         <p role="alert">{error}</p>
       ) : !board?.model ? (
@@ -94,16 +112,21 @@ export function WpaLeaderboardPage({
           description="Games are scored with the active model as they are ingested."
         />
       ) : (
-        <section className="np-stack" aria-label="Win Probability Added Leaderboard">
-          <p className="np-meta">
-            Patch {board.patch} · model v{board.model.modelVersion} (#{board.model.id}
-            {board.model.brier === null ? "" : `, Brier ${board.model.brier.toFixed(3)}`}). Values
-            are percentage points of win probability; rows with fewer than 10 games show no value.
+        <Panel
+          aria-label="Win Probability Added Leaderboard"
+          title={`${kindLabels[board.query.kind]} by Win Probability Added`}
+          padding="none"
+          actions={
+            <ExportLink
+              table="wpa"
+              filters={{ kind: board.query.kind, patch: board.patch, sort: board.query.sort }}
+            />
+          }
+        >
+          <p className="border-b border-line px-4 py-3 text-sm text-fg-secondary">
+            Values are percentage points of win probability; rows with fewer than 10 games show no
+            value.
           </p>
-          <ExportLink
-            table="wpa"
-            filters={{ kind: board.query.kind, patch: board.patch, sort: board.query.sort }}
-          />
           <Table
             caption={`${kindLabels[board.query.kind]} by win probability added`}
             rows={board.page.items}
@@ -142,8 +165,8 @@ export function WpaLeaderboardPage({
               },
             ]}
           />
-          <div className="ev-pagination">
-            <span className="np-meta">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-4 py-4">
+            <span className="np-meta text-accent">
               {board.page.total} rows · Page {board.page.page}
             </span>
             <Pagination
@@ -157,7 +180,7 @@ export function WpaLeaderboardPage({
               }}
             />
           </div>
-        </section>
+        </Panel>
       )}
     </div>
   );

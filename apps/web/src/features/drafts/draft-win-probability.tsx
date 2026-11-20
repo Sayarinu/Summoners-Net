@@ -1,5 +1,5 @@
 "use client";
-import { RoleIcon, Table, TextLink } from "@summonersnet/ui";
+import { Panel, RoleIcon, Stat, StatGroup, Table, TextLink } from "@summonersnet/ui";
 import type { DraftInput, DraftWinProbability } from "@summonersnet/data/contracts";
 
 const percent = (value: number | null) =>
@@ -28,39 +28,48 @@ export function DraftWinProbabilitySection({
   const blue = v.blueWinProbability;
   const ours = blue === null ? null : side === "blue" ? blue : 1 - blue;
   return (
-    <section className="np-stack" aria-labelledby="draft-wp-heading">
-      <h2 id="draft-wp-heading">Draft Win Probability</h2>
+    <Panel title="Draft Win Probability">
       {!v.model || blue === null ? (
         <p role="status">{v.reason}</p>
       ) : (
-        <>
-          <dl className="ev-summary" aria-label="Draft Win Probability by Side">
-            <div>
-              <dt>{side === "blue" ? "Blue" : "Red"} side</dt>
-              <dd>{percent(ours)}</dd>
-            </div>
-            <div>
-              <dt>{side === "blue" ? "Red" : "Blue"} side</dt>
-              <dd>{percent(ours === null ? null : 1 - ours)}</dd>
-            </div>
+        <div className="flex flex-col gap-4">
+          <StatGroup label="Draft Win Probability by Side">
+            <Stat
+              label={`${side === "blue" ? "Blue" : "Red"} side`}
+              value={
+                <span className={side === "blue" ? "text-side-blue" : "text-side-red"}>
+                  {percent(ours)}
+                </span>
+              }
+            />
+            <Stat
+              label={`${side === "blue" ? "Red" : "Blue"} side`}
+              value={
+                <span className={side === "blue" ? "text-side-red" : "text-side-blue"}>
+                  {percent(ours === null ? null : 1 - ours)}
+                </span>
+              }
+            />
             {(["strength", "lane", "synergy"] as const).map((k) => (
-              <div key={k}>
-                <dt>{kinds[k]} coverage</dt>
-                <dd>
-                  {v.coverage[k].known} of {v.coverage[k].total}
-                </dd>
-              </div>
+              <Stat
+                key={k}
+                size="sm"
+                label={`${kinds[k]} coverage`}
+                value={`${v.coverage[k].known} of ${v.coverage[k].total}`}
+              />
             ))}
-          </dl>
-          <p className="np-meta">
+          </StatGroup>
+          <p className="text-sm text-fg-muted">
             Draft model v{v.model.modelVersion} (#{v.model.id}), trained on patches{" "}
             {v.model.patches.join(", ")}. Brier score on {v.model.evalGames} held-out games:{" "}
             {v.model.brier === null ? "unknown" : v.model.brier.toFixed(3)} (lower is better; 0.25
             is a coin flip). <TextLink href={`/models?model=${v.model.id}`}>Calibration</TextLink>
           </p>
-          <details>
-            <summary>Inputs and Samples</summary>
-            <p className="np-body-sm">
+          <details className="flex flex-col gap-3">
+            <summary className="cursor-pointer text-sm text-fg-secondary">
+              Inputs and Samples
+            </summary>
+            <p className="my-3 max-w-reading text-sm text-fg-secondary">
               The model adds up, from blue’s side, each champion’s role win rate, each lane’s shrunk
               matchup and each pair of teammates’ shrunk duo result, all in win-rate points above
               50% (or above the pair’s expected rate). Inputs with fewer than 10 games are left out
@@ -89,8 +98,8 @@ export function DraftWinProbabilitySection({
               ]}
             />
           </details>
-        </>
+        </div>
       )}
-    </section>
+    </Panel>
   );
 }

@@ -1,6 +1,4 @@
 "use client";
-import "../teams/teams.css";
-import "./players.css";
 import { useState, type ReactNode } from "react";
 import type {
   BrowseQuery,
@@ -8,9 +6,16 @@ import type {
   PlayerPerformance,
   PlayerSeason,
   Profile,
-  SampledValue,
 } from "@summonersnet/data";
-import { Breadcrumb, Button, PlayerIdentity, TeamIdentity } from "@summonersnet/ui";
+import {
+  Button,
+  PageHeader,
+  PlayerIdentity,
+  Panel,
+  Stat,
+  StatGroup,
+  TeamIdentity,
+} from "@summonersnet/ui";
 import { Filters, Pages } from "../browse/components";
 import { useSpoilerPreference } from "../browse/match-group";
 import { dateTime, gameTeams, identityHref } from "../browse/presentation";
@@ -18,7 +23,7 @@ import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/
 import { ChampionPool } from "../teams/pages";
 
 type Metric = keyof Omit<PlayerPerformance, "games">;
-type Stat = { label: string; metric: Metric; format: (value: number) => string };
+type StatLine = { label: string; metric: Metric; format: (value: number) => string };
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 const fixed = (digits: number) => (value: number) => value.toFixed(digits);
@@ -27,21 +32,21 @@ const signed = (value: number) => {
   return rounded > 0 ? `+${rounded}` : String(rounded);
 };
 
-const combat: Stat[] = [
+const combat: StatLine[] = [
   { label: "Kill Participation", metric: "killParticipation", format: percent },
   { label: "Average Kills", metric: "killsPerGame", format: fixed(1) },
   { label: "Average Deaths", metric: "deathsPerGame", format: fixed(1) },
   { label: "Average Assists", metric: "assistsPerGame", format: fixed(1) },
   { label: "Pentakills", metric: "pentakills", format: fixed(0) },
 ];
-const earlyGame: Stat[] = [
+const earlyGame: StatLine[] = [
   { label: "Gold Diff at 15", metric: "goldDiffAt15", format: signed },
   { label: "CS Diff at 15", metric: "csDiffAt15", format: signed },
   { label: "XP Diff at 15", metric: "xpDiffAt15", format: signed },
   { label: "First Blood Participation", metric: "firstBloodParticipation", format: percent },
   { label: "First Blood Victim", metric: "firstBloodVictim", format: percent },
 ];
-const economy: Stat[] = [
+const economy: StatLine[] = [
   { label: "CS per Minute", metric: "csPerMinute", format: fixed(1) },
   { label: "Gold per Minute", metric: "goldPerMinute", format: fixed(0) },
   { label: "Gold Share", metric: "goldShare", format: percent },
@@ -53,54 +58,25 @@ const economy: Stat[] = [
   { label: "Control Wards per Game", metric: "controlWardsPerGame", format: fixed(1) },
 ];
 
-/** A value with its sample size whenever some selected games did not record it. */
-function SampledStat({
-  value,
-  games,
-  format,
-}: {
-  value: SampledValue;
-  games: number;
-  format: (value: number) => string;
-}) {
-  return (
-    <>
-      {value.value === null ? "—" : format(value.value)}
-      {value.sampleCount !== games && (
-        <small>
-          {value.sampleCount} {value.sampleCount === 1 ? "game" : "games"}
-        </small>
-      )}
-    </>
-  );
+/** The sample behind a value whenever some selected games did not record it. */
+function sample(count: number, games: number) {
+  return count === games ? {} : { detail: `${count} ${count === 1 ? "game" : "games"}` };
 }
 
-function StatList({
-  stats,
-  performance,
-  children,
-}: {
-  stats: Stat[];
-  performance: PlayerPerformance;
-  children?: ReactNode;
-}) {
-  return (
-    <dl className="ev-team-stats ev-player-stats">
-      {children}
-      {stats.map((stat) => (
-        <div key={stat.metric}>
-          <dt>{stat.label}</dt>
-          <dd>
-            <SampledStat
-              value={performance[stat.metric]}
-              games={performance.games}
-              format={stat.format}
-            />
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
+const statGrid = "grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-3 gap-y-5";
+
+function StatLines({ stats, performance }: { stats: StatLine[]; performance: PlayerPerformance }) {
+  return stats.map((stat) => {
+    const { value, sampleCount } = performance[stat.metric];
+    return (
+      <Stat
+        key={stat.metric}
+        label={stat.label}
+        value={value === null ? "—" : stat.format(value)}
+        {...sample(sampleCount, performance.games)}
+      />
+    );
+  });
 }
 
 function StatPanel({
@@ -108,27 +84,31 @@ function StatPanel({
   hidden,
   onReveal,
   games,
+  stats,
+  performance,
   children,
-  className,
 }: {
   title: string;
   hidden: boolean;
   onReveal: () => void;
   games: number;
-  children: ReactNode;
-  className?: string;
+  stats: StatLine[];
+  performance: PlayerPerformance;
+  children?: ReactNode;
 }) {
   return (
-    <section className={["ev-team-panel", className].filter(Boolean).join(" ")}>
-      <h2>{title}</h2>
+    <Panel title={title}>
       {hidden ? (
         <Button onPress={onReveal}>Reveal Statistics</Button>
       ) : games === 0 ? (
         <p>No eligible games in this selection.</p>
       ) : (
-        children
+        <StatGroup className={statGrid}>
+          {children}
+          <StatLines stats={stats} performance={performance} />
+        </StatGroup>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -158,25 +138,29 @@ function PlayerGameRow({
     own && own.kills !== null && own.deaths !== null && own.assists !== null
       ? `${own.kills} / ${own.deaths} / ${own.assists}`
       : null;
+  const versus = ordered.map((t) => t.name).join(" versus ");
   return (
-    <article className="ev-player-game" data-result={hidden ? undefined : (own?.won ?? undefined)}>
-      <div className="ev-player-game__time">
+    <article
+      className="relative grid min-h-19 grid-cols-[minmax(120px,18%)_44px_minmax(0,1fr)_minmax(120px,max-content)] items-center gap-4 border-b border-line px-5 py-3 last:border-b-0 focus-within:bg-interactive/50 hover:bg-interactive/50 border-l-3 border-l-transparent data-[result=false]:border-l-loss data-[result=true]:border-l-success max-[700px]:grid-cols-[44px_minmax(0,1fr)_auto] max-[700px]:gap-x-3 max-[700px]:gap-y-2 max-[700px]:px-3"
+      data-result={hidden ? undefined : (own?.won ?? undefined)}
+    >
+      <div className="grid gap-0.5 text-sm text-fg-muted max-[700px]:col-span-full max-[700px]:flex max-[700px]:gap-2">
         <span>
           {game.league} · Game {game.number}
         </span>
-        <span>{dateTime(game.occurredAt, timezone)}</span>
+        <span className="font-mono text-xs">{dateTime(game.occurredAt, timezone)}</span>
       </div>
-      <div className="ev-player-game__champion">
+      <div>
         <ChampionPortrait name={own?.champion ?? null} portraits={portraits} size="medium" />
       </div>
       <a
-        className="ev-player-game__teams"
+        className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-inherit no-underline max-[700px]:flex-col max-[700px]:items-start"
         href={href}
-        aria-label={`Game ${game.number}: ${ordered.map((t) => t.name).join(" versus ")}, ${dateTime(game.occurredAt, timezone)}`}
+        aria-label={`Game ${game.number}: ${versus}, ${dateTime(game.occurredAt, timezone)}`}
       >
         {ordered.map((team, index) => (
-          <span key={team.id} className="ev-player-game__team">
-            {index ? <span className="ev-player-game__versus">vs</span> : null}
+          <span key={team.id} className="inline-flex min-w-0 items-center gap-3">
+            {index ? <span className="text-sm text-fg-muted max-[700px]:hidden">vs</span> : null}
             <TeamIdentity
               name={team.name}
               shortName={team.name}
@@ -187,19 +171,22 @@ function PlayerGameRow({
         ))}
       </a>
       {hidden ? (
-        <button
-          aria-label={`Reveal result for game ${game.number}, ${ordered.map((t) => t.name).join(" versus ")}`}
-          className="ev-player-game__spoiler"
-          onClick={onReveal}
-          type="button"
+        <Button
+          aria-label={`Reveal result for game ${game.number}, ${versus}`}
+          className="justify-self-end"
+          size="compact"
+          variant="ghost"
+          onPress={onReveal}
         >
           Result Hidden
-        </button>
+        </Button>
       ) : (
-        <div className="ev-player-game__line">
-          <span>{line ?? "—"}</span>
+        <div className="grid justify-items-end gap-0.5 text-right text-sm">
+          <span className="font-mono text-md text-fg">{line ?? "—"}</span>
           <span
-            className={own?.won ? "ev-outcome--win" : own?.won === false ? "ev-outcome--loss" : ""}
+            className={
+              own?.won ? "text-success" : own?.won === false ? "text-loss" : "text-fg-muted"
+            }
           >
             {own?.won ? "Win" : own?.won === false ? "Loss" : "Unknown"}
           </span>
@@ -240,91 +227,96 @@ export function PlayerProfile({
   const playerIds = new Set([identity.id, ...(profile.sources ?? []).map((s) => s.id)]);
   const timezone = query.timezone ?? "UTC";
   return (
-    <div className="ev-teams ev-player-profile np-stack">
-      <Breadcrumb items={[{ label: "Players", href: "/players" }, { label: identity.name }]} />
-      <header className="ev-team-banner">
-        <div className="ev-player-heading">
-          <h1 className="np-visually-hidden">{identity.name}</h1>
-          <PlayerIdentity
-            handle={identity.name}
-            role={identity.role}
-            {...(identity.imageUrl ? { portrait: identity.imageUrl } : {})}
-          />
-          {team ? (
-            <TeamIdentity
-              name={team.name}
-              shortName={team.name}
-              size="compact"
-              href={identityHref(team)}
-              {...(season ? { detail: season.league } : {})}
-              {...(team.imageUrl ? { logo: team.imageUrl } : {})}
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[{ label: "Players", href: "/players" }, { label: identity.name }]}
+        title={<span className="np-visually-hidden">{identity.name}</span>}
+        className="gap-0"
+      />
+      <Panel aria-label={identity.name}>
+        <div className="flex flex-wrap items-center justify-between gap-5 p-2 max-[600px]:p-0">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <PlayerIdentity
+              handle={identity.name}
+              size="display"
+              role={identity.role}
+              {...(identity.imageUrl ? { portrait: identity.imageUrl } : {})}
             />
-          ) : season ? (
-            <span className="np-meta">{season.league}</span>
-          ) : null}
+            {team ? (
+              <div className="border-l border-line-strong pl-6 max-[700px]:border-l-0 max-[700px]:pl-0">
+                <TeamIdentity
+                  name={team.name}
+                  shortName={team.name}
+                  size="medium"
+                  href={identityHref(team)}
+                  {...(season ? { detail: season.league } : {})}
+                  {...(team.imageUrl ? { logo: team.imageUrl } : {})}
+                />
+              </div>
+            ) : season ? (
+              <span className="np-meta">{season.league}</span>
+            ) : null}
+          </div>
+          <Filters
+            key={[year, query.q, query.league].join("-")}
+            history
+            view="series"
+            query={query}
+            seasons={years}
+            selectedYear={year}
+            className="max-[600px]:w-full"
+          />
         </div>
-        <Filters
-          key={[year, query.q, query.league].join("-")}
-          history
-          view="series"
-          query={query}
-          seasons={years}
-          selectedYear={year}
-        />
-      </header>
-      <div className="ev-team-overview">
+      </Panel>
+      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] gap-4 max-[1150px]:grid-cols-1">
         <StatPanel
           title="Season Performance"
           hidden={hidden}
           onReveal={reveal}
           games={summary.eligibleGames}
+          stats={combat}
+          performance={performance}
         >
-          <StatList stats={combat} performance={performance}>
-            <div>
-              <dt>Game Record</dt>
-              <dd>
-                <GameRecord
-                  wins={summary.wins}
-                  known={summary.resultGames}
-                  total={summary.eligibleGames}
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>Win Rate</dt>
-              <dd>{summary.winRate === null ? "—" : percent(summary.winRate)}</dd>
-            </div>
-            <div>
-              <dt>KDA</dt>
-              <dd>
-                {summary.kda?.toFixed(2) ?? "—"}
-                {summary.kdaGames !== summary.eligibleGames && (
-                  <small>
-                    {summary.kdaGames} {summary.kdaGames === 1 ? "game" : "games"}
-                  </small>
-                )}
-              </dd>
-            </div>
-          </StatList>
+          <Stat
+            label="Game Record"
+            value={
+              <GameRecord
+                wins={summary.wins}
+                known={summary.resultGames}
+                total={summary.eligibleGames}
+              />
+            }
+          />
+          <Stat
+            label="Win Rate"
+            value={summary.winRate === null ? "—" : percent(summary.winRate)}
+          />
+          <Stat
+            label="KDA"
+            value={summary.kda?.toFixed(2) ?? "—"}
+            {...sample(summary.kdaGames, summary.eligibleGames)}
+          />
         </StatPanel>
-        <StatPanel title="Early Game" hidden={hidden} onReveal={reveal} games={performance.games}>
-          <StatList stats={earlyGame} performance={performance} />
-        </StatPanel>
+        <StatPanel
+          title="Early Game"
+          hidden={hidden}
+          onReveal={reveal}
+          games={performance.games}
+          stats={earlyGame}
+          performance={performance}
+        />
       </div>
       <StatPanel
         title="Economy, Damage and Vision"
         hidden={hidden}
         onReveal={reveal}
         games={performance.games}
-      >
-        <StatList stats={economy} performance={performance} />
-      </StatPanel>
-      <section className="ev-team-history">
-        <div className="ev-team-history-head">
-          <h2>Past Games</h2>
-        </div>
+        stats={economy}
+        performance={performance}
+      />
+      <Panel title="Past Games" padding="none">
         {games.items.length ? (
-          <div className="ev-player-games">
+          <div className="grid">
             {games.items.map((game) => (
               <PlayerGameRow
                 key={game.id}
@@ -338,10 +330,14 @@ export function PlayerProfile({
             ))}
           </div>
         ) : (
-          <p>No games match these filters.</p>
+          <p className="p-4">No games match these filters.</p>
         )}
-        {games.total > games.pageSize && <Pages data={games} />}
-      </section>
+        {games.total > games.pageSize && (
+          <div className="border-t border-line px-4">
+            <Pages data={games} />
+          </div>
+        )}
+      </Panel>
       {!hidden && summary.champions.length > 0 && (
         <ChampionPool champions={summary.champions} portraits={portraits} />
       )}

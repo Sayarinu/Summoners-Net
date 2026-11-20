@@ -1,6 +1,14 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
-import { RoleIcon, ChampionIcon, ItemIcon, Table, TextLink } from "@summonersnet/ui";
+import {
+  ChampionIcon,
+  ItemIcon,
+  PageHeader,
+  Panel,
+  RoleIcon,
+  Table,
+  TextLink,
+} from "@summonersnet/ui";
 import type {
   PatchOverview,
   PatchChampion,
@@ -30,15 +38,31 @@ function Champion({
     />
   );
 }
-function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; patch: string }) {
+function Trends({
+  title,
+  rows,
+  patch,
+  download,
+}: {
+  title: string;
+  rows: PatchTrend[];
+  patch: string;
+  download: boolean;
+}) {
   return (
-    <section className="np-stack">
-      <h2>{title}</h2>
-      <ExportLink
-        table="patch-trends"
-        filters={{ patch }}
-        label="Download Risers and Fallers as CSV"
-      />
+    <Panel
+      title={title}
+      padding="none"
+      actions={
+        download ? (
+          <ExportLink
+            table="patch-trends"
+            filters={{ patch }}
+            label="Download Risers and Fallers as CSV"
+          />
+        ) : null
+      }
+    >
       <Table
         caption={`${title} in solo queue`}
         rows={rows}
@@ -60,6 +84,7 @@ function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; pat
           {
             id: "change",
             header: "Change",
+            align: "end",
             render: (r) =>
               r.change.delta === null
                 ? "Unknown"
@@ -67,29 +92,33 @@ function Trends({ title, rows, patch }: { title: string; rows: PatchTrend[]; pat
           },
         ]}
       />
-    </section>
+    </Panel>
   );
 }
 export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Patch {o.patch}</h1>
-          {o.previousPatch ? <p>Previous Patch {o.previousPatch}</p> : null}
-        </div>
-      </header>
-      <TextLink href={`/trending?patch=${o.patch}`}>Trending Champions</TextLink>
-      {!o.previousPatch ? (
-        <p role="status">
-          No preceding catalog patch is stored. Trends and new builds cannot be established.
-        </p>
-      ) : null}
-      <Trends title="Biggest Risers" rows={o.risers} patch={o.patch} />
-      <Trends title="Biggest Fallers" rows={o.fallers} patch={o.patch} />
-      <section className="np-stack">
-        <h2>New Popular Builds</h2>
-        <ExportLink table="patch-builds" filters={{ patch: o.patch }} />
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[{ label: "Patches", href: "/patches" }, { label: `Patch ${o.patch}` }]}
+        eyebrow={o.previousPatch ? `Previous Patch ${o.previousPatch}` : "No Previous Patch"}
+        title={`Patch ${o.patch}`}
+        actions={<TextLink href={`/trending?patch=${o.patch}`}>Trending Champions</TextLink>}
+      >
+        {!o.previousPatch ? (
+          <p role="status" className="text-sm text-fg-secondary">
+            No preceding catalog patch is stored. Trends and new builds cannot be established.
+          </p>
+        ) : null}
+      </PageHeader>
+      <div className="grid grid-cols-2 items-start gap-4 max-[1150px]:grid-cols-1">
+        <Trends title="Biggest Risers" rows={o.risers} patch={o.patch} download />
+        <Trends title="Biggest Fallers" rows={o.fallers} patch={o.patch} download={false} />
+      </div>
+      <Panel
+        title="New Popular Builds"
+        padding="none"
+        actions={<ExportLink table="patch-builds" filters={{ patch: o.patch }} />}
+      >
         <Table
           caption="Newly Observed Three-Item Cores"
           rows={o.builds}
@@ -106,9 +135,9 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
               id: "items",
               header: "Purchase Order",
               render: (r) => (
-                <ol>
+                <ol className="flex list-none flex-wrap gap-x-3 gap-y-1">
                   {r.items.map((i) => (
-                    <li key={i.id}>
+                    <li key={i.id} className="flex items-center gap-1.5">
                       <ItemIcon
                         id={i.catalogId}
                         name={i.name ?? `Item ${i.id}`}
@@ -133,10 +162,12 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
             },
           ]}
         />
-      </section>
-      <section className="np-stack">
-        <h2>Pro Presence Leaders</h2>
-        <ExportLink table="patch-pro" filters={{ patch: o.patch }} />
+      </Panel>
+      <Panel
+        title="Pro Presence Leaders"
+        padding="none"
+        actions={<ExportLink table="patch-pro" filters={{ patch: o.patch }} />}
+      >
         <Table
           caption="Pro Pick and Ban Presence"
           rows={o.pro}
@@ -166,7 +197,7 @@ export function PatchOverviewPage({ overview: o }: { overview: PatchOverview }) 
             },
           ]}
         />
-      </section>
+      </Panel>
     </div>
   );
 }

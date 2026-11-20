@@ -1,5 +1,5 @@
 "use client";
-import { ChampionIcon, RoleIcon, TextLink } from "@summonersnet/ui";
+import { Card, ChampionIcon, Panel, RoleIcon, TextLink } from "@summonersnet/ui";
 import type { MatchupRow } from "@summonersnet/data/contracts";
 import { signedPoints, type MatchupSummary } from "./presentation";
 
@@ -11,28 +11,61 @@ function OpponentCard({ row, tone }: { row: MatchupRow; tone: "good" | "bad" }) 
     estimate.shrunk !== null && estimate.baseline !== null
       ? estimate.shrunk - estimate.baseline
       : null;
-  const card = (
-    <>
-      <ChampionIcon
-        id={opponent.championId ?? String(opponent.championKey)}
-        name={name}
-        imageUrl={opponent.imageUrl}
-        size="large"
-      />
-      <strong className={`ev-opponent__delta ev-opponent__delta--${tone}`}>
-        {signedPoints(delta)}
-      </strong>
-      <small>{row.games.toLocaleString()} Games</small>
-    </>
-  );
   return (
-    <li className="ev-opponent">
-      {opponent.championId ? (
-        <a href={`/champions/${encodeURIComponent(opponent.championId)}`}>{card}</a>
-      ) : (
-        <div>{card}</div>
-      )}
+    <li>
+      <Card
+        className="items-center gap-1 px-1 py-3 text-center"
+        {...(opponent.championId
+          ? { href: `/champions/${encodeURIComponent(opponent.championId)}` }
+          : {})}
+      >
+        <ChampionIcon
+          id={opponent.championId ?? String(opponent.championKey)}
+          name={name}
+          imageUrl={opponent.imageUrl}
+          size="large"
+        />
+        <strong
+          className={`font-mono font-medium ${tone === "good" ? "text-success" : "text-loss"}`}
+        >
+          {signedPoints(delta)}
+        </strong>
+        <small className="text-2xs text-fg-muted">{row.games.toLocaleString()} Games</small>
+      </Card>
     </li>
+  );
+}
+
+function Opponents({
+  title,
+  rows,
+  tone,
+  empty,
+}: {
+  title: string;
+  rows: MatchupRow[];
+  tone: "good" | "bad";
+  empty: string;
+}) {
+  const id = `${tone}-against-heading`;
+  return (
+    <section aria-labelledby={id}>
+      <h3
+        id={id}
+        className={`mb-3 text-xs font-semibold tracking-wide uppercase ${tone === "good" ? "text-success" : "text-loss"}`}
+      >
+        {title}
+      </h3>
+      {rows.length ? (
+        <ul className="grid list-none grid-cols-5 gap-2 max-[420px]:grid-cols-3">
+          {rows.map((row) => (
+            <OpponentCard key={row.opponent.championKey} row={row} tone={tone} />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-fg-muted">{empty}</p>
+      )}
+    </section>
   );
 }
 
@@ -54,43 +87,28 @@ export function MatchupCards({
     patch: summary.patch,
   })}`;
   return (
-    <section className="ev-card" aria-labelledby="matchup-cards-heading">
-      <div className="ev-card__header">
-        <h2 id="matchup-cards-heading">
+    <Panel
+      title={
+        <span className="inline-flex items-center gap-2">
           Matchups <RoleIcon role={summary.role} />
-        </h2>
-        <TextLink href={fullList}>Full List ({summary.opponents})</TextLink>
+        </span>
+      }
+      actions={<TextLink href={fullList}>Full List ({summary.opponents})</TextLink>}
+    >
+      <div className="grid grid-cols-2 gap-6 max-[900px]:grid-cols-1">
+        <Opponents
+          title="Good Against"
+          rows={summary.best}
+          tone="good"
+          empty="No Opponent Above Average Yet"
+        />
+        <Opponents
+          title="Bad Against"
+          rows={summary.worst}
+          tone="bad"
+          empty="No Opponent Below Average Yet"
+        />
       </div>
-      <div className="ev-matchup-columns">
-        <section aria-labelledby="good-against-heading">
-          <h3 id="good-against-heading" className="ev-matchup-label ev-matchup-label--good">
-            Good Against
-          </h3>
-          {summary.best.length ? (
-            <ul className="ev-opponents">
-              {summary.best.map((row) => (
-                <OpponentCard key={row.opponent.championKey} row={row} tone="good" />
-              ))}
-            </ul>
-          ) : (
-            <p className="ev-build-stat">No Opponent Above Average Yet</p>
-          )}
-        </section>
-        <section aria-labelledby="bad-against-heading">
-          <h3 id="bad-against-heading" className="ev-matchup-label ev-matchup-label--bad">
-            Bad Against
-          </h3>
-          {summary.worst.length ? (
-            <ul className="ev-opponents">
-              {summary.worst.map((row) => (
-                <OpponentCard key={row.opponent.championKey} row={row} tone="bad" />
-              ))}
-            </ul>
-          ) : (
-            <p className="ev-build-stat">No Opponent Below Average Yet</p>
-          )}
-        </section>
-      </div>
-    </section>
+    </Panel>
   );
 }

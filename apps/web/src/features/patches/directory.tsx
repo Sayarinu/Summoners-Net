@@ -1,40 +1,37 @@
 "use client";
-import { EmptyState, Table, TextLink } from "@summonersnet/ui";
+import { Card, CardLink, EmptyState, PageHeader, TextLink } from "@summonersnet/ui";
 import type { PatchDirectory } from "@summonersnet/data/contracts";
 
 /** Patches with stored champion aggregates, newest first. */
 export function PatchesPage({ directory: d }: { directory: PatchDirectory }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Patches</h1>
-        </div>
-      </header>
-      <p>
-        Each patch overview shows the biggest changes, newly observed builds and pro presence. See{" "}
-        <TextLink href="/trending">Trending champions</TextLink> to compare any patch with the one
-        before it.
-      </p>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        title="Patches"
+        actions={<TextLink href="/trending">Trending Champions</TextLink>}
+      >
+        <p className="text-sm text-fg-secondary">
+          Each patch overview shows the biggest changes, newly observed builds and pro presence.
+        </p>
+      </PageHeader>
       {d.patches.length ? (
-        <Table
-          caption="Patches with Champion Statistics"
-          rows={d.patches}
-          getRowKey={(p) => p.patch}
-          columns={[
-            {
-              id: "patch",
-              header: "Patch",
-              render: (p) => <TextLink href={`/patches/${p.patch}`}>Patch {p.patch}</TextLink>,
-            },
-            {
-              id: "sources",
-              header: "Sources",
-              render: (p) =>
-                [p.solo ? "Solo Queue" : null, p.pro ? "Pro" : null].filter(Boolean).join(" · "),
-            },
-          ]}
-        />
+        <ul
+          aria-label="Patches with Champion Statistics"
+          className="grid list-none grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3"
+        >
+          {d.patches.map((p) => (
+            <li key={p.patch}>
+              <Card className="gap-1">
+                <CardLink href={`/patches/${p.patch}`} className="text-lg font-medium">
+                  Patch {p.patch}
+                </CardLink>
+                <span className="np-meta text-fg-muted">
+                  {[p.solo ? "Solo Queue" : null, p.pro ? "Pro" : null].filter(Boolean).join(" · ")}
+                </span>
+              </Card>
+            </li>
+          ))}
+        </ul>
       ) : (
         <EmptyState
           title="No Patch Statistics Yet"

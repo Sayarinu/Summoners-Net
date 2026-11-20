@@ -1,6 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Combobox, SpoilerControl, commonTimezones } from "@summonersnet/ui";
+import {
+  Button,
+  Combobox,
+  PageHeader,
+  Panel,
+  SpoilerControl,
+  commonTimezones,
+} from "@summonersnet/ui";
 import { useRouter } from "next/navigation";
 import {
   browserTimezone,
@@ -86,20 +93,15 @@ export function SettingsPage({ initial }: { initial: Preferences }) {
   };
 
   return (
-    <div className="np-stack ev-settings">
-      <header className="ev-title">
-        <div>
-          <h1>Settings</h1>
-        </div>
-      </header>
-      <section className="np-stack" aria-labelledby="timezone-heading">
-        <h2 id="timezone-heading">Timezone</h2>
+    <div className="mx-auto flex w-full max-w-reading min-w-0 flex-col gap-6">
+      <PageHeader eyebrow="Saved in This Browser" title="Settings" />
+      <Panel title="Timezone">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void saveAndReport(value, "Timezone saved.");
           }}
-          className="ev-settings__row"
+          className="flex flex-wrap items-end gap-3 [&>:first-child]:min-w-[min(100%,260px)] [&>:first-child]:flex-1"
         >
           <Combobox
             defaultValue={value.timezone}
@@ -110,9 +112,8 @@ export function SettingsPage({ initial }: { initial: Preferences }) {
           />
           <Button type="submit">Save Timezone</Button>
         </form>
-      </section>
-      <section className="np-stack" aria-labelledby="spoilers-heading">
-        <h2 id="spoilers-heading">Spoilers</h2>
+      </Panel>
+      <Panel title="Spoilers">
         <SpoilerControl
           hidden={value.hideSpoilers}
           onHiddenChange={(hideSpoilers) => {
@@ -122,8 +123,8 @@ export function SettingsPage({ initial }: { initial: Preferences }) {
             );
           }}
         />
-      </section>
-      <p role="status" className="np-body-sm">
+      </Panel>
+      <p role="status" className="text-sm text-fg-secondary">
         {message}
       </p>
     </div>

@@ -2,9 +2,10 @@
 import {
   RoleIcon,
   Button,
-  ChampionIcon,
+  ChampionIdentity,
+  FilterBar,
   HeatGrid,
-  Pagination,
+  Panel,
   Select,
   Table,
 } from "@summonersnet/ui";
@@ -14,6 +15,7 @@ import {
   type ChampionOverview,
   type Synergies,
 } from "@summonersnet/data/contracts";
+import { goToPage, PageFooter } from "./paging";
 import { percent } from "./presentation";
 
 const sortLabels = { games: "Games", winRate: "Win Rate", delta: "Delta" } as const;
@@ -25,7 +27,7 @@ function Matrix({ matrix }: { matrix: BotLaneMatrix }) {
   const carry = new Map(matrix.carries.map((c) => [c.key, championName(c.key, c.name)]));
   const support = new Map(matrix.supports.map((s) => [s.key, championName(s.key, s.name)]));
   return (
-    <div className="ev-heat-compact">
+    <div className="max-w-[560px] p-4">
       <HeatGrid
         title="Bot-Lane Pairs: Win Rate (%)"
         cells={matrix.cells.map((c) => ({
@@ -43,38 +45,36 @@ export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
   const { synergies, botLane, query: q, champion } = overview;
   if (!synergies) return null;
   return (
-    <section className="np-stack" aria-labelledby="synergies-heading">
-      <h2 id="synergies-heading">Synergies</h2>
-      <form action={`/champions/${champion.id}`} method="get" className="ev-filters">
-        {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
-          q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
-        )}
-        <Select
-          label="Sort Allies By"
-          name="synergySort"
-          defaultValue={synergies.sort}
-          options={synergySorts.map((s) => ({ label: sortLabels[s], value: s }))}
-        />
-        <Button type="submit">Sort</Button>
-      </form>
+    <Panel
+      title="Synergies"
+      padding="none"
+      actions={
+        <FilterBar action={`/champions/${champion.id}`} method="get">
+          {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
+            q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
+          )}
+          <Select
+            label="Sort Allies By"
+            hideLabel
+            name="synergySort"
+            defaultValue={synergies.sort}
+            options={synergySorts.map((s) => ({ label: sortLabels[s], value: s }))}
+          />
+          <Button type="submit">Sort</Button>
+        </FilterBar>
+      }
+    >
       <AlliesTable synergies={synergies} />
-      <div className="ev-pagination">
-        <span className="np-meta">
-          {synergies.page.total} allies · Page {synergies.page.page}
-        </span>
-        <Pagination
-          label="Ally Pages"
-          currentPage={synergies.page.page}
-          totalPages={Math.max(1, Math.ceil(synergies.page.total / synergies.page.pageSize))}
-          onPageChange={(page) => {
-            const url = new URL(window.location.href);
-            url.searchParams.set("synergyPage", String(page));
-            window.location.assign(url.toString());
-          }}
-        />
-      </div>
+      <PageFooter
+        summary={`${synergies.page.total} allies · Page ${synergies.page.page}`}
+        label="Ally Pages"
+        page={synergies.page.page}
+        total={synergies.page.total}
+        pageSize={synergies.page.pageSize}
+        onPageChange={(page) => goToPage("synergyPage", page)}
+      />
       {botLane && botLane.cells.length > 0 ? <Matrix matrix={botLane} /> : null}
-    </section>
+    </Panel>
   );
 }
 function AlliesTable({ synergies }: { synergies: Synergies }) {
@@ -91,11 +91,12 @@ function AlliesTable({ synergies }: { synergies: Synergies }) {
           render: (r) => {
             const name = championName(r.allyKey, r.allyName);
             return (
-              <ChampionIcon
+              <ChampionIdentity
                 id={r.allyId ?? String(r.allyKey)}
                 name={name}
                 imageUrl={r.allyImageUrl}
-                size="small"
+                size="compact"
+                className="min-w-max"
                 href={r.allyId ? `/champions/${r.allyId}` : undefined}
               />
             );

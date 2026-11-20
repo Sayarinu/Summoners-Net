@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChampionsPage } from "./directory";
 import { PatchesPage } from "../patches/directory";
 import { LeaderboardsPage } from "../leaderboards/hub";
 
-it("lists catalog champions and links every champion and matchup page", () => {
+it("shows catalog champions as cards, filters them by name and links every role matchup page", () => {
   const view = render(
     <ChampionsPage
       directory={{
@@ -16,23 +16,34 @@ it("lists catalog champions and links every champion and matchup page", () => {
       }}
     />,
   );
-  expect(screen.getByRole("heading", { name: "Champions" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Champions", level: 1 })).toBeVisible();
   expect(screen.getByRole("link", { name: "Nunu & Willump" })).toHaveAttribute(
     "href",
     "/champions/Nunu",
-  );
-  expect(screen.getByRole("link", { name: "Ahri lane matchups" })).toHaveAttribute(
-    "href",
-    "/champions/Ahri/matchups",
   );
   expect(screen.getByRole("link", { name: "Draft Assistant" })).toHaveAttribute(
     "href",
     "/drafts/assistant",
   );
-  expect(screen.getAllByRole("link", { name: "Counter-Pick Values" })[4]).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Support Counter-Pick Values" })).toHaveAttribute(
     "href",
     "/matchups/UTILITY/counter-picks",
   );
+  expect(screen.getByRole("link", { name: "Mid Matchup Matrix" })).toHaveAttribute(
+    "href",
+    "/matchups/MIDDLE",
+  );
+  const views = screen.getByRole("navigation", { name: "Champion Views" });
+  expect(within(views).getByRole("link", { current: "page" })).toHaveTextContent("Champions");
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search Champions" }), {
+    target: { value: "nunu" },
+  });
+  const grid = screen.getByRole("list", { name: "Champions in the Catalog" });
+  expect(within(grid).getAllByRole("link")).toHaveLength(1);
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search Champions" }), {
+    target: { value: "zed" },
+  });
+  expect(screen.getByText("No Champions Match This Search")).toBeVisible();
   view.rerender(<ChampionsPage directory={{ patch: null, champions: [] }} />);
   expect(screen.getByText("No Champion Catalog Yet")).toBeVisible();
 });
@@ -52,7 +63,7 @@ it("lists patches with their sources and the leaderboards", () => {
     "href",
     "/patches/16.22",
   );
-  expect(screen.getByRole("table", { name: "Patches with Champion Statistics" })).toHaveTextContent(
+  expect(screen.getByRole("list", { name: "Patches with Champion Statistics" })).toHaveTextContent(
     "Patch 16.21Pro",
   );
   view.rerender(<PatchesPage directory={{ patches: [] }} />);

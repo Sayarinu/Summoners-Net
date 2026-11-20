@@ -54,12 +54,16 @@ it("shows samples, coverage, filters and accessible draft tables", async () => {
   );
   expect(screen.getByLabelText("Patch")).toHaveValue("16.4");
   expect(screen.getByLabelText("League")).toHaveValue("LCK");
-  expect(screen.getByText(/2 included · 1 excluded/)).toBeVisible();
-  expect(screen.getByText("First-pick win rate: 50.0% · 2 games")).toBeVisible();
+  const coverage = screen.getByLabelText("Draft Coverage", { selector: "dl" });
+  expect(coverage).toHaveTextContent("Included Games2");
+  expect(coverage).toHaveTextContent("Excluded Games1");
+  expect(screen.getByLabelText("First Pick", { selector: "dl" })).toHaveTextContent(
+    "First-Pick Win Rate2 games50.0%",
+  );
   expect(screen.getByRole("table", { name: "Pick and Ban Priority" })).toBeVisible();
   expect(screen.getByText("Phase Total")).toBeVisible();
   fireEvent.click(screen.getByText("How These Rates Are Measured"));
-  expect(screen.getByText(/Blind means picked before/)).toBeVisible();
+  expect(await screen.findByText(/Blind means picked before/)).toBeVisible();
   const result = await axe.run(document.body, {
     rules: { "color-contrast": { enabled: false }, region: { enabled: false } },
   });
@@ -81,7 +85,9 @@ it("shows samples, coverage, filters and accessible draft tables", async () => {
       error={null}
     />,
   );
-  expect(screen.getByText("First-pick win rate: Unknown · 0 games")).toBeVisible();
+  expect(screen.getByLabelText("First Pick", { selector: "dl" })).toHaveTextContent(
+    "First-Pick Win Rate0 games—",
+  );
 });
 it("explains missing data and invalid filters", () => {
   const { rerender } = render(<DraftsPage query={null} analytics={null} error="Invalid filters" />);

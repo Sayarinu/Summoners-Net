@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { PatchOverview } from "@summonersnet/data/contracts";
 import { PatchOverviewPage } from "./overview";
 const empty: PatchOverview = {
@@ -92,8 +92,11 @@ it("shows rate denominators, signed deltas, ordered cores and pro sample warning
   expect(screen.getByRole("img", { name: "Champion 103" })).toBeVisible();
   expect(screen.getByText("50 cores · 50.0% · n=100")).toBeVisible();
   expect(screen.getByText("Absent · n=60 cores")).toBeVisible();
-  expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Known item");
-  expect(screen.getAllByRole("listitem")[1]).toHaveTextContent("Item 2");
+  const order = within(
+    screen.getByRole("table", { name: "Newly Observed Three-Item Cores" }),
+  ).getAllByRole("listitem");
+  expect(order[0]).toHaveTextContent("Known item");
+  expect(order[1]).toHaveTextContent("Item 2");
   expect(screen.getByText("50.0% · n=30 · Low sample")).toBeVisible();
   expect(screen.getByText("8 · n=30 drafts")).toBeVisible();
   expect(screen.getAllByRole("link", { name: "Ahri" }).at(-1)).toHaveAttribute(
