@@ -431,7 +431,7 @@ export function MatchPage({
       ) : null}
       <div className="grid items-start gap-4">
         {games.length > 0 ? (
-          <section className="flex flex-col gap-2">
+          <section aria-label="Games" className="flex flex-col gap-2">
             <h2 className="text-lg font-medium">Games</h2>
             <ol className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-2 p-0">
               {games.map((game) => {

@@ -41,6 +41,7 @@ export function TeamFinder({
       {data.items.length ? (
         <FillingGrid
           className={directoryGrid}
+          label="Teams"
           page={data.page}
           pageSize={data.pageSize}
           total={data.total}

@@ -56,12 +56,15 @@ let applied: { key: string; size: number } | undefined;
  */
 export function FillingGrid({
   className,
+  label,
   page,
   pageSize,
   total,
   children,
 }: {
   className: string;
+  /** Names the list, such as "Teams", so it can be found by name. */
+  label: string;
   page: number;
   pageSize: number;
   total: number;
@@ -100,7 +103,7 @@ export function FillingGrid({
     };
   }, [page, pageSize, pathname, router, total]);
   return (
-    <ul ref={grid} className={className}>
+    <ul aria-label={label} ref={grid} className={className}>
       {children}
     </ul>
   );
