@@ -67,6 +67,7 @@ import type {
 } from "../domain/champion-stats.js";
 import { historicalQueries } from "./historical-queries.js";
 import { leaguepediaProgress } from "./leaguepedia-progress.js";
+import { archiveYearStatus } from "./archive-status.js";
 
 const idSchema = z.string().min(1).max(300);
 import {
@@ -1039,6 +1040,7 @@ export function queries(pool: Pool, clock: () => Date) {
         pandaRequests: budget.rows[0]!.count,
         cooldownUntil: stamp(cooldown.rows[0]!.cooldown_until),
         leaguepedia: await leaguepediaProgress(pool, clock()),
+        archives: await archiveYearStatus(pool, clock()),
         history: history.rows.map((h) => ({
           year: h.year,
           games: h.games,

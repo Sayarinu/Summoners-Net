@@ -127,6 +127,21 @@ To import annual CSVs you already have, use `pnpm history:import 2024 /absolute/
 `pnpm history:import-dir /absolute/path/to/dir` (not `pnpm import`, which is a pnpm command), then
 `pnpm sync:once`. `pnpm sync:status` shows the queue.
 
+### Missing archive years
+
+`pnpm sync:status` lists every archive year under `archives`: `imported` (with its games), `blocked`
+(Google Drive's download quota; it retries on its own after six hours, shown as `retryAt`),
+`queued`, `failed` (with the error) or `missing`. `pnpm history:backfill-all` queues every missing
+year. Drive's anonymous download quota is shared by everyone fetching the same file, so older years
+are often blocked for a day or more. Two ways around it:
+
+- Set `GOOGLE_DRIVE_API_KEY` in `.env`. Downloads then go through the Drive API first, which has its
+  own quota.
+- Download the files yourself from
+  [the Oracle's Elixir archive](https://drive.google.com/drive/folders/1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH)
+  in a browser, put them in one folder with the year in each file name (as Drive names them), and
+  run `pnpm history:import-dir /absolute/path/to/that/folder`, then `pnpm sync:once`.
+
 `pnpm queue KIND` queues other worker jobs: `matches`, `running`, `rosters`, `metadata`, `entities`,
 `riot-key`, `riot-match-ids`, `pro-game-vods` and `wp-train`. Files are queued with an absolute or
 relative path: `pnpm queue replay-track FILE`, `pnpm queue replay-metadata FILE [PLATFORM]` and

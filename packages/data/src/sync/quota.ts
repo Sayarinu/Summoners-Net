@@ -2,8 +2,11 @@ import type { Pool } from "pg";
 import { transaction } from "../persistence/database.js";
 import { defaultApplicationLimits, parseRateLimitHeader } from "../providers/riot.js";
 export class DeferredRequest extends Error {
-  constructor(public readonly until: Date) {
-    super("Refresh is waiting for the shared provider budget.");
+  constructor(
+    public readonly until: Date,
+    message = "Refresh is waiting for the shared provider budget.",
+  ) {
+    super(message);
   }
 }
 export async function reserveRequest(pool: Pool, now: Date) {

@@ -219,6 +219,7 @@ export const status: SyncStatus = {
     timelines: { games: 0, withTimeline: 0, unchecked: 0, estimatedFinish: null },
   },
   history: [{ year: 2026, games: 1, eligible: 1, latestGameAt: instant }],
+  archives: [],
 };
 const sampled = (value: number | null, sampleCount = 2) => ({ value, sampleCount });
 export const performance: PlayerPerformance = {

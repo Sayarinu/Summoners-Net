@@ -344,4 +344,17 @@ export interface SyncStatus {
     eligible: number;
     latestGameAt: string;
   }[];
+  /**
+   * Each Oracle's Elixir annual archive year, from the first indexed year to the current one:
+   * `imported` with its games; `blocked` while Drive's download quota defers it until `retryAt`;
+   * `queued` or `failed` for its latest import job; `missing` when nothing has tried it yet.
+   */
+  archives: {
+    year: number;
+    state: "imported" | "blocked" | "queued" | "failed" | "missing";
+    games: number;
+    latestGameAt: string | null;
+    retryAt: string | null;
+    error: string | null;
+  }[];
 }
