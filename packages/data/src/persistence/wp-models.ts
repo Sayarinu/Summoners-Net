@@ -15,6 +15,19 @@ import {
 import { transaction, type Executor } from "./database.js";
 
 export type ModelKind = "timeline" | "pro-checkpoints" | "draft";
+export interface PhaseEvaluation {
+  phase: string;
+  label: string;
+  games: number;
+  states: number;
+  brier: number | null;
+  logLoss: number | null;
+  bins: ReliabilityBin[];
+}
+export interface ModelEvaluation {
+  logLoss: number | null;
+  phases: PhaseEvaluation[];
+}
 export interface WinProbabilityModel {
   id: number;
   kind: ModelKind;
@@ -27,9 +40,17 @@ export interface WinProbabilityModel {
   evalMatches: number;
   evalRows: number;
   /** `minutes`: the game minutes a pro checkpoint model covers; absent before version 2. */
-  coefficients: Coefficients & { features: string[]; minutes?: { first: number; last: number } };
+  coefficients: Coefficients & {
+    features: string[];
+    minutes?: { first: number; last: number };
+    /** Pro models from version 3: whether recorded minutes were trained on, and from how many games. */
+    framesUsed?: boolean;
+    frameGames?: number;
+  };
   brier: number | null;
   bins: ReliabilityBin[];
+  /** Log loss and per-phase results on held-out games; null for models trained before them. */
+  evaluation: ModelEvaluation | null;
   status: "active" | "retired" | "rejected";
   reason: string | null;
   trainedAt: string;
@@ -202,6 +223,7 @@ const fromRow = (r: Record<string, unknown>): WinProbabilityModel => ({
   coefficients: r.coefficients as WinProbabilityModel["coefficients"],
   brier: r.brier as number | null,
   bins: r.bins as ReliabilityBin[],
+  evaluation: (r.evaluation as ModelEvaluation | null) ?? null,
   status: r.status as WinProbabilityModel["status"],
   reason: r.reason as string | null,
   trainedAt: (r.trained_at as Date).toISOString(),

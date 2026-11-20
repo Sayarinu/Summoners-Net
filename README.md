@@ -107,8 +107,11 @@ None of these settings reach the browser; only the worker reads them.
 The win probability model trains daily, and the first time as soon as enough solo-queue games with
 timelines are stored. To train now, run `pnpm wp:train` (it prints whether the model was published
 or rejected and why) or queue it for the worker with `pnpm queue wp-train`. A sample that is too
-small is stored as rejected and the active model stays. The same job trains the pre-game
-[draft model](docs/analytics/draft-model.md). `/models` shows every stored model's calibration.
+small is stored as rejected and the active model stays. The pro model trains on every recorded
+minute once at least 500 training games have a Leaguepedia timeline, and is evaluated on whole
+held-out games, overall and per game phase (before 15:00, 15:00 to 25:00, after 25:00). The same job
+trains the pre-game [draft model](docs/analytics/draft-model.md). `/models` shows every stored
+model's calibration.
 
 The navigation leads to **Champions** (every catalog champion, the role matchup matrices,
 counter-pick values and the draft assistant), the **Tier list**, **Leaderboards** (win probability
@@ -281,8 +284,12 @@ Match data comes from [PandaScore](https://pandascore.co) and historical data fr
 [Oracle's Elixir](https://oracleselixir.com). The worker fills in recent pro game inventories,
 purchase history, gold snapshots and timed objectives where matching postgame records are available
 from [Leaguepedia](https://lol.fandom.com/wiki/League_of_Legends_Esports_Wiki). It asks for five
-games per request, at most one request every two seconds, starting with the covered competitions,
-and waits whenever the wiki reports that it is under load. It also reads each game's YouTube or
-Twitch recording from Leaguepedia's match schedule, 50 games per request at the same pace, so a
-game's VOD opens where the game starts. A game without a recording is asked for again after six
-hours while it is under two weeks old, and after 30 days once older. Each source has its own terms.
+games per request, starting with the covered competitions. It also reads each game's YouTube or
+Twitch recording from Leaguepedia's match schedule, 50 games per request, so a game's VOD opens
+where the game starts. Both jobs share one request budget, kept in PostgreSQL across restarts: at
+most one request every two seconds and 900 in any hour. When the wiki reports that it is under load
+(30 seconds) or rate limited (two minutes), or returns HTTP 429 or 503, every Leaguepedia job pauses
+for that long or for the reply's Retry-After, and repeated refusals double the pause up to an hour.
+`pnpm sync:status` shows the budget, any pause, and how many games have a timeline. A game without a
+recording is asked for again after six hours while it is under two weeks old, and after 30 days once
+older. Each source has its own terms.

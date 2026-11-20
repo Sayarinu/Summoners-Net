@@ -6,18 +6,21 @@ import {
   parseLeaguepediaVods,
   type LeaguepediaVod,
 } from "../providers/leaguepedia-vod.js";
+import type { Refusal } from "./leaguepedia-budget.js";
 import { DeferredRequest } from "./quota.js";
 
 export interface ProGameVodRun {
   /** Yield after this many milliseconds (by the injected clock); stays under the job lease. */
   maxMs?: number;
-  /** The least time between two Leaguepedia requests. */
-  spacingMs?: number;
 }
 export interface ProGameVodOptions extends ProGameVodRun {
   clock: () => Date;
+  /** Sends one request within the shared Leaguepedia budget, which spaces and pauses requests. */
   request: (url: string) => Promise<Response>;
-  pause: (milliseconds: number) => Promise<void>;
+  /** Records a refusal and returns when Leaguepedia jobs may try again. */
+  refused: (refusal: Refusal) => Promise<Date>;
+  /** Records a usable reply, which ends a run of refusals. */
+  accepted: () => Promise<void>;
 }
 
 /**
@@ -81,28 +84,25 @@ async function saveVod(pool: Pool, id: string, vod: LeaguepediaVod | null, now: 
  * says whether the job should run again.
  */
 export async function refreshProGameVods(pool: Pool, options: ProGameVodOptions) {
-  const { clock, pause } = options;
+  const { clock } = options;
   // A final batch can take its 60-second timeout and still finish within the five-minute lease.
   const maxMs = options.maxMs ?? 180_000;
-  const spacingMs = options.spacingMs ?? 2000;
   const started = clock().valueOf();
-  let lastRequest: number | null = null;
   let found = 0;
   while (clock().valueOf() - started < maxMs) {
     const ids = await pendingGames(pool, clock(), leaguepediaVodBatchSize);
     if (!ids.length) break;
-    if (lastRequest !== null) {
-      const wait = lastRequest + spacingMs - clock().valueOf();
-      if (wait > 0) await pause(wait);
-    }
-    lastRequest = clock().valueOf();
     const response = await options.request(leaguepediaVodsUrl(ids));
     const reply = parseLeaguepediaVods(await response.json(), ids);
-    if (reply.state === "lagged") {
-      const seconds = Number(response.headers.get("retry-after"));
-      const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 300) : 30;
-      throw new DeferredRequest(new Date(clock().valueOf() + delay * 1000));
-    }
+    if (reply.state === "refused")
+      throw new DeferredRequest(
+        await options.refused({
+          kind: reply.code === "maxlag" ? "lag" : "limit",
+          reason: reply.code === "maxlag" ? "Leaguepedia replicas lag" : "Leaguepedia rate limit",
+          retryAfter: response.headers.get("retry-after"),
+        }),
+      );
+    await options.accepted();
     for (const id of ids) {
       const vod = reply.vods.get(id) ?? null;
       await saveVod(pool, id, vod, clock());

@@ -131,9 +131,13 @@ export function evaluate(model: Coefficients, examples: readonly Example[], binC
     sumObserved: 0,
   }));
   let squared = 0;
+  let surprise = 0;
   for (const e of examples) {
     const p = predict(model, e.x);
     squared += (p - e.y) ** 2;
+    // Clipped so one confident miss cannot make the mean infinite.
+    const clipped = Math.min(1 - 1e-15, Math.max(1e-15, p));
+    surprise -= e.y ? Math.log(clipped) : Math.log(1 - clipped);
     const bin = bins[Math.min(binCount - 1, Math.floor(p * binCount))]!;
     bin.count++;
     bin.sumPredicted += p;
@@ -141,6 +145,8 @@ export function evaluate(model: Coefficients, examples: readonly Example[], binC
   }
   return {
     brier: examples.length ? squared / examples.length : null,
+    /** Mean negative log likelihood of the outcomes; lower is better, 0.693 is a coin flip. */
+    logLoss: examples.length ? surprise / examples.length : null,
     bins: bins.map((b): ReliabilityBin => ({
       lower: b.lower,
       upper: b.upper,

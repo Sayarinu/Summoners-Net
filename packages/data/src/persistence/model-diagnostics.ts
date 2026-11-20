@@ -19,6 +19,8 @@ const summary = (m: WinProbabilityModel): ModelSummary => ({
   evalMatches: m.evalMatches,
   evalRows: m.evalRows,
   brier: m.brier,
+  logLoss: m.evaluation?.logLoss ?? null,
+  minutes: m.kind === "pro-checkpoints" ? (m.coefficients.minutes ?? null) : null,
   trainedAt: m.trainedAt,
 });
 /** Stored model versions of every kind, newest first, with one shown in detail. */
@@ -48,6 +50,7 @@ export async function modelDiagnostics(
             weight: selected.coefficients.weights[i] ?? 0,
           })),
           bins: selected.bins,
+          phases: selected.evaluation?.phases ?? [],
         }
       : null,
   };

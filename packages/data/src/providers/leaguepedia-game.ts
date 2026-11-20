@@ -6,6 +6,11 @@ import { parseRiotMatch } from "./riot-match.js";
 import { parseRiotTimeline, type TimelineEvent, type TimelineFrame } from "./riot-timeline.js";
 
 export const proGamePlatformPattern = "^(LOL|ESPORTS)TMNT[0-9]{2}_[0-9]+$";
+/**
+ * The worker's Leaguepedia budget, shared by the pro game detail and recording jobs: requests go
+ * one at a time at least two seconds apart, and at most 900 in any rolling hour.
+ */
+export const leaguepediaBudget = { spacingMs: 2000, perHour: 900 } as const;
 const proGameId = z.string().max(30).regex(new RegExp(proGamePlatformPattern));
 /**
  * Games per request. One game's two pages are about 1.1 MB, and MediaWiki continues a response
@@ -101,13 +106,16 @@ export type LeaguepediaGame =
   /** The reply was cut off before this game's pages; request it again. */
   | { state: "deferred" };
 export type LeaguepediaReply =
-  { state: "lagged" } | { state: "pages"; games: Map<string, LeaguepediaGame> };
+  | { state: "refused"; code: "maxlag" | "ratelimited" }
+  | { state: "pages"; games: Map<string, LeaguepediaGame> };
 
 /** Validates one batched reply and parses each requested game independently. */
 export function parseLeaguepediaGames(input: unknown, ids: readonly string[]): LeaguepediaReply {
   const body = reply.parse(input);
   if ("error" in body) {
-    if (body.error.code === "maxlag") return { state: "lagged" };
+    // The wiki asks clients to wait while its replicas lag or a client sends too much.
+    if (body.error.code === "maxlag" || body.error.code === "ratelimited")
+      return { state: "refused", code: body.error.code };
     throw new Error("Leaguepedia refused the request.");
   }
   const pages = body.query.pages;

@@ -77,6 +77,13 @@ import {
   saveLadder,
 } from "../persistence/riot.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
+import {
+  clearLeaguepediaStrikes,
+  pauseLeaguepedia,
+  reserveLeaguepedia,
+  type LeaguepediaBudget,
+  type Refusal,
+} from "./leaguepedia-budget.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
 import { refreshDrafts } from "./drafts.js";
 import { cacheCatalogImages } from "./catalog-images.js";
@@ -129,6 +136,8 @@ export interface WorkerOptions {
     minimumMatches?: number;
     minimumProGames?: number;
     minimumProGamesPerMinute?: number;
+    /** Training games with a timeline before the pro model trains on recorded minutes. */
+    minimumProFrameGames?: number;
     seed?: number;
   };
   /**
@@ -142,8 +151,10 @@ export interface WorkerOptions {
    * after `maxMs` to requeue themselves behind other due jobs.
    */
   proGameDetailRun?: ProGameDetailRun;
-  /** Leaguepedia recording runs, spaced and bounded like detail runs. */
+  /** Leaguepedia recording runs, bounded like detail runs. */
   proGameVodRun?: ProGameVodRun;
+  /** The shared Leaguepedia request budget; defaults to {@link leaguepediaBudget}. */
+  leaguepediaBudget?: LeaguepediaBudget;
 }
 /** Identifies the worker to the wiki, as its API etiquette asks of automated clients. */
 const wikiUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game detail sync)";
@@ -207,6 +218,45 @@ export function worker(pool: Pool, options: WorkerOptions) {
         response.status === 429 || response.status >= 500,
       );
     return response;
+  }
+  /**
+   * Requests for a Leaguepedia job: wiki requests reserve from the shared budget, and a 429 or 503
+   * pauses every Leaguepedia job for its Retry-After, backing off on repeats. Other hosts, such as
+   * the Data Dragon item catalog, are requested directly.
+   */
+  function leaguepedia(userAgent: string) {
+    return {
+      request: async (url: string) => {
+        if (new URL(url).hostname !== "lol.fandom.com")
+          return request(url, false, 60000, { "User-Agent": userAgent });
+        await reserveLeaguepedia(pool, clock, pause, options.leaguepediaBudget);
+        let response: Response;
+        try {
+          response = await fetcher(url, {
+            headers: { "User-Agent": userAgent },
+            signal: AbortSignal.timeout(60000),
+          });
+        } catch {
+          throw new ProviderError("Provider connection failed; saved data is unchanged.", true);
+        }
+        if (response.status === 429 || response.status === 503)
+          throw new DeferredRequest(
+            await pauseLeaguepedia(pool, clock(), {
+              kind: "limit",
+              reason: `Leaguepedia returned HTTP ${response.status}`,
+              retryAfter: response.headers.get("retry-after"),
+            }),
+          );
+        if (!response.ok)
+          throw new ProviderError(
+            `Provider returned HTTP ${response.status}.`,
+            response.status >= 500,
+          );
+        return response;
+      },
+      refused: (refusal: Refusal) => pauseLeaguepedia(pool, clock(), refusal),
+      accepted: () => clearLeaguepediaStrikes(pool),
+    };
   }
   async function archiveResponse(year: number): Promise<Response> {
     if (options.driveApiKey) {
@@ -631,8 +681,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const { loaded, remaining } = await refreshProGameDetails(pool, {
         ...options.proGameDetailRun,
         clock,
-        pause,
-        request: (url) => request(url, false, 60000, { "User-Agent": wikiUserAgent }),
+        ...leaguepedia(wikiUserAgent),
       });
       requeueAfterRun = remaining;
       return loaded;
@@ -641,8 +690,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const { found, remaining } = await refreshProGameVods(pool, {
         ...options.proGameVodRun,
         clock,
-        pause,
-        request: (url) => request(url, false, 60000, { "User-Agent": vodUserAgent }),
+        ...leaguepedia(vodUserAgent),
       });
       requeueAfterRun = remaining;
       return found;
@@ -658,6 +706,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       const pro = await trainCheckpointModel(pool, clock(), {
         minimumGames: options.winProbability?.minimumProGames ?? 200,
         minimumGamesPerMinute: options.winProbability?.minimumProGamesPerMinute ?? 100,
+        minimumFrameGames: options.winProbability?.minimumProFrameGames ?? 500,
         seed: options.winProbability?.seed ?? 20261116,
       });
       const draft = await trainDraftModel(pool, clock(), {
