@@ -218,7 +218,12 @@ the repository root.
   broken download can't replace good data.
 
 - **Identities are linked only on evidence.** Names never merge records by themselves; every source
-  identifier is kept, and team and player images are cached in PostgreSQL by the worker.
+  identifier is kept, and team and player images are cached in PostgreSQL by the worker. An Oracle's
+  Elixir game without a team ID, or a renamed team, joins another team only when one of its lineups
+  shares three players in the same roles with that team, in the same league within 120 days, and the
+  two never played each other. Old team links lead to the surviving team. The worker refreshes
+  PandaScore's past fixtures and tournament rosters for each archive year (the current year daily,
+  past years monthly), so links don't rely on today's rosters alone.
 
 ## FAQ
 

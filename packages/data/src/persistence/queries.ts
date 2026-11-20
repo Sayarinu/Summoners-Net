@@ -143,7 +143,11 @@ export function queries(pool: Pool, clock: () => Date) {
             FROM entity_profiles
             WHERE id=coalesce(
               (SELECT entity_id FROM entity_members WHERE id=$1),
-              (SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2)
+              -- A slug of a linked or merged source resolves to the entity that now shows it.
+              (SELECT m.entity_id
+                FROM identity_routes r
+                JOIN entity_members m ON m.id=r.entity_id
+                WHERE r.slug=$1 AND r.kind=$2)
             )`,
         [idSchema.parse(id), routeKind ?? null],
       )

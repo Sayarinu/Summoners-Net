@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { createSync } from "./index.js";
+import { schedule } from "./queue.js";
 import { createQueries } from "../index.js";
 import { database, transaction, migrate } from "../persistence/database.js";
 import {
@@ -634,6 +635,97 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     );
     await pool.query("UPDATE identities SET name='Renamed Club' WHERE id='oracle:team:twin-1'");
     expect((await queries.profile("twin-club", {}, "team"))?.identity.publicSlug).toBe("twin-club");
+  });
+  it("merges games without a team ID into the team their lineup corroborates and redirects old routes", async () => {
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    await importCsv(
+      historyCsv({ id: "merge-1" }) +
+        body(historyCsv({ id: "merge-2", omitIds: true })) +
+        body(historyCsv({ id: "merge-3", omitIds: true })),
+    );
+    const teams = async () =>
+      (
+        await pool.query<{ id: string; slug: string }>(
+          "SELECT id,document->>'publicSlug' AS slug FROM entity_profiles WHERE kind='team' ORDER BY id",
+        )
+      ).rows;
+    const before = await teams();
+    expect(before).toHaveLength(6);
+    const observed = before.find(
+      (t) => t.id.includes(":observation:") && t.slug.startsWith("acceptance-blue"),
+    )!;
+    await run({ kind: "resolve" });
+    expect((await teams()).map((t) => t.id)).toEqual(["oracle:team:10", "oracle:team:11"]);
+    const merges = (
+      await pool.query<{
+        source_id: string;
+        target_id: string;
+        evidence: { kind: string; players: unknown[] };
+      }>("SELECT source_id,target_id,evidence FROM identity_merges ORDER BY source_id")
+    ).rows;
+    expect(merges).toHaveLength(4);
+    expect(
+      merges.every((m) => m.evidence.kind === "observation" && m.evidence.players.length === 5),
+    ).toBe(true);
+    const blue = await queries.profile("acceptance-blue", {}, "team");
+    expect(blue?.identity.id).toBe("oracle:team:10");
+    expect(blue?.games.total).toBe(3);
+    // The merged game's own route and source identifier lead to the surviving team.
+    expect((await queries.profile(observed.slug, {}, "team"))?.identity.id).toBe("oracle:team:10");
+    expect((await queries.profile(observed.id))?.identity.id).toBe("oracle:team:10");
+    const report = (
+      await pool.query<{ report: { merges: unknown } }>(
+        "SELECT report FROM identity_resolution_runs ORDER BY id DESC LIMIT 1",
+      )
+    ).rows[0]!.report;
+    expect(report.merges).toEqual({ observation: 4, nameVariant: 0, ambiguous: 0 });
+  });
+  it("merges a renamed team with the same players and keeps a same-name team with other players apart", async () => {
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    // The same blue players under a renamed team; a red team of the same name with new players.
+    const renamed = body(historyCsv({ id: "rename-2" }))
+      .replaceAll(",10,Acceptance Blue,", ",20,Acceptance Blue Gaming,")
+      .replaceAll(",11,Acceptance Red,", ",31,Acceptance Red,")
+      .replaceAll(/,11-(\w+),Player Red (\w+),/g, ",31-$1,Rookie Red $2,");
+    await importCsv(historyCsv({ id: "rename-1" }) + renamed);
+    await run({ kind: "resolve" });
+    const merges = (
+      await pool.query<{ source_id: string; target_id: string; kind: string }>(
+        "SELECT source_id,target_id,evidence->>'kind' AS kind FROM identity_merges",
+      )
+    ).rows;
+    expect(merges).toEqual([
+      { source_id: "oracle:team:20", target_id: "oracle:team:10", kind: "name-variant" },
+    ]);
+    expect((await queries.profile("oracle:team:20"))?.games.total).toBe(2);
+    expect((await queries.profile("oracle:team:31"))?.identity.id).toBe("oracle:team:31");
+  });
+  it("schedules past fixtures and tournament rosters for every archive year, the current year daily", async () => {
+    await importCsv(historyCsv({ id: "old-year", year: 2019 }), 2019);
+    await pool.query("DELETE FROM sync_jobs");
+    await schedule(pool, new Date(now));
+    const keys = (
+      await pool.query<{ job_key: string }>(
+        "SELECT job_key FROM sync_jobs WHERE job_key LIKE 'entity-%' ORDER BY id",
+      )
+    ).rows.map((r) => r.job_key);
+    const year = new Date(now).getUTCFullYear();
+    expect(keys).toEqual([
+      "entity-history:2019",
+      "entity-rosters:2019",
+      `entity-history:${year}`,
+      `entity-rosters:${year}`,
+    ]);
+    const next = (
+      await pool.query<{ job_key: string; days: number }>(
+        "SELECT job_key,round(extract(epoch FROM next_at-$1::timestamptz)/86400)::integer AS days FROM sync_schedule WHERE job_key LIKE 'entity-history:%' ORDER BY job_key",
+        [new Date(now)],
+      )
+    ).rows;
+    expect(next).toEqual([
+      { job_key: "entity-history:2019", days: 30 },
+      { job_key: `entity-history:${year}`, days: 1 },
+    ]);
   });
   it("keeps source identities distinct, replaces observed rosters, and commits all match pages together", async () => {
     fetcher.mockImplementation((input) => {

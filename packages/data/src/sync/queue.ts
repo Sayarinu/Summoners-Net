@@ -43,6 +43,23 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
       interval: 86400,
     },
     { request: { kind: "entities" }, interval: 86400 },
+    // Past fixtures and tournament rosters corroborate team links for every archive year; without
+    // them a rebuilt library could only compare games with today's rosters.
+    ...(
+      await pool.query<{ year: number }>(
+        "SELECT DISTINCT archive_year AS year FROM oracle_archive_games ORDER BY year",
+      )
+    ).rows
+      .map((r) => r.year)
+      .concat(now.getUTCFullYear())
+      .filter((year, i, years) => years.indexOf(year) === i)
+      .flatMap((year) => {
+        const interval = year === now.getUTCFullYear() ? 86400 : 30 * 86400;
+        return [
+          { request: { kind: "entity-history" as const, year }, interval },
+          { request: { kind: "entity-rosters" as const, year }, interval },
+        ];
+      }),
     // Development keys expire after 24 hours; a 6-hour check notices a rejected key promptly.
     { request: { kind: "riot-key" }, interval: 21600 },
     { request: { kind: "riot-ladder" }, interval: 21600 },
