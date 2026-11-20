@@ -47,7 +47,7 @@ const game: SoloGame = {
 };
 it("charts win probability with the model's version and calibration, markers and gaps", () => {
   const { container } = render(<SoloGamePage game={game} />);
-  expect(screen.getByRole("heading", { name: "Blue side won" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Blue Side Won" })).toBeVisible();
   expect(
     screen.getByText(/model v1 \(#4, features v1\).*Brier score on held-out games is 0\.181/),
   ).toBeVisible();
@@ -105,10 +105,10 @@ it("shows the pre-game draft win probability with its inputs", () => {
   );
   expect(screen.getByRole("heading", { name: "Draft Win Probability" })).toBeVisible();
   expect(screen.getByLabelText("Draft Win Probability by Side")).toHaveTextContent(
-    "Blue side60.0%",
+    "Blue Side60.0%",
   );
   expect(screen.getByLabelText("Draft Win Probability by Side")).toHaveTextContent(
-    "Lane Matchup coverage0 of 1",
+    "Lane Matchup Coverage0 of 1",
   );
   expect(screen.getByRole("table", { name: "Draft Model Inputs" })).toHaveTextContent(
     "Champion 9999",

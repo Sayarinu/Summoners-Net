@@ -302,13 +302,13 @@ export function GameMapPage({
                       selected={!hiddenSides.has("blue")}
                       onChange={toggle(setHiddenSides, "blue")}
                     >
-                      Blue team
+                      Blue Team
                     </Switch>
                     <Switch
                       selected={!hiddenSides.has("red")}
                       onChange={toggle(setHiddenSides, "red")}
                     >
-                      Red team
+                      Red Team
                     </Switch>
                     {roles.map((r) => (
                       <Switch

@@ -64,9 +64,9 @@ export function SoloGamePage({
         eyebrow={soloGameEyebrow(game)}
         title={
           blue?.win === true
-            ? "Blue side won"
+            ? "Blue Side Won"
             : blue?.win === false
-              ? "Red side won"
+              ? "Red Side Won"
               : "Result unknown"
         }
       >

@@ -237,7 +237,7 @@ export function PatchComparePage({
       {error ? <p role="alert">{error}</p> : null}
       {comparison && !comparison.a ? (
         <EmptyState
-          title={`No statistics for patch ${comparison.query.a}`}
+          title={`No Statistics for Patch ${comparison.query.a}`}
           description="Choose a patch with stored aggregates as the first patch."
         />
       ) : null}

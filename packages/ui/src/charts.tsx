@@ -281,8 +281,11 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
   const rows = [...new Set(cells.map((cell) => cell.row))];
   const values = cells.map((cell) => cell.value).filter(known);
   const domain = extent(values);
-  const width = 480 / Math.max(1, columns.length);
-  const height = 220 / Math.max(1, rows.length);
+  // Cells stay square and no larger than 56 units, so one cell or one row reads as a grid, not a bar.
+  const cell = Math.min(480 / Math.max(1, columns.length), 220 / Math.max(1, rows.length), 56);
+  const left = 136 + (480 - cell * columns.length) / 2;
+  const top = 24 + (220 - cell * rows.length) / 2;
+  const uniform = domain[0] === domain[1];
   return (
     <ChartFrame
       empty={values.length === 0}
@@ -303,33 +306,41 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
     >
       <g className="np-chart__label">
         {columns.map((column, index) => (
-          <text key={column} x={136 + (index + 0.5) * width} y={270} textAnchor="middle">
+          <text
+            key={column}
+            x={left + (index + 0.5) * cell}
+            y={top + rows.length * cell + 22}
+            textAnchor="middle"
+          >
             {column}
           </text>
         ))}
         {rows.map((row, index) => (
-          <text key={row} x={128} y={24 + (index + 0.5) * height} textAnchor="end">
+          <text key={row} x={left - 8} y={top + (index + 0.5) * cell} textAnchor="end">
             {row}
           </text>
         ))}
         {values.length > 0 ? (
           <text x={136} y={292}>
-            Intensity: {display(domain[0])} – {display(domain[1])}
+            Intensity:{" "}
+            {uniform ? display(domain[0]) : `${display(domain[0])} – ${display(domain[1])}`}
           </text>
         ) : null}
       </g>
       <g style={{ color: colorValue(color) }}>
-        {cells.map((cell) => (
+        {cells.map((entry) => (
           <rect
-            key={cell.id}
-            x={136 + columns.indexOf(cell.column) * width}
-            y={24 + rows.indexOf(cell.row) * height}
-            width={Math.max(0, width - 2)}
-            height={Math.max(0, height - 2)}
+            key={entry.id}
+            x={left + columns.indexOf(entry.column) * cell}
+            y={top + rows.indexOf(entry.row) * cell}
+            width={Math.max(0, cell - 2)}
+            height={Math.max(0, cell - 2)}
             fill="currentColor"
-            fillOpacity={known(cell.value) ? scale(cell.value, domain, 0.2, 1) : 0}
+            fillOpacity={
+              known(entry.value) ? (uniform ? 1 : scale(entry.value, domain, 0.2, 1)) : 0
+            }
           >
-            <title>{`${cell.row}, ${cell.column}: ${display(cell.value)}; samples: ${display(cell.sampleCount)}`}</title>
+            <title>{`${entry.row}, ${entry.column}: ${display(entry.value)}; samples: ${display(entry.sampleCount)}`}</title>
           </rect>
         ))}
       </g>

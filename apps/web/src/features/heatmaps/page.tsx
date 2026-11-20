@@ -110,6 +110,7 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
           <Panel title="Map">
             {h.games < h.minimumGames ? (
               <EmptyState
+                inset
                 title="Too Few Games to Draw"
                 description={`A heatmap is drawn from ${h.minimumGames} games; this one has ${h.games}.`}
               />

@@ -564,7 +564,7 @@ test("a solo game charts win probability with the model's calibration and event 
   page,
 }) => {
   await page.goto("/solo-games/EUW1_7000000001");
-  await expect(page.getByRole("heading", { name: "Blue side won" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Blue Side Won" })).toBeVisible();
   await expect(page.getByText(/model v1 \(#1, features v1\)/)).toBeVisible();
   await expect(page.getByText("Blue Side Win Probability by Minute").first()).toBeAttached();
   const events = page.getByRole("table", { name: "Kills and Objectives" });
@@ -574,8 +574,8 @@ test("a solo game charts win probability with the model's calibration and event 
   ).toBeVisible();
   // The pre-game draft probability: one stored game is below every input's minimum sample.
   const draft = page.getByLabel("Draft Win Probability by Side");
-  await expect(draft).toContainText("Blue side");
-  await expect(draft).toContainText("Champion Strength coverage0 of 10");
+  await expect(draft).toContainText("Blue Side");
+  await expect(draft).toContainText("Champion Strength Coverage0 of 10");
   await expect(page.getByText(/Brier score on 0 held-out games: unknown/)).toBeVisible();
   await page.getByText("Inputs and Samples").click();
   await expect(page.getByRole("table", { name: "Draft Model Inputs" })).toContainText("Ahri vs");
@@ -603,7 +603,7 @@ test("a solo game's map replays timeline positions with keyboard controls and to
   await expect(page.getByRole("table", { name: "Positions at 0:01" })).toContainText(
     "estimated between frames",
   );
-  await page.getByRole("switch", { name: "Red team" }).press("Space");
+  await page.getByRole("switch", { name: "Red Team" }).press("Space");
   await expect(positions().getByRole("row")).toHaveCount(6);
   await expect(page.locator(".np-minimap__point")).toHaveCount(5);
   await page.getByRole("button", { name: "Play", exact: true }).press("Enter");
@@ -1151,7 +1151,7 @@ test("the draft assistant ranks stored candidates from the URL and excludes pick
   const table = page.getByRole("table", { name: "Ranked candidates for Mid" });
   await expect(table.getByRole("img", { name: "Ahri" }).first()).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "ignored" })).toContainText("Zzz");
-  await expect(page.getByLabel("Draft Win Probability by Side")).toContainText("Blue side");
+  await expect(page.getByLabel("Draft Win Probability by Side")).toContainText("Blue Side");
   await expect(table).toContainText("Draft Win Probability if Picked");
   await page.goto("/drafts/assistant?patch=16.4&blue=Ahri:TOP");
   await expect(table.getByRole("img", { name: "Ahri" })).toHaveCount(0);

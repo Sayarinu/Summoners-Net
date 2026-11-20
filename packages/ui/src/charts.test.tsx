@@ -131,7 +131,13 @@ describe("SVG charts", () => {
         cells={[{ id: "a", row: "Top", column: "A", value: 1, sampleCount: null }]}
       />,
     );
-    expect(svg.querySelector("rect")).toHaveAttribute("fill-opacity", "0.6");
+    const single = svg.querySelector("rect");
+    expect(single).toHaveAttribute("fill-opacity", "1");
+    // A lone cell stays a square of at most 56 units, centered, not a block across the chart.
+    expect(single).toHaveAttribute("width", "54");
+    expect(single).toHaveAttribute("height", "54");
+    expect(single).toHaveAttribute("x", `${136 + (480 - 56) / 2}`);
+    expect(screen.getByText("Intensity: 1")).toBeInTheDocument();
   });
 
   it("preserves heat-grid tooltips in server-rendered markup", () => {
