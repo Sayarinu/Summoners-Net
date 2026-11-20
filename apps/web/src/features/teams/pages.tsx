@@ -1,6 +1,4 @@
 "use client";
-import "../browse/directory.css";
-import "./teams.css";
 import { useState } from "react";
 import type {
   BrowseQuery,
@@ -11,7 +9,18 @@ import type {
   TeamSeason,
 } from "@summonersnet/data";
 import { roleKey } from "@summonersnet/data/contracts";
-import { Breadcrumb, Button, EmptyState, PlayerIdentity, TeamIdentity } from "@summonersnet/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Panel,
+  PlayerIdentity,
+  Stat,
+  StatGroup,
+  TabNav,
+  TeamIdentity,
+} from "@summonersnet/ui";
 import { Filters, GamesTable, Pages } from "../browse/components";
 import { MatchSection, useMatchRows } from "../browse/match-group";
 import { FillingGrid } from "../browse/page-fill";
@@ -26,32 +35,28 @@ export function TeamFinder({
   query: BrowseQuery;
 }) {
   return (
-    <div className="ev-teams ev-teams--directory np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Teams</h1>
-        </div>
-      </header>
-      <div className="ev-browse-toolbar">
-        <Filters teams query={query} />
-      </div>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader title="Teams" />
+      <Filters teams query={query} className="border-y border-line py-3" />
       {data.items.length ? (
         <FillingGrid
-          className="ev-directory-grid"
+          className={directoryGrid}
+          label="Teams"
           page={data.page}
           pageSize={data.pageSize}
           total={data.total}
         >
           {data.items.map((t) => (
             <li key={t.id}>
-              <TeamIdentity
-                name={t.name}
-                shortName={t.name}
-                href={identityHref(t)}
-                size="large"
-                {...(t.league ? { detail: t.league } : {})}
-                {...(t.imageUrl ? { logo: t.imageUrl } : {})}
-              />
+              <Card href={identityHref(t)}>
+                <TeamIdentity
+                  name={t.name}
+                  shortName={t.name}
+                  size="large"
+                  {...(t.league ? { detail: t.league } : {})}
+                  {...(t.imageUrl ? { logo: t.imageUrl } : {})}
+                />
+              </Card>
             </li>
           ))}
         </FillingGrid>
@@ -62,6 +67,10 @@ export function TeamFinder({
     </div>
   );
 }
+
+/** Whole rows of cards that fill the content width; FillingGrid sizes pages from these columns. */
+export const directoryGrid =
+  "grid list-none auto-rows-fr grid-cols-4 gap-3 min-[1600px]:grid-cols-6 max-[1150px]:grid-cols-3 max-[900px]:grid-cols-2 max-[600px]:grid-cols-1";
 
 const roles = ["top", "jungle", "mid", "bottom", "support"];
 function Roster({ roster }: { roster: Profile["roster"] }) {
@@ -74,13 +83,13 @@ function Roster({ roster }: { roster: Profile["roster"] }) {
         a.player.name.localeCompare(b.player.name),
     );
   return (
-    <section className="ev-team-panel">
-      <h2>Current Roster</h2>
+    <Panel title="Current Roster">
       {players.length ? (
-        <ul className="ev-roster">
+        <ul className="grid list-none grid-cols-[repeat(auto-fit,minmax(92px,1fr))] gap-3">
           {players.map(({ player, role }) => (
             <li key={player.id}>
               <PlayerIdentity
+                layout="stacked"
                 handle={player.name}
                 href={identityHref(player)}
                 {...(role ? { role } : {})}
@@ -92,7 +101,7 @@ function Roster({ roster }: { roster: Profile["roster"] }) {
       ) : (
         <p>No current roster is available.</p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -106,11 +115,19 @@ export function ChampionPool({
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <section className="ev-team-panel">
-      <h2>Champion Pool</h2>
-      <ul className="ev-champ-pool">
+    <Panel
+      title="Champion Pool"
+      actions={
+        champions.length > 5 && (
+          <Button size="compact" onPress={() => setExpanded(!expanded)}>
+            {expanded ? "Show Fewer Champions" : "Show All Champions"}
+          </Button>
+        )
+      }
+    >
+      <ul className="grid list-none grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
         {(expanded ? champions : champions.slice(0, 5)).map((c) => (
-          <li key={c.name}>
+          <li key={c.name} className="flex items-center justify-between gap-2 rounded-md p-3">
             <ChampionPortrait name={c.name} portraits={portraits} />
             <span>
               <GameRecord wins={c.wins} known={c.resultGames} total={c.games} />
@@ -118,12 +135,7 @@ export function ChampionPool({
           </li>
         ))}
       </ul>
-      {champions.length > 5 && (
-        <Button onPress={() => setExpanded(!expanded)}>
-          {expanded ? "Show Fewer Champions" : "Show All Champions"}
-        </Button>
-      )}
-    </section>
+    </Panel>
   );
 }
 
@@ -160,92 +172,93 @@ export function TeamProfile({
   if (query.q) params.set("q", query.q);
   const timezone = query.timezone ?? "UTC";
   return (
-    <div className="ev-teams np-stack">
-      <Breadcrumb items={[{ label: "Teams", href: "/teams" }, { label: identity.name }]} />
-      <header className="ev-team-banner">
-        <div>
-          <h1 className="np-visually-hidden">{identity.name}</h1>
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[{ label: "Teams", href: "/teams" }, { label: identity.name }]}
+        title={<span className="np-visually-hidden">{identity.name}</span>}
+        className="gap-0"
+      />
+      <Panel aria-label={identity.name}>
+        <div className="flex flex-wrap items-center justify-between gap-5 p-2 max-[600px]:p-0">
           <TeamIdentity
             name={identity.name}
             shortName={identity.name}
-            size="large"
+            size="display"
             {...(league ? { detail: league } : {})}
             {...(identity.imageUrl ? { logo: identity.imageUrl } : {})}
           />
+          <Filters
+            key={[year, view, query.q, query.league].join("-")}
+            history
+            view={view}
+            query={query}
+            seasons={years}
+            selectedYear={year}
+            className="max-[600px]:w-full"
+          />
         </div>
-        <Filters
-          key={[year, view, query.q, query.league].join("-")}
-          history
-          view={view}
-          query={query}
-          seasons={years}
-          selectedYear={year}
-        />
-      </header>
-      <div className="ev-team-overview">
+      </Panel>
+      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] gap-4 max-[1150px]:grid-cols-1">
         <Roster roster={roster} />
-        <section className="ev-team-panel">
-          <h2>Season Performance</h2>
+        <Panel title="Season Performance">
           {hidden ? (
             <Button onPress={() => setRevealed(true)}>Reveal Statistics</Button>
           ) : summary.eligibleGames === 0 ? (
             <p>No eligible games in this selection.</p>
           ) : (
-            <dl className="ev-team-stats">
-              <div>
-                <dt>Game Record</dt>
-                <dd>
+            <StatGroup className="justify-between gap-2 max-[1150px]:justify-start max-[1150px]:gap-8">
+              <Stat
+                label="Game Record"
+                value={
                   <GameRecord
                     wins={summary.wins}
                     known={summary.resultGames}
                     total={summary.eligibleGames}
                   />
-                </dd>
-              </div>
-              <div>
-                <dt>Win Rate</dt>
-                <dd>{summary.winRate === null ? "—" : (summary.winRate * 100).toFixed(1) + "%"}</dd>
-              </div>
-              <div>
-                <dt>KDA</dt>
-                <dd>
-                  {summary.kda?.toFixed(2) ?? "—"}
-                  {summary.kdaGames !== summary.resultGames && (
-                    <small>{summary.kdaGames} games</small>
-                  )}
-                </dd>
-              </div>
-            </dl>
+                }
+              />
+              <Stat
+                label="Win Rate"
+                value={summary.winRate === null ? "—" : (summary.winRate * 100).toFixed(1) + "%"}
+              />
+              <Stat
+                label="KDA"
+                value={summary.kda?.toFixed(2) ?? "—"}
+                {...(summary.kdaGames !== summary.resultGames
+                  ? { detail: `${summary.kdaGames} games` }
+                  : {})}
+              />
+            </StatGroup>
           )}
-        </section>
+        </Panel>
       </div>
-      <section className="ev-team-history">
-        <div className="ev-team-history-head">
-          <h2>Past Matches</h2>
-          <nav className="ev-tabs ev-tabs--segmented" aria-label="Past Matches View">
-            {(["series", "games"] as const).map((v) => (
-              <a
-                key={v}
-                aria-current={view === v ? "page" : undefined}
-                className="ev-tab"
-                href={`?${params}${v === "games" ? "&view=games" : ""}`}
-              >
-                {v === "series" ? "Series" : "Games"}
-              </a>
-            ))}
-          </nav>
-        </div>
+      <Panel
+        title="Past Matches"
+        padding="none"
+        actions={
+          <TabNav
+            label="Past Matches View"
+            variant="segmented"
+            items={(["series", "games"] as const).map((v) => ({
+              href: `?${params}${v === "games" ? "&view=games" : ""}`,
+              label: v === "series" ? "Series" : "Games",
+              current: view === v,
+            }))}
+          />
+        }
+      >
         {series ? (
           series.items.length ? (
             <MatchSection
               title="Finished Series"
+              hideTitle
               matches={series.items}
               timezone={timezone}
               now={now}
               {...rows}
             />
           ) : (
-            <p>
+            <p className="p-4">
               No finished series match these filters.{" "}
               <a href={`?${params}&view=games`}>Browse Games</a>
             </p>
@@ -253,8 +266,12 @@ export function TeamProfile({
         ) : (
           <GamesTable games={games.items} timezone={timezone} hideSpoilers={rows.spoilersHidden} />
         )}
-        {(series ?? games).total > 5 && <Pages data={series ?? games} />}
-      </section>
+        {(series ?? games).total > 5 && (
+          <div className="px-4">
+            <Pages data={series ?? games} />
+          </div>
+        )}
+      </Panel>
       {!hidden && summary.champions.length > 0 && (
         <ChampionPool champions={summary.champions} portraits={portraits} />
       )}

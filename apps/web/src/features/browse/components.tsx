@@ -1,15 +1,8 @@
 "use client";
-import {
-  Fragment,
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  FilterBar,
   Input,
   Select,
   Pagination,
@@ -17,6 +10,7 @@ import {
   TextLink,
   StatusIndicator,
   TeamIdentity,
+  TeamVersus,
 } from "@summonersnet/ui";
 import type { BrowseQuery, Game, Page } from "@summonersnet/data";
 import { regions } from "@summonersnet/data/contracts";
@@ -42,6 +36,7 @@ export function Filters({
   selectedYear,
   search = false,
   view,
+  className,
 }: {
   query: BrowseQuery;
   history?: boolean;
@@ -51,6 +46,7 @@ export function Filters({
   search?: boolean;
   /** The past matches view; the games view is kept when the filters are submitted. */
   view?: "series" | "games";
+  className?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timeoutRef = useRef<number | undefined>(undefined);
@@ -101,9 +97,9 @@ export function Filters({
   }
 
   return (
-    <form
+    <FilterBar
       ref={formRef}
-      className="ev-filters"
+      className={className}
       method="get"
       onSubmit={submit}
       aria-busy={pending || undefined}
@@ -191,14 +187,14 @@ export function Filters({
           )}
         </>
       )}
-    </form>
+    </FilterBar>
   );
 }
 export function Pages({ data, afterCount }: { data: Page<unknown>; afterCount?: ReactNode }) {
   return (
-    <div className="ev-pagination">
-      <div className="ev-pagination__summary">
-        <span className="np-meta">
+    <div className="flex items-center justify-between gap-x-4 gap-y-2 py-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="np-meta text-accent">
           {data.total.toLocaleString()} {data.total === 1 ? "record" : "records"} · Page {data.page}
         </span>
         {afterCount}
@@ -245,24 +241,22 @@ export function GamesTable({
         {
           id: "teams",
           header: "Teams",
-          render: (g) => (
-            <div className="ev-game-versus">
-              {gameTeams(g).map((team, index) => (
-                <Fragment key={team.id}>
-                  {index === 1 ? <span className="ev-game-versus__sep">vs</span> : null}
-                  <TeamIdentity
-                    name={team.name}
-                    side={team.side}
-                    shortName={team.name}
-                    size="compact"
-                    href={identityHref(team)}
-                    winner={!hideSpoilers && team.won === true}
-                    {...(team.imageUrl ? { logo: team.imageUrl } : {})}
-                  />
-                </Fragment>
-              ))}
-            </div>
-          ),
+          render: (g) => {
+            const [first, second] = gameTeams(g).map((team) => ({
+              name: team.name,
+              side: team.side,
+              shortName: team.name,
+              size: "compact" as const,
+              href: identityHref(team),
+              winner: !hideSpoilers && team.won === true,
+              ...(team.imageUrl ? { logo: team.imageUrl } : {}),
+            }));
+            return first && second ? (
+              <TeamVersus teams={[first, second]} />
+            ) : first ? (
+              <TeamIdentity {...first} />
+            ) : null;
+          },
         },
         { id: "league", header: "League", render: (g) => g.league },
         { id: "game", header: "Game", render: (g) => g.number },

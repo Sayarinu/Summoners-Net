@@ -25,6 +25,7 @@ export function useSpoilerPreference(hideSpoilers: boolean) {
 /** A titled group of flat match rows, shared by the schedule and past matches. */
 export function MatchSection({
   title,
+  hideTitle = false,
   matches,
   timezone,
   now,
@@ -35,6 +36,8 @@ export function MatchSection({
   onStreamToggle,
 }: {
   title: string;
+  /** Keeps the heading for screen readers where the surrounding panel already names the list. */
+  hideTitle?: boolean;
   matches: Match[];
   timezone: string;
   now: string;
@@ -45,9 +48,17 @@ export function MatchSection({
   onStreamToggle: (id: string) => void;
 }) {
   return (
-    <section className="ev-match-section">
-      <h2>{title}</h2>
-      <div className="ev-match-group">
+    <section>
+      <h2
+        className={
+          hideTitle
+            ? "np-visually-hidden"
+            : "border-y border-line bg-raised px-5 py-4 text-lg font-medium"
+        }
+      >
+        {title}
+      </h2>
+      <div>
         {matches.map((match) => {
           const streamOpen = openStreamId === match.id;
           const watchLabel =
@@ -71,7 +82,7 @@ export function MatchSection({
                     aria-controls={streamOpen ? streamPanelId : undefined}
                     aria-expanded={streamOpen}
                     aria-label={streamOpen ? "Close Stream" : watchLabel}
-                    className="ev-watch-toggle"
+                    className="cursor-pointer border-0 bg-transparent p-0 whitespace-nowrap text-fg-secondary underline-offset-[0.2em] hover:text-fg hover:underline focus-visible:text-fg focus-visible:underline"
                     onClick={() => onStreamToggle(match.id)}
                     type="button"
                   >

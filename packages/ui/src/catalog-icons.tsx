@@ -146,9 +146,9 @@ const statNames = {
   true: "True Damage",
 } as const;
 
-export type Stat = keyof typeof statNames;
+export type StatIconKind = keyof typeof statNames;
 
-export function StatIcon({ stat }: { readonly stat: Stat }) {
+export function StatIcon({ stat }: { readonly stat: StatIconKind }) {
   return (
     <span
       className="np-stat-icon"

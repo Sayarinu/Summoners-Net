@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@summonersnet/tokens/generated/tokens.css";
 import "@summonersnet/ui/styles.css";
+import "./tailwind.css";
 import "./globals.css";
 import { ShellHeader } from "../src/features/shell/shell";
 import { SoftNavigation } from "../src/features/shell/soft-navigation";

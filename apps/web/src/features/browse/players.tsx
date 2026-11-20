@@ -87,6 +87,7 @@ export function PlayerFinder({
       {data.items.length ? (
         <FillingGrid
           className="ev-directory-grid"
+          label="Players"
           page={data.page}
           pageSize={data.pageSize}
           total={data.total}

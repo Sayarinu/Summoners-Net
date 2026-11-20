@@ -56,7 +56,11 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   }
   if (teamLayout.sideBySide) expect(teamLayout.logosInside).toBe(true);
   expect(teamLayout.rightNameClipped).toBe(false);
-  const watchButtons = page.locator(".ev-watch-toggle");
+  // Each row's watch button is named for what it opens, and "Close Stream" while open.
+  const watchButtons = page
+    .getByRole("main")
+    .getByRole("button", { name: /^(Watch (Stream|Live|Replay)|Close Stream)$/ });
+  const streamPanel = page.locator('[id^="match-stream-"]');
   const watchTop = () =>
     watchButtons.first().evaluate((button) => button.getBoundingClientRect().top + window.scrollY);
   const watchButtonTop = await watchTop();
@@ -65,23 +69,23 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   expect(Math.abs((await watchTop()) - watchButtonTop)).toBeLessThanOrEqual(1);
   await expect(watchButtons.first()).toHaveText("Watch Stream");
   await expect(page.locator(".np-match-row__expanded")).toHaveCount(1);
-  await expect(page.locator(".ev-inline-stream")).toHaveCSS("position", "static");
+  await expect(streamPanel).toHaveCSS("position", "static");
   // The first row is an upcoming match, which opens its live Twitch channel, loaded but paused.
   await expect(page.getByRole("button", { name: /Broadcast/ })).toContainText("Twitch");
   await expect(page.getByRole("button", { name: "Load Stream" })).toHaveCount(0);
-  const streamBox = await page.locator(".ev-inline-stream .np-stream-shell").boundingBox();
+  const streamBox = await streamPanel.getByRole("region", { name: "Match Player" }).boundingBox();
   expect(streamBox?.width).toBeLessThanOrEqual(840);
   const broadcastBox = await page.getByRole("button", { name: /Broadcast/ }).boundingBox();
   if (teamLayout.sideBySide)
     expect(broadcastBox!.x).toBeGreaterThan(streamBox!.x + streamBox!.width);
-  await expect(page.locator(".ev-inline-stream iframe")).toHaveCount(1);
+  await expect(streamPanel.locator("iframe")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Unload Player" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Player Not Working" })).toHaveCount(0);
   await watchButtons.nth(1).click();
   await expect(watchButtons.first()).toHaveAttribute("aria-expanded", "false");
   await expect(watchButtons.nth(1)).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("region", { name: "Watch Match" })).toHaveCount(1);
-  await expect(page.locator(".ev-inline-stream iframe")).toHaveCount(1);
+  await expect(streamPanel.locator("iframe")).toHaveCount(1);
   await watchButtons.nth(1).click();
   await expect(page.getByRole("region", { name: "Watch Match" })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Filter Matches" }).fill("Acceptance Blue");
@@ -113,7 +117,7 @@ test("browse filters, SQL pages, match details and spoiler control", async ({ pa
   await expect(page).toHaveURL(/\/matches\/\d+$/);
   // Each played game has its own tab; an unconfirmed archive record is said plainly.
   const tabs = page.getByRole("navigation", { name: "Series" });
-  await expect(page.locator(".ev-series-title__facts time")).toHaveText("Feb 28, 2026");
+  await expect(page.getByRole("main").locator("header time").first()).toHaveText("Feb 28, 2026");
   await expect(tabs.locator("time")).toHaveCount(0);
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
     "aria-current",
@@ -167,8 +171,8 @@ test.describe("players navigation", () => {
 });
 
 /** Cards on the page form whole rows that fit above the pagination without scrolling. */
-async function directoryFill(page: Page) {
-  return page.locator("main ul.ev-directory-grid").evaluate((grid) => {
+async function directoryFill(page: Page, name: string) {
+  return page.getByRole("list", { name }).evaluate((grid) => {
     const style = getComputedStyle(grid);
     const columns = style.gridTemplateColumns.split(" ").length;
     const rows = style.gridTemplateRows.split(" ").map(Number.parseFloat);
@@ -189,7 +193,7 @@ test("directory card grids fill the visible area with whole rows and keep their 
   await expect(page).toHaveURL(/pageSize=\d+/);
   const pageSize = Number(new URL(page.url()).searchParams.get("pageSize"));
   await expect(page.locator("main .ev-player-card")).toHaveCount(pageSize);
-  const small = await directoryFill(page);
+  const small = await directoryFill(page, "Players");
   expect(small.cards % small.columns).toBe(0);
   // Either the smallest useful page, or as many rows as fit and no room for another.
   if (small.cards > Math.ceil(6 / small.columns) * small.columns) {
@@ -208,14 +212,16 @@ test("directory card grids fill the visible area with whole rows and keep their 
 
   await page.setViewportSize({ width, height: 2400 });
   await expect(page).not.toHaveURL(new RegExp(`pageSize=${pageSize}(&|$)`));
-  const tall = await directoryFill(page);
+  const tall = await directoryFill(page, "Players");
   expect(tall.cards).toBeGreaterThan(0);
   expect(tall.cards % tall.columns === 0 || tall.cards === total).toBe(true);
 
   await page.setViewportSize({ width, height: 560 });
   await page.goto("/teams");
-  await expect(page.locator("main ul.ev-directory-grid > li").first()).toBeVisible();
-  const teams = await directoryFill(page);
+  await expect(
+    page.getByRole("list", { name: "Teams" }).getByRole("listitem").first(),
+  ).toBeVisible();
+  const teams = await directoryFill(page, "Teams");
   const teamTotal = Number((await page.getByText(/^\d+ records?/).textContent())!.split(" ")[0]);
   expect(teams.cards % teams.columns === 0 || teams.cards === teamTotal).toBe(true);
 });
@@ -394,7 +400,7 @@ test("a finished match loads its paused replay and keeps an external fallback", 
   await expect(page.getByRole("heading", { name: "Watch Replay" })).toHaveCount(0);
   const frame = page.getByTitle("Match Broadcast");
   await expect(frame).toHaveAttribute("src", /youtube-nocookie\.com.*autoplay=0/);
-  const cardBounds = await page.locator(".ev-series-games").boundingBox();
+  const cardBounds = await page.getByRole("region", { name: "Games", exact: true }).boundingBox();
   const replayBounds = await frame.boundingBox();
   const playerBounds = await page.getByRole("region", { name: "Match Player" }).boundingBox();
   expect(playerBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height);

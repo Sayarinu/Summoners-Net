@@ -94,8 +94,7 @@ describe("browse presentation", () => {
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
     ).toEqual(["April 2026", "March 2026", "Date to Be Confirmed"]);
-    // Rows reuse the overview's row group, so they share its sizing.
-    expect(document.querySelectorAll(".ev-match-group .np-match-row")).toHaveLength(3);
+    expect(screen.getAllByRole("article")).toHaveLength(3);
     expect(screen.getByLabelText("Filter Matches")).toBeVisible();
     expect(screen.getByRole("link", { name: "Series" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Games" })).toHaveAttribute(

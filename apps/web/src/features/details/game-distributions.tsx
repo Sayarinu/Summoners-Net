@@ -1,5 +1,5 @@
 "use client";
-import { Avatar, RoleIcon, StatIcon, Table } from "@summonersnet/ui";
+import { Avatar, Panel, RoleIcon, ShareBar, StatIcon, Table } from "@summonersnet/ui";
 import type {
   DamageBreakdown,
   Game,
@@ -37,26 +37,32 @@ function AmountTip({
   unit,
   amount,
   damage,
+  side,
 }: {
   id: string;
   unit: "gold" | "damage";
   amount: number;
   damage: DamageBreakdown | null;
+  side: "blue" | "red";
 }) {
   return (
-    <span className="ev-game-distribution__tip" role="tooltip" id={id}>
+    <span
+      className={`invisible pointer-events-none absolute bottom-[calc(100%+var(--space-1))] z-2 grid gap-1 rounded-sm border border-line-strong bg-raised p-2 text-xs whitespace-nowrap tabular-nums [box-shadow:var(--shadow-md)] group-hover/value:visible group-focus-visible/value:visible ${side === "blue" ? "end-0" : "start-0"}`}
+      role="tooltip"
+      id={id}
+    >
       {unit === "gold" ? (
-        <span className="ev-game-distribution__amount">
+        <span className={amountRow}>
           <StatIcon stat="gold" />
           {count.format(amount)}
         </span>
       ) : (
         <>
-          <span className="ev-game-distribution__amount">Damage {count.format(amount)}</span>
+          <span className={amountRow}>Damage {count.format(amount)}</span>
           {damage ? (
-            <ul aria-label="Damage by Type" role="list">
+            <ul className="m-0 grid list-none gap-1 p-0" aria-label="Damage by Type" role="list">
               {damageTypes.map((type) => (
-                <li key={type} className="ev-game-distribution__amount">
+                <li key={type} className={amountRow}>
                   <StatIcon stat={type} />
                   {count.format(damage[type])}
                 </li>
@@ -68,6 +74,8 @@ function AmountTip({
     </span>
   );
 }
+
+const amountRow = "flex items-center gap-1";
 
 function measuredTotal(values: (number | null | undefined)[]) {
   return values.every((value) => value != null)
@@ -126,7 +134,7 @@ export function GameDistributions({
   if (!cards.length) return null;
 
   return (
-    <div className="ev-game-distributions">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,23rem),1fr))] gap-3">
       {cards.map(({ label, unit, values }) => {
         const teamColumns = teams.map((team, index) => ({
           id: team.id,
@@ -146,26 +154,36 @@ export function GameDistributions({
             return value == null ? (
               "—"
             ) : (
+              // Blue reads toward the middle: its share sits outside and its bar grows inward.
               <span
-                className="ev-game-distribution__value"
+                className={`group/value relative grid items-center gap-2 ${team.side === "blue" ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_auto]"}`}
                 data-side={team.side}
                 {...(value.amount == null ? {} : { tabIndex: 0, "aria-describedby": tip })}
               >
-                <span className="ev-game-distribution__track" aria-hidden="true">
-                  <span style={{ inlineSize: `${value.share * 100}%` }} />
-                </span>
+                <ShareBar
+                  className={team.side === "blue" ? "col-start-2 row-start-1" : undefined}
+                  from={team.side === "blue" ? "end" : "start"}
+                  side={team.side}
+                  value={value.share}
+                />
                 <span className="np-meta">{percentage.format(value.share)}</span>
                 {value.amount == null ? null : (
-                  <AmountTip id={tip} unit={unit} amount={value.amount} damage={value.damage} />
+                  <AmountTip
+                    id={tip}
+                    unit={unit}
+                    amount={value.amount}
+                    damage={value.damage}
+                    side={team.side}
+                  />
                 )}
               </span>
             );
           },
         }));
         return (
-          <section className="ev-game-distribution" key={label}>
-            <h2>{label}</h2>
+          <Panel key={label} title={label} padding="none">
             <Table
+              className="border-t-0 [&_:is(th,td)]:px-2 [&_table]:table-fixed [&_th]:whitespace-normal [&_th]:wrap-anywhere"
               caption={label}
               compact
               rows={roles}
@@ -180,7 +198,7 @@ export function GameDistributions({
                   render: (role) => {
                     const index = roles.indexOf(role);
                     return (
-                      <span className="ev-game-distribution__matchup">
+                      <span className="inline-flex items-center gap-1">
                         <ChampionPortrait
                           name={sides[0]?.players[index]?.champion ?? null}
                           portraits={portraits}
@@ -197,7 +215,7 @@ export function GameDistributions({
                 ...teamColumns.slice(1),
               ]}
             />
-          </section>
+          </Panel>
         );
       })}
     </div>

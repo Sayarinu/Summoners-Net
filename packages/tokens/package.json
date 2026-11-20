@@ -7,6 +7,7 @@
   "exports": {
     "./generated/tokens.css": "./generated/tokens.css",
     "./generated/tokens.json": "./generated/tokens.json",
+    "./generated/tailwind.css": "./generated/tailwind.css",
     "./source": "./src/tokens.json",
     "./validate": "./src/validate.ts"
   },

@@ -3,8 +3,11 @@ import type { ReactNode } from "react";
 import {
   DrakeIcon,
   ObjectiveIcon,
+  Panel,
   RoleIcon,
+  SidePair,
   Table,
+  TeamSideHeader,
   TeamIdentity,
   TextLink,
 } from "@summonersnet/ui";
@@ -56,6 +59,15 @@ const formatMetric = (value: number | null | undefined) =>
   value == null ? "—" : teamNumber.format(value);
 /** Counts drawn as one icon each; larger or fractional counts show one icon and the count. */
 const iconLimit = 24;
+const iconItem = "flex items-center gap-[2px] text-xs";
+/** Rows tinted by the team's result. */
+const resultRows = {
+  win: "[&_tbody_tr]:bg-[color-mix(in_srgb,var(--color-status-success)_10%,var(--color-bg-canvas))]",
+  loss: "[&_tbody_tr]:bg-[color-mix(in_srgb,var(--color-status-danger)_10%,var(--color-bg-canvas))]",
+} as const;
+/** Once both teams sit side by side, the red side's table reads from the outside in. */
+const mirroredTable =
+  "@min-[46.75rem]:[direction:rtl] @min-[46.75rem]:[&_:is(th,td)]:[direction:ltr] @min-[46.75rem]:[&_:is(th,td)]:text-right";
 
 type DrakeType = (typeof drakeStats)[number][0];
 
@@ -68,12 +80,20 @@ function IconRow({
   entries: { key: string; count: number; icon: ReactNode }[];
 }) {
   return (
-    <ul className="ev-lineup-card__icons" aria-label={label} role="list">
+    <ul
+      className={`m-0 flex list-none flex-wrap items-center justify-center gap-[2px] p-0 [&_[role=img]]:size-4 ${label === "Elder Dragons" ? "row-start-2" : ""}`}
+      aria-label={label}
+      role="list"
+    >
       {entries.flatMap(({ key, count, icon }) =>
         Number.isInteger(count) && count <= iconLimit ? (
-          Array.from({ length: count }, (_, slot) => <li key={`${key}-${slot}`}>{icon}</li>)
+          Array.from({ length: count }, (_, slot) => (
+            <li className={iconItem} key={`${key}-${slot}`}>
+              {icon}
+            </li>
+          ))
         ) : (
-          <li key={key}>
+          <li className={iconItem} key={key}>
             {icon}
             <span>×{formatMetric(count)}</span>
           </li>
@@ -167,10 +187,10 @@ export function LineupTable({
     !hidden && facts.some((side) => side[index] !== null) ? [{ label, index }] : [],
   );
   return (
-    <section className="ev-lineups" aria-label="Lineups">
+    <SidePair label="Lineups" mirrored={teams.length === 2}>
       {teams.map((team, index) => {
-        const side = team.side === "blue" ? "Blue Side" : "Red Side";
         const won = hidden ? null : team.won;
+        const mirrored = teams.length === 2 && team.side === "red";
         const players = game.participants
           .filter((p) => p.team.id === team.id && p.side === team.side && p.player)
           .sort((a, b) => roleOrder(a.role) - roleOrder(b.role));
@@ -181,14 +201,14 @@ export function LineupTable({
             (p) => builds?.[p.slot]?.inventory.length || builds?.[p.slot]?.purchases?.length,
           );
         return (
-          <div
+          <Panel
             key={team.id}
-            className="ev-lineup-card"
-            data-side={team.side}
+            className="bg-transparent"
+            padding="none"
+            side={team.side}
             data-result={won === null ? undefined : won ? "win" : "loss"}
           >
-            <header className="ev-lineup-card__header">
-              <span className="ev-lineup-card__side">{side}</span>
+            <TeamSideHeader side={team.side}>
               <TeamIdentity
                 name={team.name}
                 shortName={team.name}
@@ -197,16 +217,27 @@ export function LineupTable({
                 winner={won === true}
                 {...(team.imageUrl ? { logo: team.imageUrl } : {})}
               />
-            </header>
+            </TeamSideHeader>
             {metrics.length ? (
-              <dl className="ev-lineup-card__facts" aria-label={`${team.name} Team Totals`}>
+              <dl
+                className={`m-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,2.75rem),1fr))] gap-1 p-2 text-center tabular-nums ${mirrored ? "@min-[46.75rem]:[direction:rtl]" : ""}`}
+                aria-label={`${team.name} Team Totals`}
+              >
                 {metrics.map(({ label, index: metricIndex }) => {
                   const value = facts[index]?.[metricIndex];
+                  const dragons = label === "Dragons" && value && drakes[index]!.length;
+                  const iconic =
+                    dragons || ((label === "Void Grubs" || label === "Barons") && value);
                   return (
-                    <div key={label}>
-                      <dt>{label}</dt>
-                      <dd>
-                        {label === "Dragons" && value && drakes[index]!.length ? (
+                    <div
+                      key={label}
+                      className={`${iconic ? "col-span-2" : ""} ${mirrored ? "[direction:ltr]" : ""}`}
+                    >
+                      <dt className="text-xs text-fg-muted">{label}</dt>
+                      <dd
+                        className={`min-h-[calc(2rem+2px)] text-sm font-medium ${iconic ? "grid grid-rows-[1rem_1rem] content-start justify-items-center gap-[2px]" : ""}`}
+                      >
+                        {dragons ? (
                           <DragonIcons drakes={drakes[index]!} />
                         ) : label === "Void Grubs" && value ? (
                           <IconRow
@@ -240,13 +271,17 @@ export function LineupTable({
               </dl>
             ) : null}
             <Table
-              className={
+              className={[
+                "[&_table]:table-fixed",
                 hasBuilds
-                  ? "ev-lineup-card__equipment"
+                  ? "[&_table]:min-w-[42rem]"
                   : playerColumns.length
-                    ? "ev-lineup-card__player-stats"
-                    : ""
-              }
+                    ? "[&_table]:min-w-[36rem]"
+                    : "[&_table]:min-w-0",
+                "[&_:is(th,td)]:px-2 [&_td]:h-(--size-control) [&_td>:is([role=img],a)]:align-middle [&_th]:h-[30px]",
+                won === null ? "" : resultRows[won ? "win" : "loss"],
+                mirrored ? mirroredTable : "",
+              ].join(" ")}
               caption={`${team.name} Lineup`}
               compact
               getRowKey={(p) => p.slot}
@@ -280,14 +315,19 @@ export function LineupTable({
                     return (
                       <>
                         <TextLink
-                          className="ev-lineup-player"
+                          className="block min-w-0 truncate"
                           href={identityHref(p.player)}
                           title={p.player.name}
                         >
                           {p.player.name}
                         </TextLink>
                         {build ? (
-                          <PlayerBuild build={build} items={items} player={p.player.name} />
+                          <PlayerBuild
+                            build={build}
+                            items={items}
+                            player={p.player.name}
+                            mirrored={mirrored}
+                          />
                         ) : null}
                       </>
                     );
@@ -299,7 +339,7 @@ export function LineupTable({
                   width: "6rem",
                   align: "center",
                   render: (p) => (
-                    <span className="ev-lineup-kda">
+                    <span className="text-md font-medium whitespace-nowrap text-fg tabular-nums">
                       {hidden
                         ? "Hidden"
                         : `${p.kills ?? "—"} / ${p.deaths ?? "—"} / ${p.assists ?? "—"}`}
@@ -316,9 +356,9 @@ export function LineupTable({
                 })),
               ]}
             />
-          </div>
+          </Panel>
         );
       })}
-    </section>
+    </SidePair>
   );
 }

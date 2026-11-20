@@ -1,0 +1,4 @@
+/* Page layout uses Tailwind utilities themed by the design tokens. Tailwind's own reset and default
+   palette stay out: @summonersnet/ui provides the reset, and only token values are available. */
+@import "@summonersnet/tokens/generated/tailwind.css";
+@import "tailwindcss/utilities.css" layer(utilities);

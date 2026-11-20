@@ -83,12 +83,15 @@ export function WatchPlayer({
   mode = "live",
   showHeading = true,
   compact = false,
+  beside = false,
 }: {
   broadcasts: Broadcast[];
   defaultProvider?: Broadcast["provider"];
   mode?: "live" | "replay";
   showHeading?: boolean;
   compact?: boolean;
+  /** Puts the broadcast picker beside the player on wide screens, as under a match row. */
+  beside?: boolean;
 }) {
   const orderedBroadcasts = [...broadcasts].sort(
     (a, b) => Number(b.provider === "youtube") - Number(a.provider === "youtube"),
@@ -144,55 +147,85 @@ export function WatchPlayer({
       />
     ) : null;
   return (
-    <section className="np-stack ev-watch-player" aria-label="Watch Match">
+    <section
+      className={
+        beside
+          ? "mx-auto grid w-full max-w-[780px] grid-cols-[minmax(0,560px)_minmax(160px,200px)] items-start gap-4 max-[850px]:max-w-[560px] max-[850px]:grid-cols-1"
+          : `flex flex-col ${compact ? "gap-2" : "gap-4"}`
+      }
+      aria-label="Watch Match"
+    >
       {!compact ? (
-        <div className="np-split">
-          {showHeading ? <h2>{mode === "replay" ? "Watch Replay" : "Watch"}</h2> : null}
+        <div
+          className={
+            beside
+              ? "col-start-2 row-start-1 grid content-start gap-3 max-[850px]:col-start-1"
+              : "flex flex-wrap items-center justify-between gap-4"
+          }
+        >
+          {showHeading ? (
+            <h2 className="text-lg font-medium">{mode === "replay" ? "Watch Replay" : "Watch"}</h2>
+          ) : null}
           {streamSelect}
         </div>
       ) : null}
-      <StreamEmbedShell
-        provider={providerLabel(b.provider)}
-        title="Match Player"
-        mode={mode}
-        state={!origin ? "loading" : !src ? "failed" : "ready"}
-        fallbackHref={b.url}
+      <div
+        className={beside ? "col-start-1 row-start-1 min-w-0 max-[850px]:row-start-2" : "contents"}
       >
-        {src && refused ? (
-          <a className="ev-replay-link" href={b.url} target="_blank" rel="noreferrer">
-            {/^[\w-]{11}$/.test(b.externalId) ? (
-              <img alt="" src={`https://i.ytimg.com/vi/${b.externalId}/hqdefault.jpg`} />
-            ) : null}
-            <span className="ev-replay-link__copy">
-              <span aria-hidden="true" className="ev-replay-link__play">
-                ▶
+        <StreamEmbedShell
+          provider={providerLabel(b.provider)}
+          title="Match Player"
+          compact={compact}
+          mode={mode}
+          state={!origin ? "loading" : !src ? "failed" : "ready"}
+          fallbackHref={b.url}
+        >
+          {src && refused ? (
+            <a
+              className="group absolute inset-0 grid place-items-center overflow-hidden bg-canvas text-fg no-underline"
+              href={b.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {/^[\w-]{11}$/.test(b.externalId) ? (
+                <img
+                  className="absolute inset-0 size-full object-cover opacity-45"
+                  alt=""
+                  src={`https://i.ytimg.com/vi/${b.externalId}/hqdefault.jpg`}
+                />
+              ) : null}
+              <span className="relative grid justify-items-center gap-2 p-4 text-center [text-shadow:0_1px_4px_rgb(0_0_0/85%)]">
+                <span
+                  aria-hidden="true"
+                  className="grid size-16 place-items-center rounded-full bg-accent text-xl text-canvas group-hover:scale-106 group-focus-visible:scale-106"
+                >
+                  ▶
+                </span>
+                <strong>Watch on {providerLabel(b.provider)}</strong>
               </span>
-              <strong>Watch on {providerLabel(b.provider)}</strong>
-            </span>
-          </a>
-        ) : src ? (
-          <iframe
-            key={src}
-            ref={frame}
-            src={src}
-            title="Match Broadcast"
-            allow="fullscreen; picture-in-picture; encrypted-media"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-            onLoad={(event) => {
-              // Ask the YouTube player for its events so a refused embed can be detected.
-              if (b.provider === "youtube")
-                event.currentTarget.contentWindow?.postMessage(
-                  JSON.stringify({ event: "listening", id: 1, channel: "widget" }),
-                  new URL(src).origin,
-                );
-            }}
-          />
-        ) : null}
-      </StreamEmbedShell>
-      {compact && streamSelect ? (
-        <div className="ev-watch-player__streams">{streamSelect}</div>
-      ) : null}
+            </a>
+          ) : src ? (
+            <iframe
+              key={src}
+              ref={frame}
+              src={src}
+              title="Match Broadcast"
+              allow="fullscreen; picture-in-picture; encrypted-media"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+              onLoad={(event) => {
+                // Ask the YouTube player for its events so a refused embed can be detected.
+                if (b.provider === "youtube")
+                  event.currentTarget.contentWindow?.postMessage(
+                    JSON.stringify({ event: "listening", id: 1, channel: "widget" }),
+                    new URL(src).origin,
+                  );
+              }}
+            />
+          ) : null}
+        </StreamEmbedShell>
+      </div>
+      {compact && streamSelect ? <div className="max-w-full self-end">{streamSelect}</div> : null}
     </section>
   );
 }

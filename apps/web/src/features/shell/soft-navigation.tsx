@@ -34,7 +34,9 @@ export function SoftNavigation() {
       const path = softTarget(event, origin);
       if (!path) return;
       event.preventDefault();
-      startTransition(() => router.push(path));
+      // Tabs switch a view of the same subject, so the reader keeps their place on the page.
+      const keepScroll = (event.target as Element).closest("a[data-keep-scroll]") !== null;
+      startTransition(() => router.push(path, { scroll: !keepScroll }));
     };
     document.addEventListener("click", click);
     return () => {
