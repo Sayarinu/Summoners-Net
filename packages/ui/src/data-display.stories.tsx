@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Skeleton, Table } from "./data-display.js";
+import { EmptyState, ErrorState, Skeleton, Table } from "./data-display.js";
+import { Panel } from "./layout.js";
 
 import "./review.stories.css";
 
@@ -41,6 +42,27 @@ function DataDisplayGallery() {
                 <Skeleton height={10} width="36%" />
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="np-review__section">
+          <header className="np-review__section-header">
+            <span className="np-eyebrow">Empty and error states</span>
+            <h2>On the panel surface</h2>
+          </header>
+          <div className="np-review__grid">
+            <EmptyState
+              title="No Teams Found"
+              description="Try another search or clear the filters."
+            />
+            <ErrorState description="The library could not be read." title="Unable to Load" />
+            <Panel title="Map">
+              <EmptyState
+                inset
+                title="Too Few Games to Draw"
+                description="A heatmap is drawn from 10 games; this one has 2."
+              />
+            </Panel>
           </div>
         </section>
 

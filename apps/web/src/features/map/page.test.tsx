@@ -134,14 +134,14 @@ it("scrubs to interpolated positions and shows missing frames as gaps", () => {
 it("toggles teams and roles", () => {
   const { container } = render(<GameMapPage game={game} positions={positions} events={events} />);
   const controls = screen.getByRole("group", { name: "Show Champions" });
-  fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
+  fireEvent.click(within(controls).getByRole("switch", { name: "Red Team" }));
   expect(within(table()).queryByRole("img", { name: "Garen" })).toBeNull();
   fireEvent.click(within(controls).getByRole("switch", { name: "Jungle" }));
   expect(within(table()).queryByRole("img", { name: "Lee Sin" })).toBeNull();
   expect(points(container)).toHaveLength(1);
   fireEvent.click(within(controls).getByRole("switch", { name: "Mid" }));
   expect(table()).toHaveTextContent("Every champion is hidden");
-  fireEvent.click(within(controls).getByRole("switch", { name: "Red team" }));
+  fireEvent.click(within(controls).getByRole("switch", { name: "Red Team" }));
   expect(within(table()).getByRole("img", { name: "Garen" })).toBeVisible();
 });
 it("plays, pauses and stops at the last frame", () => {

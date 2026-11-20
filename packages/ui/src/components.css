@@ -806,25 +806,31 @@
     border-radius: var(--radius-full);
   }
 
+  /* State panels share the Panel surface; the tone colors the title only. */
   .np-state-panel {
-    --np-state-color: var(--color-text-accent);
+    --np-state-color: var(--color-text-primary);
     display: grid;
     min-height: 160px;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-4, 16px);
     align-items: center;
     padding: clamp(var(--space-6, 24px), 5vw, var(--space-12, 48px));
-    border-block: 1px solid var(--color-border-subtle);
-    border-left: 2px solid var(--np-state-color);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
   }
 
   .np-state-panel--compact {
     min-height: 0;
     padding: var(--space-4, 16px);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    border-left: 2px solid var(--np-state-color);
-    border-radius: var(--radius-md);
+  }
+
+  .np-state-panel--inset {
+    min-height: 120px;
+    padding: var(--space-6, 24px) 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
   }
 
   .np-state-panel--danger {
@@ -836,6 +842,7 @@
   }
 
   .np-state-panel__body h3 {
+    color: var(--np-state-color);
     font-size: var(--font-size-lg, 20px);
     font-weight: var(--font-weight-medium, 500);
   }

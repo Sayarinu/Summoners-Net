@@ -216,6 +216,7 @@ export function SummonerPage({
                 ))
               ) : (
                 <EmptyState
+                  inset
                   title="No Ladder Snapshots in This Window"
                   description="History appears after the worker observes this player in a successful ladder refresh."
                 />

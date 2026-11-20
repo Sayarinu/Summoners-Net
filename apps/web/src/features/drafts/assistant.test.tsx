@@ -104,9 +104,9 @@ it("shows the draft win probability for your side and with each candidate", () =
     />,
   );
   const summary = screen.getByLabelText("Draft Win Probability by Side");
-  expect(summary).toHaveTextContent("Red side55.0%");
-  expect(summary).toHaveTextContent("Blue side45.0%");
-  expect(summary).toHaveTextContent("Champion Strength coverage1 of 1");
+  expect(summary).toHaveTextContent("Red Side55.0%");
+  expect(summary).toHaveTextContent("Blue Side45.0%");
+  expect(summary).toHaveTextContent("Champion Strength Coverage1 of 1");
   expect(screen.getByText(/Brier score on 120 held-out games: 0.241/)).toBeVisible();
   expect(screen.getByRole("link", { name: "Calibration" })).toHaveAttribute(
     "href",

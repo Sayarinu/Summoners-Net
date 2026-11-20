@@ -25,6 +25,8 @@ export interface StatePanelProps {
   readonly action?: ReactNode;
   readonly children: ReactNode;
   readonly compact?: boolean;
+  /** Drops the surface so the state can sit inside a `Panel` without a second border. */
+  readonly inset?: boolean;
   readonly title: string;
   readonly tone?: "danger" | "neutral" | "warning";
 }
@@ -33,6 +35,7 @@ export function StatePanel({
   action,
   children,
   compact = false,
+  inset = false,
   title,
   tone = "neutral",
 }: StatePanelProps) {
@@ -42,6 +45,7 @@ export function StatePanel({
         "np-state-panel",
         `np-state-panel--${tone}`,
         compact && "np-state-panel--compact",
+        inset && "np-state-panel--inset",
       )}
     >
       <div className="np-state-panel__body">
@@ -56,14 +60,17 @@ export function StatePanel({
 export function EmptyState({
   action,
   description,
+  inset = false,
   title = "Nothing Here Yet",
 }: {
   readonly action?: ReactNode;
   readonly description?: ReactNode;
+  /** Set inside a `Panel`, which already provides the surface. */
+  readonly inset?: boolean;
   readonly title?: string;
 }) {
   return (
-    <StatePanel action={action} title={title}>
+    <StatePanel action={action} inset={inset} title={title}>
       {description}
     </StatePanel>
   );

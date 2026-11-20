@@ -97,5 +97,5 @@ it("shows two patches side by side with samples and paging", () => {
   expect(screen.getByRole("table")).toHaveTextContent("Not stored (0)");
   close();
   render(<PatchComparePage comparison={{ query, a: null, b: other }} error={null} />);
-  expect(screen.getByText("No statistics for patch 16.22")).toBeVisible();
+  expect(screen.getByText("No Statistics for Patch 16.22")).toBeVisible();
 });

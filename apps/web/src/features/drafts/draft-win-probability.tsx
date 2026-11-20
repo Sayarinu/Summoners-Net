@@ -35,7 +35,7 @@ export function DraftWinProbabilitySection({
         <div className="flex flex-col gap-4">
           <StatGroup label="Draft Win Probability by Side">
             <Stat
-              label={`${side === "blue" ? "Blue" : "Red"} side`}
+              label={`${side === "blue" ? "Blue" : "Red"} Side`}
               value={
                 <span className={side === "blue" ? "text-side-blue" : "text-side-red"}>
                   {percent(ours)}
@@ -43,7 +43,7 @@ export function DraftWinProbabilitySection({
               }
             />
             <Stat
-              label={`${side === "blue" ? "Red" : "Blue"} side`}
+              label={`${side === "blue" ? "Red" : "Blue"} Side`}
               value={
                 <span className={side === "blue" ? "text-side-red" : "text-side-blue"}>
                   {percent(ours === null ? null : 1 - ours)}
@@ -54,7 +54,7 @@ export function DraftWinProbabilitySection({
               <Stat
                 key={k}
                 size="sm"
-                label={`${kinds[k]} coverage`}
+                label={`${kinds[k]} Coverage`}
                 value={`${v.coverage[k].known} of ${v.coverage[k].total}`}
               />
             ))}

@@ -28,6 +28,19 @@ describe("feedback and data display", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("drops the surface from an inset empty state for use inside a panel", () => {
+    const { container } = render(
+      <div>
+        <EmptyState title="Standalone" />
+        <EmptyState inset title="In a Panel" />
+      </div>,
+    );
+    const [standalone, inset] = container.querySelectorAll(".np-state-panel");
+    expect(standalone).not.toHaveClass("np-state-panel--inset");
+    expect(inset).toHaveClass("np-state-panel--inset");
+    expect(screen.getByRole("heading", { name: "In a Panel" })).toBeVisible();
+  });
+
   it("renders populated, loading, and empty table states", () => {
     const columns = [
       { header: "Name", id: "name", render: (row: { name: string; value: number }) => row.name },

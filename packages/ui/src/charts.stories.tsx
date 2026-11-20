@@ -47,3 +47,26 @@ type Story = StoryObj<typeof meta>;
 export const Populated: Story = {};
 export const Empty: Story = { args: { state: "empty" } };
 export const Sparse: Story = { args: { state: "sparse" } };
+
+function HeatGridShapes() {
+  const cell = (row: string, column: string, value: number) => ({
+    id: `${row}:${column}`,
+    row,
+    column,
+    value,
+    sampleCount: 12,
+  });
+  return (
+    <main className="np-stack">
+      <HeatGrid title="Single cell" cells={[cell("Mid", "Ahri", 0.54)]} color={5} />
+      <HeatGrid
+        title="Single row"
+        cells={["Ahri", "Orianna", "Syndra", "Azir"].map((c, i) => cell("Mid", c, 0.45 + i * 0.03))}
+        color={5}
+      />
+    </main>
+  );
+}
+
+/** One cell or one row keeps square cells instead of stretching across the chart. */
+export const SmallGrids: StoryObj<typeof HeatGridShapes> = { render: () => <HeatGridShapes /> };
