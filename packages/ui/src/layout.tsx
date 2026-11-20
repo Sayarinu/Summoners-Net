@@ -63,9 +63,13 @@ export function Panel({
 }: PanelProps) {
   const headingId = useId();
   const Heading = `h${headingLevel}` as const;
+  // A text title names the panel directly; Firefox can crash resolving many aria-labelledby
+  // references during accessibility audits, so the reference is kept for rich titles only.
+  const textTitle = typeof title === "string" ? title : undefined;
   return (
     <section
-      aria-labelledby={title && !props["aria-label"] ? headingId : undefined}
+      aria-label={textTitle}
+      aria-labelledby={title && !textTitle && !props["aria-label"] ? headingId : undefined}
       {...props}
       className={cx("np-panel", padding === "none" && "np-panel--flush", className)}
       data-side={side}
@@ -73,7 +77,7 @@ export function Panel({
       {title || actions ? (
         <div className="np-panel__header">
           {title ? (
-            <Heading className="np-panel__title" id={headingId}>
+            <Heading className="np-panel__title" id={textTitle ? undefined : headingId}>
               {title}
             </Heading>
           ) : null}
