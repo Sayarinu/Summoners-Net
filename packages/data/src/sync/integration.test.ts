@@ -4426,6 +4426,28 @@ describe("durable synchronization and request budgeting", () => {
     const blocked = await run({ kind: "history", year: 2026 });
     expect(blocked.state).toBe("queued");
     expect(blocked.state === "queued" && blocked.error).toContain("quota");
+    // The quota lasts hours: the year waits six hours without using up its attempts.
+    const retryAt = new Date(instant.valueOf() + 6 * 3_600_000);
+    expect(
+      (
+        await pool.query<{ available_at: Date; attempts: number }>(
+          "SELECT available_at,attempts FROM sync_jobs WHERE request->>'kind'='history'",
+        )
+      ).rows,
+    ).toEqual([{ available_at: retryAt, attempts: 0 }]);
+    const years = (await queries.status()).archives;
+    expect(years.map((y) => y.year)).toEqual(
+      Array.from({ length: 2026 - 2014 + 1 }, (_, i) => 2014 + i),
+    );
+    expect(years.find((y) => y.year === 2026)).toEqual({
+      year: 2026,
+      state: "blocked",
+      games: 0,
+      latestGameAt: null,
+      retryAt: retryAt.toISOString(),
+      error: expect.stringContaining(`retried after ${retryAt.toISOString()}`) as string,
+    });
+    expect(years.find((y) => y.year === 2019)).toMatchObject({ state: "missing", error: null });
 
     const keyed = createSync(connection, {
       clock: () => instant,
@@ -4438,8 +4460,13 @@ describe("durable synchronization and request budgeting", () => {
       fetcher.mockResolvedValueOnce(
         new Response(historyCsv(), { headers: { "content-type": "text/csv" } }),
       );
-      instant = new Date(now.valueOf() + 3600000);
+      instant = retryAt;
       expect((await keyed.runNext()).state).toBe("done");
+      expect((await queries.status()).archives.find((y) => y.year === 2026)).toMatchObject({
+        state: "imported",
+        games: 1,
+        retryAt: null,
+      });
       const api = new URL(endpoint(fetcher.mock.calls[0]?.[0]));
       expect(`${api.origin}${api.pathname}`).toBe(
         `https://www.googleapis.com/drive/v3/files/${archiveFileId(2026)}`,

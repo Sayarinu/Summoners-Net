@@ -156,6 +156,8 @@ export interface WorkerOptions {
   /** The shared Leaguepedia request budget; defaults to {@link leaguepediaBudget}. */
   leaguepediaBudget?: LeaguepediaBudget;
 }
+/** How long a year whose Drive download hit the quota waits before the next attempt. */
+export const archiveQuotaWaitMs = 6 * 3_600_000;
 /** Identifies the worker to the wiki, as its API etiquette asks of automated clients. */
 const wikiUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game detail sync)";
 const vodUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game VOD sync)";
@@ -295,11 +297,15 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (name && value) fields.set(name, value);
     }
     const uuid = fields.get("uuid");
-    if (/<title>[^<]*Quota exceeded/i.test(html))
-      throw new ProviderError(
-        "Archive download quota exceeded; the official download will be retried later.",
-        true,
+    // Drive's download quota lasts hours, not minutes: wait it out without using up the job's
+    // attempts, so a blocked year keeps retrying until the file can be downloaded.
+    if (/<title>[^<]*Quota exceeded/i.test(html)) {
+      const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
+      throw new DeferredRequest(
+        until,
+        `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
       );
+    }
     if (
       !html.includes("Google Drive - Virus scan warning") ||
       form?.[1] !== "https://drive.usercontent.google.com/download" ||
@@ -861,7 +867,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;
       } catch (error) {
-        if (error instanceof ProviderError) throw error;
+        if (error instanceof ProviderError || error instanceof DeferredRequest) throw error;
         throw new ProviderError(
           error instanceof Error ? error.message : "Historical import failed validation.",
         );
