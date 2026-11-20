@@ -57,9 +57,19 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
       <PageHeader
         eyebrow={`Solo Queue · ${subjectLabels[h.subjectKind]}${h.patch ? ` · Patch ${h.patch}` : ""}`}
         title={
-          <span className="inline-flex items-center gap-1">
-            {h.subjectKind === "role" ? <RoleIcon role={h.subject} /> : name}: {kind}
-          </span>
+          h.subjectKind === "role" ? (
+            // The icon shows the role; screen readers hear the heading as "Jungle: kills".
+            <>
+              <span className="np-visually-hidden">
+                {name}: {kind}
+              </span>
+              <span aria-hidden="true">
+                <RoleIcon role={h.subject} />: {kind}
+              </span>
+            </>
+          ) : (
+            `${name}: ${kind}`
+          )
         }
       />
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-line py-3">
