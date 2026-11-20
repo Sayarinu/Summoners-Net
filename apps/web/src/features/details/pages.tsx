@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Avatar, Breadcrumb, Button, TextLink } from "@summonersnet/ui";
+import { Avatar, Breadcrumb, Button, PageHeader, SideName, TextLink } from "@summonersnet/ui";
 import type { Game, HistoricalGameDetail, ProGameWinProbability } from "@summonersnet/data";
 import { type ChampionPortraits } from "../browse/visuals";
 import { identityHref, gameTeams, seriesGameHref, seriesHref } from "../browse/presentation";
@@ -9,6 +9,7 @@ import type { ProItemIcons } from "./player-build";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
 import { GameDistributions } from "./game-distributions";
+import { TitleFacts, TitleTeam, detailHeaderClass, detailPageClass, titlePart } from "./title";
 export { MatchPage, SeriesGamePage } from "./series";
 export function GamePage({
   game,
@@ -38,7 +39,7 @@ export function GamePage({
   const [hidden, setHidden] = useState(hideSpoilers);
   const teams = gameTeams(game);
   return (
-    <div className="np-stack ev-series-page ev-series-page--wide">
+    <div className={detailPageClass}>
       <Breadcrumb
         items={[
           { label: "Past Matches", href: "/history?view=games" },
@@ -49,60 +50,58 @@ export function GamePage({
           { label: `Game ${game.number}` },
         ]}
       />
-      <header className="ev-title">
-        <div>
-          <div className="np-cluster ev-series-title__facts">
-            <span className="np-overline">
-              {[game.event, round].filter(Boolean).join(" · ")} ·{" "}
-              <time dateTime={game.occurredAt}>
-                {new Intl.DateTimeFormat("en-US", {
-                  dateStyle: "medium",
-                  timeZone: timezone,
-                }).format(new Date(game.occurredAt))}
-              </time>{" "}
-              · Game {game.number}
-              {game.patch ? ` · Patch ${game.patch}` : ""}
+      <PageHeader
+        className={detailHeaderClass}
+        eyebrow={
+          <TitleFacts
+            label={game.complete ? null : <span className="np-meta">Partial Record</span>}
+          >
+            {[game.event, round].filter(Boolean).join(" · ")} ·{" "}
+            <time dateTime={game.occurredAt}>
+              {new Intl.DateTimeFormat("en-US", {
+                dateStyle: "medium",
+                timeZone: timezone,
+              }).format(new Date(game.occurredAt))}
+            </time>{" "}
+            · Game {game.number}
+            {game.patch ? ` · Patch ${game.patch}` : ""}
+          </TitleFacts>
+        }
+        title={teams.map((team, index) => {
+          const logo = team.imageUrl ? (
+            <Avatar
+              alt=""
+              aria-hidden="true"
+              entityKind="team"
+              fallback={team.name}
+              size="small"
+              src={team.imageUrl}
+            />
+          ) : null;
+          const name = <SideName side={team.side}>{team.name}</SideName>;
+          return (
+            <span className={titlePart} key={team.id}>
+              {index ? " vs " : null}
+              <TitleTeam href={identityHref(team)}>
+                {index ? logo : name}
+                {index ? name : logo}
+              </TitleTeam>
             </span>
-            {game.complete ? null : <span className="np-meta">Partial Record</span>}
-          </div>
-          <h1>
-            {teams.map((team, index) => {
-              const logo = team.imageUrl ? (
-                <Avatar
-                  alt=""
-                  aria-hidden="true"
-                  entityKind="team"
-                  fallback={team.name}
-                  size="small"
-                  src={team.imageUrl}
-                />
-              ) : null;
-              const name = (
-                <span className="ev-side-name" data-side={team.side} title={`${team.side} side`}>
-                  {team.name}
-                </span>
-              );
-              return (
-                <span key={team.id}>
-                  {index ? " vs " : null}
-                  <span className="ev-series-title__team">
-                    <a className="ev-series-title__identity" href={identityHref(team)}>
-                      {index ? logo : name}
-                      {index ? name : logo}
-                    </a>
-                  </span>
-                </span>
-              );
-            })}
-          </h1>
-        </div>
-        {vodUrl ? (
-          <TextLink href={vodUrl} target="_blank" rel="noreferrer">
-            Watch Game VOD
-          </TextLink>
-        ) : null}
-      </header>
-      {hidden ? <Button onPress={() => setHidden(false)}>Reveal Game Statistics</Button> : null}
+          );
+        })}
+        actions={
+          vodUrl ? (
+            <TextLink className="whitespace-nowrap" href={vodUrl} target="_blank" rel="noreferrer">
+              Watch Game VOD
+            </TextLink>
+          ) : null
+        }
+      />
+      {hidden ? (
+        <Button className="self-start" onPress={() => setHidden(false)}>
+          Reveal Game Statistics
+        </Button>
+      ) : null}
       {!hidden && detail ? <DraftPanel detail={detail} portraits={portraits} /> : null}
       <LineupTable
         game={game}

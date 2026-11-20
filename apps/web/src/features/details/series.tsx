@@ -1,12 +1,16 @@
 "use client";
-import Link from "next/link";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Avatar,
   Breadcrumb,
   Button,
+  DisclosurePanel,
   EmptyState,
   MatchLifecycleLabel,
+  PageHeader,
+  Panel,
+  SideName,
+  TabNav,
   Table,
   TeamIdentity,
   TextLink,
@@ -31,12 +35,22 @@ import {
 } from "../browse/presentation";
 import { useSpoilerPreference } from "../browse/match-group";
 import { WatchPlayer, watchableBroadcasts } from "../watch/player";
-import { Disclosure } from "./disclosure";
 import { DraftPanel, type FearlessPick } from "./draft";
 import type { ProItemIcons } from "./player-build";
 import { LineupTable } from "./lineup";
 import { ProTimeline } from "./pro-win-probability";
 import { GameDistributions } from "./game-distributions";
+import {
+  TitleFacts,
+  TitleTeam,
+  detailHeaderClass,
+  detailPageClass,
+  outcomeClass,
+  titlePart,
+} from "./title";
+
+const gameCardBody = "grid h-full gap-1 px-3 py-2 text-inherit no-underline";
+const replayClass = "mx-3 mb-2 justify-self-start";
 
 /** A game counts as played once the provider reports it finished or under way. */
 const played = (game: SeriesGame) => game.state === "finished" || game.state === "running";
@@ -107,9 +121,9 @@ function SeriesShell({
       : 0;
   const [firstColor, secondColor] =
     margin > 0
-      ? ["ev-outcome--win", "ev-outcome--loss"]
+      ? [outcomeClass.win, outcomeClass.loss]
       : margin < 0
-        ? ["ev-outcome--loss", "ev-outcome--win"]
+        ? [outcomeClass.loss, outcomeClass.win]
         : [];
   const round = seriesRound(match);
   const event = round
@@ -133,7 +147,8 @@ function SeriesShell({
       ? { label: "Past Matches", href: "/history" }
       : { label: "Matches", href: "/" };
   return (
-    <div className="np-stack ev-series-page ev-series-page--wide ev-series-shell">
+    // The shell stays put between tabs; only the content below the tabs fades in.
+    <div className={`${detailPageClass} animate-none!`}>
       <Breadcrumb
         items={
           overview
@@ -141,120 +156,94 @@ function SeriesShell({
             : [parent, { label: title, href: seriesHref(match) }, { label: `Game ${current}` }]
         }
       />
-      <header className="ev-title">
-        <div>
-          <div className="np-cluster ev-series-title__facts">
-            <span className="np-overline">
-              {event}
-              {date ? <> · {date}</> : null} · Best of {match.bestOf}
-            </span>
-            {overview && match.state !== "final" ? (
-              <MatchLifecycleLabel lifecycle={match.state} />
-            ) : null}
-          </div>
-          <h1>
-            {match.teams.length > 0
-              ? display.teams.map((team, index) => {
-                  const identity = match.teams[index];
-                  const side = identity && sides?.get(identity.entityId ?? identity.id);
-                  const name = (
-                    <span
-                      className="ev-side-name"
-                      data-side={side}
-                      title={side ? `${side} side` : undefined}
+      <PageHeader
+        className={detailHeaderClass}
+        eyebrow={
+          <TitleFacts
+            label={
+              overview && match.state !== "final" ? (
+                <MatchLifecycleLabel lifecycle={match.state} />
+              ) : null
+            }
+          >
+            {event}
+            {date ? <> · {date}</> : null} · Best of {match.bestOf}
+          </TitleFacts>
+        }
+        title={
+          match.teams.length > 0
+            ? display.teams.map((team, index) => {
+                const identity = match.teams[index];
+                const side = identity && sides?.get(identity.entityId ?? identity.id);
+                const name = <SideName side={side}>{team.name}</SideName>;
+                const logo = team.logo ? (
+                  <Avatar
+                    alt=""
+                    aria-hidden="true"
+                    entityKind="team"
+                    fallback={team.shortName}
+                    size="small"
+                    src={team.logo}
+                  />
+                ) : null;
+                const score = showScore ? (
+                  <span
+                    className={`font-mono tabular-nums ${(index ? secondColor : firstColor) ?? ""}`}
+                  >
+                    {index ? null : " "}
+                    {scores[index] ?? "—"}
+                    {index ? " " : null}
+                  </span>
+                ) : null;
+                return (
+                  <span className={titlePart} key={index}>
+                    {index ? " vs " : null}
+                    <TitleTeam
+                      href={identity && team.name !== "TBD" ? identityHref(identity) : undefined}
+                      before={index ? score : null}
+                      after={index ? null : score}
                     >
-                      {team.name}
-                    </span>
-                  );
-                  const logo = team.logo ? (
-                    <Avatar
-                      alt=""
-                      aria-hidden="true"
-                      entityKind="team"
-                      fallback={team.shortName}
-                      size="small"
-                      src={team.logo}
-                    />
-                  ) : null;
-                  const score = showScore ? (
-                    <span
-                      className={`ev-series-title__score ${(index ? secondColor : firstColor) ?? ""}`}
-                    >
-                      {index ? null : " "}
-                      {scores[index] ?? "—"}
-                      {index ? " " : null}
-                    </span>
-                  ) : null;
-                  const identityContent = (
-                    <>
                       {index ? logo : name}
                       {index ? name : logo}
-                    </>
-                  );
-                  return (
-                    <span key={index}>
-                      {index ? " vs " : null}
-                      <span className="ev-series-title__team">
-                        {index ? score : null}
-                        {identity && team.name !== "TBD" ? (
-                          <a className="ev-series-title__identity" href={identityHref(identity)}>
-                            {identityContent}
-                          </a>
-                        ) : (
-                          identityContent
-                        )}
-                        {index ? null : score}
-                      </span>
-                    </span>
-                  );
-                })
-              : title}
-          </h1>
-        </div>
-        {overview && hidden && match.state === "final" ? (
-          <Button
-            variant="secondary"
-            aria-label={`Reveal score for ${first.name} versus ${second.name}`}
-            onPress={onReveal}
-          >
-            Reveal Score
-          </Button>
-        ) : vodUrl ? (
-          <TextLink href={vodUrl} target="_blank" rel="noreferrer">
-            Watch Game VOD
-          </TextLink>
-        ) : null}
-      </header>
-      <nav aria-label="Series" className="ev-tabs ev-series-tabs">
-        <Link
-          className="ev-tab"
-          href={seriesHref(match)}
-          prefetch={false}
-          scroll={false}
-          aria-current={current === "overview" ? "page" : undefined}
-        >
-          Overview
-        </Link>
-        {games.map((game) =>
-          played(game) ? (
-            <Link
-              key={game.number}
-              className="ev-tab"
-              href={seriesGameHref(match, game.number)}
-              prefetch={false}
-              scroll={false}
-              aria-current={current === game.number ? "page" : undefined}
+                    </TitleTeam>
+                  </span>
+                );
+              })
+            : title
+        }
+        actions={
+          overview && hidden && match.state === "final" ? (
+            <Button
+              variant="secondary"
+              aria-label={`Reveal score for ${first.name} versus ${second.name}`}
+              onPress={onReveal}
             >
-              Game {game.number}
-            </Link>
-          ) : (
-            <span key={game.number} className="ev-tab" aria-disabled="true">
-              Game {game.number}
-            </span>
-          ),
-        )}
-      </nav>
-      <div className="np-stack ev-series-content" key={current}>
+              Reveal Score
+            </Button>
+          ) : vodUrl ? (
+            <TextLink className="whitespace-nowrap" href={vodUrl} target="_blank" rel="noreferrer">
+              Watch Game VOD
+            </TextLink>
+          ) : null
+        }
+      />
+      <TabNav
+        className="@max-[25rem]:[&>*]:px-2"
+        label="Series"
+        items={[
+          { href: seriesHref(match), label: "Overview", current: current === "overview" },
+          ...games.map((game) => ({
+            href: seriesGameHref(match, game.number),
+            label: `Game ${game.number}`,
+            current: current === game.number,
+            disabled: !played(game),
+          })),
+        ]}
+      />
+      <div
+        className="flex min-w-0 flex-col gap-4 motion-safe:transition-opacity motion-safe:duration-(--motion-duration-fast) motion-safe:ease-(--motion-easing-enter) motion-safe:starting:opacity-80"
+        key={current}
+      >
         {children}
       </div>
     </div>
@@ -276,8 +265,8 @@ function SeriesReplay({ broadcasts }: { broadcasts: Broadcast[] }) {
   );
   const player = <WatchPlayer broadcasts={broadcasts} mode="replay" compact />;
   return (
-    <aside className="ev-series-replay">
-      {wide ? player : <Disclosure title="Replay">{player}</Disclosure>}
+    <aside className="mx-auto w-[min(100%,67.5rem)] min-w-0">
+      {wide ? player : <DisclosurePanel title="Replay">{player}</DisclosurePanel>}
     </aside>
   );
 }
@@ -333,7 +322,7 @@ function SeriesSummary({
   const teamColumns = match.teams.map((team, index) => ({
     id: team.id,
     header: (
-      <span className="ev-series-summary__team">
+      <span className="inline-flex items-center gap-2 font-sans text-sm font-medium tracking-normal text-fg normal-case">
         {index ? <TeamLogo team={team} /> : null}
         {team.name}
         {index ? null : <TeamLogo team={team} />}
@@ -346,8 +335,17 @@ function SeriesSummary({
         ?.teams.find((item) => item.id === (team.entityId ?? team.id));
       const winner = game.winnerId === team.id;
       return (
-        <span className="ev-series-summary__score" data-side={entry?.side}>
-          <span className={winner ? "ev-outcome--win" : undefined}>
+        <span
+          className={
+            entry?.side
+              ? index
+                ? "border-s-2 border-[color:var(--np-team-side)] ps-2"
+                : "border-e-2 border-[color:var(--np-team-side)] pe-2"
+              : undefined
+          }
+          data-side={entry?.side}
+        >
+          <span className={winner ? outcomeClass.win : undefined}>
             {entry?.kills == null ? (winner ? "Winner" : "—") : `${entry.kills} kills`}
           </span>
           {winner && entry?.kills != null ? (
@@ -358,9 +356,9 @@ function SeriesSummary({
     },
   }));
   return (
-    <section className="ev-series-summary" aria-labelledby="series-summary-heading">
-      <h2 id="series-summary-heading">Series Summary</h2>
+    <Panel className="min-w-0" title="Series Summary" padding="none">
       <Table
+        className="border-t-0 [&_table]:min-w-0 [&_th]:whitespace-normal [&_th]:wrap-anywhere"
         caption="Series Games at a Glance"
         compact
         rows={finished}
@@ -375,7 +373,7 @@ function SeriesSummary({
             render: (game) => {
               const duration = length(byNumber.get(game.number)?.durationSeconds ?? null);
               return (
-                <span className="ev-series-summary__game">
+                <span className="grid justify-items-center gap-1">
                   <TextLink href={seriesGameHref(match, game.number)}>Game {game.number}</TextLink>
                   {duration !== null ? <span className="np-meta">{duration}</span> : null}
                 </span>
@@ -385,7 +383,7 @@ function SeriesSummary({
           ...teamColumns.slice(1),
         ]}
       />
-    </section>
+    </Panel>
   );
 }
 
@@ -427,15 +425,15 @@ export function MatchPage({
       onReveal={() => setRevealed(true)}
     >
       {match.state === "live" && broadcasts.length ? (
-        <div className="ev-compact-player">
+        <div className="w-full max-w-[560px]">
           <WatchPlayer broadcasts={broadcasts} />
         </div>
       ) : null}
-      <div className="ev-series-overview">
+      <div className="grid items-start gap-4">
         {games.length > 0 ? (
-          <section className="np-stack ev-series-overview__games">
-            <h2>Games</h2>
-            <ol className="ev-series-games">
+          <section className="flex flex-col gap-2">
+            <h2 className="text-lg font-medium">Games</h2>
+            <ol className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-2 p-0">
               {games.map((game) => {
                 const vodUrl = gameReplayUrl(match, game);
                 const summary = byNumber.get(game.number);
@@ -447,26 +445,32 @@ export function MatchPage({
                   game.state === "finished" ? (summary?.startsAt ?? game.startsAt) : null;
                 const body = (
                   <>
-                    <span className="ev-series-game__number">Game {game.number}</span>
+                    <span className="text-sm font-semibold">Game {game.number}</span>
                     <Winner match={match} game={game} hidden={hidden} />
                     {duration !== null ? <span className="np-meta">{duration}</span> : null}
                   </>
                 );
                 return (
-                  <li key={game.number} className="ev-series-game">
+                  <li
+                    key={game.number}
+                    className="grid rounded-md border border-line bg-raised focus-within:border-line-accent hover:border-line-accent"
+                  >
                     {played(game) ? (
                       <a
+                        className={gameCardBody}
                         href={seriesGameHref(match, game.number)}
                         aria-label={`Open Game ${game.number}`}
                       >
                         {body}
                       </a>
                     ) : (
-                      <div aria-disabled="true">{body}</div>
+                      <div className={`${gameCardBody} text-fg-muted`} aria-disabled="true">
+                        {body}
+                      </div>
                     )}
                     {vodUrl ? (
                       <TextLink
-                        className="ev-series-game__replay"
+                        className={replayClass}
                         href={vodUrl}
                         target="_blank"
                         rel="noreferrer"
@@ -475,7 +479,7 @@ export function MatchPage({
                         Watch Game VOD
                       </TextLink>
                     ) : startedAt ? (
-                      <span className="ev-series-game__replay np-meta">
+                      <span className={`${replayClass} np-meta`}>
                         Started{" "}
                         <time dateTime={startedAt}>{clock.format(new Date(startedAt))}</time>
                       </span>
@@ -489,7 +493,9 @@ export function MatchPage({
           <EmptyState title="No Games Reported Yet" />
         )}
         {hasReplay || hasSummary ? (
-          <div className="ev-series-media">
+          <div
+            className={`grid items-start gap-4 ${hasReplay && hasSummary ? "@min-[70rem]:grid-cols-[minmax(0,67.5rem)_minmax(26rem,1fr)]" : ""}`}
+          >
             {hasReplay ? <SeriesReplay broadcasts={broadcasts} /> : null}
             {hasSummary ? (
               <SeriesSummary match={match} games={games} summaries={summaries} />
@@ -552,7 +558,9 @@ export function SeriesGamePage({
       {game ? (
         <>
           {hidden ? (
-            <Button onPress={() => setRevealed(true)}>Reveal Game Statistics</Button>
+            <Button className="self-start" onPress={() => setRevealed(true)}>
+              Reveal Game Statistics
+            </Button>
           ) : null}
           {detail && !hidden ? (
             <DraftPanel detail={detail} portraits={portraits} fearless={fearless} />

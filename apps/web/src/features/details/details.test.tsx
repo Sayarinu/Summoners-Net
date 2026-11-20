@@ -29,7 +29,7 @@ it("keeps a finished replay collapsed and unloads it on close", async () => {
     "href",
     "/matches/1/games/1",
   );
-  const replay = screen.getByText("Replay", { selector: "summary" });
+  const replay = screen.getByText("Replay").closest("summary")!;
   expect(screen.queryByTitle("Match Broadcast")).toBeNull();
   fireEvent.click(replay);
   expect(await screen.findByTitle("Match Broadcast")).toHaveAttribute(
@@ -491,7 +491,7 @@ it("shows the draft by side, team totals and the score through the selected game
   ).toHaveAttribute("href", vodUrl);
   const heading = screen.getByRole("heading", { level: 1 });
   expect(heading).toHaveTextContent("Acceptance Blue vs Acceptance Red");
-  expect(heading.parentElement?.querySelector("time")).toHaveTextContent("Mar 1, 2026");
+  expect(heading.closest("header")?.querySelector("time")).toHaveTextContent("Mar 1, 2026");
   expect(within(tabs).queryByText("Mar 1, 2026")).toBeNull();
   expect(screen.queryByText("Draft Order")).toBeNull();
   expect(screen.queryByText("56,005")).toBeNull();
@@ -503,7 +503,7 @@ it("shows the draft by side, team totals and the score through the selected game
   expect(within(draft).getByText("Second Pick").parentElement).toHaveTextContent("Blue Side");
   const bans = await screen.findByRole("list", { name: "Red Side First Phase Bans" });
   expect(within(bans).getByRole("img", { name: "Azir" })).toBeVisible();
-  expect(bans.querySelector(".ev-draft-slot")).toBeNull();
+  expect(bans).not.toHaveTextContent(/\d/);
   expect(
     within(screen.getByRole("list", { name: "Blue Side First Phase Picks" })).getByRole("img", {
       name: "Ahri",
@@ -670,7 +670,7 @@ it("shows the draft by side, team totals and the score through the selected game
     within(mid).getByRole("img", { name: "Ahri" }),
   ]);
   expect(within(fearless).getByRole("img", { name: /^Mid$/ })).toBeVisible();
-  expect(fearless.querySelector("[data-action], .ev-draft-portrait")).toBeNull();
+  expect(fearless.querySelector("[data-action]")).toBeNull();
 });
 
 it("links an archive game back to its confirmed series", () => {
@@ -691,7 +691,7 @@ it("links an archive game back to its confirmed series", () => {
     "href",
     "/matches/1",
   );
-  expect(screen.getByText(/· Game 1/, { selector: ".np-overline" })).toHaveTextContent(
+  expect(screen.getByText(/· Game 1/)).toHaveTextContent(
     new RegExp(
       `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(game.occurredAt))}`,
     ),
@@ -783,18 +783,20 @@ it("shows a player's final items and reveals their recorded purchases by minute"
     "red",
   );
   // Hovering an event marks its time on every chart with a dashed line.
-  const eventLine = () => gold.querySelector(".ev-probability__event");
-  expect(eventLine()).not.toHaveAttribute("data-active");
+  // Only the hovered event's dashed line is marked active; no sample sits near 6:42.
+  const eventLine = () => gold.querySelector("svg [data-active]");
+  expect(eventLine()).toBeNull();
   fireEvent.pointerEnter(events.getByText("6:42").closest("li")!);
-  expect(eventLine()).toHaveAttribute("data-active");
+  expect(eventLine()?.tagName).toBe("line");
   fireEvent.pointerLeave(events.getByText("6:42").closest("li")!);
-  expect(eventLine()).not.toHaveAttribute("data-active");
+  expect(eventLine()).toBeNull();
   // Pointing at the plot reads out the nearest recorded minute.
-  const plot = gold.querySelector<HTMLElement>(".ev-probability__plot")!;
+  const plot = gold.querySelector("svg")!.parentElement!;
   plot.getBoundingClientRect = () => ({ left: 0, width: 600 }) as DOMRect;
   fireEvent.pointerMove(plot, { clientX: 16 + (120 / 1865) * 568 });
-  const readout = gold.querySelector(".ev-probability__readout");
-  expect(readout).toHaveTextContent("2:00+120 GoldAcceptance Red");
+  expect(within(gold).getByText("+120 Gold").parentElement).toHaveTextContent(
+    "2:00+120 GoldAcceptance Red",
+  );
   fireEvent.pointerLeave(plot);
-  expect(gold.querySelector(".ev-probability__readout")).toBeNull();
+  expect(within(gold).queryByText("+120 Gold")).toBeNull();
 });

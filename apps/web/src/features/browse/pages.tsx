@@ -1,5 +1,12 @@
 "use client";
-import { ChampionIcon, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
+import {
+  ChampionIcon,
+  EmptyState,
+  PageHeader,
+  SearchResult,
+  TabNav,
+  TextLink,
+} from "@summonersnet/ui";
 import type { BrowseQuery, Match, Game, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
 import { searchHitHref } from "./presentation";
@@ -29,13 +36,9 @@ export function MatchesPage({
   const rows = useMatchRows(hideSpoilers);
   const timezone = query.timezone ?? "UTC";
   return (
-    <div className="ev-matches-page np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Matches</h1>
-        </div>
-      </header>
-      <Filters query={query} />
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Matches" />
+      <Filters query={query} className="border-y border-line py-4" />
       {matchSections.map((section) => {
         const sectionItems = data.items.filter((match) =>
           (section.states as readonly string[]).includes(match.state),
@@ -109,26 +112,20 @@ export function PastMatchesPage({
   const rows = useMatchRows(hideSpoilers);
   const timezone = query.timezone ?? "UTC";
   return (
-    <div className="ev-matches-page np-stack">
-      <header className="ev-title">
-        <div>
-          <h1>Past Matches</h1>
-        </div>
-      </header>
-      <div className="ev-browse-toolbar">
-        <nav aria-label="Past Matches View" className="ev-tabs ev-tabs--segmented ev-view-switch">
-          {(["series", "games"] as const).map((option) => (
-            <a
-              key={option}
-              className="ev-tab"
-              href={viewHref(query, option)}
-              aria-current={view === option ? "page" : undefined}
-            >
-              {option === "series" ? "Series" : "Games"}
-            </a>
-          ))}
-        </nav>
-        <Filters query={query} history view={view} />
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Past Matches" />
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-y border-line py-3">
+        <TabNav
+          label="Past Matches View"
+          variant="segmented"
+          className="self-end"
+          items={(["series", "games"] as const).map((option) => ({
+            href: viewHref(query, option),
+            label: option === "series" ? "Series" : "Games",
+            current: view === option,
+          }))}
+        />
+        <Filters query={query} history view={view} className="flex-[1_1_440px]" />
       </div>
       {view === "series" && series ? (
         <>

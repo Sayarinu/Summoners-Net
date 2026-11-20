@@ -1,6 +1,6 @@
 "use client";
-import { useId, useState, type CSSProperties, type PointerEvent } from "react";
-import { Avatar, DrakeIcon, ObjectiveIcon, type Objective } from "@summonersnet/ui";
+import { useId, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Avatar, DrakeIcon, ObjectiveIcon, Panel, type Objective } from "@summonersnet/ui";
 import type {
   Game,
   HistoricalGameDetail,
@@ -86,6 +86,29 @@ function eventMarkers(events: TimelineEvent[], end: number) {
     rowEnds[row] = fraction + span / 2;
     return { ...marker, row };
   });
+}
+
+const sideText = "text-[color:var(--np-team-side,var(--color-text-muted))]";
+/** An event chip, tinted by the side that took it and highlighted while its time is hovered. */
+const eventChip = [
+  "rounded-sm border border-line",
+  "data-side:border-[color-mix(in_srgb,var(--np-team-side)_55%,transparent)] data-side:bg-[color-mix(in_srgb,var(--np-team-side)_18%,var(--color-bg-raised))]",
+  "data-active:border-[color:var(--np-team-side,var(--color-border-strong))] data-active:bg-[color-mix(in_srgb,var(--np-team-side,transparent)_30%,var(--color-bg-raised))]",
+  // Repeated for chips with a side, so the active tint outranks the side tint.
+  "data-side:data-active:border-[color:var(--np-team-side)] data-side:data-active:bg-[color-mix(in_srgb,var(--np-team-side)_30%,var(--color-bg-raised))]",
+].join(" ");
+const scaling = "[vector-effect:non-scaling-stroke]";
+
+/** One labelled row of the timeline: a vertical label beside its content. */
+function TimelineRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-2">
+      <span className="rotate-180 self-center justify-self-center text-xs text-accent [writing-mode:vertical-rl]">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
 }
 
 function plotX(seconds: number, end: number) {
@@ -236,15 +259,18 @@ export function ProTimeline({
   const magnitude = 10 ** Math.floor(Math.log10(peakGold));
   const goldLimit = Math.ceil(peakGold / magnitude) * magnitude;
   return (
-    <section className="ev-disclosure ev-timeline" aria-label="Timeline">
-      <h2 className="ev-timeline__heading">Timeline</h2>
-      <div className="ev-disclosure__body">
+    <Panel aria-label="Timeline" title="Timeline">
+      <div className="grid gap-3">
         {events.length ? (
-          <div className="ev-timeline-row">
-            <span className="ev-timeline-row__label">Events</span>
-            <ol className="ev-timeline-events" aria-label="Game Events" role="list">
+          <TimelineRow label="Events">
+            <ol
+              className="flex list-none flex-wrap items-center gap-1"
+              aria-label="Game Events"
+              role="list"
+            >
               {events.map(({ label, seconds, side, drake }, index) => (
                 <li
+                  className={`${eventChip} flex items-center gap-1 px-2 py-1 text-sm text-[color:var(--np-team-side,var(--color-text-primary))]`}
                   key={index}
                   data-side={side ?? undefined}
                   data-active={hover === seconds || undefined}
@@ -259,11 +285,10 @@ export function ProTimeline({
                 </li>
               ))}
             </ol>
-          </div>
+          </TimelineRow>
         ) : null}
         {hasGold ? (
-          <div className="ev-timeline-row">
-            <span className="ev-timeline-row__label">Gold Difference</span>
+          <TimelineRow label="Gold Difference">
             <SideTimelinePlot
               points={gold}
               teams={teams}
@@ -277,11 +302,10 @@ export function ProTimeline({
               centerLabel="0"
               label="Gold Difference by Time. Zero marks a tie."
             />
-          </div>
+          </TimelineRow>
         ) : null}
         {hasProbability ? (
-          <div className="ev-timeline-row">
-            <span className="ev-timeline-row__label">Win Probability</span>
+          <TimelineRow label="Win Probability">
             <SideTimelinePlot
               points={probability}
               teams={teams}
@@ -295,12 +319,15 @@ export function ProTimeline({
               centerLabel="0%"
               label="Win Probability by Minute. Zero marks even odds. Each team reaches 100% at its end of the scale."
             />
-          </div>
+          </TimelineRow>
         ) : null}
       </div>
-    </section>
+    </Panel>
   );
 }
+
+const sideStroke = "stroke-[color:var(--np-team-side,var(--color-text-muted))]";
+const dot = `${sideStroke} [stroke-linecap:round] ${scaling}`;
 
 function SideTimelinePlot({
   points,
@@ -396,15 +423,18 @@ function SideTimelinePlot({
 
   return (
     <div
-      className="ev-probability__chart"
+      className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 font-mono text-xs tabular-nums [--chart-height:clamp(11.5rem,20vw,16rem)] [--rail-row:1.35rem] [--rail:calc(var(--rail-rows,0)*var(--rail-row))]"
       role="group"
       aria-label={label}
-      style={railRows ? ({ "--ev-rail-rows": railRows } as CSSProperties) : undefined}
+      style={railRows ? ({ "--rail-rows": railRows } as CSSProperties) : undefined}
     >
-      <div className="ev-probability__scale" aria-hidden="true">
+      <div
+        className="relative mt-(--rail) h-(--chart-height) w-16 text-fg-muted"
+        aria-hidden="true"
+      >
         {ticks.map(({ y, label, team }) => (
           <span
-            className="ev-probability__tick"
+            className="absolute end-0 flex -translate-y-1/2 items-center gap-1 data-side:text-[color:var(--np-team-side)]"
             data-side={team?.side}
             key={y}
             style={{ insetBlockStart: `${(y / height) * 100}%` }}
@@ -424,22 +454,23 @@ function SideTimelinePlot({
         ))}
       </div>
       <div
-        className="ev-probability__plot"
+        className="relative touch-pan-y pt-(--rail) pb-[1.3rem]"
         onPointerMove={track}
         onPointerDown={track}
         onPointerLeave={() => onHover(null)}
       >
         {rail.length ? (
-          <ol className="ev-timeline-markers" aria-hidden="true">
+          <ol className="absolute inset-x-0 top-0 h-(--rail) list-none" aria-hidden="true">
             {rail.map(({ label: name, seconds, side, drake, count, times, row }) => (
               <li
+                className={`${eventChip} absolute inline-flex h-[calc(var(--rail-row)-0.2rem)] -translate-x-1/2 cursor-default items-center gap-px bg-raised px-[3px] text-[0.625rem] leading-none whitespace-nowrap ${sideText} [&_[role=img]]:size-[0.85rem]`}
                 key={`${seconds}-${name}`}
                 data-side={side ?? undefined}
                 data-active={times.includes(hover ?? -1) || undefined}
                 title={`${times.map(clockLabel).join(", ")} ${name}${count > 1 ? ` ×${count}` : ""}${sideName(side) ? ` (${sideName(side)})` : ""}`}
                 style={{
                   insetInlineStart: `${(plotX(seconds, end) / width) * 100}%`,
-                  insetBlockStart: `calc(${row} * var(--ev-rail-row))`,
+                  insetBlockStart: `calc(${row} * var(--rail-row))`,
                 }}
                 onPointerEnter={() => onHover(seconds)}
               >
@@ -449,7 +480,12 @@ function SideTimelinePlot({
             ))}
           </ol>
         ) : null}
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+        <svg
+          className="block h-(--chart-height) w-full"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
           <defs>
             <clipPath id={`${clipId}-blue`}>
               <rect width={width} height={middle} />
@@ -460,7 +496,7 @@ function SideTimelinePlot({
           </defs>
           {ticks.map(({ y }) => (
             <line
-              className={y === middle ? "ev-probability__baseline" : "ev-probability__gridline"}
+              className={`fill-none ${scaling} ${y === middle ? "stroke-line-strong" : "stroke-line"}`}
               key={y}
               x2={width}
               y1={y}
@@ -469,13 +505,16 @@ function SideTimelinePlot({
           ))}
           {(["blue", "red"] as const).map((side) => (
             <g key={side} data-side={side} clipPath={`url(#${clipId}-${side})`}>
-              <path className="ev-probability__area" d={area} />
-              <path className="ev-probability__line" d={slope} />
+              <path className="fill-[color:var(--np-team-side)] opacity-36" d={area} />
+              <path
+                className={`fill-none stroke-[color:var(--np-team-side)] stroke-2 [stroke-linecap:round] ${scaling}`}
+                d={slope}
+              />
             </g>
           ))}
           {events.map(({ seconds, side }, index) => (
             <line
-              className="ev-probability__event"
+              className={`${sideStroke} stroke-1 opacity-55 [stroke-dasharray:4_4] ${scaling} data-active:stroke-2 data-active:opacity-100`}
               key={`event-${index}`}
               data-side={side ?? undefined}
               data-active={hover === seconds || undefined}
@@ -486,11 +525,17 @@ function SideTimelinePlot({
             />
           ))}
           {cursorX === null ? null : (
-            <line className="ev-probability__cursor" x1={cursorX} x2={cursorX} y1={0} y2={height} />
+            <line
+              className={`stroke-fg-muted stroke-1 ${scaling}`}
+              x1={cursorX}
+              x2={cursorX}
+              y1={0}
+              y2={height}
+            />
           )}
           {active ? (
             <line
-              className="ev-probability__dot"
+              className={`${dot} stroke-10`}
               data-active
               data-side={active.side}
               x1={active.x}
@@ -502,7 +547,7 @@ function SideTimelinePlot({
           {samples.map(({ seconds, side, x, y, showLabel }) =>
             y === null || !showLabel ? null : (
               <line
-                className="ev-probability__dot"
+                className={`${dot} stroke-7`}
                 key={seconds}
                 x1={x}
                 x2={x}
@@ -513,10 +558,11 @@ function SideTimelinePlot({
             ),
           )}
         </svg>
-        <ol className="ev-probability__points" role="list">
+        <ol className="absolute inset-x-0 top-(--rail) bottom-[1.3rem] list-none" role="list">
           {samples.map(
             ({ seconds, time, side, label: valueLabel, description, x, y, showLabel }) => (
               <li
+                className="absolute inset-y-0"
                 key={seconds}
                 data-side={side}
                 title={description}
@@ -525,7 +571,7 @@ function SideTimelinePlot({
                 <span className="np-visually-hidden">{description}</span>
                 {y === null || !showLabel ? null : (
                   <span
-                    className="ev-probability__point"
+                    className={`absolute start-0 -translate-x-1/2 whitespace-nowrap ${sideText} ${side === "red" ? "translate-y-[3px]" : "-translate-y-[calc(100%+3px)]"}`}
                     aria-hidden="true"
                     style={{ insetBlockStart: `${(y / height) * 100}%` }}
                   >
@@ -533,7 +579,10 @@ function SideTimelinePlot({
                   </span>
                 )}
                 {showLabel ? (
-                  <span className="ev-probability__minute" aria-hidden="true">
+                  <span
+                    className="absolute start-0 top-full -translate-x-1/2 whitespace-nowrap text-fg-muted"
+                    aria-hidden="true"
+                  >
                     {time}
                   </span>
                 ) : null}
@@ -543,21 +592,19 @@ function SideTimelinePlot({
         </ol>
         {active?.readout ? (
           <div
-            className="ev-probability__readout"
+            className={`pointer-events-none absolute top-[calc(var(--rail)+0.25rem)] z-1 grid min-w-28 gap-[2px] rounded-sm border border-line-strong bg-raised px-2 py-1 text-fg ${active.x / width > 0.7 ? "-translate-x-[calc(100%+0.5rem)]" : "translate-x-2"}`}
             aria-hidden="true"
             data-side={active.side}
             data-flip={active.x / width > 0.7 || undefined}
             style={{ insetInlineStart: `${(active.x / width) * 100}%` }}
           >
             <span className="np-meta">{clockLabel(active.seconds)}</span>
-            <strong>{active.readout.value}</strong>
+            <strong className="text-[color:var(--np-team-side,var(--color-text-primary))]">
+              {active.readout.value}
+            </strong>
             {active.readout.team ? <span>{active.readout.team}</span> : null}
             {activeEvents.map(({ label: name, seconds, side }, index) => (
-              <span
-                className="ev-probability__readout-event"
-                data-side={side ?? undefined}
-                key={index}
-              >
+              <span className={sideText} data-side={side ?? undefined} key={index}>
                 {clockLabel(seconds)} {name}
               </span>
             ))}
