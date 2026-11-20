@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ModelDiagnostics } from "@summonersnet/data/contracts";
 import { ModelsPage } from "./page";
 
@@ -11,6 +11,8 @@ const base = {
   evalMatches: 200,
   evalRows: 6000,
   brier: 0.181,
+  logLoss: null,
+  minutes: null,
   trainedAt: "2026-03-01T00:00:00.000Z",
   reason: null,
 };
@@ -41,6 +43,7 @@ const diagnostics: ModelDiagnostics = {
       { lower: 0.7, upper: 0.8, count: 40, predicted: 0.74, observed: 0.7 },
       { lower: 0.8, upper: 0.9, count: 0, predicted: null, observed: null },
     ],
+    phases: [],
   },
 };
 it("lists model versions and shows the selected model's calibration and weights", () => {
@@ -80,4 +83,62 @@ it("explains rejected models, empty libraries and errors", () => {
   expect(screen.getByText("No active model; choose a version above.")).toBeVisible();
   view.rerender(<ModelsPage diagnostics={{ models: [], selected: null }} error={null} />);
   expect(screen.getByText("No Models Trained Yet")).toBeVisible();
+});
+
+it("shows a pro model's minutes and evaluation by game phase, with each phase's calibration", () => {
+  const bin = (predicted: number) => ({
+    lower: 0.6,
+    upper: 0.7,
+    count: 30,
+    predicted,
+    observed: 0.6,
+  });
+  const pro = {
+    ...diagnostics.models[1]!,
+    logLoss: 0.512,
+    minutes: { first: 0, last: 35 },
+    intercept: 0,
+    weights: [],
+    bins: [bin(0.65)],
+    phases: [
+      {
+        phase: "early",
+        label: "Early (Before 15:00)",
+        games: 40,
+        states: 600,
+        brier: 0.231,
+        logLoss: 0.654,
+        bins: [bin(0.61)],
+      },
+      {
+        phase: "late",
+        label: "Late (After 25:00)",
+        games: 38,
+        states: 300,
+        brier: 0.102,
+        logLoss: 0.33,
+        bins: [bin(0.69)],
+      },
+    ],
+  };
+  render(<ModelsPage diagnostics={{ ...diagnostics, selected: pro }} error={null} phase="late" />);
+  const evaluation = screen.getByLabelText("Held-Out Evaluation");
+  expect(evaluation).toHaveTextContent("Log LossLower is better; 0.693 is a coin flip0.512");
+  expect(evaluation).toHaveTextContent(
+    "Minutes ScoredEach minute was reached by enough training games0:00–35:00",
+  );
+  expect(
+    screen.getByRole("table", { name: "Held-Out Evaluation by Game Phase" }),
+  ).toHaveTextContent("Early (Before 15:00)406000.2310.654");
+  const tabs = screen.getByRole("navigation", { name: "Calibration Phase" });
+  expect(within(tabs).getByRole("link", { name: "Late" })).toHaveAttribute("aria-current", "page");
+  expect(within(tabs).getByRole("link", { name: "All" })).toHaveAttribute(
+    "href",
+    "/models?model=3",
+  );
+  expect(
+    screen.getAllByText(
+      "Reliability: Predicted vs Observed Blue Win Rate (%), Late (After 25:00)",
+    )[0],
+  ).toBeInTheDocument();
 });

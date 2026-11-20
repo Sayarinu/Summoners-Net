@@ -321,6 +321,23 @@ export interface SyncStatus {
   }[];
   pandaRequests: number;
   cooldownUntil: string | null;
+  /** The shared Leaguepedia budget and the pro timeline backfill it serves. */
+  leaguepedia: {
+    requestsLastHour: number;
+    limitPerHour: number;
+    pausedUntil: string | null;
+    pauseReason: string | null;
+    timelines: {
+      /** Complete archive games Leaguepedia may have a timeline for. */
+      games: number;
+      /** Games with a stored per-minute timeline. */
+      withTimeline: number;
+      /** Games never checked yet. */
+      unchecked: number;
+      /** When the unchecked games would all be requested at the hourly ceiling; null when none. */
+      estimatedFinish: string | null;
+    };
+  };
   history: {
     year: number;
     games: number;

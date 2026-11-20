@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkpointsFrom, vectorizeCheckpoint } from "./wp-checkpoints.js";
+import { checkpointsFrom, phaseOf, vectorizeCheckpoint } from "./wp-checkpoints.js";
 import { predict, train, type Example } from "./wp-model.js";
 
 // Blue team row values from the 2026 Oracle's Elixir file's shape.
@@ -41,9 +41,33 @@ describe("pro checkpoint win probability", () => {
       killDiff: null,
     });
     expect(vectorizeCheckpoint(checkpoints[3]!)).toBeNull();
-    expect(vectorizeCheckpoint(checkpoints[2]!)).toEqual([20 / 30, 0.3, 0.18, 0.12, 0.3, 0.2]);
+    expect(vectorizeCheckpoint(checkpoints[2]!)).toEqual([20 / 60, 0.3, 0.18, 0.12, 0.3, 0.1]);
+    // A model keeps the features it was trained on: version 2 models scale time per 30 minutes.
+    const legacy = ["minute", "goldDiff", "xpDiff", "csDiff", "killDiff", "goldDiffByMinute"];
+    expect(vectorizeCheckpoint(checkpoints[2]!, legacy)).toEqual([
+      20 / 30,
+      0.3,
+      0.18,
+      0.12,
+      0.3,
+      0.2,
+    ]);
+    expect(vectorizeCheckpoint(checkpoints[2]!, ["unknownFeature"])).toBeNull();
     expect(checkpointsFrom({ golddiffat10: "x" })[0]!.goldDiff).toBeNull();
   });
+  it("caps game time at an hour and names each minute's phase", () => {
+    const late = { minute: 75, goldDiff: 3000, xpDiff: 0, csDiff: 0, killDiff: 0 };
+    expect(vectorizeCheckpoint(late)).toEqual([1, 0.6, 0, 0, 0, 0.6]);
+    expect([0, 14, 15, 25, 26, 75].map(phaseOf)).toEqual([
+      "early",
+      "early",
+      "mid",
+      "mid",
+      "late",
+      "late",
+    ]);
+  });
+
   it("scores checkpoints with a model trained on separable fixture games", () => {
     const examples: Example[] = Array.from({ length: 80 }, (_, game) => {
       const lead = (game % 2 ? 1 : -1) * (500 + game * 20);

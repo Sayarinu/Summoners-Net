@@ -116,10 +116,15 @@ describe("Leaguepedia game recordings", () => {
       expect(parsed.vods.get(id)).toBeNull();
   });
 
-  it("reports wiki lag, and rejects refusals and malformed replies", () => {
+  it("reports wiki lag and rate limits, and rejects other refusals and malformed replies", () => {
     const ids = ["LOLTMNT02_487405"];
     expect(parseLeaguepediaVods({ error: { code: "maxlag", info: "lag" } }, ids)).toEqual({
-      state: "lagged",
+      state: "refused",
+      code: "maxlag",
+    });
+    expect(parseLeaguepediaVods({ error: { code: "ratelimited" } }, ids)).toEqual({
+      state: "refused",
+      code: "ratelimited",
     });
     expect(() => parseLeaguepediaVods({ error: { code: "badquery" } }, ids)).toThrow(
       "Leaguepedia refused the request.",

@@ -35,7 +35,7 @@ export interface LeaguepediaVod {
 }
 
 export type LeaguepediaVodReply =
-  | { state: "lagged" }
+  | { state: "refused"; code: "maxlag" | "ratelimited" }
   /** Each requested game's recordings; null when the wiki has no row or no usable link. */
   | { state: "rows"; vods: Map<string, LeaguepediaVod | null> };
 
@@ -63,7 +63,9 @@ export function leaguepediaVodsUrl(ids: readonly string[]) {
 export function parseLeaguepediaVods(input: unknown, ids: readonly string[]): LeaguepediaVodReply {
   const body = reply.parse(input);
   if ("error" in body) {
-    if (body.error.code === "maxlag") return { state: "lagged" };
+    // The wiki asks clients to wait while its replicas lag or a client sends too much.
+    if (body.error.code === "maxlag" || body.error.code === "ratelimited")
+      return { state: "refused", code: body.error.code };
     throw new Error("Leaguepedia refused the request.");
   }
   const vods = new Map<string, LeaguepediaVod | null>(ids.map((id) => [id, null]));

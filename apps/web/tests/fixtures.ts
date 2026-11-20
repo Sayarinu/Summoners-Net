@@ -211,6 +211,13 @@ export const status: SyncStatus = {
   ],
   pandaRequests: 10,
   cooldownUntil: null,
+  leaguepedia: {
+    requestsLastHour: 0,
+    limitPerHour: 900,
+    pausedUntil: null,
+    pauseReason: null,
+    timelines: { games: 0, withTimeline: 0, unchecked: 0, estimatedFinish: null },
+  },
   history: [{ year: 2026, games: 1, eligible: 1, latestGameAt: instant }],
 };
 const sampled = (value: number | null, sampleCount = 2) => ({ value, sampleCount });

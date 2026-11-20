@@ -153,7 +153,7 @@ beforeEach(async () => {
   fetcher.mockReset();
   fetcher.mockResolvedValue(json([]));
   await pool.query(
-    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,pro_game_details,pro_game_vods,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
+    "TRUNCATE matchup_aggregates,matchup_exclusions,pro_account_links,riot_ladder_snapshots,replay_metadata,replay_tracks,identity_tournament_rosters,identity_match_context,identity_catalog,identity_resolution_runs,image_assets,pro_game_details,pro_game_vods,oracle_archive_participants,oracle_archive_games,participants,broadcasts,roster_observations,roster_snapshots,games,matches,competitions,source_mappings,identities,metadata,oracle_champion_names,catalog_champions,catalog_items,catalog_runes,catalog_summoner_spells,patch_sources,patches,imports,sync_jobs,sync_schedule,request_ledger,provider_request_ledger,provider_pauses,riot_request_ledger,riot_rate_limits,riot_rate_pauses,riot_ladder_entries,riot_ladder_status,riot_account_names,riot_accounts,riot_timeline_events,riot_timeline_frames,riot_match_payloads,riot_match_perks,riot_match_items,riot_match_participants,riot_match_bans,riot_match_objectives,riot_match_teams,riot_matches,riot_match_ids,riot_match_crawl,riot_job_status,champion_aggregates,champion_builds,champion_buckets,champion_duos,pro_champion_stats,pro_unmapped_drafts,wpa_aggregates,riot_wpa_participants,riot_wpa_events,riot_wp_features,wp_models,aggregate_dirty,blindability_scores RESTART IDENTITY CASCADE",
   );
   await pool.query(
     "UPDATE source_status SET last_success=NULL,last_attempt=NULL,error=NULL,records=0",
@@ -3947,7 +3947,12 @@ describe("Champion aggregates", () => {
     expect((await proGameWinProbability(pool, "oracle:game:g1")).reason).toMatch(
       /No pro win probability model/,
     );
-    await trainCheckpointModel(pool, now, { minimumGames: 2, minimumGamesPerMinute: 4, seed: 4 });
+    await trainCheckpointModel(pool, now, {
+      minimumGames: 2,
+      minimumGamesPerMinute: 4,
+      minimumFrameGames: 2,
+      seed: 4,
+    });
     const model = (await activeWinProbabilityModel(pool, "pro-checkpoints"))!;
     expect(model).toMatchObject({
       kind: "pro-checkpoints",
@@ -3957,13 +3962,23 @@ describe("Champion aggregates", () => {
     // Minutes 31 to 40 have one game, too few to cover.
     expect(model.coefficients.minutes).toEqual({ first: 0, last: 30 });
     expect(model.coefficients.features).toEqual([
-      "minute",
+      "gameTime",
       "goldDiff",
       "xpDiff",
       "csDiff",
       "killDiff",
-      "goldDiffByMinute",
+      "goldDiffByGameTime",
     ]);
+    expect(model).toMatchObject({ modelVersion: 3, featureVersion: 2 });
+    expect(model.coefficients).toMatchObject({ framesUsed: true });
+    // Held-out whole games are scored per phase as well as pooled.
+    expect(model.evaluation!.logLoss).toBeGreaterThan(0);
+    expect(model.evaluation!.phases.map((p) => p.phase)).toEqual(["early", "mid", "late"]);
+    expect(model.evaluation!.phases.map((p) => p.games)).toEqual([1, 1, 1]);
+    expect(model.evaluation!.phases.reduce((sum, p) => sum + p.states, 0)).toBe(model.evalRows);
+    expect(model.evaluation!.phases.every((p) => p.brier !== null && p.bins.length === 10)).toBe(
+      true,
+    );
     // The timeline model is a separate kind and is untouched.
     expect(await activeWinProbabilityModel(pool)).toBeNull();
     const ahead = await proGameWinProbability(pool, "oracle:game:g1");
@@ -3990,7 +4005,27 @@ describe("Champion aggregates", () => {
       reason: expect.stringContaining("no checkpoint data") as string,
     });
     // Too few games: stored as rejected, the active checkpoint model stays.
-    await trainCheckpointModel(pool, now, { minimumGames: 100, minimumGamesPerMinute: 4, seed: 4 });
+    await trainCheckpointModel(pool, now, {
+      minimumGames: 100,
+      minimumGamesPerMinute: 4,
+      minimumFrameGames: 2,
+      seed: 4,
+    });
+    expect((await activeWinProbabilityModel(pool, "pro-checkpoints"))!.id).toBe(model.id);
+    // Too few games with a timeline to replace a model trained on them: the active one stays.
+    const narrower = await trainCheckpointModel(pool, now, {
+      minimumGames: 2,
+      minimumGamesPerMinute: 4,
+      minimumFrameGames: 100,
+      seed: 4,
+    });
+    expect(narrower.active).toBe(false);
+    const rejected = (await winProbabilityModels(pool, 1, "pro-checkpoints"))[0]!;
+    expect(rejected.reason).toMatch(/training games have a timeline; at least 100 are needed/);
+    expect(rejected.coefficients).toMatchObject({
+      framesUsed: false,
+      minutes: { first: 10, last: 25 },
+    });
     expect((await activeWinProbabilityModel(pool, "pro-checkpoints"))!.id).toBe(model.id);
   });
   it("lists stored models of both kinds with calibration and named feature weights", async () => {
@@ -7224,7 +7259,15 @@ it("joins pro game inventories and purchases by source game and participant IDs"
     `INSERT INTO wp_models(kind,model_version,feature_version,patch_window,seed,
        train_matches,train_rows,eval_matches,eval_rows,coefficients,brier,bins,status,trained_at)
      VALUES('pro-checkpoints',1,1,ARRAY['2026'],1,1,1,1,1,$1,0.2,'[]','active',$2)`,
-    [JSON.stringify({ intercept: 0, weights: [0, 0, 0, 0, 10, 0], features: [] }), instant],
+    [
+      JSON.stringify({
+        intercept: 0,
+        weights: [0, 0, 0, 0, 10, 0],
+        // A version 1 model, scored with the features it was trained on.
+        features: ["minute", "goldDiff", "xpDiff", "csDiff", "killDiff", "goldDiffByMinute"],
+      }),
+      instant,
+    ],
   );
   const forecast = await queries.proGameWinProbability(game!.id);
   expect(forecast.points.map(({ minute }) => minute)).toEqual([10, 11, 15, 20, 25]);
@@ -7331,7 +7374,7 @@ describe("Leaguepedia pro game detail batches", () => {
         instant = new Date(instant.valueOf() + ms);
         return Promise.resolve();
       },
-      proGameDetailRun: { maxMs: 1000, spacingMs: 2000 },
+      proGameDetailRun: { maxMs: 1000 },
     });
     try {
       await w.request({ kind: "pro-game-details" });
@@ -7405,7 +7448,8 @@ describe("Leaguepedia pro game detail batches", () => {
         "SELECT available_at,attempts FROM sync_jobs WHERE request->>'kind'='pro-game-details'",
       )
     ).rows;
-    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 7000));
+    // Lag pauses every Leaguepedia job for at least 30 seconds, longer than the reply's 7.
+    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 30_000));
     expect(lagged?.attempts).toBe(0);
     expect(await detailRows()).toEqual([]);
 
@@ -7429,7 +7473,7 @@ describe("Leaguepedia pro game detail batches", () => {
         },
       });
     };
-    instant = new Date(instant.valueOf() + 7000);
+    instant = new Date(instant.valueOf() + 30_000);
     expect(await sync.runNext()).toMatchObject({ state: "done", records: 0 });
     // The cut-off game is not marked checked; the continuation requests it on its own.
     expect((await detailRows()).map(({ source_game_id: id }) => id)).toEqual([first, broken]);
@@ -7438,6 +7482,76 @@ describe("Leaguepedia pro game detail batches", () => {
     expect(requested).toEqual([[first, broken, cut], [cut]]);
     expect((await detailRows()).map(({ source_game_id: id }) => id)).toEqual([first, broken, cut]);
     expect(await jobs()).toEqual(["done", "done"]);
+  });
+});
+
+describe("Leaguepedia request budget", () => {
+  const wiki = "https://lol.fandom.com/api.php?";
+  async function importGames(ids: string[]) {
+    const [header] = historyCsv().trim().split("\n");
+    const rows = ids.flatMap((id) => historyCsv({ id }).trim().split("\n").slice(1));
+    await importCsv([header, ...rows].join("\n") + "\n");
+  }
+  const job = async (kind: string) =>
+    (
+      await pool.query<{ state: string; available_at: Date; attempts: number }>(
+        "SELECT state,available_at,attempts FROM sync_jobs WHERE request->>'kind'=$1 ORDER BY id DESC LIMIT 1",
+        [kind],
+      )
+    ).rows[0];
+
+  it("pauses every Leaguepedia job after a rate limit, doubling the pause on repeats", async () => {
+    await importGames(["LOLTMNT02_500001"]);
+    let requests = 0;
+    fetcher.mockImplementation((input) => {
+      if (!endpoint(input).startsWith(wiki)) throw new Error("Unexpected provider request");
+      requests++;
+      return Promise.resolve(json({ error: { code: "ratelimited", info: "Too many requests" } }));
+    });
+    expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "queued" });
+    const first = await job("pro-game-details");
+    expect(first).toMatchObject({ state: "queued", attempts: 0 });
+    expect(first!.available_at).toEqual(new Date(instant.valueOf() + 120_000));
+    // The recordings job shares the pause and sends nothing until it ends.
+    expect(await run({ kind: "pro-game-vods" })).toMatchObject({ state: "queued" });
+    expect((await job("pro-game-vods"))!.available_at).toEqual(first!.available_at);
+    expect(requests).toBe(1);
+    const status = await queries.status();
+    expect(status.leaguepedia).toMatchObject({
+      requestsLastHour: 1,
+      pausedUntil: first!.available_at.toISOString(),
+      pauseReason: "Leaguepedia rate limit",
+    });
+    instant = first!.available_at;
+    expect(await sync.runNext()).toMatchObject({ state: "queued" });
+    expect((await job("pro-game-details"))!.available_at).toEqual(
+      new Date(instant.valueOf() + 240_000),
+    );
+  });
+
+  it("honours Retry-After on an HTTP 429 and stops at the hourly ceiling", async () => {
+    await importGames(["LOLTMNT02_500002"]);
+    fetcher.mockImplementation(() =>
+      Promise.resolve(
+        new Response("slow down", { status: 429, headers: { "Retry-After": "600" } }),
+      ),
+    );
+    expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "queued" });
+    expect((await job("pro-game-details"))!.available_at).toEqual(
+      new Date(instant.valueOf() + 600_000),
+    );
+    await pool.query("TRUNCATE provider_pauses,provider_request_ledger,sync_jobs");
+    const oldest = new Date(instant.valueOf() - 50 * 60_000);
+    await pool.query(
+      "INSERT INTO provider_request_ledger(provider,requested_at) SELECT 'leaguepedia',$1::timestamptz+make_interval(secs=>n) FROM generate_series(0,899) n",
+      [oldest],
+    );
+    fetcher.mockClear();
+    expect(await run({ kind: "pro-game-details" })).toMatchObject({ state: "queued" });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await job("pro-game-details"))!.available_at).toEqual(
+      new Date(oldest.valueOf() + 3_600_000),
+    );
   });
 });
 
@@ -7515,7 +7629,7 @@ describe("Leaguepedia pro game recordings", () => {
         instant = new Date(instant.valueOf() + ms);
         return Promise.resolve();
       },
-      proGameVodRun: { maxMs: 1000, spacingMs: 2000 },
+      proGameVodRun: { maxMs: 1000 },
     });
     try {
       await w.request({ kind: "pro-game-vods" });
@@ -7593,7 +7707,8 @@ describe("Leaguepedia pro game recordings", () => {
         "SELECT available_at,attempts FROM sync_jobs WHERE request->>'kind'='pro-game-vods'",
       )
     ).rows;
-    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 7000));
+    // Lag pauses every Leaguepedia job for at least 30 seconds, longer than the reply's 7.
+    expect(lagged?.available_at).toEqual(new Date(instant.valueOf() + 30_000));
     expect(lagged?.attempts).toBe(0);
 
     const requested: string[][] = [];
@@ -7602,7 +7717,7 @@ describe("Leaguepedia pro game recordings", () => {
       requested.push(ids);
       return Promise.resolve(json({ cargoquery: ids.map((id) => row(id, {})) }));
     });
-    instant = new Date(instant.valueOf() + 7000);
+    instant = new Date(instant.valueOf() + 30_000);
     expect(await sync.runNext()).toMatchObject({ state: "done", records: 0 });
     // A game with a recording is never asked for again.
     expect(requested).toEqual([[recent]]);
