@@ -8,6 +8,7 @@
     ".": "./dist/index.js",
     "./data-display": "./dist/data-display.js",
     "./esports": "./dist/esports.js",
+    "./champion": "./dist/champion.js",
     "./forms": "./dist/forms.js",
     "./game": "./dist/game.js",
     "./internal": "./dist/internal.js",

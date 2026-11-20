@@ -215,6 +215,26 @@ export function Card({ children, className, href }: CardProps) {
 }
 
 /**
+ * The card's main link. It covers the whole card, so a card can hold other links, such as a
+ * player's team, without nesting them; those sit above it.
+ */
+export function CardLink({
+  children,
+  className,
+  href,
+}: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly href: string;
+}) {
+  return (
+    <a className={cx("np-card__link", className)} href={href}>
+      {children}
+    </a>
+  );
+}
+
+/**
  * A row of filter fields over a list. The first field, usually the text filter, takes the spare
  * width; on narrow screens the fields fall into two columns.
  */

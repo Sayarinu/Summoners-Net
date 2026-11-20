@@ -62,8 +62,9 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
   `border-line`, `text-side-blue`, `gap-4` (a 4px scale), `text-sm`, `rounded-md`, `font-mono`.
   Tailwind's default palette and reset are not loaded.
 - `packages/ui` components own their appearance in the package's stylesheets. Before adding a
-  component, check whether `PageHeader`, `Panel`, `TabNav`, `Stat`, `Card`, `Table` or the identity
-  and match components already cover the need. Show each new component or variant in Storybook.
+  component, check whether `PageHeader`, `Panel`, `TabNav`, `Stat`, `Card`, `CardLink`, `FilterBar`,
+  `Table` or the identity and match components already cover the need. Show each new component or
+  variant in Storybook.
 - Pages and features compose those components and lay them out with Tailwind classes. They do not
   add stylesheets or target a component's internal `np-` classes; add a prop or variant to the
   component instead.

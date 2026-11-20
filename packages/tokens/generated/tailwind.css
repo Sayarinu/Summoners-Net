@@ -75,4 +75,7 @@
 
   --container-content: 1280px;
   --container-reading: 720px;
+
+  /* A loss reads as red without the alarm of an error. */
+  --color-loss: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-text-primary));
 }

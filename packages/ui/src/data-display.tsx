@@ -111,6 +111,8 @@ export interface TableProps<Row> {
   readonly emptyMessage?: string;
   readonly getRowKey: (row: Row) => string;
   readonly loading?: boolean;
+  /** The width below which the table scrolls sideways; narrow tables can lower it. */
+  readonly minWidth?: string;
   readonly rows: readonly Row[];
 }
 
@@ -122,11 +124,15 @@ export function Table<Row>({
   emptyMessage = "No rows to display",
   getRowKey,
   loading = false,
+  minWidth,
   rows,
 }: TableProps<Row>) {
   return (
     <div aria-label={caption} className={cx("np-table-wrap", className)} role="region" tabIndex={0}>
-      <table className={cx("np-table", compact && "np-table--compact")}>
+      <table
+        className={cx("np-table", compact && "np-table--compact")}
+        style={minWidth ? { minWidth } : undefined}
+      >
         <caption className="np-visually-hidden">{caption}</caption>
         <thead>
           <tr>

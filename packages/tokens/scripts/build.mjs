@@ -100,5 +100,11 @@ for (const [group, names] of Object.entries(groups)) {
     lines.push(`  --${group}-${name}: ${value};`);
   }
 }
+// Derived colors mix tokens; they live here so pages and components share one definition.
+lines.push(
+  "",
+  "  /* A loss reads as red without the alarm of an error. */",
+  "  --color-loss: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-text-primary));",
+);
 lines.push("}", "");
 await writeFile(join(import.meta.dirname, "../generated/tailwind.css"), lines.join("\n"));

@@ -64,7 +64,9 @@ it("leaves modified clicks, new tabs, downloads, API, external and fragment link
 it("shows navigation progress and stops intercepting once unmounted", () => {
   const view = render(<SoftNavigation />);
   links();
-  expect(view.container.firstElementChild).toHaveClass("ev-navigation-progress");
+  const progress = view.container.firstElementChild;
+  expect(progress).toHaveAttribute("aria-hidden", "true");
+  expect(progress).not.toHaveAttribute("data-pending");
   view.unmount();
   click("team");
   expect(router.push).not.toHaveBeenCalled();

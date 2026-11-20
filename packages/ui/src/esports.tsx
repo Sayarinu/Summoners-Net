@@ -82,6 +82,8 @@ export interface PlayerIdentityProps {
   readonly layout?: "inline" | "stacked";
   readonly portrait?: string;
   readonly role?: string | null | undefined;
+  /** `display` is the page-heading size used on a player's own profile. */
+  readonly size?: "display" | "medium";
 }
 
 export function PlayerIdentity({
@@ -92,6 +94,7 @@ export function PlayerIdentity({
   layout = "inline",
   portrait,
   role,
+  size = "medium",
 }: PlayerIdentityProps) {
   const detail = [fullName, country].filter(Boolean).join(" · ");
   const content = (
@@ -100,7 +103,7 @@ export function PlayerIdentity({
         alt={`${handle} portrait`}
         entityKind="player"
         fallback={handle}
-        size="medium"
+        size={size === "display" ? "large" : "medium"}
         src={portrait}
       />
       <span className="np-identity__copy">
@@ -115,6 +118,7 @@ export function PlayerIdentity({
     "np-identity",
     "np-identity--player",
     layout === "stacked" && "np-identity--stacked",
+    size === "display" && "np-identity--display",
   );
   return href ? (
     <a className={className} href={href}>

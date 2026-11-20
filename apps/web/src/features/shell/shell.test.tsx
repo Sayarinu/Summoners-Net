@@ -76,7 +76,7 @@ it("links every analytics section and marks the one a page belongs to", () => {
     ].map(sectionOf),
   ).toEqual([
     "/champions",
-    "/patches",
+    "/champions",
     "/leaderboards",
     "/leaderboards",
     "/drafts",

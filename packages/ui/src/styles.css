@@ -75,6 +75,24 @@
     line-height: var(--font-line-height-body, 1.5);
   }
 
+  /* Headings: medium weight on the type scale. Components and pages size them further. */
+  :where(h1, h2, h3, h4) {
+    font-weight: var(--font-weight-medium, 500);
+    line-height: var(--font-line-height-heading, 1.2);
+  }
+
+  :where(h1) {
+    font-size: var(--font-size-xl, 28px);
+  }
+
+  :where(h2) {
+    font-size: var(--font-size-lg, 20px);
+  }
+
+  :where(h3, h4) {
+    font-size: var(--font-size-md, 16px);
+  }
+
   ::selection {
     background: var(--color-bg-selected, rgb(200 169 107 / 16%));
     color: var(--color-text-primary, #f4f6f8);
