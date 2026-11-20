@@ -1,4 +1,39 @@
+import { teamDirectory, teamSeasons } from "./team-directory.js";
+import { playerPerformance, playerSeasons } from "./player-stats.js";
+import { playerDirectory } from "./player-directory.js";
+import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
+import { championDirectory, patchDirectory } from "./directories.js";
+import { championMatchups } from "./matchups.js";
+import { championBlindability, counterPickList } from "./blindability.js";
+import { draftAssistant } from "./draft-assistant.js";
+import { soloDraftWinProbability } from "./draft-model.js";
+import type { DraftAssistantQuery } from "../domain/draft-assistant.js";
+import type { ChampionBlindabilityQuery, CounterPickListQuery } from "../domain/blindability.js";
+import type {
+  ChampionMatchupsQuery,
+  MatchupMatrixQuery,
+  MatchupPairsQuery,
+} from "../domain/matchups.js";
+import { patchOverview } from "./patch-overview.js";
+import { trending } from "./trending.js";
+import type { TrendingQuery } from "../domain/trending.js";
+import { proFeed } from "./pro-feed.js";
+import type { ProFeedQuery } from "../domain/pro-feed.js";
+import { proAccountLink } from "./pro-accounts.js";
+import { summoner } from "./summoners.js";
+import type { SummonerQuery } from "../domain/summoners.js";
+import { leaderboard } from "./leaderboards.js";
+import type { LeaderboardQuery } from "../domain/leaderboards.js";
+import { replayMetadata } from "./replays.js";
+import { matchTrackRange, matchTrackSummary, replayTrack, trackAccuracy } from "./replay-tracks.js";
+import type { TrackRangeQuery } from "../domain/track-views.js";
 import { z } from "zod";
+import {
+  catalogIconQuerySchema,
+  type CatalogIconQuery,
+  type CatalogIcon,
+} from "../domain/catalog-icons.js";
+import type { MapImage } from "../domain/map.js";
 import type { Pool } from "pg";
 import { enrichIdentities } from "./entities.js";
 import {
@@ -7,14 +42,40 @@ import {
   type Game,
   type Identity,
   type Match,
+  type SeriesGame,
   type Page,
   type Profile,
   type Summary,
   type SyncStatus,
 } from "../domain/models.js";
+import { draftQueries } from "./draft-queries.js";
+import { championOverview, championStats, tierList } from "./aggregates.js";
+import { soloGame } from "./solo-games.js";
+import { soloGameMapEvents, soloGamePositions } from "./solo-game-positions.js";
+import { heatmap } from "./heatmaps.js";
+import type { HeatmapQuery } from "../domain/heatmaps.js";
+import { championJunglePaths } from "./jungle-paths.js";
+import { proGameWinProbability } from "./pro-wp.js";
+import { archiveGameVods } from "./pro-game-vods.js";
+import { modelDiagnostics } from "./model-diagnostics.js";
+import { wpaLeaderboard } from "./wpa-leaderboards.js";
+import type { WpaLeaderboardQuery } from "../domain/wpa-leaderboards.js";
+import type {
+  ChampionOverviewQuery,
+  ChampionStatsQuery,
+  TierListQuery,
+} from "../domain/champion-stats.js";
 import { historicalQueries } from "./historical-queries.js";
+import { leaguepediaProgress } from "./leaguepedia-progress.js";
+import { archiveYearStatus } from "./archive-status.js";
 
 const idSchema = z.string().min(1).max(300);
+import {
+  defaultApplicationLimits,
+  developmentKeyLifetimeMs,
+  matchRoute,
+  type RiotPlatform,
+} from "../providers/riot.js";
 const stamp = (d: Date | null) => d?.toISOString() ?? null;
 function filters(input: BrowseQuery, kind: "matches" | "games") {
   const q = querySchema.parse(input);
@@ -70,13 +131,30 @@ async function page<T>(
 }
 export interface SearchHit {
   id: string;
-  kind: "team" | "player" | "match" | "game";
+  kind: "team" | "player" | "match" | "game" | "champion" | "summoner";
   name: string;
   detail: string;
   imageUrl?: string | null;
   publicSlug?: string;
 }
 export function queries(pool: Pool, clock: () => Date) {
+  async function profileIdentity(id: string, routeKind?: "team" | "player") {
+    return (
+      await pool.query<{ document: Identity }>(
+        `SELECT document
+            FROM entity_profiles
+            WHERE id=coalesce(
+              (SELECT entity_id FROM entity_members WHERE id=$1),
+              -- A slug of a linked or merged source resolves to the entity that now shows it.
+              (SELECT m.entity_id
+                FROM identity_routes r
+                JOIN entity_members m ON m.id=r.entity_id
+                WHERE r.slug=$1 AND r.kind=$2)
+            )`,
+        [idSchema.parse(id), routeKind ?? null],
+      )
+    ).rows[0]?.document;
+  }
   async function decorateGames(items: Game[]) {
     const enriched = await enrichIdentities(
       pool,
@@ -111,6 +189,62 @@ export function queries(pool: Pool, clock: () => Date) {
       WHERE em.entity_id=entity_profiles.id AND lower(a.name) LIKE ${parameter}
     )`;
 
+  /**
+   * Pairs each game of a series with its archive game. A pair needs both series teams to
+   * resolve, through corroborated identity links, to the archive game's two teams, the same
+   * league, a time inside the series window and the same game number. Ambiguous pairs stay
+   * null; names alone never link. A linked game carries its archive recording, if any.
+   */
+  async function matchGames(id: string): Promise<SeriesGame[] | null> {
+    const result = await pool.query<{ games: Match["games"]; links: Record<string, string> }>(
+      `WITH m AS (
+         SELECT id,league,starts_at,document FROM matches WHERE id=$1
+       ), series_teams AS (
+         SELECT array_agg(DISTINCT em.entity_id ORDER BY em.entity_id) AS entities
+         FROM m
+         CROSS JOIN LATERAL jsonb_array_elements(m.document->'teams') team
+         JOIN entity_members em ON em.id=team->>'id'
+         HAVING count(DISTINCT em.entity_id)=2 AND count(*)=2
+       ), series_window AS (
+         SELECT m.league,
+           m.starts_at-interval '3 hours' AS opens,
+           coalesce(
+             (SELECT max((g->>'finishedAt')::timestamptz)
+              FROM jsonb_array_elements(m.document->'games') g),
+             m.starts_at+interval '8 hours'
+           )+interval '3 hours' AS closes
+         FROM m
+       ), candidates AS (
+         SELECT g.id,(g.document->>'number')::integer AS number
+         FROM series_window w
+         CROSS JOIN series_teams s
+         JOIN games g ON g.league=w.league AND g.occurred_at BETWEEN w.opens AND w.closes
+         WHERE (
+           SELECT array_agg(DISTINCT em.entity_id ORDER BY em.entity_id)
+           FROM participants p JOIN entity_members em ON em.id=p.team_id
+           WHERE p.game_id=g.id
+         )=s.entities
+       )
+       SELECT m.document->'games' AS games,
+         coalesce(
+           (SELECT jsonb_object_agg(number::text,id)
+            FROM (SELECT number,min(id) AS id FROM candidates
+                  WHERE number IS NOT NULL GROUP BY number HAVING count(*)=1) linked),
+           '{}'
+         ) AS links
+       FROM m`,
+      [idSchema.parse(id)],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const vods = await archiveGameVods(pool, Object.values(row.links));
+    return (row.games ?? [])
+      .map((game) => {
+        const gameId = row.links[String(game.number)] ?? null;
+        return { ...game, gameId, gameVodUrl: (gameId && vods.get(gameId)) ?? null };
+      })
+      .sort((a, b) => a.number - b.number);
+  }
   const games = async (input: BrowseQuery = {}, identityId?: string) => {
     const { q, values, clauses } = filters(input, "games");
     if (identityId) {
@@ -145,13 +279,69 @@ export function queries(pool: Pool, clock: () => Date) {
   };
   return {
     ...historicalQueries(pool),
+    ...draftQueries(pool),
+    matchupMatrix: (input: MatchupMatrixQuery) => matchupMatrix(pool, input),
+    championDirectory: () => championDirectory(pool),
+    patchDirectory: () => patchDirectory(pool),
+    matchupPairs: (input: MatchupPairsQuery) => matchupPairs(pool, input),
+    championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
+    championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
+    counterPickList: (input: CounterPickListQuery) => counterPickList(pool, input),
+    draftAssistant: (input: DraftAssistantQuery) => draftAssistant(pool, input),
+    patchOverview: (patch: string) => patchOverview(pool, patch),
+    trending: (input: TrendingQuery) => trending(pool, input),
+    proFeed: (input: ProFeedQuery) => proFeed(pool, input),
+    proAccountLink: (puuid: string) => proAccountLink(pool, puuid),
+    summoner: (input: SummonerQuery) => summoner(pool, input, clock()),
+    leaderboard: (input: LeaderboardQuery) => leaderboard(pool, input),
+    replayMetadata: (sha256: string) => replayMetadata(pool, sha256),
+    replayTrack: (input: Parameters<typeof replayTrack>[1]) => replayTrack(pool, input),
+    matchTrackSummary: (matchId: string) => matchTrackSummary(pool, matchId),
+    matchTrackRange: (input: TrackRangeQuery) => matchTrackRange(pool, input),
+    trackAccuracy: (matchId: string) => trackAccuracy(pool, matchId),
+    championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
+    tierList: (input?: TierListQuery) => tierList(pool, input),
+    championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
+    soloGame: (matchId: string) => soloGame(pool, matchId),
+    soloDraftWinProbability: (matchId: string) => soloDraftWinProbability(pool, matchId),
+    soloGamePositions: (matchId: string) => soloGamePositions(pool, matchId),
+    soloGameMapEvents: (matchId: string) => soloGameMapEvents(pool, matchId),
+    heatmap: (input: HeatmapQuery) => heatmap(pool, input),
+    championJunglePaths: (input: { championKey: number; patch: string }) =>
+      championJunglePaths(pool, input),
+    proGameWinProbability: (gameId: string) => proGameWinProbability(pool, idSchema.parse(gameId)),
+    modelDiagnostics: (selectedId?: number) => modelDiagnostics(pool, selectedId),
+    wpaLeaderboard: (input?: WpaLeaderboardQuery) => wpaLeaderboard(pool, input),
     async ready() {
       // Verify both the connection and an initialized read model without scanning data.
       await pool.query("SELECT id FROM entity_profiles LIMIT 0");
     },
     games,
-    async matches(input: BrowseQuery = {}) {
+    teamDirectory: (input: BrowseQuery = {}) => teamDirectory(pool, input, clock()),
+    playerDirectory: (input: BrowseQuery = {}) => playerDirectory(pool, input, clock()),
+    async teamContext(id: string) {
+      const identity = await profileIdentity(id, "team");
+      if (identity?.kind !== "team") return null;
+      return { identity, seasons: await teamSeasons(pool, identity.id) };
+    },
+    async playerContext(id: string) {
+      const identity = await profileIdentity(id, "player");
+      if (identity?.kind !== "player") return null;
+      return { identity, seasons: await playerSeasons(pool, identity.id) };
+    },
+    /** Per-game statistics for a player entity over the complete games matching the filters. */
+    async playerPerformance(entityId: string, input: BrowseQuery = {}) {
+      const { values, clauses } = filters(input, "games");
+      clauses.push("complete");
+      return playerPerformance(pool, idSchema.parse(entityId), clauses.join(" AND "), values);
+    },
+    async matches(input: BrowseQuery = {}, teamEntityId?: string) {
       const { q, values, clauses } = filters(input, "matches");
+      if (teamEntityId) {
+        values.push(idSchema.parse(teamEntityId));
+        clauses.push(`EXISTS(SELECT 1 FROM entity_members m WHERE m.entity_id=$${values.length}
+          AND matches.document->'teams' @> jsonb_build_array(jsonb_build_object('id',m.id)))`);
+      }
       const result = await page<Match>(
         pool,
         "matches",
@@ -175,6 +365,31 @@ export function queries(pool: Pool, clock: () => Date) {
         [idSchema.parse(id)],
       );
       return result.rows[0] ? (await decorateMatches([result.rows[0].document]))[0]! : null;
+    },
+    matchGames,
+    /** The series and game number an archive game belongs to, by the same rule as matchGames. */
+    async gameSeries(gameId: string): Promise<{ matchId: string; number: number } | null> {
+      const parsedId = idSchema.parse(gameId);
+      const candidates = await pool.query<{ id: string }>(
+        `SELECT m.id FROM games g
+         JOIN matches m ON m.league=g.league
+           AND m.starts_at BETWEEN g.occurred_at-interval '2 days' AND g.occurred_at+interval '3 hours'
+         WHERE g.id=$1
+         ORDER BY m.starts_at DESC,m.id
+         LIMIT 10`,
+        [parsedId],
+      );
+      const found: { matchId: string; number: number }[] = [];
+      for (const { id } of candidates.rows) {
+        const linked = (await matchGames(id))?.find((game) => game.gameId === parsedId);
+        if (linked) found.push({ matchId: id, number: linked.number });
+      }
+      return found.length === 1 ? found[0]! : null;
+    },
+    /** The archive game's recording, opening where the game starts when that is known. */
+    async gameVod(gameId: string): Promise<string | null> {
+      const parsedId = idSchema.parse(gameId);
+      return (await archiveGameVods(pool, [parsedId])).get(parsedId) ?? null;
     },
     async game(id: string) {
       const parsedId = idSchema.parse(id);
@@ -282,6 +497,36 @@ export function queries(pool: Pool, clock: () => Date) {
               )
             FROM games
             WHERE lower(source_id) LIKE $1
+            UNION ALL
+            SELECT * FROM (
+              SELECT DISTINCT ON (c.champion_id)
+                c.champion_id,
+                c.name,
+                jsonb_build_object(
+                  'id', c.champion_id,
+                  'kind', 'champion',
+                  'name', c.name,
+                  'detail', 'Champion',
+                  'imageUrl', CASE WHEN i.asset_hash IS NULL THEN NULL ELSE '/api/images/'||i.asset_hash END
+                )
+              FROM catalog_champions c JOIN patches p USING (patch_key)
+              LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
+              WHERE lower(c.name) LIKE $1
+              ORDER BY c.champion_id,p.release_order DESC
+            ) champions
+            UNION ALL
+            SELECT
+              puuid,
+              game_name||'#'||tag_line,
+              jsonb_build_object(
+                'id', puuid,
+                'kind', 'summoner',
+                'name', game_name||'#'||tag_line,
+                'detail', 'Solo queue player'
+              )
+            FROM riot_accounts
+            WHERE game_name IS NOT NULL AND tag_line IS NOT NULL
+              AND lower(game_name||'#'||tag_line) LIKE $1
           ) hits`,
         "true",
         [pattern],
@@ -294,17 +539,7 @@ export function queries(pool: Pool, clock: () => Date) {
       input: BrowseQuery = {},
       routeKind?: "team" | "player",
     ): Promise<Profile | null> {
-      const identity = (
-        await pool.query<{ document: Identity }>(
-          `SELECT document
-            FROM entity_profiles
-            WHERE id=coalesce(
-              (SELECT entity_id FROM entity_members WHERE id=$1),
-              (SELECT entity_id FROM identity_routes WHERE slug=$1 AND kind=$2)
-            )`,
-          [idSchema.parse(id), routeKind ?? null],
-        )
-      ).rows[0]?.document;
+      const identity = await profileIdentity(id, routeKind);
       if (!identity) return null;
       const { values, clauses } = filters(input, "games");
       const members = (
@@ -431,6 +666,67 @@ export function queries(pool: Pool, clock: () => Date) {
         games: await games(input, identity.id),
       };
     },
+    /** Resolve historical display names against the locally synchronized champion catalog. */
+    async championIconsByName(names: (string | null)[], patch?: string | null) {
+      const requested = [...new Set(names.filter((name): name is string => Boolean(name)))];
+      if (requested.length === 0) return {};
+      const result = await pool.query<{ name: string; id: string; hash: string | null }>(
+        `SELECT DISTINCT ON (n.name) n.name,n.champion_id AS id,i.asset_hash AS hash
+         FROM oracle_champion_names n
+         JOIN catalog_champions c ON c.champion_id=n.champion_id
+         JOIN patches p ON p.patch_key=c.patch_key
+         LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
+         WHERE n.name=ANY($1::text[])
+         ORDER BY n.name,(i.asset_hash IS NOT NULL) DESC,(c.patch_key IS NOT DISTINCT FROM $2) DESC,p.release_order DESC`,
+        [requested, patch ?? null],
+      );
+      return Object.fromEntries(
+        result.rows.map(({ name, id, hash }) => [
+          name,
+          { id, imageUrl: hash ? `/api/images/${hash}` : null },
+        ]),
+      );
+    },
+    async catalogIcons(input: CatalogIconQuery): Promise<CatalogIcon[]> {
+      const q = catalogIconQuerySchema.parse(input);
+      const result = await pool.query<{
+        id: string;
+        kind: CatalogIconQuery["kind"];
+        name: string;
+        asset_hash: string | null;
+        fetched_at: Date | null;
+      }>(
+        `SELECT c.id,c.kind,c.name,i.asset_hash,i.fetched_at FROM catalog_icon_entries c
+         LEFT JOIN catalog_images i ON (i.patch_key,i.kind,i.catalog_id)=(c.patch_key,c.kind,c.id)
+         WHERE c.patch_key=$1 AND c.kind=$2 AND c.id=ANY($3::text[]) ORDER BY c.id LIMIT 100`,
+        [q.patch, q.kind, q.ids],
+      );
+      return result.rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        name: r.name,
+        imageUrl: r.asset_hash ? `/api/images/${r.asset_hash}` : null,
+        fetchedAt: stamp(r.fetched_at),
+      }));
+    },
+    async mapImage(): Promise<MapImage | null> {
+      const row = (
+        await pool.query<{
+          map_id: number;
+          source_url: string;
+          asset_hash: string;
+          fetched_at: Date;
+        }>("SELECT * FROM map_images WHERE map_id=11")
+      ).rows[0];
+      return row
+        ? {
+            mapId: row.map_id,
+            sourceUrl: row.source_url,
+            imageUrl: `/api/images/${row.asset_hash}`,
+            fetchedAt: row.fetched_at.toISOString(),
+          }
+        : null;
+    },
     async image(hash: string) {
       z.string()
         .regex(/^[a-f0-9]{64}$/)
@@ -530,6 +826,15 @@ export function queries(pool: Pool, clock: () => Date) {
       const cooldown = await pool.query<{ cooldown_until: Date | null }>(
         "SELECT cooldown_until FROM quota_state WHERE id=true",
       );
+      const riot = (
+        await pool.query<{
+          state: SyncStatus["riotKey"]["state"];
+          kind: SyncStatus["riotKey"]["kind"];
+          set_at: Date | null;
+          checked_at: Date | null;
+          detail: string | null;
+        }>("SELECT state,kind,set_at,checked_at,detail FROM riot_key_status WHERE id=true")
+      ).rows[0]!;
       const history = await pool.query<{
         year: number;
         games: number;
@@ -545,7 +850,179 @@ export function queries(pool: Pool, clock: () => Date) {
           GROUP BY year
           ORDER BY year DESC`,
       );
+      const retention = (
+        await pool.query<{
+          previous_patches: number | null;
+          kept_patches: string[];
+          last_run_at: Date | null;
+          pruned_matches: number;
+          backfilled_matches: number;
+        }>("SELECT * FROM riot_retention WHERE id=true")
+      ).rows[0]!;
+      // Storage per patch is estimated: each table's size is shared out by row-bearing matches.
+      const sizes = (
+        await pool.query<{ matches: string; timelines: string }>(
+          `SELECT
+             (SELECT coalesce(sum(pg_total_relation_size(t::regclass)),0) FROM unnest(ARRAY[
+               'riot_matches','riot_match_teams','riot_match_objectives','riot_match_bans',
+               'riot_match_participants','riot_match_items','riot_match_perks',
+               'riot_match_payloads']) t)::text AS matches,
+             (SELECT coalesce(sum(pg_total_relation_size(t::regclass)),0) FROM unnest(ARRAY[
+               'riot_timeline_frames','riot_timeline_events']) t)::text AS timelines`,
+        )
+      ).rows[0]!;
+      const perPatch = (
+        await pool.query<{ patch_key: string | null; matches: number; timelines: number }>(
+          `SELECT m.patch_key,count(*)::integer AS matches,
+             (count(*) FILTER(WHERE m.timeline_state='fetched'))::integer AS timelines
+           FROM riot_matches m LEFT JOIN patches p ON p.patch_key=m.patch_key
+           GROUP BY m.patch_key,p.release_order ORDER BY p.release_order DESC NULLS FIRST`,
+        )
+      ).rows;
+      const totalMatches = perPatch.reduce((n, p) => n + p.matches, 0);
+      const totalTimelines = perPatch.reduce((n, p) => n + p.timelines, 0);
+      const quota = (
+        await pool.query<{
+          region: string;
+          method: string;
+          windows: { limit: number; windowSeconds: number; used: number }[];
+          paused_until: Date | null;
+        }>(
+          `WITH scopes AS (
+             SELECT region,method FROM riot_rate_limits
+             UNION SELECT region,method FROM riot_rate_pauses WHERE until>$1
+             UNION SELECT region,method FROM riot_request_ledger
+               WHERE requested_at>$1::timestamptz-interval '1 hour'
+             UNION SELECT region,'' FROM riot_request_ledger
+               WHERE requested_at>$1::timestamptz-interval '1 hour'
+           ), windows AS (
+             SELECT s.region,s.method,l.window_seconds,l.limit_count FROM scopes s
+             JOIN riot_rate_limits l ON l.region=s.region AND l.method=s.method
+             UNION ALL
+             -- Regions without reported application limits use the development key defaults.
+             SELECT s.region,s.method,d.window_seconds,d.limit_count FROM scopes s
+             CROSS JOIN (VALUES (1,$2::integer),(120,$3::integer)) d(window_seconds,limit_count)
+             WHERE s.method='' AND NOT EXISTS (SELECT 1 FROM riot_rate_limits r
+               WHERE r.region=s.region AND r.method='')
+           )
+           SELECT s.region,s.method,
+             coalesce(jsonb_agg(jsonb_build_object('limit',w.limit_count,
+               'windowSeconds',w.window_seconds,
+               'used',(SELECT count(*) FROM riot_request_ledger q WHERE q.region=s.region
+                 AND (s.method='' OR q.method=s.method)
+                 AND q.requested_at>$1::timestamptz-make_interval(secs=>w.window_seconds)))
+               ORDER BY w.window_seconds) FILTER(WHERE w.window_seconds IS NOT NULL),'[]') AS windows,
+             (SELECT p.until FROM riot_rate_pauses p WHERE p.region=s.region AND p.method=s.method
+               AND p.until>$1) AS paused_until
+           FROM scopes s LEFT JOIN windows w ON w.region=s.region AND w.method=s.method
+           GROUP BY s.region,s.method ORDER BY s.region,s.method`,
+          [clock(), defaultApplicationLimits[0]!.limit, defaultApplicationLimits[1]!.limit],
+        )
+      ).rows;
+      const riotJobs = (
+        await pool.query<{
+          kind: string;
+          last_success: Date | null;
+          last_error_at: Date | null;
+          error: string | null;
+          records: number;
+        }>("SELECT * FROM riot_job_status ORDER BY kind")
+      ).rows;
+      // Progress by the patch current when ids were crawled, the bound the crawl caps against.
+      const progress = (
+        await pool.query<{
+          region: string;
+          patch_key: string;
+          match_ids: number;
+          matches: number;
+          timelines: number;
+        }>(
+          `SELECT i.region,i.crawl_patch_key AS patch_key,count(*)::integer AS match_ids,
+             count(m.match_id)::integer AS matches,
+             (count(*) FILTER(WHERE m.timeline_state='fetched'))::integer AS timelines
+           FROM riot_match_ids i LEFT JOIN riot_matches m USING (match_id)
+           LEFT JOIN patches p ON p.patch_key=i.crawl_patch_key
+           GROUP BY i.region,i.crawl_patch_key,p.release_order
+           ORDER BY i.region,p.release_order DESC`,
+        )
+      ).rows;
+      const ladder = (
+        await pool.query<{ platform: RiotPlatform; players: number }>(
+          `SELECT e.platform,count(*)::integer AS players FROM riot_ladder_entries e
+           JOIN riot_ladder_status s ON s.platform=e.platform AND e.fetched_at=s.last_success
+           GROUP BY e.platform`,
+        )
+      ).rows;
+      const ladderPlayers = (region: string) =>
+        ladder.filter((l) => matchRoute(l.platform) === region).reduce((n, l) => n + l.players, 0);
+      // A region whose ladder is synced but has no match ids yet shows under the current patch.
+      const currentPatch = (
+        await pool.query<{ patch_key: string }>(
+          "SELECT patch_key FROM patches ORDER BY release_order DESC LIMIT 1",
+        )
+      ).rows[0]?.patch_key;
+      const crawled = new Set(progress.map((p) => p.region));
+      if (currentPatch)
+        for (const region of new Set(ladder.map((l) => matchRoute(l.platform))))
+          if (!crawled.has(region))
+            progress.push({
+              region,
+              patch_key: currentPatch,
+              match_ids: 0,
+              matches: 0,
+              timelines: 0,
+            });
       return {
+        riotCrawl: {
+          quota: quota.map((q) => ({
+            region: q.region,
+            method: q.method,
+            windows: q.windows,
+            pausedUntil: stamp(q.paused_until),
+          })),
+          jobs: riotJobs.map((j) => ({
+            kind: j.kind,
+            lastSuccess: stamp(j.last_success),
+            lastErrorAt: stamp(j.last_error_at),
+            error: j.error,
+            records: j.records,
+          })),
+          progress: progress.map((p) => ({
+            region: p.region,
+            patchKey: p.patch_key,
+            ladderPlayers: ladderPlayers(p.region),
+            matchIds: p.match_ids,
+            matches: p.matches,
+            timelines: p.timelines,
+          })),
+        },
+        riotStorage: {
+          previousPatches: retention.previous_patches,
+          keptPatches: retention.kept_patches,
+          lastRunAt: stamp(retention.last_run_at),
+          prunedMatches: retention.pruned_matches,
+          backfilledMatches: retention.backfilled_matches,
+          patches: perPatch.map((p) => ({
+            patchKey: p.patch_key,
+            matches: p.matches,
+            timelines: p.timelines,
+            estimatedBytes: Math.round(
+              (totalMatches ? (Number(sizes.matches) * p.matches) / totalMatches : 0) +
+                (totalTimelines ? (Number(sizes.timelines) * p.timelines) / totalTimelines : 0),
+            ),
+          })),
+        },
+        riotKey: {
+          state: riot.state,
+          kind: riot.kind,
+          setAt: stamp(riot.set_at),
+          checkedAt: stamp(riot.checked_at),
+          detail: riot.detail,
+          expiresAt:
+            riot.kind === "development" && riot.set_at
+              ? new Date(riot.set_at.valueOf() + developmentKeyLifetimeMs).toISOString()
+              : null,
+        },
         sources: sources.rows.map((s) => ({
           source: s.source,
           lastSuccess: stamp(s.last_success),
@@ -562,6 +1039,8 @@ export function queries(pool: Pool, clock: () => Date) {
         })),
         pandaRequests: budget.rows[0]!.count,
         cooldownUntil: stamp(cooldown.rows[0]!.cooldown_until),
+        leaguepedia: await leaguepediaProgress(pool, clock()),
+        archives: await archiveYearStatus(pool, clock()),
         history: history.rows.map((h) => ({
           year: h.year,
           games: h.games,

@@ -1,6 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  FilterBar,
   Input,
   Select,
   Pagination,
@@ -8,6 +10,7 @@ import {
   TextLink,
   StatusIndicator,
   TeamIdentity,
+  TeamVersus,
 } from "@summonersnet/ui";
 import type { BrowseQuery, Game, Page } from "@summonersnet/data";
 import { regions } from "@summonersnet/data/contracts";
@@ -28,14 +31,28 @@ function todayInputValue(timezone: string) {
 export function Filters({
   query,
   history = false,
+  teams = false,
+  seasons,
+  selectedYear,
   search = false,
+  view,
+  className,
 }: {
   query: BrowseQuery;
   history?: boolean;
+  teams?: boolean;
+  seasons?: number[];
+  selectedYear?: string;
   search?: boolean;
+  /** The past matches view; the games view is kept when the filters are submitted. */
+  view?: "series" | "games";
+  className?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timeoutRef = useRef<number | undefined>(undefined);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pending, startTransition] = useTransition();
   const defaultDate = todayInputValue(query.timezone ?? "UTC");
   const [dateValue, setDateValue] = useState(query.date ?? defaultDate);
   const [dateIsFilter, setDateIsFilter] = useState(Boolean(query.date));
@@ -66,15 +83,43 @@ export function Filters({
     }, 350);
   }
 
+  /** Applies the filters in place, so the field keeps focus and anything typed meanwhile. */
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    for (const [name, value] of new FormData(event.currentTarget)) {
+      if (typeof value === "string") params.append(name, value);
+    }
+    const search = params.toString();
+    startTransition(() => {
+      router.replace(`${pathname}${search ? `?${search}` : ""}`, { scroll: false });
+    });
+  }
+
   return (
-    <form ref={formRef} className="ev-filters" method="get">
+    <FilterBar
+      ref={formRef}
+      className={className}
+      method="get"
+      onSubmit={submit}
+      aria-busy={pending || undefined}
+    >
+      {view === "games" ? <input type="hidden" name="view" value="games" /> : null}
       <Input
         type="search"
-        label={search ? "Search" : history ? "Filter Games" : "Filter Matches"}
+        label={
+          teams
+            ? "Search Teams"
+            : search
+              ? "Search"
+              : history && view !== "series"
+                ? "Filter Games"
+                : "Filter Matches"
+        }
         name="q"
         defaultValue={query.q ?? ""}
         onChange={scheduleSubmit}
-        placeholder={search ? "Search..." : "Filter..."}
+        placeholder={teams ? "Team name or alias" : search ? "Search..." : "Filter..."}
       />
       {!search && (
         <>
@@ -84,11 +129,22 @@ export function Filters({
             defaultValue={query.league ?? "all"}
             onValueChange={scheduleSubmit}
             options={[
-              { value: "all", label: "All leagues" },
+              { value: "all", label: "All Leagues" },
               ...regions.map((r) => ({ value: r, label: r })),
             ]}
           />
-          {history ? (
+          {seasons ? (
+            <Select
+              label="Season"
+              name="year"
+              defaultValue={selectedYear ?? "all"}
+              onValueChange={scheduleSubmit}
+              options={[
+                ...seasons.map((year) => ({ label: String(year), value: String(year) })),
+                { label: "All Years", value: "all" },
+              ]}
+            />
+          ) : teams ? null : history ? (
             <Input
               label="Year"
               type="number"
@@ -120,7 +176,7 @@ export function Filters({
                 defaultValue={query.state ?? "all"}
                 onValueChange={scheduleSubmit}
                 options={[
-                  { value: "all", label: "All statuses" },
+                  { value: "all", label: "All Statuses" },
                   ...["scheduled", "live", "final", "postponed", "cancelled"].map((s) => ({
                     value: s,
                     label: s === "final" ? "Results" : s.charAt(0).toUpperCase() + s.slice(1),
@@ -131,15 +187,18 @@ export function Filters({
           )}
         </>
       )}
-    </form>
+    </FilterBar>
   );
 }
-export function Pages({ data }: { data: Page<unknown> }) {
+export function Pages({ data, afterCount }: { data: Page<unknown>; afterCount?: ReactNode }) {
   return (
-    <div className="ev-pagination">
-      <span className="np-meta">
-        {data.total.toLocaleString()} records · Page {data.page}
-      </span>
+    <div className="flex items-center justify-between gap-x-4 gap-y-2 py-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="np-meta text-accent">
+          {data.total.toLocaleString()} {data.total === 1 ? "record" : "records"} · Page {data.page}
+        </span>
+        {afterCount}
+      </div>
       <Pagination
         currentPage={data.page}
         totalPages={Math.max(1, Math.ceil(data.total / data.pageSize))}
@@ -152,10 +211,20 @@ export function Pages({ data }: { data: Page<unknown> }) {
     </div>
   );
 }
-export function GamesTable({ games, timezone }: { games: Game[]; timezone: string }) {
+export function GamesTable({
+  games,
+  timezone,
+  hideSpoilers,
+  pastMatches = false,
+}: {
+  games: Game[];
+  timezone: string;
+  hideSpoilers: boolean;
+  pastMatches?: boolean;
+}) {
   return (
     <Table
-      caption="Historical games"
+      caption="Historical Games"
       rows={games}
       getRowKey={(g) => g.id}
       emptyMessage="No games match these filters."
@@ -165,41 +234,47 @@ export function GamesTable({ games, timezone }: { games: Game[]; timezone: strin
           header: "Played",
           render: (g) => (
             <TextLink href={`/games/${encodeURIComponent(g.id)}`}>
-              {dateTime(g.occurredAt, timezone)}
+              {dateTime(g.occurredAt, timezone, pastMatches)}
             </TextLink>
           ),
         },
         {
           id: "teams",
           header: "Teams",
-          render: (g) => (
-            <div className="np-cluster">
-              {gameTeams(g).map((t) => (
-                <TeamIdentity
-                  key={t.id}
-                  name={t.name}
-                  shortName={t.name}
-                  size="compact"
-                  href={identityHref(t)}
-                  {...(t.imageUrl ? { logo: t.imageUrl } : {})}
-                />
-              ))}
-            </div>
-          ),
+          render: (g) => {
+            const [first, second] = gameTeams(g).map((team) => ({
+              name: team.name,
+              side: team.side,
+              shortName: team.name,
+              size: "compact" as const,
+              href: identityHref(team),
+              winner: !hideSpoilers && team.won === true,
+              ...(team.imageUrl ? { logo: team.imageUrl } : {}),
+            }));
+            return first && second ? (
+              <TeamVersus teams={[first, second]} />
+            ) : first ? (
+              <TeamIdentity {...first} />
+            ) : null;
+          },
         },
         { id: "league", header: "League", render: (g) => g.league },
         { id: "game", header: "Game", render: (g) => g.number },
         { id: "patch", header: "Patch", render: (g) => g.patch ?? "—" },
-        {
-          id: "coverage",
-          header: "Statistics",
-          render: (g) => (
-            <StatusIndicator
-              label={g.complete ? "Eligible" : "Partial"}
-              tone={g.complete ? "neutral" : "warning"}
-            />
-          ),
-        },
+        ...(pastMatches
+          ? []
+          : [
+              {
+                id: "coverage",
+                header: "Statistics",
+                render: (g: Game) => (
+                  <StatusIndicator
+                    label={g.complete ? "Eligible" : "Partial"}
+                    tone={g.complete ? "neutral" : "warning"}
+                  />
+                ),
+              },
+            ]),
       ]}
     />
   );

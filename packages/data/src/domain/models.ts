@@ -1,3 +1,4 @@
+import { replayPlatformSchema } from "./replays.js";
 import { z } from "zod";
 export const regions = [
   "LCK",
@@ -45,6 +46,7 @@ export const matchGameSchema = z.object({
   startsAt: z.iso.datetime().nullable(),
   finishedAt: z.iso.datetime().nullable(),
   winnerId: z.string().nullable(),
+  vodUrl: z.url().optional(),
 });
 export const matchSchema = z.object({
   id: z.string(),
@@ -68,6 +70,12 @@ export const matchSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 export type Match = z.infer<typeof matchSchema>;
+/** A series game with the archive game it corresponds to, or null while unconfirmed. */
+export type SeriesGame = z.infer<typeof matchGameSchema> & {
+  gameId: string | null;
+  /** The linked archive game's recording, opening where the game starts, when one is known. */
+  gameVodUrl?: string | null;
+};
 export const participantSchema = z.object({
   slot: z.string(),
   side: z.enum(["blue", "red"]),
@@ -159,15 +167,77 @@ export const querySchema = z.object({
   state: matchSchema.shape.state.optional(),
 });
 export type BrowseQuery = z.input<typeof querySchema>;
+/** Directory grids size their pages to whole rows of the visible area, within these bounds. */
+export const directoryPageSize = { default: 24, max: 120 } as const;
+export const directoryQuerySchema = querySchema.extend({
+  // Out-of-range sizes clamp rather than fail, so a resized or shared link still renders.
+  pageSize: z.coerce
+    .number()
+    .int()
+    .catch(directoryPageSize.default)
+    .transform((size) => Math.min(Math.max(size, 1), directoryPageSize.max)),
+});
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("pro-account-links"),
+    file: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((v) => !v.includes(String.fromCharCode(0)), "Invalid file path."),
+  }),
+  z.strictObject({
+    kind: z.literal("replay-metadata"),
+    file: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((value) => !value.includes(String.fromCharCode(0)), "Invalid file path."),
+    platform: replayPlatformSchema.optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("replay-track"),
+    file: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((value) => !value.includes(String.fromCharCode(0)), "Invalid file path."),
+  }),
   z
-    .object({ kind: z.enum(["running", "matches", "rosters", "metadata", "entities", "resolve"]) })
+    .object({
+      kind: z.enum([
+        "running",
+        "matches",
+        "rosters",
+        "metadata",
+        "entities",
+        "resolve",
+        "riot-key",
+        "riot-ladder",
+        "riot-accounts",
+        "riot-match-ids",
+        "drafts",
+        "pro-game-details",
+        "pro-game-vods",
+        "riot-match",
+        "riot-timeline",
+        "riot-retention",
+        "wp-train",
+      ]),
+    })
     .strict(),
   z
     .object({
       kind: z.enum(["entity-history", "entity-rosters"]),
       year: z.number().int().min(2014).max(2100),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("aggregate"),
+      /** Mark every patch with stored facts for rebuilding. */
+      rebuild: z.boolean().optional(),
     })
     .strict(),
   z
@@ -187,8 +257,61 @@ export interface SourceStatus {
   error: string | null;
   records: number;
 }
+export interface RiotKeyStatus {
+  state: "missing" | "untested" | "valid" | "rejected";
+  kind: "development" | "personal" | "production" | null;
+  setAt: string | null;
+  checkedAt: string | null;
+  detail: string | null;
+  /** For development keys: 24 hours after the current key was first seen. */
+  expiresAt: string | null;
+}
+export interface RiotStorageStatus {
+  /** Patches kept before the current one, as the worker last applied it; null before a run. */
+  previousPatches: number | null;
+  keptPatches: string[];
+  lastRunAt: string | null;
+  prunedMatches: number;
+  backfilledMatches: number;
+  /** Per patch, newest first; a null patch is a game version the catalog does not know. */
+  patches: {
+    patchKey: string | null;
+    matches: number;
+    timelines: number;
+    /** Each match table's size shared out by matches, each timeline table's by timelines. */
+    estimatedBytes: number;
+  }[];
+}
+export interface RiotCrawlStatus {
+  /** Requests in each known rate-limit window, per routing value and method ("" = whole app). */
+  quota: {
+    region: string;
+    method: string;
+    windows: { limit: number; windowSeconds: number; used: number }[];
+    pausedUntil: string | null;
+  }[];
+  jobs: {
+    kind: string;
+    lastSuccess: string | null;
+    lastErrorAt: string | null;
+    error: string | null;
+    records: number;
+  }[];
+  /** Per match-v5 region and crawl patch. */
+  progress: {
+    region: string;
+    patchKey: string;
+    ladderPlayers: number;
+    matchIds: number;
+    matches: number;
+    timelines: number;
+  }[];
+}
 export interface SyncStatus {
   sources: SourceStatus[];
+  riotKey: RiotKeyStatus;
+  riotStorage: RiotStorageStatus;
+  riotCrawl: RiotCrawlStatus;
   jobs: {
     id: string;
     kind: string;
@@ -198,10 +321,40 @@ export interface SyncStatus {
   }[];
   pandaRequests: number;
   cooldownUntil: string | null;
+  /** The shared Leaguepedia budget and the pro timeline backfill it serves. */
+  leaguepedia: {
+    requestsLastHour: number;
+    limitPerHour: number;
+    pausedUntil: string | null;
+    pauseReason: string | null;
+    timelines: {
+      /** Complete archive games Leaguepedia may have a timeline for. */
+      games: number;
+      /** Games with a stored per-minute timeline. */
+      withTimeline: number;
+      /** Games never checked yet. */
+      unchecked: number;
+      /** When the unchecked games would all be requested at the hourly ceiling; null when none. */
+      estimatedFinish: string | null;
+    };
+  };
   history: {
     year: number;
     games: number;
     eligible: number;
     latestGameAt: string;
+  }[];
+  /**
+   * Each Oracle's Elixir annual archive year, from the first indexed year to the current one:
+   * `imported` with its games; `blocked` while Drive's download quota defers it until `retryAt`;
+   * `queued` or `failed` for its latest import job; `missing` when nothing has tried it yet.
+   */
+  archives: {
+    year: number;
+    state: "imported" | "blocked" | "queued" | "failed" | "missing";
+    games: number;
+    latestGameAt: string | null;
+    retryAt: string | null;
+    error: string | null;
   }[];
 }

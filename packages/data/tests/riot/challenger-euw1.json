@@ -1,0 +1,29 @@
+{
+  "tier": "CHALLENGER",
+  "queue": "RANKED_SOLO_5x5",
+  "entries": [
+    {
+      "puuid": "q1Jm3Z8bXyR0xG6Vd2kTn5Yp7Wc9Hs4Lf1Ea8Ob3Ui6Kr0Mz2Nv5Qx7Tg9Jw4Pd1Ys3Ak6Bh8Ce0Fl",
+      "summonerId": "bW9ja1N1bW1vbmVySWQtb25l",
+      "leaguePoints": 1824,
+      "rank": "I",
+      "wins": 412,
+      "losses": 351,
+      "veteran": true,
+      "inactive": false,
+      "freshBlood": false,
+      "hotStreak": false
+    },
+    {
+      "puuid": "z9Xc7Vb5Nm3Lk1Jh8Gf6Ds4Aq2Wr0Et9Yu7Io5Pa3Sd1Fg8Hj6Kl4Zx2Cv0Bn9Mq7We5Rt3Yu1Ip8Oa6",
+      "leaguePoints": 1503,
+      "rank": "I",
+      "wins": 198,
+      "losses": 140,
+      "veteran": false,
+      "inactive": false,
+      "freshBlood": true,
+      "hotStreak": true
+    }
+  ]
+}

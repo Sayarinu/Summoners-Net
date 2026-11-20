@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DraftEvent } from "./draft-order.js";
 import { regions } from "./models.js";
 
 export const historicalQuerySchema = z
@@ -58,6 +59,32 @@ export interface HistoricalParticipant {
     checkpoints: Record<string, number | null>;
   };
 }
+/** Damage dealt to champions by type, from the game's own record. */
+export interface DamageBreakdown {
+  physical: number;
+  magic: number;
+  true: number;
+}
+
+export interface HistoricalPlayerBuild {
+  inventory: number[];
+  purchases: { itemId: number; timestampMs: number }[] | null;
+  /** Null when the record has no breakdown; older stored details omit it. */
+  damage?: DamageBreakdown | null;
+}
+
+export interface HistoricalGameTelemetry {
+  patch: string | null;
+  builds: Record<string, HistoricalPlayerBuild>;
+  gold: { seconds: number; lead: number }[];
+  events: {
+    seconds: number;
+    label: string;
+    side: "blue" | "red" | null;
+    drake: "infernal" | "mountain" | "cloud" | "ocean" | "chemtech" | "hextech" | "elder" | null;
+  }[];
+}
+
 export interface HistoricalGameDetail extends HistoricalGameListItem {
   context: {
     sourceYear: number | null;
@@ -74,7 +101,9 @@ export interface HistoricalGameDetail extends HistoricalGameListItem {
     picks: (string | null)[];
     bans: (string | null)[];
   }[];
+  draftOrder: DraftEvent[];
   participants: HistoricalParticipant[];
+  telemetry?: HistoricalGameTelemetry;
 }
 export interface HistoricalSummary {
   subject: z.output<typeof historicalSubjectSchema>;

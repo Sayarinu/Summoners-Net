@@ -1,0 +1,42 @@
+[
+  {
+    "id": 8100,
+    "key": "Domination",
+    "icon": "perk-images/Styles/7200_Domination.png",
+    "name": "Domination",
+    "slots": [
+      {
+        "runes": [
+          {
+            "id": 8112,
+            "key": "Electrocute",
+            "icon": "perk-images/Styles/Domination/Electrocute/Electrocute.png",
+            "name": "Electrocute"
+          },
+          {
+            "id": 8128,
+            "key": "DarkHarvest",
+            "icon": "perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png",
+            "name": "Dark Harvest"
+          }
+        ]
+      },
+      {
+        "runes": [
+          {
+            "id": 8126,
+            "key": "CheapShot",
+            "icon": "perk-images/Styles/Domination/CheapShot/CheapShot.png",
+            "name": "Cheap Shot"
+          },
+          {
+            "id": 8139,
+            "key": "TasteOfBlood",
+            "icon": "perk-images/Styles/Domination/TasteOfBlood/GreenTerror_TasteOfBlood.png",
+            "name": "Taste of Blood"
+          }
+        ]
+      }
+    ]
+  }
+]

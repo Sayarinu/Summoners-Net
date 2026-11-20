@@ -34,7 +34,9 @@ export function SoftNavigation() {
       const path = softTarget(event, origin);
       if (!path) return;
       event.preventDefault();
-      startTransition(() => router.push(path));
+      // Tabs switch a view of the same subject, so the reader keeps their place on the page.
+      const keepScroll = (event.target as Element).closest("a[data-keep-scroll]") !== null;
+      startTransition(() => router.push(path, { scroll: !keepScroll }));
     };
     document.addEventListener("click", click);
     return () => {
@@ -44,7 +46,12 @@ export function SoftNavigation() {
   return (
     <div
       aria-hidden="true"
-      className={`ev-navigation-progress${pending ? " ev-navigation-progress--active" : ""}`}
+      data-pending={pending || undefined}
+      className={`pointer-events-none fixed inset-x-0 top-0 z-[100] h-0.5 origin-left bg-line-accent ${
+        pending
+          ? "scale-x-[0.8] opacity-100 [transition:transform_2s_var(--motion-easing-standard),opacity_var(--motion-duration-fast)_linear] motion-reduce:transition-none"
+          : "scale-x-0 opacity-0"
+      }`}
     />
   );
 }

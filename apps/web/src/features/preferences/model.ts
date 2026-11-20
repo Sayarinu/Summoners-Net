@@ -7,6 +7,12 @@ export const preferencesSchema = z
   })
   .strict();
 export type Preferences = z.infer<typeof preferencesSchema>;
+/**
+ * Versions 1 and earlier hid results by default and saved that default with the detected
+ * timezone, so a fresh cookie name lets results show until a viewer chooses to hide them.
+ */
+export const preferencesCookie = "viewer-preferences-v2";
+export const legacyPreferencesCookie = "viewer-preferences";
 export const preferencesChangedEvent = "summonersnet-preferences-changed";
 export function browserTimezone() {
   try {

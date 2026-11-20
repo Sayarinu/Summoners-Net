@@ -1,4 +1,4 @@
-# Contributing to SummonersNet
+# Contributing to Summoners Net
 
 These rules apply to everyone who changes this repository, and to any coding agent working on their
 behalf. Read them before starting. Setup, configuration and self-hosting are in the
@@ -6,11 +6,15 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
 
 ## Product rules
 
-- SummonersNet is a local-first application. It has no accounts, no operator console, no paid
+- Summoners Net is a local-first application. It has no accounts, no operator console, no paid
   telemetry and no synthetic fallback data. Do not add any of them.
 - Every value shown comes from a real source. Preserve source identifiers. When a provider fails,
   keep the last successful data and its timestamps. Missing statistics stay `null`, with explicit
   sample counts; never turn unknown values into zero.
+- Buttons, headings, navigation entries, tabs, field and option labels, and table column headers use
+  title case: "Solo Queue", "Apply Filters", "Win Rate by Game Length". Short articles, conjunctions
+  and prepositions (a, and, by, of, the, vs, …) stay lowercase unless they come first. Descriptions
+  and other body text stay in sentence case.
 - The browser reads PostgreSQL through the application. All provider fetches belong to the
   coordinated worker in `packages/data`; a browser action may only queue a job.
 
@@ -48,6 +52,22 @@ behalf. Read them before starting. Setup, configuration and self-hosting are in 
 - Imports validate a whole file before one transaction applies it. Records absent from a newer file
   are kept, and source identifiers are never merged by name alone: cross-source links need
   corroborating lineups or fixtures.
+
+## Design system
+
+- The game detail page sets the visual standard. Every page is built from titled panels, a page
+  header with a mono eyebrow, blue and red side accents, and tabular mono figures.
+- `packages/tokens` is the only source of colors, spacing, type and radii. Its build generates the
+  Tailwind theme, so layout utilities use token names: `bg-raised`, `text-fg-muted`, `text-accent`,
+  `border-line`, `text-side-blue`, `gap-4` (a 4px scale), `text-sm`, `rounded-md`, `font-mono`.
+  Tailwind's default palette and reset are not loaded.
+- `packages/ui` components own their appearance in the package's stylesheets. Before adding a
+  component, check whether `PageHeader`, `Panel`, `TabNav`, `Stat`, `Card`, `CardLink`, `FilterBar`,
+  `Table` or the identity and match components already cover the need. Show each new component or
+  variant in Storybook.
+- Pages and features compose those components and lay them out with Tailwind classes. They do not
+  add stylesheets or target a component's internal `np-` classes; add a prop or variant to the
+  component instead.
 
 ## Checks
 

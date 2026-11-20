@@ -1,0 +1,81 @@
+/**
+ * Do not edit directly, this file was auto-generated from src/tokens.json.
+ */
+
+@theme inline reference {
+  --spacing: 4px;
+
+  --color-canvas: var(--color-bg-canvas);
+  --color-surface: var(--color-bg-surface);
+  --color-raised: var(--color-bg-raised);
+  --color-interactive: var(--color-bg-interactive);
+  --color-selected: var(--color-bg-selected);
+  --color-overlay: var(--color-bg-overlay);
+  --color-fg: var(--color-text-primary);
+  --color-fg-secondary: var(--color-text-secondary);
+  --color-fg-muted: var(--color-text-muted);
+  --color-fg-disabled: var(--color-text-disabled);
+  --color-fg-inverse: var(--color-text-inverse);
+  --color-accent: var(--color-text-accent);
+  --color-line: var(--color-border-subtle);
+  --color-line-strong: var(--color-border-strong);
+  --color-line-accent: var(--color-border-accent);
+  --color-focus: var(--color-border-focus);
+  --color-danger: var(--color-status-danger);
+  --color-success: var(--color-status-success);
+  --color-warning: var(--color-status-warning);
+  --color-info: var(--color-status-info);
+  --color-live: var(--color-status-live);
+  --color-side-blue: var(--color-side-blue);
+  --color-side-red: var(--color-side-red);
+  --color-chart-1: var(--color-chart-1);
+  --color-chart-2: var(--color-chart-2);
+  --color-chart-3: var(--color-chart-3);
+  --color-chart-4: var(--color-chart-4);
+  --color-chart-5: var(--color-chart-5);
+  --color-chart-6: var(--color-chart-6);
+  --color-chart-7: var(--color-chart-7);
+  --color-chart-8: var(--color-chart-8);
+
+  --radius-none: var(--radius-none);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-full: var(--radius-full);
+
+  --text-2xs: var(--font-size-2xs);
+  --text-xs: var(--font-size-xs);
+  --text-sm: var(--font-size-sm);
+  --text-md: var(--font-size-md);
+  --text-lg: var(--font-size-lg);
+  --text-xl: var(--font-size-xl);
+  --text-2xl: var(--font-size-2xl);
+  --text-display: var(--font-size-display);
+
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+
+  --font-weight-regular: var(--font-weight-regular);
+  --font-weight-medium: var(--font-weight-medium);
+  --font-weight-semibold: var(--font-weight-semibold);
+
+  --leading-tight: var(--font-line-height-tight);
+  --leading-heading: var(--font-line-height-heading);
+  --leading-body: var(--font-line-height-body);
+
+  --tracking-display: var(--font-tracking-display);
+  --tracking-tight: var(--font-tracking-tight);
+  --tracking-normal: var(--font-tracking-normal);
+  --tracking-wide: var(--font-tracking-wide);
+
+  --breakpoint-sm: 390px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1440px;
+  --breakpoint-xl: 1920px;
+
+  --container-content: 1280px;
+  --container-reading: 720px;
+
+  /* A loss reads as red without the alarm of an error. */
+  --color-loss: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-text-primary));
+}

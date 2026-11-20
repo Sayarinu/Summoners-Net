@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { imageAddress, readImage } from "./images.js";
+import { catalogImageAddress, imageAddress, readImage } from "./images.js";
 it("limits images to the public PandaScore CDN without credentials or redirects", () => {
   expect(imageAddress("https://cdn-api.pandascore.co/images/player.png")).toContain("player.png");
   for (const url of [
@@ -66,4 +66,34 @@ it("rejects corrupt or truncated PNG chunks that stricter browsers cannot displa
     await expect(
       readImage(new Response(bytes, { headers: { "content-type": "image/png" } })),
     ).rejects.toThrow("integrity");
+});
+
+it("builds only versioned catalog PNG paths and rune paths on Data Dragon", () => {
+  expect(catalogImageAddress("champion", "16.22.1", "MonkeyKing.png")).toBe(
+    "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/champion/MonkeyKing.png",
+  );
+  expect(catalogImageAddress("item", "16.22.1", "1001.png")).toContain("/img/item/1001.png");
+  expect(catalogImageAddress("spell", "16.22.1", "SummonerFlash.png")).toContain(
+    "/img/spell/SummonerFlash.png",
+  );
+  expect(
+    catalogImageAddress(
+      "rune",
+      "16.22.1",
+      "perk-images/Styles/Domination/Electrocute/Electrocute.png",
+    ),
+  ).toBe(
+    "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png",
+  );
+  expect(() => catalogImageAddress("item", "../bad", "1001.png")).toThrow();
+  for (const value of [
+    "../1001.png",
+    "https://evil.test/a.png",
+    "a.png?query",
+    "a.svg",
+    "%2e%2e/a.png",
+  ]) {
+    expect(() => catalogImageAddress("item", "16.22.1", value)).toThrow();
+    expect(() => catalogImageAddress("rune", "16.22.1", value)).toThrow();
+  }
 });

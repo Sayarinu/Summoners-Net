@@ -1,10 +1,12 @@
+import { gameReplayUrl } from "../domain/broadcasts.js";
 import { describe, expect, it } from "vitest";
 import { coveredLeague, sourceIdentity } from "../domain/coverage.js";
 import { querySchema, syncRequestSchema } from "../domain/models.js";
 import { summarize } from "../domain/statistics.js";
 import { parseBroadcast, parseMatches, parseTeams } from "./pandascore.js";
 import { parseHistory, archiveDownload } from "./oracle.js";
-import { parseVersions, parseMetadata } from "./ddragon.js";
+import { parseVersions, parseMetadata, parseVersionCatalog } from "./ddragon.js";
+import versions from "../../tests/ddragon-versions.json" with { type: "json" };
 import { historyCsv, rawMatch, now } from "../../tests/fixtures.js";
 describe("coverage and validated public inputs", () => {
   it("covers predecessors without admitting academy or post-merger tier two", () => {
@@ -103,6 +105,29 @@ describe("PandaScore free context", () => {
       )[0]!.broadcasts,
     ).toEqual([]);
     expect(() => parseMatches([{ id: "bad" }], now)).toThrow();
+  });
+  it("uses a per-game recording and falls back to the series recording only in a best-of-one", () => {
+    const [match] = parseMatches(
+      [
+        rawMatch(1, {
+          games: [
+            {
+              id: 10,
+              position: 1,
+              status: "finished",
+              video_url: "https://www.twitch.tv/videos/123",
+            },
+            { id: 11, position: 2, status: "finished", video_url: "https://www.twitch.tv/v123" },
+          ],
+        }),
+      ],
+      now,
+    );
+    const [first, second] = match!.games;
+    expect(gameReplayUrl(match!, first!)).toBe("https://www.twitch.tv/videos/123");
+    expect(gameReplayUrl(match!, second!)).toBeNull();
+    expect(gameReplayUrl({ ...match!, bestOf: 1 }, second!)).toBe(match!.broadcasts[0]!.url);
+    expect(gameReplayUrl(match!, { ...first!, state: "running" })).toBeNull();
   });
   it("only accepts HTTPS broadcast hosts and safe embed identifiers", () => {
     for (const url of [
@@ -251,6 +276,9 @@ describe("annual Oracle game records", () => {
 it("validates Data Dragon but tolerates its historical non-version archive labels", () => {
   expect(parseVersions(["16.4.1", "lolpatch_7.20"])).toEqual(["16.4.1"]);
   expect(() => parseVersions([])).toThrow();
+  expect(parseVersionCatalog(versions)).toEqual(versions);
+  expect(() => parseVersionCatalog([])).toThrow();
+  expect(() => parseVersionCatalog([16.4])).toThrow();
   expect(
     parseMetadata(
       {

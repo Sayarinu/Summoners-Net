@@ -8,12 +8,16 @@
     ".": "./dist/index.js",
     "./data-display": "./dist/data-display.js",
     "./esports": "./dist/esports.js",
+    "./champion": "./dist/champion.js",
     "./forms": "./dist/forms.js",
+    "./game": "./dist/game.js",
     "./internal": "./dist/internal.js",
+    "./layout": "./dist/layout.js",
     "./navigation": "./dist/navigation.js",
     "./primitives": "./dist/primitives.js",
     "./support": "./dist/support.js",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./map-coordinates": "./dist/map-coordinates.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

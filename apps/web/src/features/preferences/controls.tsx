@@ -1,6 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Combobox, SpoilerControl, commonTimezones } from "@summonersnet/ui";
+import {
+  Button,
+  Combobox,
+  PageHeader,
+  Panel,
+  SpoilerControl,
+  commonTimezones,
+} from "@summonersnet/ui";
 import { useRouter } from "next/navigation";
 import {
   browserTimezone,
@@ -22,30 +29,16 @@ function timezoneOptions(current: string) {
 const timezoneDetectionKey = "summonersnet-timezone-detection";
 type DetectionWindow = Window & { __summonersNetDetectedTimezone?: string };
 
-export function PreferencesControl({
-  autoDetectTimezone = false,
-  initial,
-  showLabel = false,
-}: {
-  autoDetectTimezone?: boolean;
-  initial: Preferences;
-  showLabel?: boolean;
-}) {
+/**
+ * Saves preferences through the HTTP-only cookie route and tells open pages about the change.
+ * Resolves to an error message, or an empty string on success.
+ */
+function useSavePreferences() {
   const router = useRouter();
-  const [value, setValue] = useState(initial);
-  const [message, setMessage] = useState("");
-  const autoDetectAttempted = useRef<string | undefined>(undefined);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-
-  const options = useMemo(() => timezoneOptions(value.timezone), [value.timezone]);
-
-  const save = useCallback(
-    async (next: Preferences, refresh = true) => {
-      setValue(next);
-      if (!preferencesSchema.safeParse(next).success) {
-        setMessage("Enter a valid IANA timezone, such as America/Phoenix.");
-        return;
-      }
+  return useCallback(
+    async (next: Preferences, refresh = true): Promise<string> => {
+      if (!preferencesSchema.safeParse(next).success)
+        return "Enter a valid IANA timezone, such as America/Phoenix.";
       try {
         const response = await fetch("/api/preferences", {
           method: "POST",
@@ -53,21 +46,28 @@ export function PreferencesControl({
           body: JSON.stringify(next),
         });
         if (!response.ok) throw new Error();
-        detailsRef.current?.removeAttribute("open");
         window.dispatchEvent(new CustomEvent(preferencesChangedEvent, { detail: next }));
         if (refresh) router.refresh();
+        return "";
       } catch {
-        setMessage("Preferences could not be saved. Try again.");
+        return "Preferences could not be saved. Try again.";
       }
     },
     [router],
   );
+}
 
+/**
+ * Stores the browser's timezone once for viewers who have not saved preferences, without
+ * refreshing the page they are on.
+ */
+export function TimezoneDetector({ initial }: { initial: Preferences }) {
+  const save = useSavePreferences();
+  const attempted = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!autoDetectTimezone) return;
     const timezone = browserTimezone();
-    if (timezone === initial.timezone || autoDetectAttempted.current === timezone) return;
-    autoDetectAttempted.current = timezone;
+    if (timezone === initial.timezone || attempted.current === timezone) return;
+    attempted.current = timezone;
     const detectionWindow = window as DetectionWindow;
     if (detectionWindow.__summonersNetDetectedTimezone === timezone) return;
     try {
@@ -78,42 +78,55 @@ export function PreferencesControl({
     }
     detectionWindow.__summonersNetDetectedTimezone = timezone;
     void save({ ...initial, timezone }, false);
-  }, [autoDetectTimezone, initial.hideSpoilers, initial.timezone, save]);
+  }, [initial.hideSpoilers, initial.timezone, save]);
+  return null;
+}
+
+export function SettingsPage({ initial }: { initial: Preferences }) {
+  const [value, setValue] = useState(initial);
+  const [message, setMessage] = useState("");
+  const save = useSavePreferences();
+  const options = useMemo(() => timezoneOptions(value.timezone), [value.timezone]);
+  const saveAndReport = async (next: Preferences, saved: string) => {
+    setValue(next);
+    setMessage((await save(next)) || saved);
+  };
 
   return (
-    <details className="ev-preferences" ref={detailsRef}>
-      <summary aria-label={showLabel ? "Settings" : "Preferences"} role="button">
-        <span aria-hidden="true" className="ev-preferences__icon">
-          ⚙
-        </span>
-        {showLabel ? <span className="ev-preferences__label">Settings</span> : null}
-        <span className="np-visually-hidden">{showLabel ? "Settings" : "Preferences"}</span>
-      </summary>
-      <div className="ev-preferences-panel np-stack">
+    <div className="mx-auto flex w-full max-w-reading min-w-0 flex-col gap-6">
+      <PageHeader eyebrow="Saved in This Browser" title="Settings" />
+      <Panel title="Timezone">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void save(value);
+            void saveAndReport(value, "Timezone saved.");
           }}
-          className="np-stack"
+          className="flex flex-wrap items-end gap-3 [&>:first-child]:min-w-[min(100%,260px)] [&>:first-child]:flex-1"
         >
           <Combobox
             defaultValue={value.timezone}
             label="Timezone"
             options={options}
             onSelectionChange={(timezone) => setValue({ ...value, timezone })}
-            placeholder="Search timezones"
+            placeholder="Search Timezones"
           />
-          <Button type="submit">Save timezone</Button>
+          <Button type="submit">Save Timezone</Button>
         </form>
+      </Panel>
+      <Panel title="Spoilers">
         <SpoilerControl
           hidden={value.hideSpoilers}
           onHiddenChange={(hideSpoilers) => {
-            void save({ ...value, hideSpoilers });
+            void saveAndReport(
+              { ...value, hideSpoilers },
+              hideSpoilers ? "Results are hidden." : "Results are shown.",
+            );
           }}
         />
-        <p role="status">{message}</p>
-      </div>
-    </details>
+      </Panel>
+      <p role="status" className="text-sm text-fg-secondary">
+        {message}
+      </p>
+    </div>
   );
 }

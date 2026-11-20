@@ -1,22 +1,13 @@
-import type { Match, Game, Identity } from "@summonersnet/data";
+import type { Match, Game, Identity, SearchHit } from "@summonersnet/data";
 import type { MatchDisplay, MatchTeam } from "@summonersnet/ui";
-export function localDate(iso: string, timezone: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
-export function dateTime(iso: string | null, timezone: string) {
+export function dateTime(iso: string | null, timezone: string, dateOnly = false) {
   return iso
     ? new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
         month: "2-digit",
         day: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
       }).format(new Date(iso))
     : "Time to be confirmed";
 }
@@ -25,6 +16,21 @@ export function identityHref(identity: Pick<Identity, "kind" | "name" | "publicS
   // A missing route is a data-integrity issue; never expose provider IDs as a fallback.
   return identity.publicSlug ? `/${section}/${identity.publicSlug}` : `/${section}`;
 }
+export const seriesRouteId = (id: string) => id.replace(/^pandascore:match:(\d+)$/, "$1");
+export const seriesHref = (match: Pick<Match, "id">) =>
+  `/matches/${encodeURIComponent(seriesRouteId(match.id))}`;
+export const seriesGameHref = (match: Pick<Match, "id">, number: number) =>
+  `${seriesHref(match)}/games/${number}`;
+
+export function searchHitHref(hit: SearchHit) {
+  const { id, kind } = hit;
+  if (kind === "team" || kind === "player") return identityHref({ ...hit, kind });
+  if (kind === "match") return seriesHref(hit);
+  return `/${kind === "champion" ? "champions" : kind === "summoner" ? "summoners" : "games"}/${encodeURIComponent(id)}`;
+}
+
+export type SearchSuggestion = { name: string; href: string; kind: SearchHit["kind"] };
+
 export function matchDisplay(match: Match, timezone: string, now: string): MatchDisplay {
   const showScores = match.state === "live" || match.state === "final";
   const team = (i: number): MatchTeam => {
@@ -40,7 +46,7 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
   };
   return {
     id: match.id,
-    href: `/matches/${encodeURIComponent(match.id)}`,
+    href: seriesHref(match),
     lifecycle: match.state,
     bestOf: match.bestOf,
     competition: match.league,
@@ -57,5 +63,34 @@ export function matchDisplay(match: Match, timezone: string, now: string): Match
   };
 }
 export function gameTeams(game: Game) {
-  return [...new Map(game.participants.map((p) => [p.team.id, p.team])).values()];
+  const teams = [
+    ...new Map(game.participants.map((p) => [p.team.id, { ...p.team, side: p.side }])).values(),
+  ]
+    .sort((a, b) => a.side.localeCompare(b.side))
+    .map((team) => {
+      const results = new Set(
+        game.participants.flatMap((p) =>
+          p.team.id === team.id && p.side === team.side && p.won !== null ? [p.won] : [],
+        ),
+      );
+      return { ...team, won: results.size === 1 ? [...results][0]! : null };
+    });
+  if (teams.length === 2 && teams[0]!.won !== null && teams[0]!.won === teams[1]!.won)
+    return teams.map((team) => ({ ...team, won: null }));
+  return teams;
+}
+
+export function seriesRound(match: Pick<Match, "event" | "name">) {
+  for (const label of [...match.event.split(" · ").reverse(), match.name.split(":", 1)[0]]) {
+    const round = label?.trim().replace(/\b(semi|quarter)-final/gi, "$1final");
+    if (
+      round &&
+      /^(?:(?:(?:upper|lower) bracket |grand )?(?:finals?|semifinals?|quarterfinals?)(?: \d+)?|round (?:of )?\d+)$/i.test(
+        round,
+      )
+    ) {
+      return round.toLowerCase().replace(/\b(?!of\b)[a-z]/g, (letter) => letter.toUpperCase());
+    }
+  }
+  return null;
 }

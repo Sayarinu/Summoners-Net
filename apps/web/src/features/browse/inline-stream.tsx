@@ -1,15 +1,16 @@
-import type { Broadcast } from "@summonersnet/data";
-import { WatchPlayer } from "../watch/player";
+import type { Match } from "@summonersnet/data";
+import { WatchPlayer, watchableBroadcasts } from "../watch/player";
 
-export function InlineMatchStream({ broadcasts, id }: { broadcasts: Broadcast[]; id: string }) {
+export function InlineMatchStream({ match, id }: { match: Match; id: string }) {
+  const replay = match.state === "final";
   return (
-    <div className="ev-inline-stream" id={id}>
+    <div className="w-full border-t border-line bg-raised pt-4 pb-2" id={id}>
       <WatchPlayer
-        broadcasts={broadcasts}
-        defaultProvider="twitch"
+        broadcasts={watchableBroadcasts(match)}
+        defaultProvider={replay ? "youtube" : "twitch"}
+        mode={replay ? "replay" : "live"}
         showHeading={false}
-        showPlayerActions={false}
-        showPreConsentLink={false}
+        beside
       />
     </div>
   );

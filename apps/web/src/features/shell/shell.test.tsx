@@ -1,20 +1,16 @@
 import { it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ShellHeader, ShellFooter } from "./shell";
+import { ShellHeader, sectionOf } from "./shell";
 import { defaultPreferences } from "../preferences/model";
 const path = vi.hoisted(() => ({ value: "/matches/1" }));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => path.value,
   useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(),
 }));
 it("keeps route navigation, skip link and local controls available", () => {
-  const view = render(
-    <>
-      <ShellHeader preferences={defaultPreferences} />
-      <ShellFooter />
-    </>,
-  );
+  const view = render(<ShellHeader preferences={defaultPreferences} />);
   expect(screen.getByRole("link", { name: "Matches" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute(
     "href",
@@ -22,21 +18,69 @@ it("keeps route navigation, skip link and local controls available", () => {
   );
   path.value = "/games/1";
   view.rerender(<ShellHeader preferences={defaultPreferences} />);
-  expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "Past Matches" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   path.value = "/search";
   view.rerender(<ShellHeader preferences={defaultPreferences} />);
-  expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("searchbox", { name: "Search App" })).toBeVisible();
   fireEvent.click(screen.getByRole("link", { name: "Players" }));
   expect(router.push).toHaveBeenCalledWith("/players");
+  // Settings is its own page, marked current like any other section.
+  path.value = "/settings";
+  view.rerender(<ShellHeader preferences={defaultPreferences} />);
+  expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+  expect(screen.queryByRole("combobox", { name: "Timezone" })).not.toBeInTheDocument();
 });
 
 it("opens and closes the mobile navigation overlay", () => {
   render(<ShellHeader preferences={defaultPreferences} />);
-  fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
-  expect(screen.getAllByRole("button", { name: "Close navigation" })).toHaveLength(2);
-  fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[0]!);
-  expect(screen.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+  fireEvent.click(screen.getByRole("button", { name: "Open Navigation" }));
+  expect(screen.getAllByRole("button", { name: "Close Navigation" })).toHaveLength(2);
+  fireEvent.click(screen.getAllByRole("button", { name: "Close Navigation" })[0]!);
+  expect(screen.getByRole("button", { name: "Open Navigation" })).toHaveAttribute(
     "aria-expanded",
     "false",
   );
+});
+
+it("links every analytics section and marks the one a page belongs to", () => {
+  path.value = "/champions/Ahri/matchups";
+  const view = render(<ShellHeader preferences={defaultPreferences} />);
+  for (const [name, href] of [
+    ["Champions", "/champions"],
+    ["Tier List", "/tier-list"],
+    ["Leaderboards", "/leaderboards"],
+    ["Patches", "/patches"],
+    ["Drafts", "/drafts"],
+    ["Models", "/models"],
+  ] as const)
+    expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+  expect(screen.getByRole("link", { name: "Champions" })).toHaveAttribute("aria-current", "page");
+  path.value = "/leaderboards/wpa";
+  view.rerender(<ShellHeader preferences={defaultPreferences} />);
+  expect(screen.getByRole("link", { name: "Leaderboards" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(
+    [
+      "/matchups/TOP/counter-picks",
+      "/trending",
+      "/summoners/x",
+      "/solo-games/EUW1_1/map",
+      "/drafts/assistant",
+      "/patches/16.22",
+      "/",
+    ].map(sectionOf),
+  ).toEqual([
+    "/champions",
+    "/champions",
+    "/leaderboards",
+    "/leaderboards",
+    "/drafts",
+    "/patches",
+    "/",
+  ]);
 });

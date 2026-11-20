@@ -70,9 +70,9 @@ jobs:
         run: |
           set -euo pipefail
           tag="v${VERSION}"
-          title="SummonersNet ${VERSION}"
+          title="Summoners Net ${VERSION}"
           if [ "$PRERELEASE" = true ]; then
-            title="SummonersNet Experimental ${VERSION}"
+            title="Summoners Net Experimental ${VERSION}"
           fi
           # Published releases are never overwritten.
           if gh release view "$tag" > /dev/null 2>&1; then

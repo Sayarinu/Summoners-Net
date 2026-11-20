@@ -1,12 +1,29 @@
+import { keepReplayFilesSchema } from "./domain/replays.js";
 import { createSync } from "./sync/index.js";
+import { trainOnDemand } from "./sync/train-command.js";
+import { queueCommand } from "./sync/queue-command.js";
 import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { archiveYears } from "./providers/oracle.js";
+import {
+  parseMatchCap,
+  parseRetainPatches,
+  parseRiotKeyConfig,
+  parseRiotPlatforms,
+} from "./providers/riot.js";
 const [command, ...args] = process.argv.slice(2);
 const connection = process.env.DATABASE_URL;
 if (!connection) throw new Error("Set DATABASE_URL in the ignored .env file.");
+// Validated at startup; the key is passed only to the worker and never printed.
+const riot = parseRiotKeyConfig(process.env);
+const riotPlatforms = parseRiotPlatforms(process.env.RIOT_PLATFORMS);
 const sync = createSync(connection, {
+  keepReplayFiles: keepReplayFilesSchema.parse(process.env.KEEP_REPLAY_FILES),
+  ...(riot ? { riot } : {}),
+  riotPlatforms,
+  riotMatchCap: parseMatchCap(process.env.RIOT_MATCH_CAP),
+  riotRetainPatches: parseRetainPatches(process.env.RIOT_RETAIN_PATCHES),
   ...(process.env.PANDASCORE_TOKEN ? { token: process.env.PANDASCORE_TOKEN } : {}),
   ...(process.env.GOOGLE_DRIVE_API_KEY ? { driveApiKey: process.env.GOOGLE_DRIVE_API_KEY } : {}),
   ...(process.env.ORACLE_CURRENT_FILE ? { currentFile: process.env.ORACLE_CURRENT_FILE } : {}),
@@ -38,6 +55,34 @@ try {
       const result = await sync.runNext();
       process.stdout.write(`${JSON.stringify(result)}\n`);
       if (result.state === "idle" || result.state === "busy" || result.id === id) break;
+    }
+  } else if (command === "wp-train") {
+    const queries = createQueries(connection);
+    try {
+      const done = await trainOnDemand(
+        sync,
+        queries,
+        (line) => process.stdout.write(`${line}\n`),
+        () => stop,
+      );
+      if (!done) process.exitCode = 1;
+    } finally {
+      await queries.close();
+    }
+  } else if (command === "track-accuracy") {
+    // Read-only: compares an imported, linked track with the stored timeline at minute marks.
+    const queries = createQueries(connection);
+    try {
+      const result = await queries.trackAccuracy(args[0] ?? "");
+      if (!result) {
+        process.stderr.write("No replay track is linked to that stored Riot match.\n");
+        process.exitCode = 1;
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        if (!result.verdict.pass) process.exitCode = 2;
+      }
+    } finally {
+      await queries.close();
     }
   } else if (command === "backfill-all") {
     for (const year of archiveYears) {
@@ -74,6 +119,12 @@ try {
       ...(file ? { file } : {}),
     });
     process.stdout.write(`Queued history job ${id}. Run pnpm sync:once or pnpm sync.\n`);
+  } else if (command === "queue") {
+    const id = await queueCommand(args, {
+      request: (request) => sync.request(request),
+      importDirectory: resolve(process.cwd(), ".local/imports"),
+    });
+    process.stdout.write(`Queued ${args[0]} job ${id}. Run pnpm sync:once or pnpm sync.\n`);
   } else if (command === "once" || command === "work") {
     let first = true;
     do {
@@ -96,7 +147,7 @@ try {
     }
   } else
     throw new Error(
-      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, status",
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, queue KIND [FILE], status",
     );
 } finally {
   await sync.close();

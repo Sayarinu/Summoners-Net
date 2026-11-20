@@ -25,6 +25,8 @@ export interface StatePanelProps {
   readonly action?: ReactNode;
   readonly children: ReactNode;
   readonly compact?: boolean;
+  /** Drops the surface so the state can sit inside a `Panel` without a second border. */
+  readonly inset?: boolean;
   readonly title: string;
   readonly tone?: "danger" | "neutral" | "warning";
 }
@@ -33,6 +35,7 @@ export function StatePanel({
   action,
   children,
   compact = false,
+  inset = false,
   title,
   tone = "neutral",
 }: StatePanelProps) {
@@ -42,11 +45,12 @@ export function StatePanel({
         "np-state-panel",
         `np-state-panel--${tone}`,
         compact && "np-state-panel--compact",
+        inset && "np-state-panel--inset",
       )}
     >
       <div className="np-state-panel__body">
         <h3>{title}</h3>
-        <div>{children}</div>
+        {children ? <div>{children}</div> : null}
       </div>
       {action ? <div className="np-state-panel__action">{action}</div> : null}
     </section>
@@ -56,14 +60,17 @@ export function StatePanel({
 export function EmptyState({
   action,
   description,
-  title = "Nothing here yet",
+  inset = false,
+  title = "Nothing Here Yet",
 }: {
   readonly action?: ReactNode;
-  readonly description: ReactNode;
+  readonly description?: ReactNode;
+  /** Set inside a `Panel`, which already provides the surface. */
+  readonly inset?: boolean;
   readonly title?: string;
 }) {
   return (
-    <StatePanel action={action} title={title}>
+    <StatePanel action={action} inset={inset} title={title}>
       {description}
     </StatePanel>
   );
@@ -72,7 +79,7 @@ export function EmptyState({
 export function ErrorState({
   description,
   onRetry,
-  title = "Unable to load",
+  title = "Unable to Load",
 }: {
   readonly description: ReactNode;
   readonly onRetry?: () => void;
@@ -97,7 +104,7 @@ export function ErrorState({
 
 export interface TableColumn<Row> {
   readonly align?: "center" | "end" | "start";
-  readonly header: string;
+  readonly header: ReactNode;
   readonly id: string;
   readonly render: (row: Row) => ReactNode;
   readonly width?: string;
@@ -111,6 +118,8 @@ export interface TableProps<Row> {
   readonly emptyMessage?: string;
   readonly getRowKey: (row: Row) => string;
   readonly loading?: boolean;
+  /** The width below which the table scrolls sideways; narrow tables can lower it. */
+  readonly minWidth?: string;
   readonly rows: readonly Row[];
 }
 
@@ -122,11 +131,15 @@ export function Table<Row>({
   emptyMessage = "No rows to display",
   getRowKey,
   loading = false,
+  minWidth,
   rows,
 }: TableProps<Row>) {
   return (
     <div aria-label={caption} className={cx("np-table-wrap", className)} role="region" tabIndex={0}>
-      <table className={cx("np-table", compact && "np-table--compact")}>
+      <table
+        className={cx("np-table", compact && "np-table--compact")}
+        style={minWidth ? { minWidth } : undefined}
+      >
         <caption className="np-visually-hidden">{caption}</caption>
         <thead>
           <tr>

@@ -72,7 +72,7 @@ export function Pagination({
       <IconButton
         disabled={currentPage <= 1}
         icon={<Icon icon={ChevronLeft} size="small" />}
-        label="Previous page"
+        label="Previous Page"
         onPress={() => onPageChange(currentPage - 1)}
         size="compact"
         variant="ghost"
@@ -99,7 +99,7 @@ export function Pagination({
       <IconButton
         disabled={currentPage >= totalPages}
         icon={<Icon icon={ChevronRight} size="small" />}
-        label="Next page"
+        label="Next Page"
         onPress={() => onPageChange(currentPage + 1)}
         size="compact"
         variant="ghost"
@@ -120,11 +120,22 @@ export interface NavigationProps {
   readonly items: readonly NavigationItem[];
   readonly label?: string;
   readonly onNavigate?: (href: string) => void;
+  /** `large` gives touch-sized entries for an application sidebar. */
+  readonly size?: "large" | "medium";
 }
 
-export function Navigation({ currentHref, items, label = "Primary", onNavigate }: NavigationProps) {
+export function Navigation({
+  currentHref,
+  items,
+  label = "Primary",
+  onNavigate,
+  size = "medium",
+}: NavigationProps) {
   return (
-    <nav aria-label={label} className="np-navigation">
+    <nav
+      aria-label={label}
+      className={size === "large" ? "np-navigation np-navigation--large" : "np-navigation"}
+    >
       <ul>
         {items.map((item) => (
           <li key={item.href}>

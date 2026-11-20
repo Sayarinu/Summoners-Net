@@ -109,6 +109,7 @@ export function Input({
 }
 
 export interface SelectOption {
+  readonly icon?: ReactNode;
   readonly description?: string;
   readonly label: string;
   readonly value: string;
@@ -121,6 +122,7 @@ export interface SelectProps
   readonly defaultValue?: string;
   readonly description?: string;
   readonly error?: string;
+  readonly hideLabel?: boolean;
   readonly label: string;
   readonly onValueChange?: (value: string) => void;
   readonly options: readonly SelectOption[];
@@ -134,6 +136,7 @@ export function Select({
   description,
   disabled,
   error,
+  hideLabel = false,
   label,
   name,
   onValueChange,
@@ -163,15 +166,23 @@ export function Select({
       isInvalid={Boolean(error)}
       placeholder={placeholder}
     >
-      <AriaLabel>{label}</AriaLabel>
+      <AriaLabel className={hideLabel ? "np-visually-hidden" : undefined}>{label}</AriaLabel>
       <AriaButton className="np-select__trigger">
         <SelectValue<SelectOption> className="np-select__value">
           {({ isPlaceholder, selectedItems }) => {
             const selected = selectedItems[0];
             if (isPlaceholder || !selected) return placeholder;
-            return selected.description
+            const label = selected.description
               ? `${selected.label} - ${selected.description}`
               : selected.label;
+            return selected.icon ? (
+              <>
+                <span aria-hidden="true">{selected.icon}</span>
+                <span className="np-visually-hidden">{label}</span>
+              </>
+            ) : (
+              label
+            );
           }}
         </SelectValue>
         <Icon icon={ChevronDown} size="small" />
@@ -187,7 +198,10 @@ export function Select({
           {(option) => (
             <ListBoxItem className="np-listbox__item" id={option.value} textValue={option.label}>
               <span>
-                <strong>{option.label}</strong>
+                {option.icon ? <span aria-hidden="true">{option.icon}</span> : null}
+                <strong className={option.icon ? "np-visually-hidden" : undefined}>
+                  {option.label}
+                </strong>
                 {option.description ? <small>{option.description}</small> : null}
               </span>
               <span className="np-listbox__check">
@@ -201,7 +215,7 @@ export function Select({
   );
 }
 
-export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "value"> {
+export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "hideLabel" | "value"> {
   readonly defaultValue?: string;
   readonly onSelectionChange?: (value: string) => void;
   readonly value?: string;
@@ -252,7 +266,7 @@ export function Combobox({
       <div className="np-combobox__control">
         <Icon icon={Search} size="small" />
         <AriaInput placeholder={placeholder} />
-        <AriaButton aria-label="Show options">
+        <AriaButton aria-label="Show Options">
           <Icon icon={ChevronDown} size="small" />
         </AriaButton>
       </div>
@@ -263,7 +277,7 @@ export function Combobox({
         </AriaText>
       ) : null}
       <AriaPopover className="np-popover np-select__popover">
-        <ListBox className="np-listbox" items={options} renderEmptyState={() => "No results"}>
+        <ListBox className="np-listbox" items={options} renderEmptyState={() => "No Results"}>
           {(option) => (
             <ListBoxItem className="np-listbox__item" id={option.value} textValue={option.label}>
               <span>

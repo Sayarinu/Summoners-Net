@@ -43,10 +43,14 @@
     "history:import-dir": "node --env-file-if-exists=.env packages/data/dist/cli.js import-dir",
     "history:backfill-all": "node --env-file-if-exists=.env packages/data/dist/cli.js backfill-all",
     "sync:status": "node --env-file-if-exists=.env packages/data/dist/cli.js status",
+    "queue": "node --env-file-if-exists=.env packages/data/dist/cli.js queue",
+    "tracks:accuracy": "node --env-file-if-exists=.env packages/data/dist/cli.js track-accuracy",
     "entities:sync": "node --env-file-if-exists=.env packages/data/dist/cli.js entities",
     "entities:resolve": "node --env-file-if-exists=.env packages/data/dist/cli.js resolve",
     "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",
-    "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters"
+    "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters",
+    "wp:train": "node --env-file-if-exists=.env packages/data/dist/cli.js wp-train",
+    "replay:capture": "pnpm --filter @summonersnet/replay-capture capture"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

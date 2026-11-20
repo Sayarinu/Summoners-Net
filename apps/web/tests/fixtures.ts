@@ -1,4 +1,13 @@
-import type { Game, Identity, Match, Profile, SyncStatus, Page } from "@summonersnet/data";
+import type {
+  Game,
+  Identity,
+  Match,
+  Profile,
+  SeriesGame,
+  SyncStatus,
+  Page,
+  PlayerPerformance,
+} from "@summonersnet/data";
 export const instant = "2026-03-01T12:00:00.000Z";
 export const blue: Identity = {
   id: "oracle:team:10",
@@ -66,6 +75,28 @@ export const match: Match = {
   ],
   updatedAt: instant,
 };
+/** The fixture series, with game 1 linked to the archive game, game 2 unlinked and game 3 unplayed. */
+export const seriesGames = (): SeriesGame[] => [
+  { ...match.games[0]!, gameId: "oracle:game:acceptance-game" },
+  {
+    sourceId: "101",
+    number: 2,
+    state: "finished",
+    startsAt: "2026-03-01T02:00:00.000Z",
+    finishedAt: "2026-03-01T02:31:05.000Z",
+    winnerId: red.id,
+    gameId: null,
+  },
+  {
+    sourceId: "102",
+    number: 3,
+    state: "not_started",
+    startsAt: null,
+    finishedAt: null,
+    winnerId: null,
+    gameId: null,
+  },
+];
 export const game: Game = {
   id: "oracle:game:acceptance-game",
   sourceId: "acceptance-game",
@@ -122,6 +153,23 @@ export const profile: Profile = {
   roster: [{ team: blue, player, observedAt: instant }],
 };
 export const status: SyncStatus = {
+  riotCrawl: { quota: [], jobs: [], progress: [] },
+  riotStorage: {
+    previousPatches: null,
+    keptPatches: [],
+    lastRunAt: null,
+    prunedMatches: 0,
+    backfilledMatches: 0,
+    patches: [],
+  },
+  riotKey: {
+    state: "missing",
+    kind: null,
+    setAt: null,
+    checkedAt: null,
+    detail: "RIOT_API_KEY is not configured; Riot jobs are skipped.",
+    expiresAt: null,
+  },
   sources: [
     {
       source: "pandascore",
@@ -163,5 +211,36 @@ export const status: SyncStatus = {
   ],
   pandaRequests: 10,
   cooldownUntil: null,
+  leaguepedia: {
+    requestsLastHour: 0,
+    limitPerHour: 900,
+    pausedUntil: null,
+    pauseReason: null,
+    timelines: { games: 0, withTimeline: 0, unchecked: 0, estimatedFinish: null },
+  },
   history: [{ year: 2026, games: 1, eligible: 1, latestGameAt: instant }],
+  archives: [],
+};
+const sampled = (value: number | null, sampleCount = 2) => ({ value, sampleCount });
+export const performance: PlayerPerformance = {
+  games: 2,
+  killsPerGame: sampled(5),
+  deathsPerGame: sampled(2),
+  assistsPerGame: sampled(7),
+  killParticipation: sampled(0.75),
+  csPerMinute: sampled(8.46),
+  goldPerMinute: sampled(412.4),
+  goldShare: sampled(0.231),
+  damagePerMinute: sampled(612.8),
+  damageShare: sampled(0.284),
+  visionScorePerMinute: sampled(1.234),
+  wardsPerMinute: sampled(0.45),
+  wardsClearedPerMinute: sampled(0.2),
+  controlWardsPerGame: sampled(3),
+  goldDiffAt15: sampled(-123.4, 1),
+  csDiffAt15: sampled(8),
+  xpDiffAt15: sampled(null, 0),
+  firstBloodParticipation: sampled(0.5),
+  firstBloodVictim: sampled(0),
+  pentakills: sampled(1),
 };

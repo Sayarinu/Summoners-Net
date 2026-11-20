@@ -1,3 +1,8 @@
+import { importProAccountLinks } from "../persistence/pro-accounts.js";
+import { ProAccountImportError } from "../domain/pro-accounts.js";
+import { resolve } from "node:path";
+import { importReplayMetadata, ReplayImportError } from "../persistence/replays.js";
+import { importReplayTrack, ReplayTrackImportError } from "../persistence/replay-tracks.js";
 import { setTimeout as pauseFor } from "node:timers/promises";
 import { z } from "zod";
 import type { Pool } from "pg";
@@ -11,13 +16,98 @@ import {
   parseTournamentRosters,
 } from "../providers/pandascore.js";
 import { archiveApiDownload, archiveDownload, archiveFileId } from "../providers/oracle.js";
-import { parseMetadata, parseVersions } from "../providers/ddragon.js";
-import { claim, schedule } from "./queue.js";
+import {
+  parseChampionCatalog,
+  parseItemCatalog,
+  parseMetadata,
+  parseRuneCatalog,
+  parseSpellCatalog,
+  parseVersionCatalog,
+  parseVersions,
+} from "../providers/ddragon.js";
+import { normalizePatch } from "../domain/patches.js";
+import { ChampionMappingError, saveGameCatalog } from "../persistence/catalog.js";
+import { recordOraclePatches, savePatchCatalog } from "../persistence/patches.js";
+import { claim, enqueue, jobKey, schedule } from "./queue.js";
+import { RiotConnectionError, riotClient } from "./riot-client.js";
+import { parseRiotMatch } from "../providers/riot-match.js";
+import { parseRiotTimeline } from "../providers/riot-timeline.js";
+import {
+  activeWinProbabilityModel,
+  trainWinProbabilityModel,
+  firstTrainingDue,
+} from "../persistence/wp-models.js";
+import { scorePendingWpa } from "../persistence/wpa.js";
+import { trainCheckpointModel } from "../persistence/pro-wp.js";
+import { trainDraftModel } from "../persistence/draft-model.js";
+import { rebuildWpaAggregates } from "../persistence/wpa-leaderboards.js";
+import {
+  dirtyPatches,
+  markAllDirty,
+  markOracleYearDirty,
+  rebuildPatch,
+} from "../persistence/aggregates.js";
+import {
+  keptPatches,
+  pruneBatch,
+  pruneUnfetched,
+  recordRetention,
+  requeuePruned,
+} from "../persistence/riot-retention.js";
+import {
+  markTimelineUnavailable,
+  pendingTimelines,
+  saveTimeline,
+} from "../persistence/riot-timelines.js";
+import {
+  markMatchUnavailable,
+  pendingMatches,
+  saveRiotMatch,
+} from "../persistence/riot-matches.js";
+import {
+  accountsToResolve,
+  currentPatchKey,
+  matchIdCount,
+  playersToCrawl,
+  recordCrawl,
+  saveMatchIds,
+  markLadderAttempt,
+  recordLadderFailure,
+  saveAccount,
+  saveLadder,
+} from "../persistence/riot.js";
 import { DeferredRequest, observeQuota, reserveRequest } from "./quota.js";
+import {
+  clearLeaguepediaStrikes,
+  pauseLeaguepedia,
+  reserveLeaguepedia,
+  type LeaguepediaBudget,
+  type Refusal,
+} from "./leaguepedia-budget.js";
 import { resolveStored, saveCatalog, saveIdentityContext } from "../persistence/entities.js";
-import { cacheImages } from "./images.js";
+import { refreshDrafts } from "./drafts.js";
+import { cacheCatalogImages } from "./catalog-images.js";
+import { cacheImages, cacheMapImage } from "./images.js";
 import { stageOracleArtifact } from "./artifacts.js";
 import { importOracleArchive, retainOracleArtifacts } from "../persistence/archive.js";
+import { refreshProGameDetails, type ProGameDetailRun } from "./pro-game-details.js";
+import { refreshProGameVods, type ProGameVodRun } from "./pro-game-vods.js";
+import {
+  riotKeyCheckResult,
+  riotKeyCheckPath,
+  riotKeyFingerprint,
+  type RiotKeyConfig,
+  type RiotPlatform,
+  accountRoute,
+  apexTiers,
+  matchRoute,
+  parseMatchIds,
+  rankedSoloQueueId,
+  riotRoutingSchema,
+  parseAccount,
+  parseLeagueList,
+  soloQueue,
+} from "../providers/riot.js";
 
 export interface WorkerOptions {
   clock?: () => Date;
@@ -27,8 +117,50 @@ export interface WorkerOptions {
   driveApiKey?: string;
   currentFile?: string;
   importDirectory?: string;
+  keepReplayFiles?: boolean;
   pause?: (milliseconds: number) => Promise<void>;
+  /** Validated RIOT_API_KEY; absent when Riot is not configured. Never logged or stored. */
+  riot?: RiotKeyConfig;
+  /** Platforms selected with RIOT_PLATFORMS, validated at startup. */
+  riotPlatforms?: readonly RiotPlatform[];
+  /** Most match ids kept per region and patch (RIOT_MATCH_CAP). */
+  riotMatchCap?: number;
+  /** Patches before the current one whose solo-queue data is kept (RIOT_RETAIN_PATCHES). */
+  riotRetainPatches?: number;
+  /**
+   * Win probability training: the fewest training matches (solo queue) and games (pro
+   * checkpoints) to publish a model, the fewest pro games a minute needs before the pro model
+   * covers it beyond the reported 10 to 25 minutes, and the seed.
+   */
+  winProbability?: {
+    minimumMatches?: number;
+    minimumProGames?: number;
+    minimumProGamesPerMinute?: number;
+    /** Training games with a timeline before the pro model trains on recorded minutes. */
+    minimumProFrameGames?: number;
+    seed?: number;
+  };
+  /**
+   * Riot match and timeline runs fetch until the queue is empty or the rate limit defers them,
+   * but yield after this many items or milliseconds (by the injected clock) and requeue
+   * themselves behind other due jobs. The time stays under the five-minute job lease.
+   */
+  riotRun?: { maxItems?: number; maxMs?: number };
+  /**
+   * Leaguepedia detail runs load batches until no game is pending, spacing requests, and yield
+   * after `maxMs` to requeue themselves behind other due jobs.
+   */
+  proGameDetailRun?: ProGameDetailRun;
+  /** Leaguepedia recording runs, bounded like detail runs. */
+  proGameVodRun?: ProGameVodRun;
+  /** The shared Leaguepedia request budget; defaults to {@link leaguepediaBudget}. */
+  leaguepediaBudget?: LeaguepediaBudget;
 }
+/** How long a year whose Drive download hit the quota waits before the next attempt. */
+export const archiveQuotaWaitMs = 6 * 3_600_000;
+/** Identifies the worker to the wiki, as its API etiquette asks of automated clients. */
+const wikiUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game detail sync)";
+const vodUserAgent = "SummonersNet/1.0 (self-hosted esports viewer; pro game VOD sync)";
 class ProviderError extends Error {
   constructor(
     message: string,
@@ -37,6 +169,19 @@ class ProviderError extends Error {
     super(message);
   }
 }
+// Riot key checks and identity resolution report through their own status, not source_status.
+// Riot jobs report through their own status tables; draft aggregation has no provider request.
+const tracksSource = (r: SyncRequest) =>
+  r.kind !== "resolve" &&
+  r.kind !== "drafts" &&
+  r.kind !== "pro-game-details" &&
+  r.kind !== "pro-game-vods" &&
+  r.kind !== "pro-account-links" &&
+  r.kind !== "replay-track" &&
+  r.kind !== "replay-metadata" &&
+  r.kind !== "aggregate" &&
+  r.kind !== "wp-train" &&
+  !r.kind.startsWith("riot-");
 const sourceOf = (r: SyncRequest): Source =>
   r.kind === "history" ? "oracle" : r.kind === "metadata" ? "ddragon" : "pandascore";
 export function worker(pool: Pool, options: WorkerOptions) {
@@ -44,7 +189,12 @@ export function worker(pool: Pool, options: WorkerOptions) {
   const fetcher = options.fetch ?? fetch;
   const pause = options.pause ?? pauseFor;
   let lastPandaAttempt = 0;
-  async function request(url: string, panda = false, timeoutMs = 60000): Promise<Response> {
+  async function request(
+    url: string,
+    panda = false,
+    timeoutMs = 60000,
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
     if (panda) {
       if (!options.token) throw new ProviderError("PANDASCORE_TOKEN is not configured.");
       // Space catalog/backfill requests as well as respecting the durable hourly ceiling.
@@ -56,7 +206,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
     let response: Response;
     try {
       response = await fetcher(url, {
-        headers: panda ? { Authorization: `Bearer ${options.token}` } : {},
+        headers: panda ? { Authorization: `Bearer ${options.token}` } : headers,
         signal: AbortSignal.timeout(timeoutMs),
         redirect: panda ? "error" : "follow",
       });
@@ -70,6 +220,45 @@ export function worker(pool: Pool, options: WorkerOptions) {
         response.status === 429 || response.status >= 500,
       );
     return response;
+  }
+  /**
+   * Requests for a Leaguepedia job: wiki requests reserve from the shared budget, and a 429 or 503
+   * pauses every Leaguepedia job for its Retry-After, backing off on repeats. Other hosts, such as
+   * the Data Dragon item catalog, are requested directly.
+   */
+  function leaguepedia(userAgent: string) {
+    return {
+      request: async (url: string) => {
+        if (new URL(url).hostname !== "lol.fandom.com")
+          return request(url, false, 60000, { "User-Agent": userAgent });
+        await reserveLeaguepedia(pool, clock, pause, options.leaguepediaBudget);
+        let response: Response;
+        try {
+          response = await fetcher(url, {
+            headers: { "User-Agent": userAgent },
+            signal: AbortSignal.timeout(60000),
+          });
+        } catch {
+          throw new ProviderError("Provider connection failed; saved data is unchanged.", true);
+        }
+        if (response.status === 429 || response.status === 503)
+          throw new DeferredRequest(
+            await pauseLeaguepedia(pool, clock(), {
+              kind: "limit",
+              reason: `Leaguepedia returned HTTP ${response.status}`,
+              retryAfter: response.headers.get("retry-after"),
+            }),
+          );
+        if (!response.ok)
+          throw new ProviderError(
+            `Provider returned HTTP ${response.status}.`,
+            response.status >= 500,
+          );
+        return response;
+      },
+      refused: (refusal: Refusal) => pauseLeaguepedia(pool, clock(), refusal),
+      accepted: () => clearLeaguepediaStrikes(pool),
+    };
   }
   async function archiveResponse(year: number): Promise<Response> {
     if (options.driveApiKey) {
@@ -108,11 +297,15 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (name && value) fields.set(name, value);
     }
     const uuid = fields.get("uuid");
-    if (/<title>[^<]*Quota exceeded/i.test(html))
-      throw new ProviderError(
-        "Archive download quota exceeded; the official download will be retried later.",
-        true,
+    // Drive's download quota lasts hours, not minutes: wait it out without using up the job's
+    // attempts, so a blocked year keeps retrying until the file can be downloaded.
+    if (/<title>[^<]*Quota exceeded/i.test(html)) {
+      const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
+      throw new DeferredRequest(
+        until,
+        `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
       );
+    }
     if (
       !html.includes("Google Drive - Virus scan warning") ||
       form?.[1] !== "https://drive.usercontent.google.com/download" ||
@@ -146,7 +339,395 @@ export function worker(pool: Pool, options: WorkerOptions) {
       "Pagination exceeded the bounded 100-page import; saved data is unchanged.",
     );
   }
+  const riotFingerprint = options.riot ? riotKeyFingerprint(options.riot.key) : null;
+  let riotObserved = false;
+  /** Records whether a key is configured; a new key restarts its expiry clock and is checked. */
+  async function observeRiotKey() {
+    if (riotObserved) return;
+    if (!options.riot)
+      await pool.query(
+        `UPDATE riot_key_status SET configured=false,kind=NULL,fingerprint=NULL,set_at=NULL,
+           state='missing',checked_at=NULL,
+           detail='RIOT_API_KEY is not configured; Riot jobs are skipped.' WHERE id=true`,
+      );
+    else {
+      const changed = await pool.query(
+        `UPDATE riot_key_status SET configured=true,fingerprint=$1,set_at=$2,state='untested',
+           checked_at=NULL,detail=NULL WHERE id=true AND fingerprint IS DISTINCT FROM $1`,
+        [riotFingerprint, clock()],
+      );
+      await pool.query("UPDATE riot_key_status SET kind=$1 WHERE id=true", [options.riot.kind]);
+      if (changed.rowCount) await enqueue(pool, { kind: "riot-key" }, clock());
+    }
+    riotObserved = true;
+  }
+  const riot = options.riot
+    ? riotClient(pool, { key: options.riot.key, clock, fetch: fetcher, pause })
+    : null;
+  async function checkRiotKey(): Promise<number> {
+    if (!riot) return 0;
+    let response: Response;
+    try {
+      response = await riot("na1", "lol-status-v4.getPlatformData", riotKeyCheckPath);
+    } catch (error) {
+      if (error instanceof RiotConnectionError)
+        throw new ProviderError("Riot connection failed; the key status is unchanged.", true);
+      throw error;
+    }
+    const result = riotKeyCheckResult(response.status);
+    if (result === "retry")
+      throw new ProviderError(
+        `Riot returned HTTP ${response.status}; the key status is unchanged.`,
+        true,
+      );
+    await pool.query(
+      "UPDATE riot_key_status SET state=$1,checked_at=$2,detail=$3 WHERE id=true AND fingerprint=$4",
+      [
+        result,
+        clock(),
+        result === "rejected" ? `Riot rejected the key (HTTP ${response.status}).` : null,
+        riotFingerprint,
+      ],
+    );
+    return 1;
+  }
+  /** Syncs each selected platform's apex tiers; a failed platform keeps its last ladder. */
+  async function syncLadders(): Promise<number> {
+    if (!riot) return 0;
+    const failed: string[] = [];
+    let total = 0;
+    for (const platform of options.riotPlatforms ?? []) {
+      await markLadderAttempt(pool, platform, clock());
+      try {
+        const entries = [];
+        for (const { tier, path } of apexTiers) {
+          const response = await riot(
+            platform,
+            `league-v4.${path}`,
+            `/lol/league/v4/${path}/by-queue/${soloQueue}`,
+          );
+          if (!response.ok) throw new Error(`Riot returned HTTP ${response.status}.`);
+          entries.push(...parseLeagueList(await response.json(), tier));
+        }
+        await saveLadder(pool, platform, entries, clock());
+        total += entries.length;
+      } catch (error) {
+        if (error instanceof DeferredRequest) throw error;
+        const detail =
+          error instanceof z.ZodError
+            ? "Riot returned an unexpected ladder."
+            : error instanceof Error
+              ? error.message
+              : "Ladder refresh failed.";
+        await recordLadderFailure(pool, platform, `${detail} The last ladder is kept.`);
+        failed.push(platform);
+      }
+    }
+    if (total) await enqueue(pool, { kind: "riot-accounts" }, clock());
+    if (failed.length)
+      throw new ProviderError(
+        `Ladder refresh failed for ${failed.join(", ")}; their last ladders are kept.`,
+        true,
+      );
+    return total;
+  }
+  /**
+   * Resolves ladder players with no account or a check older than a week, a bounded batch per
+   * run. A failed lookup leaves the stored account and its timestamps untouched.
+   */
+  async function resolveAccounts(): Promise<number> {
+    if (!riot) return 0;
+    const due = await accountsToResolve(pool, new Date(clock().valueOf() - 7 * 86400000), 250);
+    let resolved = 0;
+    let failures = 0;
+    for (const { puuid, platform } of due) {
+      try {
+        const response = await riot(
+          accountRoute(platform),
+          "account-v1.getByPuuid",
+          `/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`,
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await saveAccount(pool, parseAccount(await response.json(), puuid), clock());
+        resolved++;
+      } catch (error) {
+        if (error instanceof DeferredRequest) throw error;
+        failures++;
+      }
+    }
+    if (failures && !resolved)
+      throw new ProviderError(
+        `Riot account lookups failed (${failures}); saved accounts are unchanged.`,
+        true,
+      );
+    return resolved;
+  }
+  /**
+   * Pages ranked solo queue match ids for current ladder players, newest first, until each
+   * region reaches its cap for the current patch. Progress is recorded per player, so an
+   * interrupted crawl resumes, and a later crawl asks only for matches since the last one.
+   */
+  async function crawlMatchIds(): Promise<number> {
+    if (!riot) return 0;
+    const patchKey = await currentPatchKey(pool);
+    if (!patchKey)
+      throw new ProviderError("No patch catalog yet; refresh game metadata before crawling.");
+    const cap = options.riotMatchCap ?? 2000;
+    const now = clock();
+    const players = await playersToCrawl(pool, new Date(now.valueOf() - 6 * 3600000), 100);
+    const full = new Set<string>();
+    let added = 0;
+    for (const player of players) {
+      const region = matchRoute(player.platform);
+      if (full.has(region)) continue;
+      const since = Math.max(player.crawledAt?.valueOf() ?? 0, clock().valueOf() - 14 * 86400000);
+      let seen = 0;
+      for (let start = 0; start < 500; start += 100) {
+        const room = cap - (await matchIdCount(pool, region, patchKey));
+        if (room <= 0) {
+          full.add(region);
+          break;
+        }
+        const query = new URLSearchParams({
+          queue: String(rankedSoloQueueId),
+          type: "ranked",
+          startTime: String(Math.floor(since / 1000)),
+          start: String(start),
+          count: "100",
+        });
+        const response = await riot(
+          region,
+          "match-v5.getMatchIdsByPUUID",
+          `/lol/match/v5/matches/by-puuid/${encodeURIComponent(player.puuid)}/ids?${query}`,
+        );
+        if (response.status === 400 || response.status === 404) break;
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for match ids; crawl progress is kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        const ids = parseMatchIds(await response.json());
+        seen += ids.length;
+        added += await saveMatchIds(
+          pool,
+          { puuid: player.puuid, platform: player.platform, region, patchKey },
+          ids,
+          room,
+          clock(),
+        );
+        if (ids.length < 100) break;
+      }
+      // A player cut short by the cap is crawled first once there is room again.
+      if (!full.has(region)) await recordCrawl(pool, player, seen, clock());
+    }
+    return added;
+  }
+  /**
+   * Fetches queued items oldest first, committing each before the next, until none remain or the
+   * rate limit defers the run. A run yields after riotRun's item or time limit and requeues itself
+   * when items remain. Aggregates are refreshed for whatever was ingested, even on a deferral.
+   */
+  async function drainRiot(
+    pending: (limit: number) => Promise<{ matchId: string; region: string }[]>,
+    fetchOne: (item: { matchId: string; region: string }) => Promise<boolean>,
+  ): Promise<number> {
+    const maxItems = options.riotRun?.maxItems ?? 500;
+    const maxMs = options.riotRun?.maxMs ?? 240_000;
+    const started = clock().valueOf();
+    let ingested = 0;
+    let handled = 0;
+    const spent = () => handled >= maxItems || clock().valueOf() - started >= maxMs;
+    try {
+      while (!spent()) {
+        const batch = await pending(Math.min(50, maxItems - handled));
+        if (!batch.length) return ingested;
+        for (const item of batch) {
+          if (await fetchOne(item)) ingested++;
+          handled++;
+          if (spent()) break;
+        }
+      }
+      requeueAfterRun = (await pending(1)).length > 0;
+      return ingested;
+    } finally {
+      // Refresh the affected patches' aggregates right after ingestion.
+      if (ingested) await aggregate(false);
+    }
+  }
+  /**
+   * Fetches queued match ids, oldest first. Each payload is validated before one transaction
+   * writes it. A 404 or an invalid payload is recorded and skipped; a 429 or 5xx retries the job
+   * with earlier matches kept.
+   */
+  async function ingestMatches(): Promise<number> {
+    if (!riot) return 0;
+    return drainRiot(
+      (limit) => pendingMatches(pool, limit),
+      async ({ matchId, region }) => {
+        const response = await riot(
+          riotRoutingSchema.parse(region),
+          "match-v5.getMatch",
+          `/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
+        );
+        if (response.status === 404) {
+          await markMatchUnavailable(pool, matchId, "missing", clock());
+          return false;
+        }
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for a match; ingested matches are kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        const payload: unknown = await response.json();
+        let match;
+        try {
+          match = parseRiotMatch(payload, matchId);
+        } catch {
+          await markMatchUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+        await saveRiotMatch(pool, match, payload, clock());
+        return true;
+      },
+    );
+  }
+  /**
+   * Fetches timelines for ingested matches, oldest first. Each timeline is validated and written
+   * in one transaction; a 404 or an invalid timeline is recorded and skipped.
+   */
+  async function ingestTimelines(): Promise<number> {
+    if (!riot) return 0;
+    return drainRiot(
+      (limit) => pendingTimelines(pool, limit),
+      async ({ matchId, region }) => {
+        const response = await riot(
+          riotRoutingSchema.parse(region),
+          "match-v5.getTimeline",
+          `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
+        );
+        if (response.status === 404) {
+          await markTimelineUnavailable(pool, matchId, "missing", clock());
+          return false;
+        }
+        if (!response.ok)
+          throw new ProviderError(
+            `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
+            response.status === 429 || response.status >= 500,
+          );
+        let timeline;
+        try {
+          timeline = parseRiotTimeline(await response.json(), matchId);
+        } catch {
+          await markTimelineUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+        try {
+          await saveTimeline(pool, timeline, clock());
+          return true;
+        } catch (error) {
+          // A timeline naming participants the ingested match does not have (foreign key).
+          if ((error as { code?: string }).code !== "23503") throw error;
+          await markTimelineUnavailable(pool, matchId, "invalid", clock());
+          return false;
+        }
+      },
+    );
+  }
+  /**
+   * Keeps solo-queue data for the current patch and the configured previous patches. Prunes in
+   * bounded batches, and requeues pruned matches of kept patches so the match job backfills them.
+   * Only riot_* match tables are touched; pro data is not.
+   */
+  async function applyRetention(): Promise<number> {
+    const previous = options.riotRetainPatches ?? 2;
+    const kept = await keptPatches(pool, previous);
+    if (!kept.length) return 0;
+    let pruned = 0;
+    for (let batch = 0; batch < 50; batch++) {
+      const count = await pruneBatch(pool, kept, 200);
+      pruned += count;
+      if (count < 200) break;
+    }
+    await pruneUnfetched(pool, kept, 10000);
+    const backfilled = await requeuePruned(pool, kept, 1000);
+    await recordRetention(pool, { previous, kept, pruned, backfilled }, clock());
+    return pruned + backfilled;
+  }
+  /** Scores win probability added for matches the active model has not scored yet. */
+  async function scoreActiveWpa() {
+    const model = await activeWinProbabilityModel(pool);
+    if (!model) return 0;
+    const scored = await scorePendingWpa(pool, model, clock());
+    // Leaderboards read the active model's aggregates; rebuild them when new games were scored
+    // or the model has none yet.
+    const built = await pool.query("SELECT 1 FROM wpa_aggregates WHERE model_id=$1 LIMIT 1", [
+      model.id,
+    ]);
+    if (scored || !built.rowCount)
+      await transaction(pool, (c) => rebuildWpaAggregates(c, model.id, clock()));
+    return scored;
+  }
+  /** Rebuilds the aggregates of patches whose facts changed, one transaction per patch. */
+  /** Set by a Riot run that stopped at its limit with items left; read when the job completes. */
+  let requeueAfterRun = false;
+  async function aggregate(rebuild: boolean): Promise<number> {
+    if (rebuild) await markAllDirty(pool, clock());
+    let rows = 0;
+    for (const { source, patchKey } of await dirtyPatches(pool, 200))
+      rows += await rebuildPatch(pool, source, patchKey, clock());
+    await scoreActiveWpa();
+    // Train the first model as soon as enough games are stored, not at the daily run.
+    if (await firstTrainingDue(pool, minimumMatches()))
+      await enqueue(pool, { kind: "wp-train" }, clock());
+    return rows;
+  }
+  const minimumMatches = () => options.winProbability?.minimumMatches ?? 500;
   async function perform(r: SyncRequest): Promise<number> {
+    if (r.kind === "pro-game-details") {
+      const { loaded, remaining } = await refreshProGameDetails(pool, {
+        ...options.proGameDetailRun,
+        clock,
+        ...leaguepedia(wikiUserAgent),
+      });
+      requeueAfterRun = remaining;
+      return loaded;
+    }
+    if (r.kind === "pro-game-vods") {
+      const { found, remaining } = await refreshProGameVods(pool, {
+        ...options.proGameVodRun,
+        clock,
+        ...leaguepedia(vodUserAgent),
+      });
+      requeueAfterRun = remaining;
+      return found;
+    }
+    if (r.kind === "aggregate") return aggregate(r.rebuild ?? false);
+    if (r.kind === "wp-train") {
+      const trained = await trainWinProbabilityModel(pool, clock(), {
+        minimumMatches: minimumMatches(),
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      // A newly active model scores events from the start; the aggregate job keeps it current.
+      if (trained.active) await scoreActiveWpa();
+      const pro = await trainCheckpointModel(pool, clock(), {
+        minimumGames: options.winProbability?.minimumProGames ?? 200,
+        minimumGamesPerMinute: options.winProbability?.minimumProGamesPerMinute ?? 100,
+        minimumFrameGames: options.winProbability?.minimumProFrameGames ?? 500,
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      const draft = await trainDraftModel(pool, clock(), {
+        minimumGames: minimumMatches(),
+        seed: options.winProbability?.seed ?? 20261116,
+      });
+      return Number(trained.active) + Number(pro.active) + Number(draft.active);
+    }
+    if (r.kind === "riot-key") return checkRiotKey();
+    if (r.kind === "riot-retention") return applyRetention();
+    if (r.kind === "riot-timeline") return ingestTimelines();
+    if (r.kind === "riot-match") return ingestMatches();
+    if (r.kind === "riot-match-ids") return crawlMatchIds();
+    if (r.kind === "riot-ladder") return syncLadders();
+    if (r.kind === "riot-accounts") return resolveAccounts();
     if (r.kind === "entity-rosters") {
       const tournaments = (
         await pool.query<{ id: string; first: Date; last: Date }>(
@@ -219,6 +800,48 @@ export function worker(pool: Pool, options: WorkerOptions) {
       await cacheImages(pool, fetcher, clock);
       return report.links;
     }
+    if (r.kind === "pro-account-links") {
+      try {
+        return await importProAccountLinks(pool, r.file, clock());
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ProAccountImportError
+            ? error.message
+            : "Pro account links could not be read or stored; saved links are unchanged.",
+        );
+      }
+    }
+    if (r.kind === "replay-metadata") {
+      try {
+        return await importReplayMetadata(pool, {
+          file: r.file,
+          ...(r.platform ? { platform: r.platform } : {}),
+          directory: resolve(
+            options.importDirectory ?? resolve(process.cwd(), ".local/imports"),
+            "replays",
+          ),
+          keepFiles: options.keepReplayFiles ?? false,
+          now: clock(),
+        });
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ReplayImportError
+            ? error.message
+            : "Replay metadata could not be read or stored; saved metadata is unchanged.",
+        );
+      }
+    }
+    if (r.kind === "replay-track") {
+      try {
+        return await importReplayTrack(pool, r.file, clock());
+      } catch (error) {
+        throw new ProviderError(
+          error instanceof ReplayTrackImportError
+            ? error.message
+            : "Replay track could not be read or stored; saved tracks are unchanged.",
+        );
+      }
+    }
     if (r.kind === "history") {
       try {
         const common = {
@@ -236,38 +859,68 @@ export function worker(pool: Pool, options: WorkerOptions) {
               response: await archiveResponse(r.year),
             });
         const result = await importOracleArchive(pool, artifact, r.year, clock());
+        await recordOraclePatches(pool, clock());
+        await refreshDrafts(pool, clock, r.year);
+        // Pro statistics read the derived drafts, so aggregate after deriving them.
+        await markOracleYearDirty(pool, r.year, clock());
+        await aggregate(false);
         await retainOracleArtifacts(pool, clock().getUTCFullYear());
         return result.games;
       } catch (error) {
-        if (error instanceof ProviderError) throw error;
+        if (error instanceof ProviderError || error instanceof DeferredRequest) throw error;
         throw new ProviderError(
           error instanceof Error ? error.message : "Historical import failed validation.",
         );
       }
     }
+    if (r.kind === "drafts") {
+      const drafts = await refreshDrafts(pool, clock);
+      await markOracleYearDirty(pool, null, clock());
+      await aggregate(false);
+      return drafts;
+    }
     if (r.kind === "metadata") {
-      const version = parseVersions(
+      const versions = parseVersionCatalog(
         await (await request("https://ddragon.leagueoflegends.com/api/versions.json")).json(),
-      )[0]!;
-      const records: {
-        kind: "champion" | "item";
-        document: ReturnType<typeof parseMetadata>;
-      }[] = [];
-      for (const kind of ["champion", "item"] as const) {
-        const raw: unknown = await (
+      );
+      const version = parseVersions(versions)[0]!;
+      // The patch catalog is complete once versions.json validates; later metadata failures keep it.
+      await savePatchCatalog(pool, versions, clock());
+      const patchKey = normalizePatch(version)?.key;
+      if (!patchKey)
+        throw new ProviderError(`Data Dragon version ${version} is not a known patch.`);
+      const file = async (name: string): Promise<unknown> =>
+        (
           await request(
-            `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/${kind}.json`,
+            `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/${name}.json`,
           )
         ).json();
-        records.push({ kind, document: parseMetadata(raw, version, kind) });
-      }
+      const [champion, item, runes, summoner] = [
+        await file("champion"),
+        await file("item"),
+        await file("runesReforged"),
+        await file("summoner"),
+      ];
+      const records = [
+        { kind: "champion", document: parseMetadata(champion, version, "champion") },
+        { kind: "item", document: parseMetadata(item, version, "item") },
+      ];
+      const catalog = {
+        champions: parseChampionCatalog(champion, version),
+        items: parseItemCatalog(item, version),
+        runes: parseRuneCatalog(runes),
+        spells: parseSpellCatalog(summoner, version),
+      };
       await transaction(pool, async (c) => {
         for (const r of records)
           await c.query(
             "INSERT INTO metadata VALUES($1,$2,$3) ON CONFLICT(version,kind) DO UPDATE SET document=EXCLUDED.document",
             [version, r.kind, r.document],
           );
+        await saveGameCatalog(c, patchKey, version, catalog, clock());
       });
+      await cacheCatalogImages(pool, patchKey, (url) => request(url, false, 15000), clock);
+      await cacheMapImage(pool, (url) => request(url, false, 15000), clock);
       return records.reduce((n, r) => n + Object.keys(r.document).length, 0);
     }
     if (r.kind === "rosters") {
@@ -310,11 +963,13 @@ export function worker(pool: Pool, options: WorkerOptions) {
       );
       if (!acquired.rows[0]!.locked) return { state: "busy" as const };
       try {
+        await observeRiotKey();
         if (scheduleDue) await schedule(pool, clock(), options.currentFile);
         const job = await claim(pool, clock());
         if (!job) return { state: "idle" as const };
+        requeueAfterRun = false;
         const source = sourceOf(job.request);
-        if (job.request.kind !== "resolve")
+        if (tracksSource(job.request))
           await pool.query("UPDATE source_status SET last_attempt=$2 WHERE source=$1", [
             source,
             clock(),
@@ -322,15 +977,29 @@ export function worker(pool: Pool, options: WorkerOptions) {
         try {
           const records = await perform(job.request);
           await transaction(pool, async (c) => {
-            if (job.request.kind !== "resolve")
+            if (tracksSource(job.request))
               await c.query(
                 "UPDATE source_status SET last_success=$2,error=NULL,records=$3 WHERE source=$1",
                 [source, clock(), records],
+              );
+            if (job.request.kind.startsWith("riot-"))
+              await c.query(
+                `INSERT INTO riot_job_status(kind,last_success,records) VALUES($1,$2,$3)
+                 ON CONFLICT(kind) DO UPDATE SET last_success=EXCLUDED.last_success,
+                   records=EXCLUDED.records`,
+                [job.request.kind, clock(), records],
               );
             await c.query(
               "UPDATE sync_jobs SET state='done',lease_until=NULL,error=NULL WHERE id=$1",
               [job.id],
             );
+            // A run that yielded with work left continues behind the jobs already due.
+            if (requeueAfterRun)
+              await c.query(
+                `INSERT INTO sync_jobs(job_key,request,requested_at,available_at)
+                 VALUES($1,$2,$3,$3) ON CONFLICT DO NOTHING`,
+                [jobKey(job.request), job.request, clock()],
+              );
           });
           return { state: "done" as const, id: job.id, records };
         } catch (error) {
@@ -340,7 +1009,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
           const detail =
             error instanceof z.ZodError
               ? "Provider schema validation failed; saved data is unchanged."
-              : error instanceof ProviderError || deferred
+              : error instanceof ProviderError || error instanceof ChampionMappingError || deferred
                 ? error.message
                 : job.request.kind === "history"
                   ? "Historical import failed validation or could not be read; saved data is unchanged."
@@ -357,8 +1026,15 @@ export function worker(pool: Pool, options: WorkerOptions) {
               "UPDATE sync_jobs SET state=$2,available_at=$3,lease_until=NULL,error=$4,attempts=attempts-$5 WHERE id=$1",
               [job.id, retry ? "queued" : "failed", available, message, deferred ? 1 : 0],
             );
-            if (job.request.kind !== "resolve")
+            if (tracksSource(job.request))
               await c.query("UPDATE source_status SET error=$2 WHERE source=$1", [source, message]);
+            if (job.request.kind.startsWith("riot-"))
+              await c.query(
+                `INSERT INTO riot_job_status(kind,last_error_at,error) VALUES($1,$2,$3)
+                 ON CONFLICT(kind) DO UPDATE SET last_error_at=EXCLUDED.last_error_at,
+                   error=EXCLUDED.error`,
+                [job.request.kind, clock(), message],
+              );
           });
           return {
             state: retry ? ("queued" as const) : ("failed" as const),

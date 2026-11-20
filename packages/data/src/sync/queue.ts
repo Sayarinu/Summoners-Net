@@ -3,7 +3,14 @@ import type { Pool } from "pg";
 import { syncRequestSchema, type SyncRequest } from "../domain/models.js";
 import { transaction } from "../persistence/database.js";
 export function jobKey(r: SyncRequest) {
+  if (r.kind === "pro-account-links")
+    return "pro-account-links:" + createHash("sha256").update(r.file).digest("hex");
+  if (r.kind === "replay-metadata")
+    return "replay-metadata:" + createHash("sha256").update(r.file).digest("hex");
+  if (r.kind === "replay-track")
+    return "replay-track:" + createHash("sha256").update(r.file).digest("hex");
   if (r.kind === "entity-history" || r.kind === "entity-rosters") return `${r.kind}:${r.year}`;
+  if (r.kind === "aggregate") return r.rebuild ? "aggregate:rebuild" : "aggregate";
   return r.kind === "history"
     ? `history:${r.year}${r.file ? ":" + createHash("sha256").update(r.file).digest("hex").slice(0, 16) : ""}`
     : r.kind;
@@ -23,6 +30,10 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
     { request: { kind: "matches" }, interval: 600 },
     { request: { kind: "rosters" }, interval: 86400 },
     { request: { kind: "metadata" }, interval: 86400 },
+    { request: { kind: "drafts" }, interval: 86400 },
+    { request: { kind: "pro-game-details" }, interval: 600 },
+    // Mostly a no-op: only new games and games due a recheck for a late recording are requested.
+    { request: { kind: "pro-game-vods" }, interval: 1800 },
     {
       request: {
         kind: "history",
@@ -32,6 +43,33 @@ export async function schedule(pool: Pool, now: Date, currentFile?: string) {
       interval: 86400,
     },
     { request: { kind: "entities" }, interval: 86400 },
+    // Past fixtures and tournament rosters corroborate team links for every archive year; without
+    // them a rebuilt library could only compare games with today's rosters.
+    ...(
+      await pool.query<{ year: number }>(
+        "SELECT DISTINCT archive_year AS year FROM oracle_archive_games ORDER BY year",
+      )
+    ).rows
+      .map((r) => r.year)
+      .concat(now.getUTCFullYear())
+      .filter((year, i, years) => years.indexOf(year) === i)
+      .flatMap((year) => {
+        const interval = year === now.getUTCFullYear() ? 86400 : 30 * 86400;
+        return [
+          { request: { kind: "entity-history" as const, year }, interval },
+          { request: { kind: "entity-rosters" as const, year }, interval },
+        ];
+      }),
+    // Development keys expire after 24 hours; a 6-hour check notices a rejected key promptly.
+    { request: { kind: "riot-key" }, interval: 21600 },
+    { request: { kind: "riot-ladder" }, interval: 21600 },
+    { request: { kind: "riot-accounts" }, interval: 3600 },
+    { request: { kind: "riot-match-ids" }, interval: 3600 },
+    { request: { kind: "riot-match" }, interval: 900 },
+    { request: { kind: "riot-timeline" }, interval: 900 },
+    { request: { kind: "riot-retention" }, interval: 86400 },
+    { request: { kind: "aggregate" }, interval: 3600 },
+    { request: { kind: "wp-train" }, interval: 86400 },
   ];
   await transaction(pool, async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(9183274)");

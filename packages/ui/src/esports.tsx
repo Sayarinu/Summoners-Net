@@ -5,6 +5,7 @@ import { analyticsData, Avatar, cx, Icon } from "./internal.js";
 import type { AnalyticsProps } from "./internal.js";
 import { Button, LiveIndicator, StatusIndicator, TextLink } from "./primitives.js";
 import { Switch } from "./forms.js";
+import { RoleIcon } from "./catalog-icons.js";
 
 export interface TeamIdentityProps {
   readonly detail?: string;
@@ -12,7 +13,9 @@ export interface TeamIdentityProps {
   readonly logo?: string;
   readonly name: string;
   readonly shortName: string;
-  readonly size?: "compact" | "large" | "medium";
+  /** `display` is the page-heading size used on a team's own profile. */
+  readonly size?: "compact" | "display" | "large" | "medium";
+  readonly side?: "blue" | "red";
   readonly winner?: boolean;
 }
 
@@ -23,6 +26,7 @@ export function TeamIdentity({
   name,
   shortName,
   size = "medium",
+  side,
   winner = false,
 }: TeamIdentityProps) {
   const content = (
@@ -31,23 +35,41 @@ export function TeamIdentity({
         alt={`${name} logo`}
         entityKind="team"
         fallback={shortName}
-        size={size === "large" ? "large" : "small"}
+        size={size === "large" || size === "display" ? "large" : "small"}
         src={logo}
       />
       <span className="np-identity__copy">
         <strong>{name}</strong>
         {detail ? <small>{detail}</small> : null}
       </span>
+      {side ? <span className="np-visually-hidden">{side} side</span> : null}
       {winner ? <span className="np-identity__winner">Winner</span> : null}
     </>
   );
 
   return href ? (
-    <a className={cx("np-identity", `np-identity--${size}`)} href={href}>
+    <a className={cx("np-identity", `np-identity--${size}`)} data-side={side} href={href}>
       {content}
     </a>
   ) : (
-    <div className={cx("np-identity", `np-identity--${size}`)}>{content}</div>
+    <div className={cx("np-identity", `np-identity--${size}`)} data-side={side}>
+      {content}
+    </div>
+  );
+}
+
+/** Two teams side by side, each edged in its side's color, reading outward from "vs". */
+export function TeamVersus({
+  teams,
+}: {
+  readonly teams: readonly [TeamIdentityProps, TeamIdentityProps];
+}) {
+  return (
+    <div className="np-team-versus">
+      <TeamIdentity {...teams[0]} />
+      <span className="np-team-versus__sep">vs</span>
+      <TeamIdentity {...teams[1]} />
+    </div>
   );
 }
 
@@ -56,8 +78,12 @@ export interface PlayerIdentityProps {
   readonly fullName?: string;
   readonly handle: string;
   readonly href?: string;
+  /** `stacked` puts the portrait above the handle and role, as a roster tile. */
+  readonly layout?: "inline" | "stacked";
   readonly portrait?: string;
-  readonly role?: string;
+  readonly role?: string | null | undefined;
+  /** `display` is the page-heading size used on a player's own profile. */
+  readonly size?: "display" | "medium";
 }
 
 export function PlayerIdentity({
@@ -65,32 +91,41 @@ export function PlayerIdentity({
   fullName,
   handle,
   href,
+  layout = "inline",
   portrait,
   role,
+  size = "medium",
 }: PlayerIdentityProps) {
-  const detail = [fullName, role, country].filter(Boolean).join(" · ");
+  const detail = [fullName, country].filter(Boolean).join(" · ");
   const content = (
     <>
       <Avatar
         alt={`${handle} portrait`}
         entityKind="player"
         fallback={handle}
-        size="medium"
+        size={size === "display" ? "large" : "medium"}
         src={portrait}
       />
       <span className="np-identity__copy">
         <strong>{handle}</strong>
         {detail ? <small>{detail}</small> : null}
       </span>
+      {role ? <RoleIcon role={role} /> : null}
     </>
   );
 
+  const className = cx(
+    "np-identity",
+    "np-identity--player",
+    layout === "stacked" && "np-identity--stacked",
+    size === "display" && "np-identity--display",
+  );
   return href ? (
-    <a className="np-identity np-identity--player" href={href}>
+    <a className={className} href={href}>
       {content}
     </a>
   ) : (
-    <div className="np-identity np-identity--player">{content}</div>
+    <div className={className}>{content}</div>
   );
 }
 
@@ -131,7 +166,7 @@ export interface MatchDisplay {
   readonly timeConfirmed?: boolean;
 }
 
-function MatchLifecycleLabel({ lifecycle }: { readonly lifecycle: MatchLifecycle }) {
+export function MatchLifecycleLabel({ lifecycle }: { readonly lifecycle: MatchLifecycle }) {
   if (lifecycle === "live") return <LiveIndicator />;
   const label =
     lifecycle === "final"
@@ -171,6 +206,15 @@ function MatchTeams({
     <div className={cx("np-match-teams", compact && "np-match-teams--compact")}>
       {match.teams.map((team, teamIndex) => {
         const tbd = team.name === "TBD";
+        const opponent = match.teams[1 - teamIndex];
+        const result =
+          match.lifecycle === "final" && team.score !== undefined && opponent?.score !== undefined
+            ? team.score > opponent.score
+              ? "win"
+              : team.score < opponent.score
+                ? "loss"
+                : undefined
+            : undefined;
         return (
           <Fragment key={`${match.id}-team-${teamIndex}`}>
             <div
@@ -193,12 +237,16 @@ function MatchTeams({
               )}
               <span className="np-match-team__name">{compact ? team.shortName : team.name}</span>
               {!hideScores && team.score !== undefined ? (
-                <strong className="np-score">{team.score}</strong>
+                <strong className="np-score" data-result={result}>
+                  {team.score}
+                </strong>
               ) : null}
             </div>
             {teamIndex === 0 ? (
               <span aria-hidden="true" className="np-match-vs">
-                vs
+                {!hideScores && match.teams.every((entry) => entry.score !== undefined)
+                  ? " – "
+                  : "vs"}
               </span>
             ) : null}
           </Fragment>
@@ -209,6 +257,7 @@ function MatchTeams({
 }
 
 export interface MatchRowProps extends AnalyticsProps {
+  readonly statusLabel?: ReactNode;
   readonly actions?: ReactNode;
   readonly expandedContent?: ReactNode;
   readonly match: MatchDisplay;
@@ -218,6 +267,7 @@ export interface MatchRowProps extends AnalyticsProps {
 }
 
 export function MatchRow({
+  statusLabel,
   analyticsId,
   actions,
   expandedContent,
@@ -227,6 +277,11 @@ export function MatchRow({
   streamAction,
 }: MatchRowProps) {
   const hasActions = Boolean(match.streamAvailable || actions || streamAction);
+  const [first, second] = match.teams;
+  const score =
+    first.score === undefined || second.score === undefined
+      ? ""
+      : `, ${first.score} to ${second.score}`;
   return (
     <article
       {...analyticsData(analyticsId)}
@@ -237,7 +292,7 @@ export function MatchRow({
       )}
     >
       <div className="np-match-row__time">
-        <MatchLifecycleLabel lifecycle={match.lifecycle} />
+        {statusLabel ?? <MatchLifecycleLabel lifecycle={match.lifecycle} />}
         <span>{match.scheduledLabel}</span>
       </div>
       {spoilerHidden && (match.lifecycle === "final" || match.lifecycle === "forfeit") ? (
@@ -248,11 +303,11 @@ export function MatchRow({
           type="button"
         >
           <Icon icon={EyeOff} size="small" />
-          <span>Result hidden</span>
+          <span>Result Hidden</span>
         </button>
       ) : (
         <a
-          aria-label={`${match.teams[0].name} versus ${match.teams[1].name}, ${match.scheduledLabel}`}
+          aria-label={`${match.teams[0].name} versus ${match.teams[1].name}, ${match.scheduledLabel}${score}`}
           className="np-match-row__primary"
           href={match.href}
         >
@@ -286,7 +341,7 @@ export function MatchRow({
   );
 }
 
-export type SearchEntityType = "event" | "match" | "player" | "team";
+export type SearchEntityType = "champion" | "event" | "match" | "player" | "summoner" | "team";
 
 export interface SearchResultProps {
   readonly description?: string;
@@ -296,6 +351,7 @@ export interface SearchResultProps {
   readonly name: string;
   readonly shortName: string;
   readonly type: SearchEntityType;
+  readonly showType?: boolean;
 }
 
 export function SearchResult({
@@ -305,6 +361,7 @@ export function SearchResult({
   meta,
   name,
   shortName,
+  showType = true,
   type,
 }: SearchResultProps) {
   return (
@@ -318,7 +375,7 @@ export function SearchResult({
           src={image}
         />
         <span className="np-search-result__copy">
-          <span className="np-eyebrow">{type}</span>
+          {showType ? <span className="np-eyebrow">{type}</span> : null}
           <strong>{name}</strong>
           {description ? <small>{description}</small> : null}
         </span>
@@ -378,6 +435,8 @@ export function StreamConsent({
 
 export interface StreamEmbedShellProps {
   readonly children?: ReactNode;
+  /** A tighter header for a player beside other content; a ready player shows no status. */
+  readonly compact?: boolean;
   readonly fallbackHref?: string;
   readonly mode?: "live" | "replay";
   readonly onRetry?: () => void;
@@ -388,6 +447,7 @@ export interface StreamEmbedShellProps {
 
 export function StreamEmbedShell({
   children,
+  compact = false,
   fallbackHref,
   mode = "live",
   onRetry,
@@ -399,16 +459,19 @@ export function StreamEmbedShell({
     <section
       aria-busy={state === "loading"}
       aria-label={title}
-      className={cx("np-stream-shell", `np-stream-shell--${state}`)}
+      className={cx(
+        "np-stream-shell",
+        `np-stream-shell--${state}`,
+        compact && "np-stream-shell--compact",
+      )}
     >
       <header>
         <div>
-          <Icon icon={Radio} size="small" />
           <span>{provider}</span>
         </div>
         <div>
           {state === "ready" ? (
-            mode === "live" ? (
+            compact ? null : mode === "live" ? (
               <LiveIndicator />
             ) : (
               <StatusIndicator label="Replay" tone="info" />
@@ -465,7 +528,7 @@ export function SpoilerControl({ hidden, onHiddenChange, onReveal }: SpoilerCont
   return (
     <div className="np-spoiler-control">
       <Switch onChange={onHiddenChange} selected={hidden}>
-        Hide results
+        Hide Results
       </Switch>
       {hidden && onReveal ? (
         <Button

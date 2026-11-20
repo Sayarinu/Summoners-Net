@@ -11,7 +11,8 @@ function links() {
     <a id="image" href="/api/images/abc">Image</a>
     <a id="blank" href="/players" target="_blank">New tab</a>
     <a id="download" href="/history" download>Download</a>
-    <a id="fragment" href="#main-content">Skip</a>`;
+    <a id="fragment" href="#main-content">Skip</a>
+    <a id="tab" href="/teams/t1?view=games" data-keep-scroll><span id="tab-label">Games</span></a>`;
 }
 const click = (id: string, init: MouseEventInit = {}) =>
   fireEvent.click(document.getElementById(id)!, { button: 0, ...init });
@@ -25,7 +26,15 @@ it("turns plain in-app link clicks into client navigations", () => {
   const view = render(<SoftNavigation />);
   links();
   expect(click("inner")).toBe(false);
-  expect(router.push).toHaveBeenCalledWith("/teams/t1?year=2026");
+  expect(router.push).toHaveBeenCalledWith("/teams/t1?year=2026", { scroll: true });
+  view.unmount();
+});
+
+it("keeps the reader's place when a tab switches the view", () => {
+  const view = render(<SoftNavigation />);
+  links();
+  expect(click("tab-label")).toBe(false);
+  expect(router.push).toHaveBeenCalledWith("/teams/t1?view=games", { scroll: false });
   view.unmount();
 });
 
@@ -55,7 +64,9 @@ it("leaves modified clicks, new tabs, downloads, API, external and fragment link
 it("shows navigation progress and stops intercepting once unmounted", () => {
   const view = render(<SoftNavigation />);
   links();
-  expect(view.container.firstElementChild).toHaveClass("ev-navigation-progress");
+  const progress = view.container.firstElementChild;
+  expect(progress).toHaveAttribute("aria-hidden", "true");
+  expect(progress).not.toHaveAttribute("data-pending");
   view.unmount();
   click("team");
   expect(router.push).not.toHaveBeenCalled();

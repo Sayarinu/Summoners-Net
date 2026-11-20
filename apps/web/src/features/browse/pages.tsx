@@ -1,11 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
-import { MatchRow, EmptyState, SearchResult, TextLink } from "@summonersnet/ui";
-import type { BrowseQuery, Match, Game, Identity, Page, SearchHit } from "@summonersnet/data";
+import {
+  ChampionIcon,
+  EmptyState,
+  PageHeader,
+  Panel,
+  SearchResult,
+  TabNav,
+  TextLink,
+} from "@summonersnet/ui";
+import type { BrowseQuery, Match, Game, Page, SearchHit } from "@summonersnet/data";
 import { Filters, Pages, GamesTable } from "./components";
-import { InlineMatchStream } from "./inline-stream";
-import { identityHref, localDate, matchDisplay } from "./presentation";
-import { preferencesChangedEvent } from "../preferences/model";
+import { searchHitHref } from "./presentation";
+import { MatchSection, useMatchRows } from "./match-group";
 
 const matchSections = [
   { id: "live", label: "Live", states: ["live"] },
@@ -14,7 +20,7 @@ const matchSections = [
     label: "Upcoming",
     states: ["scheduled", "postponed", "cancelled", "unknown"],
   },
-  { id: "past", label: "Past games", states: ["final"] },
+  { id: "past", label: "Past Games", states: ["final"] },
 ] as const;
 
 export function MatchesPage({
@@ -28,201 +34,183 @@ export function MatchesPage({
   hideSpoilers: boolean;
   now: string;
 }) {
-  const [revealed, setRevealed] = useState<string[]>([]);
-  const [spoilersHidden, setSpoilersHidden] = useState(hideSpoilers);
-  const [openStreamId, setOpenStreamId] = useState<string | null>(null);
+  const rows = useMatchRows(hideSpoilers);
   const timezone = query.timezone ?? "UTC";
-  useEffect(() => setSpoilersHidden(hideSpoilers), [hideSpoilers]);
-  useEffect(() => {
-    const onPreferencesChanged = (event: Event) => {
-      const next = (event as CustomEvent<{ hideSpoilers?: unknown }>).detail;
-      if (typeof next?.hideSpoilers === "boolean") setSpoilersHidden(next.hideSpoilers);
-    };
-    window.addEventListener(preferencesChangedEvent, onPreferencesChanged);
-    return () => window.removeEventListener(preferencesChangedEvent, onPreferencesChanged);
-  }, []);
   return (
-    <div className="ev-matches-page np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Schedule</span>
-          <h1>Matches</h1>
-          <p className="np-body-sm">
-            Live, upcoming and recent series, refreshed by the local worker.
-          </p>
-        </div>
-      </header>
-      <Filters query={query} />
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Matches" />
+      <Filters query={query} className="border-y border-line py-4" />
       {matchSections.map((section) => {
         const sectionItems = data.items.filter((match) =>
           (section.states as readonly string[]).includes(match.state),
         );
         if (!sectionItems.length) return null;
-        const groups = Object.groupBy(sectionItems, (match) =>
-          match.startsAt ? localDate(match.startsAt, timezone) : "Date to be confirmed",
-        );
         return (
-          <section key={section.id} className="ev-match-section">
-            <h2>{section.label}</h2>
-            {Object.entries(groups).map(([date, items]) => (
-              <section key={date} className="ev-match-group">
-                <h3>{date}</h3>
-                {items?.map((match) => {
-                  const streamOpen = openStreamId === match.id;
-                  const watchLabel = match.state === "live" ? "Watch Live" : "Watch";
-                  const streamPanelId = `match-stream-${match.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-                  return (
-                    <div key={match.id}>
-                      <MatchRow
-                        match={matchDisplay(match, timezone, now)}
-                        spoilerHidden={spoilersHidden && !revealed.includes(match.id)}
-                        onSpoilerReveal={() => setRevealed([...revealed, match.id])}
-                        streamAction={
-                          match.broadcasts.length > 0 ? (
-                            <button
-                              aria-controls={streamOpen ? streamPanelId : undefined}
-                              aria-expanded={streamOpen}
-                              aria-label={streamOpen ? "Close Stream" : watchLabel}
-                              className="ev-watch-toggle"
-                              onClick={() =>
-                                setOpenStreamId((current) =>
-                                  current === match.id ? null : match.id,
-                                )
-                              }
-                              type="button"
-                            >
-                              {watchLabel}
-                            </button>
-                          ) : undefined
-                        }
-                        expandedContent={
-                          streamOpen ? (
-                            <InlineMatchStream broadcasts={match.broadcasts} id={streamPanelId} />
-                          ) : undefined
-                        }
-                      />
-                      {new Date(now).valueOf() - new Date(match.updatedAt).valueOf() >
-                        (match.state === "live" ? 300000 : 1200000) && (
-                        <p className="ev-row-note">Saved observation · refresh overdue</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </section>
-            ))}
-          </section>
+          <MatchSection
+            key={section.id}
+            title={section.label}
+            matches={sectionItems}
+            timezone={timezone}
+            now={now}
+            {...rows}
+          />
         );
       })}
-      {!data.items.length && (
-        <EmptyState
-          title="No matches in this view"
-          description="Try another date or league. Refreshes are processed by the local synchronization worker."
-        />
-      )}
-      <Pages data={data} />
-      <p className="np-body-sm">
-        Looking further back?{" "}
-        <TextLink href="/history" variant="accent">
-          Browse the game archive
-        </TextLink>
-      </p>
+      {!data.items.length && <EmptyState title="No Matches in This View" />}
+      <Pages
+        data={data}
+        afterCount={
+          <TextLink href="/history" variant="accent">
+            Browse Past Matches
+          </TextLink>
+        }
+      />
     </div>
   );
 }
-export function HistoryPage({ data, query }: { data: Page<Game>; query: BrowseQuery }) {
-  return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Historical records</span>
-          <h1>Game archive</h1>
-          <p className="np-body-sm">
-            Played lineups and basic statistics, from 2014 onward where imported.
-          </p>
-        </div>
-        <TextLink href="/sources">Manage imports</TextLink>
-      </header>
-      <Filters query={query} history />
-      <GamesTable games={data.items} timezone={query.timezone ?? "UTC"} />
-      <Pages data={data} />
-    </div>
-  );
+
+/** Month headings in the viewer's timezone, in the order the matches arrive. */
+function byMonth(matches: Match[], timezone: string) {
+  const format = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "long",
+    year: "numeric",
+  });
+  const groups = new Map<string, Match[]>();
+  for (const match of matches) {
+    const label = match.startsAt ? format.format(new Date(match.startsAt)) : "Date to Be Confirmed";
+    groups.set(label, [...(groups.get(label) ?? []), match]);
+  }
+  return [...groups];
 }
-export function DirectoryPage({
-  data,
+
+function viewHref(query: BrowseQuery, view: "series" | "games") {
+  const params = new URLSearchParams();
+  if (query.league) params.set("league", query.league);
+  if (typeof query.year === "number" || typeof query.year === "string")
+    params.set("year", String(query.year));
+  if (query.q) params.set("q", query.q);
+  if (view === "games") params.set("view", "games");
+  const search = params.toString();
+  return search ? `/history?${search}` : "/history";
+}
+
+export function PastMatchesPage({
+  view,
+  series,
+  games,
   query,
-  kind,
+  hideSpoilers,
+  now,
 }: {
-  data: Page<Identity>;
+  view: "series" | "games";
+  series?: Page<Match>;
+  games?: Page<Game>;
   query: BrowseQuery;
-  kind: "team" | "player";
+  hideSpoilers: boolean;
+  now: string;
 }) {
+  const rows = useMatchRows(hideSpoilers);
+  const timezone = query.timezone ?? "UTC";
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Your library</span>
-          <h1>{kind === "team" ? "Teams" : "Players"}</h1>
-          <p className="np-body-sm">
-            Recently active {kind === "team" ? "teams" : "players"} appear first. Search includes
-            historical names and appearances.
-          </p>
-        </div>
-      </header>
-      <Filters query={query} search />
-      <div>
-        {data.items.map((i) => (
-          <SearchResult
-            key={i.id}
-            name={i.name}
-            shortName={i.name}
-            type={i.kind}
-            href={identityHref(i)}
-            {...(i.imageUrl ? { image: i.imageUrl } : {})}
-          />
-        ))}
-      </div>
-      {!data.items.length && (
-        <EmptyState
-          title="No identities found"
-          description="Try another name or import historical games."
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Past Matches" />
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-y border-line py-3">
+        <TabNav
+          label="Past Matches View"
+          variant="segmented"
+          className="self-end"
+          items={(["series", "games"] as const).map((option) => ({
+            href: viewHref(query, option),
+            label: option === "series" ? "Series" : "Games",
+            current: view === option,
+          }))}
         />
-      )}
-      <Pages data={data} />
+        <Filters query={query} history view={view} className="flex-[1_1_440px]" />
+      </div>
+      {view === "series" && series ? (
+        <>
+          {byMonth(series.items, timezone).map(([label, matches]) => (
+            <MatchSection
+              key={label}
+              title={label}
+              matches={matches}
+              timezone={timezone}
+              now={now}
+              {...rows}
+            />
+          ))}
+          {!series.items.length && <EmptyState title="No Past Matches in This View" />}
+          <Pages data={series} />
+        </>
+      ) : null}
+      {view === "games" && games ? (
+        <>
+          <GamesTable
+            games={games.items}
+            timezone={timezone}
+            hideSpoilers={rows.spoilersHidden}
+            pastMatches
+          />
+          <Pages data={games} />
+        </>
+      ) : null}
     </div>
   );
 }
 export function SearchPage({ data, query }: { data: Page<SearchHit>; query: BrowseQuery }) {
   return (
-    <div className="np-stack">
-      <header className="ev-title">
-        <div>
-          <span className="np-overline">Across your library</span>
-          <h1>Search</h1>
-        </div>
-      </header>
-      <Filters query={query} search />
-      {data.items.map((i) => (
-        <SearchResult
-          key={i.id}
-          name={i.name}
-          shortName={i.name}
-          type={i.kind === "game" ? "match" : i.kind}
-          href={
-            i.kind === "team" || i.kind === "player"
-              ? identityHref({ ...i, kind: i.kind })
-              : `/${i.kind === "game" ? "games" : "matches"}/${encodeURIComponent(i.id)}`
-          }
-          {...(i.imageUrl ? { image: i.imageUrl } : {})}
-        />
-      ))}
-      {!data.items.length && (
-        <EmptyState
-          title={query.q ? "No results" : "Find a team, player or match"}
-          description="Search a team, player, match or historical game ID."
-        />
+    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
+      <PageHeader
+        title="Search"
+        {...(query.q
+          ? {
+              eyebrow: `“${query.q}” · ${data.total.toLocaleString()} ${data.total === 1 ? "Result" : "Results"}`,
+            }
+          : {})}
+      />
+      {data.items.length ? (
+        <Panel title="Results" padding="none">
+          <ul className="flex list-none flex-col">
+            {data.items.map((i) => (
+              <li key={i.id} className="px-2 py-1">
+                {i.kind === "champion" ? (
+                  <span className="flex items-center gap-3 px-2 py-2">
+                    <ChampionIcon
+                      id={i.id}
+                      name={i.name}
+                      imageUrl={i.imageUrl ?? null}
+                      href={searchHitHref(i)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-medium">{i.name}</span>
+                      <small className="text-xs text-fg-muted">{i.detail}</small>
+                    </span>
+                  </span>
+                ) : (
+                  <SearchResult
+                    name={i.name}
+                    shortName={i.name}
+                    type={i.kind === "game" ? "match" : i.kind}
+                    showType={false}
+                    href={searchHitHref(i)}
+                    {...(i.detail ? { description: i.detail } : {})}
+                    {...(i.imageUrl ? { image: i.imageUrl } : {})}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="px-4">
+            <Pages data={data} />
+          </div>
+        </Panel>
+      ) : (
+        <>
+          <EmptyState title={query.q ? "No Results" : "Find a Team, Player or Match"} />
+          <Pages data={data} />
+        </>
       )}
-      <Pages data={data} />
     </div>
   );
 }
