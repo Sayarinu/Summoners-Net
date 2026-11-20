@@ -4516,6 +4516,39 @@ describe("durable synchronization and request budgeting", () => {
     expect((await queries.historicalCoverage()).find((entry) => entry.year === 2026)?.games).toBe(
       1,
     );
+
+    // A quota page after the confirmation waits six hours, like one before it.
+    const html = (body: string, status = 200) =>
+      new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+    fetcher.mockReset();
+    fetcher.mockResolvedValueOnce(html(warning(id)));
+    fetcher.mockResolvedValueOnce(
+      html("<!DOCTYPE html><title>Google Drive - Quota exceeded</title>", 403),
+    );
+    await sync.request({ kind: "history", year: 2026 });
+    expect(await sync.runNext()).toMatchObject({
+      state: "queued",
+      error: expect.stringContaining("quota exceeded") as string,
+    });
+    const [deferred] = (
+      await pool.query<{ available_at: Date; attempts: number }>(
+        "SELECT available_at,attempts FROM sync_jobs WHERE state='queued' AND request->>'kind'='history'",
+      )
+    ).rows;
+    expect(deferred).toEqual({
+      available_at: new Date(instant.valueOf() + 6 * 3_600_000),
+      attempts: 0,
+    });
+
+    // Any other page after the confirmation still fails.
+    instant = deferred!.available_at;
+    fetcher.mockReset();
+    fetcher.mockResolvedValueOnce(html(warning(id)));
+    fetcher.mockResolvedValueOnce(html("<!DOCTYPE html><title>Sign in</title>"));
+    expect(await sync.runNext()).toMatchObject({
+      state: "failed",
+      error: expect.stringContaining("after the download confirmation") as string,
+    });
   });
 });
 

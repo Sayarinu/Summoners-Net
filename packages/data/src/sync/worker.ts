@@ -270,23 +270,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
       }
     }
     const response = await request(archiveDownload(year), false, 300000);
-    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) return response;
-    const reader = response.body?.getReader();
-    if (!reader) throw new ProviderError("Archive returned an HTML/quota page.");
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        bytes += value.byteLength;
-        if (bytes > 16384) throw new ProviderError("Archive returned an oversized HTML page.");
-        chunks.push(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    const html = Buffer.concat(chunks).toString("utf8");
+    if (!isHtml(response)) return response;
+    const html = await htmlPage(response);
     const form = html.match(
       /<form\b[^>]*action="([^"]+)"[^>]*method="get"[^>]*>([\s\S]*?)<\/form>/i,
     );
@@ -297,15 +282,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (name && value) fields.set(name, value);
     }
     const uuid = fields.get("uuid");
-    // Drive's download quota lasts hours, not minutes: wait it out without using up the job's
-    // attempts, so a blocked year keeps retrying until the file can be downloaded.
-    if (/<title>[^<]*Quota exceeded/i.test(html)) {
-      const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
-      throw new DeferredRequest(
-        until,
-        `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
-      );
-    }
+    if (quotaPage(html)) throw quotaDeferral();
     if (
       !html.includes("Google Drive - Virus scan warning") ||
       form?.[1] !== "https://drive.usercontent.google.com/download" ||
@@ -321,7 +298,61 @@ export function worker(pool: Pool, options: WorkerOptions) {
     const url = new URL("https://drive.usercontent.google.com/download");
     for (const name of ["id", "export", "confirm", "uuid"])
       url.searchParams.set(name, fields.get(name)!);
-    return request(url.toString(), false, 300000);
+    // The confirmed download can still meet the quota, as an HTML page with or without an error status.
+    let confirmed: Response;
+    try {
+      confirmed = await fetcher(url.toString(), {
+        signal: AbortSignal.timeout(300000),
+        redirect: "follow",
+      });
+    } catch {
+      throw new ProviderError("Provider connection failed; saved data is unchanged.", true);
+    }
+    if (isHtml(confirmed)) {
+      if (quotaPage(await htmlPage(confirmed))) throw quotaDeferral();
+      throw new ProviderError(
+        "Archive returned an HTML page after the download confirmation; official download unavailable.",
+      );
+    }
+    if (!confirmed.ok)
+      throw new ProviderError(
+        `Provider returned HTTP ${confirmed.status}.`,
+        confirmed.status === 429 || confirmed.status >= 500,
+      );
+    return confirmed;
+  }
+  const isHtml = (response: Response) =>
+    response.headers.get("content-type")?.toLowerCase().includes("text/html") ?? false;
+  /** An HTML reply's text, refusing anything larger than a Drive notice page. */
+  async function htmlPage(response: Response) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new ProviderError("Archive returned an HTML/quota page.");
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 16384) throw new ProviderError("Archive returned an oversized HTML page.");
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks).toString("utf8");
+  }
+  const quotaPage = (html: string) => /<title>[^<]*Quota exceeded/i.test(html);
+  /**
+   * Drive's download quota lasts hours, not minutes: wait it out without using up the job's
+   * attempts, so a blocked year keeps retrying until the file can be downloaded.
+   */
+  function quotaDeferral() {
+    const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
+    return new DeferredRequest(
+      until,
+      `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
+    );
   }
   async function pandaPages(path: string) {
     const all: unknown[] = [];
