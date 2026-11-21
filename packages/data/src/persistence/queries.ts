@@ -41,6 +41,7 @@ import { enrichIdentities } from "./entities.js";
 import {
   querySchema,
   type BrowseQuery,
+  type DirectoryQuery,
   type Game,
   type Identity,
   type Match,
@@ -332,7 +333,7 @@ export function queries(pool: Pool, clock: () => Date) {
     },
     games,
     teamDirectory: (input: BrowseQuery = {}) => teamDirectory(pool, input, clock()),
-    playerDirectory: (input: BrowseQuery = {}) => playerDirectory(pool, input, clock()),
+    playerDirectory: (input: DirectoryQuery = {}) => playerDirectory(pool, input, clock()),
     async teamContext(id: string) {
       const identity = await profileIdentity(id, "team");
       if (identity?.kind !== "team") return null;

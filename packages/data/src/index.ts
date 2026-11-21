@@ -13,6 +13,7 @@ export { directoryPageSize, directoryQuerySchema, querySchema, regions } from ".
 export { historicalQuerySchema, historicalSubjectSchema } from "./domain/historical.js";
 export type {
   BrowseQuery,
+  DirectoryQuery,
   ParsedQuery,
   Match,
   SeriesGame,

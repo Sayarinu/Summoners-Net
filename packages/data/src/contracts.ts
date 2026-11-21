@@ -3,6 +3,7 @@ export { roleKey } from "./domain/resolution.js";
 export {
   directoryPageSize,
   directoryQuerySchema,
+  playerRoles,
   querySchema,
   regions,
   timezoneSchema,
