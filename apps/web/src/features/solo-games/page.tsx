@@ -1,15 +1,6 @@
 "use client";
 import { ChampionPortrait, type ChampionPortraits } from "../browse/visuals";
-import {
-  LineChart,
-  PageHeader,
-  Panel,
-  RoleIcon,
-  SideName,
-  TabNav,
-  Table,
-  TextLink,
-} from "@summonersnet/ui";
+import { LineChart, PageHeader, Panel, RoleIcon, SideName, TabNav, Table } from "@summonersnet/ui";
 import type { DraftWinProbability, SoloGame } from "@summonersnet/data/contracts";
 import { DraftWinProbabilitySection } from "../drafts/draft-win-probability";
 
@@ -81,14 +72,7 @@ export function SoloGamePage({
           }}
         />
       ) : null}
-      <Panel
-        title="Win Probability"
-        actions={
-          wp.model ? (
-            <TextLink href={`/models?model=${wp.model.id}`}>Model Diagnostics</TextLink>
-          ) : null
-        }
-      >
+      <Panel title="Win Probability">
         {wp.model && wp.points.length ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-fg-secondary">

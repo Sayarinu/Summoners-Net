@@ -2,6 +2,7 @@ import { keepReplayFilesSchema } from "./domain/replays.js";
 import { createSync } from "./sync/index.js";
 import { trainOnDemand } from "./sync/train-command.js";
 import { queueCommand } from "./sync/queue-command.js";
+import { formatModelDiagnostics } from "./sync/models-command.js";
 import { createQueries } from "./index.js";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -138,6 +139,16 @@ try {
           setTimeout(resolve, 2000);
         });
     } while (!stop);
+  } else if (command === "models") {
+    const id = args[0] === undefined ? undefined : Number(args[0]);
+    if (id !== undefined && !(Number.isInteger(id) && id > 0))
+      throw new Error("Usage: pnpm models [model id]");
+    const q = createQueries(connection);
+    try {
+      process.stdout.write(formatModelDiagnostics(await q.modelDiagnostics(id)));
+    } finally {
+      await q.close();
+    }
   } else if (command === "status") {
     const q = createQueries(connection);
     try {
@@ -147,7 +158,7 @@ try {
     }
   } else
     throw new Error(
-      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, queue KIND [FILE], status",
+      "Commands: migrate, work, once, entities, resolve, entity-history YEAR, entity-rosters YEAR, import YEAR FILE, import-dir DIRECTORY, backfill YEAR, backfill-all, wp-train, models [ID], queue KIND [FILE], status",
     );
 } finally {
   await sync.close();

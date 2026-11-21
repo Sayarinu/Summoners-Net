@@ -3,7 +3,7 @@
 The draft model estimates each side's chance to win from the draft alone, before the game. It is a
 `draft` model in `wp_models` (migration 0049), trained with the other models by the `wp-train` job
 and `pnpm wp:train`, with one active model at a time. Solo game pages and the
-[draft assistant](matchups.md#draft-assistant) show it; `/models` shows its calibration.
+[draft assistant](matchups.md#draft-assistant) show it; `pnpm models <id>` prints its calibration.
 
 ## Inputs
 
@@ -39,9 +39,9 @@ shuffle; 20% are held out.
 To keep the held-out evaluation honest, the inputs used in training are built **from the training
 games only**, per patch. A training game's own result is left out of its inputs, so no game informs
 its own features. Held-out games are scored against counts they never contributed to. The Brier
-score and ten reliability bins on the held-out games are stored with the model and shown on
-`/models`. With fewer training games than the minimum (the same minimum as the solo-queue model),
-the model is stored as rejected and the active one stays.
+score and ten reliability bins on the held-out games are stored with the model and printed by
+`pnpm models <id>`. With fewer training games than the minimum (the same minimum as the solo-queue
+model), the model is stored as rejected and the active one stays.
 
 ## Predictions
 

@@ -50,6 +50,7 @@
     "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",
     "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters",
     "wp:train": "node --env-file-if-exists=.env packages/data/dist/cli.js wp-train",
+    "models": "node --env-file-if-exists=.env packages/data/dist/cli.js models",
     "replay:capture": "pnpm --filter @summonersnet/replay-capture capture"
   },
   "devDependencies": {

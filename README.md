@@ -110,13 +110,13 @@ or rejected and why) or queue it for the worker with `pnpm queue wp-train`. A sa
 small is stored as rejected and the active model stays. The pro model trains on every recorded
 minute once at least 500 training games have a Leaguepedia timeline, and is evaluated on whole
 held-out games, overall and per game phase (before 15:00, 15:00 to 25:00, after 25:00). The same job
-trains the pre-game [draft model](docs/analytics/draft-model.md). `/models` shows every stored
-model's calibration.
+trains the pre-game [draft model](docs/analytics/draft-model.md). `pnpm models` prints every stored
+model version, and `pnpm models <id>` one model's evaluation, calibration and feature weights.
 
 The navigation leads to **Champions** (every catalog champion, the role matchup matrices,
 counter-pick values and the draft assistant), the **Tier list**, **Leaderboards** (win probability
-added, pro accounts and regional ladders), **Patches**, **Drafts** and **Models**. Search also finds
-champions by name and sampled solo-queue players by Riot ID (`Name#TAG`).
+added, pro accounts and regional ladders), **Patches** and **Drafts**. Search also finds champions
+by name and sampled solo-queue players by Riot ID (`Name#TAG`).
 
 Aggregate tables (tier list, trending, patch overview, WPA leaderboards, matchups, the role matrix,
 counter-pick values and pro drafts) have a **Download CSV** link. It streams the whole table with
