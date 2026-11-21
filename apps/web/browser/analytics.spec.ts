@@ -26,7 +26,6 @@ const analyticsRoutes = [
   ["win probability added", "/leaderboards/wpa", "Win Probability Added"],
   ["regional ladder", "/leaderboards/euw1", null],
   ["pro solo queue feed", "/leaderboards/pros", null],
-  ["model diagnostics", "/models", "Model Diagnostics"],
   ["summoner profile", `/summoners/${"a".repeat(78)}`, null],
 ] as const;
 

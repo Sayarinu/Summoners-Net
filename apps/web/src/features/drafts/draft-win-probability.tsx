@@ -1,5 +1,5 @@
 "use client";
-import { Panel, RoleIcon, Stat, StatGroup, Table, TextLink } from "@summonersnet/ui";
+import { Panel, RoleIcon, Stat, StatGroup, Table } from "@summonersnet/ui";
 import type { DraftInput, DraftWinProbability } from "@summonersnet/data/contracts";
 
 const percent = (value: number | null) =>
@@ -63,7 +63,7 @@ export function DraftWinProbabilitySection({
             Draft model v{v.model.modelVersion} (#{v.model.id}), trained on patches{" "}
             {v.model.patches.join(", ")}. Brier score on {v.model.evalGames} held-out games:{" "}
             {v.model.brier === null ? "unknown" : v.model.brier.toFixed(3)} (lower is better; 0.25
-            is a coin flip). <TextLink href={`/models?model=${v.model.id}`}>Calibration</TextLink>
+            is a coin flip).
           </p>
           <details className="flex flex-col gap-3">
             <summary className="cursor-pointer text-sm text-fg-secondary">

@@ -811,22 +811,11 @@ test("a pro game without recorded events or probabilities omits the timeline", a
   if (await reveal.isVisible()) await reveal.click();
   await expect(page.getByRole("heading", { name: "Timeline" })).toHaveCount(0);
 });
-test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
+test("model diagnostics live in the CLI, not the app", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");
-  await page.getByRole("link", { name: "Model Diagnostics" }).click();
-  await expect(page).toHaveURL(/\/models\?model=1/);
-  await expect(page.getByRole("heading", { name: "Model Diagnostics", level: 1 })).toBeVisible();
-  await expect(page.getByRole("table", { name: "Model Versions" })).toContainText(
-    "Solo Queue (Timelines)",
-  );
-  await expect(
-    page.getByText("Reliability: Predicted vs Observed Blue Win Rate (%)").first(),
-  ).toBeAttached();
-  await expect(page.getByRole("table", { name: "Feature Weights" })).toContainText(
-    "Gold difference (per 5,000)",
-  );
-  await page.goto("/models?model=nope");
-  await expect(page.getByText("Choose a model from the list.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Model Diagnostics" })).toHaveCount(0);
+  const removed = await page.goto("/models");
+  expect(removed?.status()).toBe(404);
 });
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
@@ -1285,7 +1274,6 @@ test("navigation reaches every analytics section and search finds champions", as
   for (const [name, href] of [
     ["Tier List", "/tier-list"],
     ["Drafts", "/drafts"],
-    ["Models", "/models"],
   ] as const)
     await expect(nav(name)).toHaveAttribute("href", href);
   await page.goto("/search?q=ahri");

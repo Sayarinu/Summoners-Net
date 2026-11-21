@@ -54,7 +54,6 @@ it("links every analytics section and marks the one a page belongs to", () => {
     ["Leaderboards", "/leaderboards"],
     ["Patches", "/patches"],
     ["Drafts", "/drafts"],
-    ["Models", "/models"],
   ] as const)
     expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
   expect(screen.getByRole("link", { name: "Champions" })).toHaveAttribute("aria-current", "page");
@@ -91,8 +90,7 @@ it("groups the navigation by task and focuses search with the slash key", () => 
   const nav = screen.getByRole("navigation", { name: "Primary" });
   for (const [group, names] of [
     ["Esports", ["Matches", "Past Matches", "Teams", "Players"]],
-    ["Champions", ["Champions", "Tier List", "Patches", "Drafts"]],
-    ["Insights", ["Leaderboards", "Models"]],
+    ["Champions", ["Champions", "Tier List", "Patches", "Drafts", "Leaderboards"]],
   ] as const) {
     const list = within(nav).getByRole("list", { name: group });
     expect(
@@ -100,7 +98,11 @@ it("groups the navigation by task and focuses search with the slash key", () => 
         .getAllByRole("link")
         .map((l) => l.textContent),
     ).toEqual(names);
+    // Entries are text only; Settings keeps its icon.
+    expect(list.querySelector("svg")).toBeNull();
   }
+  expect(screen.queryByRole("link", { name: "Models" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Settings" }).querySelector("svg")).not.toBeNull();
   expect(screen.getAllByRole("link", { name: /Summoners Net/ }).length).toBeGreaterThan(0);
   const search = screen.getByRole("searchbox", { name: "Search App" });
   expect(search).toHaveAttribute("placeholder", "Search teams, players, champions and matches");
