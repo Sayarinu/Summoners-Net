@@ -49,13 +49,10 @@ it("reads both champions on the same validated filters", async () => {
 it("reads the first patch's tier list and the second patch's statistics", async () => {
   expect(await loadPatchComparison({ a: "16.22" })).toEqual({ comparison: null, error: null });
   const result = await loadPatchComparison({ a: "16.22", b: "16.21", role: "TOP", page: "2" });
-  expect(tierList).toHaveBeenCalledWith({
-    source: "solo",
-    role: "TOP",
-    patch: "16.22",
-    page: 2,
-    sort: "games",
-  });
+  expect(tierList).toHaveBeenCalledWith(
+    { source: "solo", role: "TOP", patch: "16.22", page: 2, sort: "games" },
+    { minimumGames: 0 },
+  );
   expect(championStats).toHaveBeenCalledWith({ source: "solo", role: "TOP", patch: "16.21" });
   expect(result.comparison?.a).toEqual({ patch: "16.22", page: { items: [] } });
   // A patch without stored aggregates is reported as missing, not shown as the newest patch.

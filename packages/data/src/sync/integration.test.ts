@@ -88,6 +88,8 @@ const queries = createQueries(connection, () => now);
 let instant = new Date(now);
 let directory: string;
 const fetcher = vi.fn<typeof fetch>();
+/** Hand-counted fixtures are far below the tier list's minimum sample, so list them all. */
+const everyChampion = { minimumGames: 0 };
 const endpoint = (input: Parameters<typeof fetch>[0] | undefined) =>
   input instanceof Request ? input.url : (input?.toString() ?? "");
 const sync = createSync(connection, {
@@ -700,9 +702,34 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       (await proChampionHistory(pool, { championKey: 103, stage: "regular" })).page.items[0],
     ).toMatchObject({ games: 1, picks: 1 });
     // The pro tier list slices by the same split (tier) and stage (queue).
-    const list = await tierList(pool, { source: "pro", tier: "Summer" });
+    const list = await tierList(pool, { source: "pro", tier: "Summer" }, everyChampion);
     expect(list.facets.tiers).toEqual(["Spring", "Summer", "Unknown"]);
     expect(list.sliceGames).toBe(1);
+  });
+  it("opens pro statistics on the newest patch with enough games and leaves out small samples", async () => {
+    serveDataDragon(["16.4.1", "16.3.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    // One hundred games on 16.3, then two on the patch that has just started.
+    const games = Array.from({ length: 100 }, (_, i) =>
+      draftCsv({ id: `full-${i}`, patch: "16.3" }),
+    ).concat(draftCsv({ id: "new-1" }), draftCsv({ id: "new-2" }));
+    await importCsv(games[0]! + games.slice(1).map(body).join(""));
+    const list = await tierList(pool, { source: "pro" });
+    expect(list).toMatchObject({ patch: "16.3", sliceGames: 100, hiddenChampions: 0 });
+    // Only Ahri is in the test catalog; she is picked in all hundred games.
+    expect(list.page.items.map((r) => [r.championKey, r.games])).toEqual([[103, 100]]);
+    expect((await proChampionStats(pool, { championKey: 103 })).patch).toBe("16.3");
+    // The new patch is still selectable; with two games every champion is left out.
+    expect(list.facets.patches).toEqual(["16.4", "16.3"]);
+    expect(await tierList(pool, { source: "pro", patch: "16.4" })).toMatchObject({
+      patch: "16.4",
+      sliceGames: 2,
+      page: { total: 0, items: [] },
+      hiddenChampions: list.page.total,
+    });
+    const overview = await championOverview(pool, { champion: "Ahri", source: "pro" });
+    expect(overview).toMatchObject({ patch: "16.3", games: 100 });
   });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
@@ -2637,7 +2664,11 @@ describe("Champion aggregates", () => {
       3,
     );
     // The tier list carries KDA and DPM for solo queue, and a tier from the shrunk win rate.
-    const soloList = await tierList(pool, { source: "solo", role: "MIDDLE", sort: "tier" });
+    const soloList = await tierList(
+      pool,
+      { source: "solo", role: "MIDDLE", sort: "tier" },
+      everyChampion,
+    );
     const ahriRow = soloList.page.items.find((r) => r.championKey === 103)!;
     // Every tier, so the master game counts as well.
     expect(ahriRow.performance.kda).toEqual({ value: 4, sampleCount: 3 });
@@ -2778,7 +2809,7 @@ describe("Champion aggregates", () => {
       delete m.info.participants[0]!.win;
     });
     await runAggregate();
-    const list = await tierList(pool, {});
+    const list = await tierList(pool, {}, everyChampion);
     expect(list).toMatchObject({ patch: "16.22", sliceGames: 3 });
     expect(list.facets).toEqual({
       patches: ["16.22"],
@@ -2812,31 +2843,33 @@ describe("Champion aggregates", () => {
     });
 
     // Win rate ascending keeps unknown win rates last; descending puts winners first.
-    const ascending = await tierList(pool, { sort: "winRate", order: "asc" });
+    const ascending = await tierList(pool, { sort: "winRate", order: "asc" }, everyChampion);
     expect(ascending.page.items[0]!.winRate.value).toBe(0);
     expect(ascending.page.items.at(-1)!.winRate.value).toBeNull();
-    const descending = await tierList(pool, { sort: "winRate" });
+    const descending = await tierList(pool, { sort: "winRate" }, everyChampion);
     expect(descending.page.items[0]!.winRate.value).toBe(1);
-    expect((await tierList(pool, { sort: "banRate" })).page.items[0]!.championKey).toBe(238);
+    expect(
+      (await tierList(pool, { sort: "banRate" }, everyChampion)).page.items[0]!.championKey,
+    ).toBe(238);
 
     // Role, tier and page filters.
-    const mid = await tierList(pool, { role: "MIDDLE", tier: "MASTER" });
+    const mid = await tierList(pool, { role: "MIDDLE", tier: "MASTER" }, everyChampion);
     expect(mid.sliceGames).toBe(1);
     // Both mid laners of the one master-tier game: Ahri's result is unknown, Yasuo lost.
     expect(mid.page.items.map((r) => [r.championKey, r.games, r.winRate.value])).toEqual([
       [103, 1, null],
       [157, 1, 0],
     ]);
-    expect((await tierList(pool, { page: 2 })).page).toMatchObject({
+    expect((await tierList(pool, { page: 2 }, everyChampion)).page).toMatchObject({
       items: [],
       total: 0,
       page: 2,
     });
-    expect(await tierList(pool, { source: "pro" })).toMatchObject({
+    expect(await tierList(pool, { source: "pro" }, everyChampion)).toMatchObject({
       patch: null,
       page: { total: 0 },
     });
-    await expect(tierList(pool, { sort: "name" as "games" })).rejects.toThrow();
+    await expect(tierList(pool, { sort: "name" as "games" }, everyChampion)).rejects.toThrow();
     expect((await queries.tierList({ patch: "16.21" })).page.total).toBe(0);
   });
   it("gives a champion overview with a shrunk-rate tier and a trend with gaps", async () => {
@@ -3357,14 +3390,20 @@ describe("Champion aggregates", () => {
         .performance,
     ).toMatchObject({ games: 2, damagePerMinute: { value: 600, sampleCount: 2 } });
     // The pro tier list carries the same averages and sorts by them.
-    const list = await tierList(pool, { source: "pro", role: "MIDDLE", sort: "kda" });
+    const list = await tierList(
+      pool,
+      { source: "pro", role: "MIDDLE", sort: "kda" },
+      everyChampion,
+    );
     const ahri = list.page.items.find((r) => r.championKey === 103)!;
     expect(ahri.performance).toEqual({
       kda: { value: 6, sampleCount: 2 },
       damagePerMinute: { value: 600, sampleCount: 2 },
       goldDiffAt15: { value: 500, sampleCount: 2 },
     });
-    expect((await tierList(pool, { source: "solo", role: "MIDDLE" })).page.items).toEqual([]);
+    expect(
+      (await tierList(pool, { source: "solo", role: "MIDDLE" }, everyChampion)).page.items,
+    ).toEqual([]);
   });
   it("aggregates pro draft use per champion and league, reporting unmapped names", async () => {
     serveDataDragon(["16.4.1"]);
