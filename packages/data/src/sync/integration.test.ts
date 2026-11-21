@@ -42,6 +42,7 @@ import {
   proChampionPerformance,
   proChampionStats,
 } from "../persistence/pro-stats.js";
+import { proChampionPlayers } from "../persistence/pro-champion-players.js";
 import { matchFeatures } from "../persistence/wp-features.js";
 import {
   activeWinProbabilityModel,
@@ -705,6 +706,78 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     const list = await tierList(pool, { source: "pro", tier: "Summer" }, everyChampion);
     expect(list.facets.tiers).toEqual(["Spring", "Summer", "Unknown"]);
     expect(list.sliceGames).toBe(1);
+  });
+  it("breaks a champion's pro play down by league and lists who played it", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    // Ahri is the red mid laner in every fixture draft; blue wins each game.
+    await importCsv(
+      draftCsv({ id: "lck-1", league: "LCK" }) +
+        body(draftCsv({ id: "lck-2", league: "LCK" })) +
+        body(draftCsv({ id: "lec-1", league: "LEC" })),
+    );
+    const stats = await proChampionStats(pool, { championKey: 103 });
+    const players = await proChampionPlayers(pool, { championId: "Ahri", patch: "16.4" });
+    const lec = await proChampionPlayers(pool, {
+      championId: "Ahri",
+      patch: "16.4",
+      league: "LEC",
+    });
+    // Picked in every game of each league; three results are below the minimum sample.
+    expect(stats.byLeague).toEqual([
+      {
+        league: "LCK",
+        games: 2,
+        picks: 2,
+        bans: 0,
+        presence: { value: 1, sampleCount: 2 },
+        winRate: { value: null, sampleCount: 2 },
+      },
+      {
+        league: "LEC",
+        games: 1,
+        picks: 1,
+        bans: 0,
+        presence: { value: 1, sampleCount: 1 },
+        winRate: { value: null, sampleCount: 1 },
+      },
+    ]);
+    // One player across both leagues, linked to their profile, with the fixture's 6 KDA.
+    const player = {
+      name: "Player Red mid",
+      team: "Acceptance Red",
+      profile: { name: "Player Red mid", publicSlug: "player-red-mid" },
+      kda: { value: 6, sampleCount: 3 },
+    };
+    expect(players).toEqual({
+      total: 1,
+      items: [
+        { ...player, leagues: ["LCK", "LEC"], games: 3, winRate: { value: null, sampleCount: 3 } },
+      ],
+    });
+    expect(lec.items).toEqual([
+      {
+        ...player,
+        leagues: ["LEC"],
+        games: 1,
+        kda: { value: 6, sampleCount: 1 },
+        winRate: { value: null, sampleCount: 1 },
+      },
+    ]);
+    // A champion no one played, and a missing patch, list no players.
+    expect(await proChampionPlayers(pool, { championId: "Ahri", patch: null })).toEqual({
+      items: [],
+      total: 0,
+    });
+    const overview = await championOverview(pool, {
+      champion: "Ahri",
+      source: "pro",
+      region: "LEC",
+    });
+    expect(overview?.proPlayers?.items.map((p) => p.leagues)).toEqual([["LEC"]]);
+    expect(overview?.pro.games).toBe(1);
+    expect((await championOverview(pool, { champion: "Ahri" }))?.proPlayers).toBeNull();
   });
   it("opens pro statistics on the newest patch with enough games and leaves out small samples", async () => {
     serveDataDragon(["16.4.1", "16.3.1"]);
@@ -3489,10 +3562,11 @@ describe("Champion aggregates", () => {
       picks: 3,
       presence: { value: 1, sampleCount: 3 },
       banRate: { value: 0, sampleCount: 3 },
-      winRate: { value: 0, sampleCount: 2 },
+      // Two known results are below the minimum sample: the win rates stay unknown.
+      winRate: { value: null, sampleCount: 2 },
       sides: [
         { side: "blue", picks: 0, winRate: { value: null, sampleCount: 0 } },
-        { side: "red", picks: 3, winRate: { value: 0, sampleCount: 2 } },
+        { side: "red", picks: 3, winRate: { value: null, sampleCount: 2 } },
       ],
       blindRate: { value: 1, sampleCount: 3 },
       counterRate: { value: 0, sampleCount: 3 },
@@ -3534,16 +3608,16 @@ describe("Champion aggregates", () => {
             presence: { value: 1, sampleCount: 3 },
             pickRate: { value: 1, sampleCount: 3 },
             banRate: { value: 0, sampleCount: 3 },
-            winRate: { value: 0, sampleCount: 2 },
+            winRate: { value: null, sampleCount: 2 },
             blueWinRate: { value: null, sampleCount: 0 },
-            redWinRate: { value: 0, sampleCount: 2 },
+            redWinRate: { value: null, sampleCount: 2 },
           },
         ],
       },
     });
     expect(
       (await proChampionHistory(pool, { championKey: 103, league: "LEC" })).page.items[0],
-    ).toMatchObject({ games: 1, picks: 1, winRate: { value: 0, sampleCount: 1 } });
+    ).toMatchObject({ games: 1, picks: 1, winRate: { value: null, sampleCount: 1 } });
     expect((await proChampionHistory(pool, { championKey: 103, page: 2 })).page).toMatchObject({
       items: [],
       total: 0,

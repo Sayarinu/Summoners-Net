@@ -3,7 +3,12 @@ import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
-import type { ProChampionPerformance, ProChampionStats, ProPatchHistory } from "./pro-stats.js";
+import type {
+  ProChampionPerformance,
+  ProChampionPlayers,
+  ProChampionStats,
+  ProPatchHistory,
+} from "./pro-stats.js";
 import { synergyQuerySchema, type BotLaneMatrix, type Synergies } from "./synergies.js";
 
 export const championRoles = [
@@ -197,6 +202,8 @@ export interface ChampionOverview {
   buckets: ChampionBuckets | null;
   /** Pro-play draft statistics, shown with either source. */
   pro: ProChampionStats;
+  /** Pro players on the champion in the pro patch and selection; null for solo queue. */
+  proPlayers: ProChampionPlayers | null;
   /**
    * Solo-queue per-game averages once picked, in the selected region, tier and role; null for pro
    * play, whose averages are in `pro.performance`.

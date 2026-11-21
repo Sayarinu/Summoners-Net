@@ -165,6 +165,24 @@ const overview: ChampionOverview = {
     blindRate: { value: 0.25, sampleCount: 12 },
     counterRate: { value: 0.75, sampleCount: 12 },
     unmapped: [{ name: "Mel", picks: 2, bans: 1 }],
+    byLeague: [
+      {
+        league: "LCK",
+        games: 30,
+        picks: 10,
+        bans: 6,
+        presence: { value: 16 / 30, sampleCount: 30 },
+        winRate: { value: 0.6, sampleCount: 10 },
+      },
+      {
+        league: "LEC",
+        games: 10,
+        picks: 2,
+        bans: 2,
+        presence: { value: 0.4, sampleCount: 10 },
+        winRate: { value: null, sampleCount: 2 },
+      },
+    ],
     performance: {
       games: 12,
       kda: { value: 4.5, sampleCount: 12 },
@@ -202,6 +220,7 @@ const overview: ChampionOverview = {
     visionScorePerMinute: { value: 0.91, sampleCount: 60 },
     gameLength: { value: 1745, sampleCount: 60 },
   },
+  proPlayers: null,
   proHistory: {
     league: null,
     page: {
@@ -252,7 +271,34 @@ const overview: ChampionOverview = {
   },
 };
 /** The same champion on the Pro Play view, where the pro panels appear. */
-const pro: ChampionOverview = { ...overview, query: { ...overview.query, source: "pro" } };
+const pro: ChampionOverview = {
+  ...overview,
+  query: { ...overview.query, source: "pro" },
+  builds: null,
+  proPlayers: {
+    total: 2,
+    items: [
+      {
+        name: "Faker",
+        team: "T1",
+        leagues: ["LCK"],
+        profile: { name: "Faker", publicSlug: "faker" },
+        games: 10,
+        winRate: { value: 0.7, sampleCount: 10 },
+        kda: { value: 5.25, sampleCount: 10 },
+      },
+      {
+        name: "Caps",
+        team: null,
+        leagues: ["LEC"],
+        profile: null,
+        games: 2,
+        winRate: { value: null, sampleCount: 2 },
+        kda: { value: null, sampleCount: 0 },
+      },
+    ],
+  },
+};
 it("shows rates with samples, the tier and its basis, and the trend", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
@@ -490,7 +536,10 @@ it("shows pro presence, sides and draft order with samples, and reports unmapped
   expect(stats).toHaveTextContent("Win Rate12 Results50.0%");
   expect(stats).toHaveTextContent("Blue Side Win Rate5 Picks · 5 Results60.0%");
   expect(stats).toHaveTextContent("Red Side Win Rate7 Picks · 0 ResultsUnknown");
-  expect(stats).toHaveTextContent("Blind / Counter12 Picks25.0% / 75.0%");
+  expect(stats).toHaveTextContent("Blind Pick12 Picks · 75.0% Counter25.0%");
+  // The pro view has no tier box or solo-queue sections.
+  expect(screen.queryByLabelText("Headline Statistics")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Runes" })).toBeNull();
   expect(screen.getByText(/no champion mapping: Mel/)).toBeVisible();
   view.rerender(
     <ChampionOverviewPage
@@ -525,6 +574,26 @@ it("shows solo-queue performance once picked, leaving out what solo queue does n
   expect(stats).not.toHaveTextContent("First Blood");
 });
 
+it("lists the champion by league and its pro players, with small samples shown as a dash", () => {
+  render(<ChampionOverviewPage overview={pro} error={null} />);
+  const leagues = screen.getByRole("table", { name: "Ahri by League" });
+  const [lck, lec] = within(leagues).getAllByRole("row").slice(1);
+  expect(lck).toHaveTextContent("LCK3053.3%10 / 660.0%");
+  expect(lec).toHaveTextContent("LEC1040.0%2 / 2—");
+  expect(within(lck!).getByRole("link", { name: "LCK" })).toHaveAttribute(
+    "href",
+    "/champions/Ahri?source=pro&role=MIDDLE&region=LCK&patch=16.22",
+  );
+  const players = screen.getByRole("table", { name: "Ahri Pro Players" });
+  const [faker, caps] = within(players).getAllByRole("row").slice(1);
+  expect(within(faker!).getByRole("link", { name: "Faker" })).toHaveAttribute(
+    "href",
+    "/players/faker",
+  );
+  expect(faker).toHaveTextContent("FakerT1LCK1070.0%5.25");
+  expect(caps).toHaveTextContent("CapsUnknown TeamLEC2—Unknown");
+  expect(within(caps!).queryByRole("link")).toBeNull();
+});
 it("lists pro play by patch, linking each patch, with unknown rates left empty", () => {
   render(<ChampionOverviewPage overview={pro} error={null} />);
   const table = screen.getByRole("table", { name: "Ahri Pro Play by Patch" });
