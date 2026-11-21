@@ -271,7 +271,7 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       // Probe each patch through the primary key rather than scanning every aggregate row.
       `SELECT p.patch_key FROM patches p
        WHERE EXISTS (SELECT 1 FROM champion_aggregates a WHERE a.source=$1 AND a.patch_key=p.patch_key)
-       ORDER BY p.release_order DESC LIMIT 50`,
+       ORDER BY p.release_order DESC`,
       [q.source],
     )
   ).rows.map((r) => r.patch_key);

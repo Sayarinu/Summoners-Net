@@ -15,15 +15,26 @@ vi.mock("./data", () => ({
     championMatchups,
   }),
 }));
-const ahri = (role = "MIDDLE", patch: string | null = "16.22", roles: { role: string }[] = []) => ({
+const ahri = (
+  role = "MIDDLE",
+  patch: string | null = "16.22",
+  roles: { role: string }[] = [],
+  source = "solo",
+) => ({
   champion: { id: "Ahri", key: 103 },
-  query: { role, source: "solo" },
+  query: { role, source },
   patch,
   roles,
+  facets: { patches: patch ? [patch] : [], regions: [], tiers: [] },
+});
+const list = (source = "solo", patches = ["16.22"]) => ({
+  patch: patches[0] ?? null,
+  query: { source },
+  facets: { patches, regions: [], tiers: [] },
 });
 const { loadChampionOverview, loadTierList } = await import("./champions");
 beforeEach(() => {
-  tierList.mockReset().mockResolvedValue({ patch: "16.22" });
+  tierList.mockReset().mockResolvedValue(list());
   championBlindability.mockReset().mockResolvedValue({ counterDifference: 0.05 });
 });
 
@@ -31,7 +42,7 @@ it("validates the query string before reading aggregates", async () => {
   expect(
     await loadTierList({ role: "MIDDLE", tier: "", region: "all", sort: "winRate", page: "2" }),
   ).toEqual({
-    list: { patch: "16.22" },
+    list: list(),
     error: null,
   });
   expect(tierList).toHaveBeenCalledWith(
@@ -111,6 +122,7 @@ it("reads jungle paths for the overview's champion and patch in solo queue only"
     patch,
     query: { source },
     roles: [],
+    facets: { patches: patch ? [patch] : [], regions: [], tiers: [] },
   });
   championOverview.mockReset().mockResolvedValueOnce(overview("solo", "16.22"));
   expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toEqual({ games: 3 });
@@ -118,7 +130,7 @@ it("reads jungle paths for the overview's champion and patch in solo queue only"
   championOverview.mockResolvedValueOnce(overview("pro", "16.22"));
   expect((await loadChampionOverview("LeeSin", { source: "pro" }))?.junglePaths).toBeNull();
   championOverview.mockResolvedValueOnce(overview("solo", null));
-  expect((await loadChampionOverview("LeeSin", {}))?.junglePaths).toBeNull();
+  expect((await loadChampionOverview("LeeSin", { source: "solo" }))?.junglePaths).toBeNull();
   expect(championJunglePaths).toHaveBeenCalledTimes(1);
 });
 
@@ -157,4 +169,24 @@ it("summarizes the best and worst opponents for the role, or the most played one
   championMatchups.mockResolvedValue({ patch: "16.21", page: { total: 0, items: [] } });
   championOverview.mockReset().mockResolvedValue(ahri("MIDDLE"));
   expect((await loadChampionOverview("Ahri", {}))?.matchupSummary).toBeNull();
+});
+
+it("opens on pro play when no solo-queue games are stored, unless a source was chosen", async () => {
+  tierList
+    .mockReset()
+    .mockImplementation(({ source }: { source: string }) =>
+      Promise.resolve(source === "pro" ? list("pro", ["16.22", "16.21"]) : list("solo", [])),
+    );
+  expect((await loadTierList({})).list).toEqual(list("pro", ["16.22", "16.21"]));
+  expect((await loadTierList({ source: "solo" })).list).toEqual(list("solo", []));
+
+  championOverview
+    .mockReset()
+    .mockImplementation(({ source }: { source?: string }) =>
+      Promise.resolve(source === "pro" ? ahri("ALL", "16.22", [], "pro") : ahri("ALL", null)),
+    );
+  expect((await loadChampionOverview("Ahri", {}))?.overview.query.source).toBe("pro");
+  expect((await loadChampionOverview("Ahri", { source: "solo" }))?.overview.query.source).toBe(
+    "solo",
+  );
 });
