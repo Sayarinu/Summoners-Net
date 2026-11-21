@@ -41,7 +41,7 @@ it("validates every stored entry and drops only the invalid ones", () => {
   writeSavedViews(store, many);
   expect(JSON.parse(store.items.get(savedViewsKey)!)).toHaveLength(savedViewLimit);
   expect(viewHref(valid)).toBe("/tier-list?role=MIDDLE");
-  expect(viewHref({ path: "/heatmaps", query: "" })).toBe("/heatmaps");
+  expect(viewHref({ path: "/tier-list", query: "" })).toBe("/tier-list");
 });
 
 it("saves the page's filters in browser storage and removes them", async () => {
@@ -105,7 +105,7 @@ it("lists without saving off filter pages, and reports a full or refusing store"
       throw new Error("QuotaExceededError");
     },
   };
-  render(<SavedViewsPanel path="/heatmaps" query="" defaultName="x" storage={() => refusing} />);
+  render(<SavedViewsPanel path="/tier-list" query="" defaultName="x" storage={() => refusing} />);
   fireEvent.click(screen.getByRole("button", { name: "Save This View" }));
   expect(screen.getByRole("status")).toHaveTextContent("This browser would not store the view.");
 });

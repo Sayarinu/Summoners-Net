@@ -31,13 +31,14 @@ const overview: Pick<ChampionOverview, "players" | "query" | "champion"> = {
   query: {
     champion: "Ahri",
     source: "solo",
-    patch: "16.22",
+    patch: ["16.22"],
     role: "MIDDLE",
     region: "europe",
     tier: "CHALLENGER",
     synergySort: "games",
     synergyPage: 2,
     playersSort: "games",
+    historyPage: 1,
     playersPage: 1,
   },
   players: {
@@ -62,7 +63,7 @@ const overview: Pick<ChampionOverview, "players" | "query" | "champion"> = {
 };
 it("shows sampled rates, current stored rank, public pro links and preserved pagination filters", () => {
   const { container } = render(<PlayersSection overview={overview} />);
-  expect(screen.getByText(/At least 10 retained/)).toBeVisible();
+  expect(screen.getByText(/Players on the latest apex ladder/)).toBeVisible();
   expect(screen.getAllByText("EUW1 · CHALLENGER · 500 LP")).toHaveLength(2);
   expect(screen.getAllByText("Observed 2026-03-01")).toHaveLength(2);
   expect(screen.getByRole("link", { name: "Sampled player#EUW" })).toHaveAttribute(
@@ -74,8 +75,8 @@ it("shows sampled rates, current stored rank, public pro links and preserved pag
     "/players/pro-player",
   );
   expect(screen.getByRole("link", { name: "b".repeat(78) })).toBeVisible();
-  expect(screen.getByText("Unknown · n=1 known results")).toBeVisible();
-  expect(screen.getByText("50.0% · n=12 known results")).toBeVisible();
+  expect(screen.getByText("Unknown")).toBeVisible();
+  expect(screen.getByText("50.0%")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
   const target = String(push.mock.calls.at(-1)?.[0]);
   expect(target).toContain("/champions/Ahri?");
@@ -101,7 +102,7 @@ it("explains insufficient samples and hides the section when solo data is unavai
     />,
   );
   expect(
-    screen.getByText("No current ladder players have enough sampled games for this selection."),
+    screen.getByText("No ladder players on this champion in this selection yet."),
   ).toBeVisible();
   expect(screen.getByRole("button", { name: "Next Page" })).toBeDisabled();
   view.rerender(<PlayersSection overview={{ ...overview, players: null }} />);

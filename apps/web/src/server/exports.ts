@@ -66,6 +66,8 @@ const trendValues = (t: ProportionTrend) => [
   t.reason,
 ];
 const champion = ["champion_key", "champion_id", "champion_name"];
+/** Combined patches oldest first, as "16.21+16.22"; one patch stays as it is. */
+const patchesOf = (combined: readonly string[]) => [...combined].reverse().join("+") || null;
 const name = (stem: string, ...parts: (string | null | undefined)[]) =>
   [stem, ...parts.filter(Boolean)].join("-").replace(/[^A-Za-z0-9.-]/g, "_") + ".csv";
 
@@ -80,9 +82,11 @@ const exporters: Record<
   async "tier-list"(params) {
     const q = tierListQuerySchema.omit({ page: true }).safeParse(params);
     if (!q.success) return null;
-    const first = await data().tierList({ ...q.data, page: 1 });
+    // The export is the raw table: champions below the page's minimum sample are included.
+    const every = { minimumGames: 0 };
+    const first = await data().tierList({ ...q.data, page: 1 }, every);
     return {
-      filename: name("tier-list", q.data.source, first.patch, q.data.role),
+      filename: name("tier-list", q.data.source, patchesOf(first.combined), q.data.role),
       header: [
         "source",
         "patch",
@@ -98,11 +102,12 @@ const exporters: Record<
       ],
       rows: map(
         paged(
-          async (page) => (page === 1 ? first : await data().tierList({ ...q.data, page })).page,
+          async (page) =>
+            (page === 1 ? first : await data().tierList({ ...q.data, page }, every)).page,
         ),
         (r) => [
           q.data.source,
-          first.patch,
+          patchesOf(first.combined),
           r.championKey,
           r.championId,
           r.name,
@@ -157,7 +162,9 @@ const exporters: Record<
   async "champion-matchups"(params) {
     const q = championMatchupsQuerySchema.omit({ page: true, pageSize: true }).safeParse(params);
     if (!q.success) return null;
-    const read = (page: number) => data().championMatchups({ ...q.data, page, pageSize: 100 });
+    // The export is the raw table: opponents below the page's minimum sample are included.
+    const read = (page: number) =>
+      data().championMatchups({ ...q.data, page, pageSize: 100 }, { minimumGames: 0 });
     const first = await read(1);
     if (!first) return undefined;
     return {
@@ -165,7 +172,7 @@ const exporters: Record<
         "matchups",
         first.champion.championId,
         q.data.source,
-        first.patch,
+        patchesOf(first.combined),
         q.data.role,
       ),
       header: [
@@ -189,7 +196,7 @@ const exporters: Record<
         paged(async (page) => (page === 1 ? first : await read(page))?.page ?? null),
         (r) => [
           q.data.source,
-          first.patch,
+          patchesOf(first.combined),
           q.data.role,
           first.champion.championKey,
           first.champion.championId,

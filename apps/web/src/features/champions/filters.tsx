@@ -1,15 +1,19 @@
 "use client";
-import { RoleIcon, Button, FilterBar, Select } from "@summonersnet/ui";
+import { RoleIcon, Button, FilterBar, MultiSelect, Select } from "@summonersnet/ui";
 import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/contracts";
 import { roleLabels, sortLabels } from "./presentation";
 
 const all = { label: "All", value: "all" };
+// Solo queue has no gold difference at 15 yet.
+const proOnlySorts = new Set<string>(["goldDiffAt15"]);
 interface Filters {
   source: "solo" | "pro";
-  patch?: string | undefined;
+  /** Chosen patches, combined; none means the newest with enough games. */
+  patch?: readonly string[] | undefined;
   role: (typeof championRoles)[number];
   region?: string | undefined;
   tier?: string | undefined;
+  stage?: "regular" | "playoffs" | undefined;
   sort?: (typeof tierListSorts)[number];
   order?: "asc" | "desc";
 }
@@ -32,6 +36,7 @@ export function ChampionFilters({
   scopeOnly?: boolean;
   className?: string;
 }) {
+  const pro = query?.source === "pro";
   return (
     <FilterBar action={action} method="get" className={className} key={JSON.stringify(query)}>
       {scopeOnly ? (
@@ -50,14 +55,13 @@ export function ChampionFilters({
           ]}
         />
       )}
-      <Select
-        label="Patch"
+      {/* Several chosen patches are combined into one set of statistics. */}
+      <MultiSelect
+        label="Patches"
         name="patch"
-        defaultValue={query?.patch ?? "all"}
-        options={[
-          { label: "Newest", value: "all" },
-          ...(facets?.patches ?? []).map((p) => ({ label: p, value: p })),
-        ]}
+        defaultValue={query?.patch ?? []}
+        placeholder="Latest with Enough Games"
+        options={(facets?.patches ?? []).map((p) => ({ label: p, value: p }))}
       />
       {scopeOnly ? null : (
         <Select
@@ -71,25 +75,41 @@ export function ChampionFilters({
           }))}
         />
       )}
+      {/* Pro play is sliced by league. */}
       <Select
-        label="Region"
+        label={pro ? "League" : "Region"}
         name="region"
         defaultValue={query?.region ?? "all"}
         options={[all, ...(facets?.regions ?? []).map((r) => ({ label: r, value: r }))]}
       />
+      {/* Pro play's tier is its split; it adds the stage. */}
       <Select
-        label="Tier"
+        label={pro ? "Split" : "Tier"}
         name="tier"
         defaultValue={query?.tier ?? "all"}
         options={[all, ...(facets?.tiers ?? []).map((t) => ({ label: t, value: t }))]}
       />
+      {pro ? (
+        <Select
+          label="Stage"
+          name="stage"
+          defaultValue={query?.stage ?? "all"}
+          options={[
+            { label: "All Stages", value: "all" },
+            { label: "Regular Season", value: "regular" },
+            { label: "Playoffs", value: "playoffs" },
+          ]}
+        />
+      ) : null}
       {sortable && (
         <>
           <Select
             label="Sort By"
             name="sort"
             defaultValue={query?.sort ?? "games"}
-            options={tierListSorts.map((s) => ({ label: sortLabels[s], value: s }))}
+            options={tierListSorts
+              .filter((s) => pro || !proOnlySorts.has(s))
+              .map((s) => ({ label: sortLabels[s], value: s }))}
           />
           <Select
             label="Order"

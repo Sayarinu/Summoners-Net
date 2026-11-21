@@ -22,6 +22,7 @@
     "build": "turbo run build",
     "dev": "pnpm --filter @summonersnet/web dev",
     "start": "pnpm --filter @summonersnet/web start",
+    "prod": "node scripts/prod.mjs",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -50,6 +51,7 @@
     "entities:history": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-history",
     "entities:rosters": "node --env-file-if-exists=.env packages/data/dist/cli.js entity-rosters",
     "wp:train": "node --env-file-if-exists=.env packages/data/dist/cli.js wp-train",
+    "models": "node --env-file-if-exists=.env packages/data/dist/cli.js models",
     "replay:capture": "pnpm --filter @summonersnet/replay-capture capture"
   },
   "devDependencies": {

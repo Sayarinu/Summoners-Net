@@ -108,10 +108,8 @@ it("shows the draft win probability for your side and with each candidate", () =
   expect(summary).toHaveTextContent("Blue Side45.0%");
   expect(summary).toHaveTextContent("Champion Strength Coverage1 of 1");
   expect(screen.getByText(/Brier score on 120 held-out games: 0.241/)).toBeVisible();
-  expect(screen.getByRole("link", { name: "Calibration" })).toHaveAttribute(
-    "href",
-    "/models?model=7",
-  );
+  // Model diagnostics live in the CLI; the page links nowhere for them.
+  expect(screen.queryByRole("link", { name: "Calibration" })).toBeNull();
   const inputs = screen.getByRole("table", { name: "Draft Model Inputs" });
   expect(inputs).toHaveTextContent("Champion StrengthRedMidNunu & Willump+4.0 pts80");
   expect(screen.getByRole("table", { name: "Ranked candidates for Mid" })).toHaveTextContent(

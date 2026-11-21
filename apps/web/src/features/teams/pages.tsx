@@ -1,4 +1,6 @@
 "use client";
+import type { TeamStatistics } from "@summonersnet/data/contracts";
+import { TeamStatisticsPanel } from "./statistics";
 import { useState } from "react";
 import type {
   BrowseQuery,
@@ -147,6 +149,8 @@ export function TeamProfile({
   series,
   now,
   hideSpoilers,
+  statistics,
+  splits,
 }: {
   profile: Profile;
   portraits?: ChampionPortraits;
@@ -155,6 +159,10 @@ export function TeamProfile({
   series: Page<Match> | null;
   now: string;
   hideSpoilers: boolean;
+  /** Side records, game lengths and objective control; omitted where not loaded. */
+  statistics?: TeamStatistics;
+  /** The pro splits this team played in the selected year. */
+  splits?: string[];
 }) {
   const { identity, summary, roster, games } = profile;
   const rows = useMatchRows(hideSpoilers);
@@ -188,12 +196,13 @@ export function TeamProfile({
             {...(identity.imageUrl ? { logo: identity.imageUrl } : {})}
           />
           <Filters
-            key={[year, view, query.q, query.league].join("-")}
+            key={[year, view, query.q, query.league, query.split, query.stage].join("-")}
             history
             view={view}
             query={query}
             seasons={years}
             selectedYear={year}
+            {...(splits ? { splits } : {})}
             className="max-[600px]:w-full"
           />
         </div>
@@ -232,6 +241,7 @@ export function TeamProfile({
           )}
         </Panel>
       </div>
+      {!hidden && statistics ? <TeamStatisticsPanel statistics={statistics} /> : null}
       <Panel
         title="Past Matches"
         padding="none"

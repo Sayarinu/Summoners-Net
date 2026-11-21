@@ -49,8 +49,10 @@ function known(value: number | null): value is number {
   return value !== null && Number.isFinite(value);
 }
 
+/** A figure for axes and tables: whole numbers as they are, others to three significant digits. */
 function display(value: number | null): string {
-  return known(value) ? String(value) : "Unknown";
+  if (!known(value)) return "Unknown";
+  return Number.isInteger(value) ? String(value) : String(Number(value.toPrecision(3)));
 }
 
 function colorValue(color: ChartColor): string {
@@ -276,6 +278,8 @@ export function Sparkline(props: ChartProps) {
   return <CartesianChart {...props} kind="sparkline" />;
 }
 
+/** The width of one label character in chart units, for the monospace axis labels. */
+const labelCharWidth = 6;
 export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
   const columns = [...new Set(cells.map((cell) => cell.column))];
   const rows = [...new Set(cells.map((cell) => cell.row))];
@@ -286,6 +290,12 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
   const left = 136 + (480 - cell * columns.length) / 2;
   const top = 24 + (220 - cell * rows.length) / 2;
   const uniform = domain[0] === domain[1];
+  // Column labels that do not fit their cell alternate between two lines, doubling their room,
+  // and are shortened only if they still do not fit. The full name stays in the tooltip and table.
+  const crowded = columns.some((column) => column.length * labelCharWidth > cell - 2);
+  const room = crowded ? cell * 2 - 4 : cell - 2;
+  const fit = Math.max(3, Math.floor(room / labelCharWidth));
+  const short = (label: string) => (label.length > fit ? `${label.slice(0, fit - 1)}…` : label);
   return (
     <ChartFrame
       empty={values.length === 0}
@@ -309,10 +319,11 @@ export function HeatGrid({ title, cells, color = 1 }: HeatGridProps) {
           <text
             key={column}
             x={left + (index + 0.5) * cell}
-            y={top + rows.length * cell + 22}
+            y={top + rows.length * cell + 18 + (crowded && index % 2 ? 12 : 0)}
             textAnchor="middle"
           >
-            {column}
+            <title>{column}</title>
+            {short(column)}
           </text>
         ))}
         {rows.map((row, index) => (

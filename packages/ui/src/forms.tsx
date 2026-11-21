@@ -215,6 +215,74 @@ export function Select({
   );
 }
 
+export interface MultiSelectProps extends AnalyticsProps {
+  readonly defaultValue?: readonly string[];
+  readonly description?: string;
+  readonly disabled?: boolean;
+  readonly label: string;
+  /** Submitted once per chosen value, like a native multiple select. */
+  readonly name?: string;
+  readonly options: readonly SelectOption[];
+  /** Shown when nothing is chosen. */
+  readonly placeholder?: string;
+}
+
+/** A select that keeps several options chosen; the trigger lists them in option order. */
+export function MultiSelect({
+  analyticsId,
+  defaultValue,
+  description,
+  disabled,
+  label,
+  name,
+  options,
+  placeholder = "Select options",
+}: MultiSelectProps) {
+  return (
+    <AriaSelect
+      {...analyticsData(analyticsId)}
+      {...(defaultValue !== undefined ? { defaultValue } : {})}
+      {...(disabled !== undefined ? { isDisabled: disabled } : {})}
+      {...(name !== undefined ? { name } : {})}
+      selectionMode="multiple"
+      className="np-select"
+      placeholder={placeholder}
+    >
+      <AriaLabel>{label}</AriaLabel>
+      <AriaButton className="np-select__trigger">
+        <SelectValue<SelectOption> className="np-select__value">
+          {({ isPlaceholder, selectedItems }) => {
+            const chosen = selectedItems.filter((item): item is SelectOption => item !== null);
+            if (isPlaceholder || !chosen.length) return placeholder;
+            return chosen.map((item) => item.label).join(", ");
+          }}
+        </SelectValue>
+        <Icon icon={ChevronDown} size="small" />
+      </AriaButton>
+      {description ? (
+        <AriaText className="np-field__description" slot="description">
+          {description}
+        </AriaText>
+      ) : null}
+      <AriaPopover className="np-popover np-select__popover">
+        <ListBox className="np-listbox" items={options}>
+          {(option) => (
+            <ListBoxItem className="np-listbox__item" id={option.value} textValue={option.label}>
+              <span>
+                <strong>{option.label}</strong>
+                {option.description ? <small>{option.description}</small> : null}
+              </span>
+              <span className="np-listbox__check">
+                <Icon icon={Check} size="small" />
+              </span>
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </AriaPopover>
+    </AriaSelect>
+  );
+}
+
 export interface ComboboxProps extends Omit<SelectProps, "defaultValue" | "hideLabel" | "value"> {
   readonly defaultValue?: string;
   readonly onSelectionChange?: (value: string) => void;

@@ -1,7 +1,7 @@
 "use client";
-import { ItemIcon, RuneIcon, StatusIndicator, SummonerSpellIcon, Table } from "@summonersnet/ui";
+import { ItemIcon, RuneIcon, SummonerSpellIcon, Table } from "@summonersnet/ui";
 import type { BuildItem, BuildRow, ChampionBuilds } from "@summonersnet/data/contracts";
-import { percent, sampleLabels } from "./presentation";
+import { percent } from "./presentation";
 
 const itemSections = [
   { kind: "start", title: "Starting Items" },
@@ -10,6 +10,9 @@ const itemSections = [
   { kind: "slot1", title: "First Completed Item" },
   { kind: "slot2", title: "Second Completed Item" },
   { kind: "slot3", title: "Third Completed Item" },
+  { kind: "slot4", title: "Fourth Completed Item" },
+  { kind: "slot5", title: "Fifth Completed Item" },
+  { kind: "slot6", title: "Sixth Completed Item" },
 ] as const;
 const loadoutSections = [
   { kind: "keystone", title: "Keystones" },
@@ -50,21 +53,14 @@ function Items({ row }: { row: BuildRow }) {
     </span>
   );
 }
-const winRate = (r: BuildRow) =>
-  r.sample === "hidden" ? (
-    <StatusIndicator label={`${sampleLabels.hidden} (${r.winRate.sampleCount})`} tone="warning" />
-  ) : (
-    `${percent(r.winRate)} · ${r.winRate.sampleCount} results`
-  );
+/** Every listed option of one kind with its games, pick rate and win rate. */
 function BuildTable({
   title,
   rows,
-  pickRate = false,
   emptyMessage,
 }: {
   title: string;
   rows: BuildRow[];
-  pickRate?: boolean;
   emptyMessage: string;
 }) {
   return (
@@ -76,18 +72,9 @@ function BuildTable({
       emptyMessage={emptyMessage}
       columns={[
         { id: "items", header: title, render: (r) => <Items row={r} /> },
-        { id: "games", header: "Games", align: "end", render: (r) => r.games },
-        ...(pickRate
-          ? [
-              {
-                id: "pick",
-                header: "Pick Rate",
-                align: "end" as const,
-                render: (r: BuildRow) => percent(r.pickRate),
-              },
-            ]
-          : []),
-        { id: "win", header: "Win Rate", align: "end", render: winRate },
+        { id: "games", header: "Games", align: "end", render: (r) => r.games.toLocaleString() },
+        { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
+        { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
       ]}
     />
   );
@@ -125,13 +112,7 @@ export function LoadoutsSection({ builds }: { builds: ChampionBuilds | null }) {
       ) : (
         <div className={tableGrid}>
           {loadoutSections.map(({ kind, title }) => (
-            <BuildTable
-              key={kind}
-              title={title}
-              rows={builds[kind]}
-              pickRate
-              emptyMessage="No games yet."
-            />
+            <BuildTable key={kind} title={title} rows={builds[kind]} emptyMessage="No games yet." />
           ))}
         </div>
       )}
@@ -144,14 +125,15 @@ export function SkillsSection({ builds }: { builds: ChampionBuilds | null }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="skills-heading">
       <h3 id="skills-heading">Skills</h3>
-      <p className="np-meta">
-        Games left out: {builds.excluded.skills} for the first levels, {builds.excluded.skillmax}{" "}
-        for the max order
-      </p>
       <div className={tableGrid}>
         <BuildTable
           title="First Levels"
           rows={builds.skills}
+          emptyMessage="No games with timelines yet."
+        />
+        <BuildTable
+          title="Skill Orders"
+          rows={builds.skillpath}
           emptyMessage="No games with timelines yet."
         />
         <BuildTable

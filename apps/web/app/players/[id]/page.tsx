@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { PlayerProfile } from "../../../src/features/players/profile";
+import { championPoolQuerySchema } from "@summonersnet/data/contracts";
 import { browseQuery, data, preferences, sourceIdFromRoute } from "../../../src/server/data";
 export default async function Page({
   params,
@@ -23,9 +24,16 @@ export default async function Page({
   }
   const year = raw.year === "all" ? undefined : (query.year ?? context.seasons[0]?.year);
   const scoped = { ...query, year, pageSize: 5 };
-  const [profile, performance, prefs] = await Promise.all([
+  // An invalid sort or page falls back to the defaults rather than failing the profile.
+  const poolQuery = championPoolQuerySchema.safeParse({
+    ...(typeof raw.poolSort === "string" ? { poolSort: raw.poolSort } : {}),
+    ...(typeof raw.poolPage === "string" ? { poolPage: raw.poolPage } : {}),
+  });
+  const [profile, performance, splits, championPool, prefs] = await Promise.all([
     data().profile(context.identity.id, scoped, "player"),
     data().playerPerformance(context.identity.id, scoped),
+    data().entitySplits(context.identity.id, typeof year === "number" ? year : undefined),
+    data().playerChampionPool(context.identity.id, scoped, poolQuery.success ? poolQuery.data : {}),
     preferences(),
   ]);
   if (!profile) notFound();
@@ -34,9 +42,12 @@ export default async function Page({
       key={profile.identity.id}
       profile={profile}
       performance={performance}
-      portraits={await data().championIconsByName(
-        profile.summary.champions.map((champion) => champion.name),
-      )}
+      championPool={championPool}
+      splits={splits}
+      portraits={await data().championIconsByName([
+        ...profile.summary.champions.map((champion) => champion.name),
+        ...championPool.page.items.map((row) => row.champion),
+      ])}
       seasons={context.seasons}
       query={scoped}
       hideSpoilers={prefs.hideSpoilers}

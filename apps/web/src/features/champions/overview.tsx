@@ -24,12 +24,18 @@ import { SavedViewsPanel } from "../saved-views/panel";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
-import { ProSection } from "./pro";
+import {
+  PerformanceStats,
+  ProHeaderStats,
+  ProHistorySection,
+  ProLeaguesSection,
+  ProPlayersSection,
+  ProSection,
+} from "./pro";
 import { ChampionFilters } from "./filters";
-import { BuildCard } from "./build-card";
+import { ItemsPanel, RunesPanel, SpellsAndSkillsPanel } from "./solo-build";
 import { MatchupCards } from "./matchup-cards";
-import { ChampionPages, championHeatmapsHref } from "./champion-pages";
-import { interval, percent, type MatchupSummary } from "./presentation";
+import { appendPatches, patchesLabel, percent, type MatchupSummary } from "./presentation";
 
 const tierNotes = {
   S: "well above",
@@ -46,16 +52,14 @@ const tierColors = {
   D: "text-loss",
 } as const;
 const roleTabs = ["ALL", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
-/** Two related panels side by side, the first wider, stacking on narrow screens. */
-const pairGrid =
-  "grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] items-start gap-4 max-[1150px]:grid-cols-1";
 
 type Query = ChampionOverview["query"];
 /** The champion page URL for this query with its source or role changed. */
 function championHref(id: string, q: Query, change: Partial<Pick<Query, "source" | "role">>) {
   const next = { ...q, ...change };
   const params = new URLSearchParams({ source: next.source, role: next.role });
-  for (const name of ["patch", "region", "tier", "league"] as const) {
+  appendPatches(params, next.patch ?? []);
+  for (const name of ["region", "tier", "stage", "league"] as const) {
     const value = next[name];
     if (value) params.set(name, value);
   }
@@ -91,47 +95,54 @@ function TrendChart({
   );
 }
 
-function Performance({ overview }: { overview: ChampionOverview }) {
+/** The headline figures beside the champion: tier, win, pick and ban rates, and games. */
+function HeaderStats({ overview }: { overview: ChampionOverview }) {
   return (
-    <Panel title="Performance">
-      <StatGroup className="grid grid-cols-2 gap-5 max-[1150px]:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
-        <Stat
-          label="Tier"
-          value={
-            <span
-              className={overview.tier ? tierColors[overview.tier] : "text-fg-muted"}
-              title={
-                overview.tier && overview.baseline !== null && overview.shrunkWinRate.value !== null
-                  ? `Shrunk win rate ${percent(overview.shrunkWinRate)}, ${tierNotes[overview.tier]} the ${percent({ value: overview.baseline, sampleCount: 1 })} average of this selection.`
-                  : "Unknown until this champion has games with known results."
-              }
-            >
-              {overview.tier ?? "Unknown"}
-            </span>
-          }
-        />
-        <Stat
-          label="Win Rate"
-          value={percent(overview.winRate)}
-          detail={`${interval(overview.winRate)} · ${overview.winRate.sampleCount.toLocaleString()} Results`}
-        />
-        <Stat
-          label="Pick Rate"
-          value={percent(overview.pickRate)}
-          detail={`${overview.pickRate.sampleCount.toLocaleString()} Games`}
-        />
-        <Stat
-          label="Ban Rate"
-          value={percent(overview.banRate)}
-          detail={`${overview.banRate.sampleCount.toLocaleString()} Games`}
-        />
-        <Stat
-          label="Games"
-          value={overview.games.toLocaleString()}
-          detail={`of ${overview.sliceGames.toLocaleString()}`}
-        />
-      </StatGroup>
-    </Panel>
+    <StatGroup
+      label="Headline Statistics"
+      className="grid grid-cols-5 gap-5 max-[900px]:grid-cols-3 max-[500px]:grid-cols-2"
+    >
+      <Stat
+        label="Tier"
+        size="lg"
+        value={
+          <span
+            className={overview.tier ? tierColors[overview.tier] : "text-fg-muted"}
+            title={
+              overview.tier && overview.baseline !== null && overview.shrunkWinRate.value !== null
+                ? `Shrunk win rate ${percent(overview.shrunkWinRate)}, ${tierNotes[overview.tier]} the ${percent({ value: overview.baseline, sampleCount: 1 })} average of this selection.`
+                : "Unknown until this champion has games with known results."
+            }
+          >
+            {overview.tier ?? "Unknown"}
+          </span>
+        }
+      />
+      <Stat
+        label="Win Rate"
+        size="lg"
+        value={percent(overview.winRate)}
+        detail={`${overview.winRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Pick Rate"
+        size="lg"
+        value={percent(overview.pickRate)}
+        detail={`${overview.pickRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Ban Rate"
+        size="lg"
+        value={percent(overview.banRate)}
+        detail={`${overview.banRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Games"
+        size="lg"
+        value={overview.games.toLocaleString()}
+        detail={`of ${overview.sliceGames.toLocaleString()}`}
+      />
+    </StatGroup>
   );
 }
 
@@ -152,16 +163,18 @@ export function ChampionOverviewPage({
   const roleShare = new Map<string, ChampionOverview["roles"][number]["share"]>(
     overview.roles.map((r) => [r.role, r.share]),
   );
-  const matchupRole = q.role === "ALL" ? (overview.roles[0]?.role ?? "MIDDLE") : q.role;
-  const counterPick = draftValue ? (
-    <Panel title="Counter-Pick Value">
-      <CounterPickSummary
-        value={draftValue}
-        listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}
-      />
-    </Panel>
-  ) : null;
-  const matchups = <MatchupCards championId={champion.id} summary={matchupSummary} />;
+  // Counter-pick value shows once it has a stored score.
+  const counterPick =
+    draftValue?.score !== null && draftValue?.score !== undefined ? (
+      <Panel title="Counter-Pick Value">
+        <CounterPickSummary
+          value={draftValue}
+          listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}
+        />
+      </Panel>
+    ) : null;
+  // Jungle paths are shown for junglers: the jungle role, or a champion played mostly there.
+  const jungler = q.role === "JUNGLE" || (q.role === "ALL" && overview.roles[0]?.role === "JUNGLE");
   return (
     <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
       <PageHeader
@@ -177,7 +190,7 @@ export function ChampionOverviewPage({
               name={champion.name}
               imageUrl={champion.imageUrl}
               size="display"
-              {...(overview.patch ? { detail: `Patch ${overview.patch}` } : {})}
+              {...(overview.patch ? { detail: patchesLabel(overview.combined) } : {})}
             />
             <TabNav
               label="Source"
@@ -189,6 +202,15 @@ export function ChampionOverviewPage({
               }))}
             />
           </div>
+          {overview.patch ? (
+            <div className="border-t border-line pt-4">
+              {q.source === "pro" ? (
+                <ProHeaderStats pro={overview.pro} />
+              ) : (
+                <HeaderStats overview={overview} />
+              )}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
             <TabNav
               label="Role"
@@ -217,12 +239,6 @@ export function ChampionOverviewPage({
           </div>
         </div>
       </Panel>
-      <ChampionPages
-        current="overview"
-        overviewHref={championHref(champion.id, q, {})}
-        matchupsHref={`/champions/${champion.id}/matchups?source=${q.source}&role=${matchupRole}${overview.patch ? `&patch=${overview.patch}` : ""}`}
-        heatmapsHref={championHeatmapsHref(champion.id, q.source, overview.patch)}
-      />
       {error ? (
         <p role="alert">{error}</p>
       ) : !overview.patch ? (
@@ -238,54 +254,62 @@ export function ChampionOverviewPage({
       ) : (
         <section className="flex min-w-0 flex-col gap-6" aria-label="Champion Statistics">
           {overview.builds ? (
-            <div className={pairGrid}>
-              <BuildCard builds={overview.builds} />
-              <Performance overview={overview} />
-            </div>
-          ) : (
-            <Performance overview={overview} />
-          )}
-          {counterPick &&
-          matchupSummary &&
-          (matchupSummary.best.length || matchupSummary.worst.length) ? (
-            <div className={pairGrid}>
-              {matchups}
-              {counterPick}
-            </div>
-          ) : (
             <>
-              {matchups}
-              {counterPick}
+              <div className="grid grid-cols-2 items-start gap-4 max-[1150px]:grid-cols-1">
+                <RunesPanel builds={overview.builds} />
+                <SpellsAndSkillsPanel builds={overview.builds} />
+              </div>
+              <ItemsPanel builds={overview.builds} />
             </>
-          )}
-          <Panel title="Patch Trends">
-            <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
-              <TrendChart
-                title={`${champion.name} Win Rate by Patch`}
-                rate="winRate"
-                trend={overview.trend}
-                color={1}
+          ) : null}
+          {q.source === "pro" ? (
+            <>
+              <ProSection overview={overview} />
+              <ProLeaguesSection overview={overview} />
+              <ProPlayersSection overview={overview} />
+            </>
+          ) : null}
+          <MatchupCards summary={matchupSummary} />
+          {counterPick}
+          <SynergiesSection overview={overview} />
+          {overview.performance && overview.performance.games > 0 ? (
+            <Panel title="Game Statistics">
+              <PerformanceStats
+                label="Solo-Queue Performance"
+                performance={overview.performance}
+                omitUnrecorded
               />
-              <TrendChart
-                title={`${champion.name} Pick Rate by Patch`}
-                rate="pickRate"
-                trend={overview.trend}
-                color={2}
-              />
-              <TrendChart
-                title={`${champion.name} Ban Rate by Patch`}
-                rate="banRate"
-                trend={overview.trend}
-                color={3}
-              />
-            </div>
-          </Panel>
-          <ProSection overview={overview} />
-          <BucketsSection buckets={overview.buckets} />
-          {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
+            </Panel>
+          ) : null}
+          {q.source === "pro" ? <ProHistorySection overview={overview} /> : null}
+          {jungler && junglePaths ? (
             <JunglePathsSection paths={junglePaths} champion={champion.name} />
           ) : null}
-          <SynergiesSection overview={overview} />
+          <DisclosurePanel title="Patch Trends and When It Wins">
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
+                <TrendChart
+                  title={`${champion.name} Win Rate by Patch`}
+                  rate="winRate"
+                  trend={overview.trend}
+                  color={1}
+                />
+                <TrendChart
+                  title={`${champion.name} Pick Rate by Patch`}
+                  rate="pickRate"
+                  trend={overview.trend}
+                  color={2}
+                />
+                <TrendChart
+                  title={`${champion.name} Ban Rate by Patch`}
+                  rate="banRate"
+                  trend={overview.trend}
+                  color={3}
+                />
+              </div>
+              <BucketsSection buckets={overview.buckets} />
+            </div>
+          </DisclosurePanel>
           {overview.builds ? (
             <DisclosurePanel title="All Builds, Runes and Skills">
               <div className="flex flex-col gap-6">

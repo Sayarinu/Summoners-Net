@@ -1,19 +1,12 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
-import {
-  ChampionIdentity,
-  EmptyState,
-  PageHeader,
-  Panel,
-  StatusIndicator,
-  Table,
-} from "@summonersnet/ui";
-import type { TierList } from "@summonersnet/data/contracts";
+import { ChampionIdentity, EmptyState, PageHeader, Panel, Table } from "@summonersnet/ui";
+import type { TierList, TierListRow } from "@summonersnet/data/contracts";
 import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionViews } from "./directory";
 import { ChampionFilters } from "./filters";
 import { goToPage, PageFooter } from "./paging";
-import { interval, percent, roleLabels, sampleLabels } from "./presentation";
+import { average, patchesLabel, percent, roleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
   const q = list?.query;
   return (
@@ -22,7 +15,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
         title="Tier List"
         {...(list?.patch
           ? {
-              eyebrow: `Patch ${list.patch} · ${list.sliceGames} ${list.sliceGames === 1 ? "game" : "games"}`,
+              eyebrow: `${patchesLabel(list.combined)} · ${list.sliceGames} ${list.sliceGames === 1 ? "game" : "games"}`,
             }
           : {})}
       >
@@ -48,7 +41,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               table="tier-list"
               filters={{
                 source: list.query.source,
-                patch: list.patch,
+                patch: list.combined.join(","),
                 role: list.query.role,
                 region: list.query.region,
                 tier: list.query.tier,
@@ -62,7 +55,11 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             caption="Champion Tier List"
             rows={list.page.items}
             getRowKey={(r) => `${r.championKey}:${r.role}`}
-            emptyMessage="No champions match these filters."
+            emptyMessage={
+              list.hiddenChampions
+                ? "No champion has enough games in this selection yet."
+                : "No champions match these filters."
+            }
             columns={[
               {
                 id: "champion",
@@ -78,26 +75,33 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
                   />
                 ),
               },
+              { id: "tier", header: "Tier", align: "center", render: (r) => r.tier ?? "—" },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
-              {
-                id: "interval",
-                header: "95% Interval",
-                align: "end",
-                render: (r) => interval(r.winRate),
-              },
               { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
               { id: "ban", header: "Ban Rate", align: "end", render: (r) => percent(r.banRate) },
               {
-                id: "sample",
-                header: "Sample",
-                render: (r) =>
-                  r.sample === "shown" ? (
-                    `${r.winRate.sampleCount} results`
-                  ) : (
-                    <StatusIndicator label={sampleLabels[r.sample]} tone="warning" />
-                  ),
+                id: "kda",
+                header: "KDA",
+                align: "end" as const,
+                render: (r: TierListRow) => average(r.performance.kda, 2),
               },
+              {
+                id: "dpm",
+                header: "DPM",
+                align: "end" as const,
+                render: (r: TierListRow) => average(r.performance.damagePerMinute, 0),
+              },
+              ...(list.query.source === "pro"
+                ? [
+                    {
+                      id: "gd15",
+                      header: "GD@15",
+                      align: "end" as const,
+                      render: (r: TierListRow) => average(r.performance.goldDiffAt15, 0, true),
+                    },
+                  ]
+                : []),
             ]}
           />
           <PageFooter

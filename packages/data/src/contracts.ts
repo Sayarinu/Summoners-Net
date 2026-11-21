@@ -3,6 +3,7 @@ export { roleKey } from "./domain/resolution.js";
 export {
   directoryPageSize,
   directoryQuerySchema,
+  playerRoles,
   querySchema,
   regions,
   timezoneSchema,
@@ -44,11 +45,21 @@ export type {
   ChampionTier,
   ChampionLaneRole,
 } from "./domain/champion-stats.js";
-export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
+export type { BuildItem, BuildRow, ChampionBuilds, RuneTree } from "./domain/builds.js";
+export { maxChampionLevel, skillPathLevels } from "./domain/skills.js";
 export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
-export type { ProChampionStats } from "./domain/pro-stats.js";
+export type {
+  ProChampionPerformance,
+  ProChampionPlayer,
+  ProChampionPlayers,
+  ProChampionStats,
+  ProLeagueRow,
+  ProPatchHistory,
+  ProPatchHistoryRow,
+} from "./domain/pro-stats.js";
+export { proChampionPlayersLimit, proHistoryPageSize } from "./domain/pro-stats.js";
 export type {
   SoloGame,
   SoloGameMarker,
@@ -58,20 +69,6 @@ export type {
   SoloGameMapEvents,
 } from "./domain/solo-games.js";
 export { mapEventLimit, soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
-export {
-  heatmapKinds,
-  heatmapMinimumGames,
-  heatmapQuerySchema,
-  heatmapRoles,
-  heatmapSubjectKinds,
-} from "./domain/heatmaps.js";
-export type {
-  Heatmap,
-  HeatmapKind,
-  HeatmapQuery,
-  HeatmapSample,
-  HeatmapSubjectKind,
-} from "./domain/heatmaps.js";
 export { clearMinutes, junglePathMinimumSample } from "./domain/jungle-paths.js";
 export type {
   ChampionJunglePaths,
@@ -235,3 +232,9 @@ export { draftFeatures, type DraftInput, type DraftWinProbability } from "./doma
 export type { ChampionDirectory, PatchDirectory } from "./domain/directories.js";
 
 export { gameReplayUrl, isRecording, recordingUrl } from "./domain/broadcasts.js";
+
+export type { ChampionPool, ChampionPoolRow } from "./domain/player-performance.js";
+export { championPoolQuerySchema, championPoolSorts } from "./domain/player-performance.js";
+export type { TeamStatistics } from "./domain/team-statistics.js";
+
+export { maxCombinedPatches, patchSelectionSchema } from "./domain/patch-selection.js";

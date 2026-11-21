@@ -35,8 +35,14 @@ import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
+import { soloChampionPerformance } from "../persistence/solo-performance.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
-import { proChampionStats } from "../persistence/pro-stats.js";
+import {
+  proChampionHistory,
+  proChampionPerformance,
+  proChampionStats,
+} from "../persistence/pro-stats.js";
+import { proChampionPlayers } from "../persistence/pro-champion-players.js";
 import { matchFeatures } from "../persistence/wp-features.js";
 import {
   activeWinProbabilityModel,
@@ -45,7 +51,6 @@ import {
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "../persistence/solo-game-positions.js";
-import { heatmap, rebuildHeatmaps } from "../persistence/heatmaps.js";
 import { championJunglePaths } from "../persistence/jungle-paths.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
@@ -83,6 +88,8 @@ const queries = createQueries(connection, () => now);
 let instant = new Date(now);
 let directory: string;
 const fetcher = vi.fn<typeof fetch>();
+/** Hand-counted fixtures are far below the tier list's minimum sample, so list them all. */
+const everyChampion = { minimumGames: 0 };
 const endpoint = (input: Parameters<typeof fetch>[0] | undefined) =>
   input instanceof Request ? input.url : (input?.toString() ?? "");
 const sync = createSync(connection, {
@@ -235,6 +242,12 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     ).toBeNull();
     expect((await queries.playerDirectory({ league: "LCK" })).total).toBe(10);
     expect((await queries.playerDirectory({ league: "LEC" })).total).toBe(0);
+    // Archive spellings such as "jng" and "sup" count as their lane.
+    const junglers = await queries.playerDirectory({ role: "jungle" });
+    expect(junglers.total).toBe(4);
+    expect(junglers.items.every((i) => i.name.endsWith("jng"))).toBe(true);
+    expect((await queries.playerDirectory({ role: "support", league: "LCK" })).total).toBe(2);
+    await expect(queries.playerDirectory({ role: "carry" as "top" })).rejects.toThrow();
     // Directory pages clamp their size instead of rejecting a link from a larger screen.
     expect((await queries.playerDirectory({ pageSize: 500 })).pageSize).toBe(120);
     expect((await queries.teamDirectory({ pageSize: "many" })).pageSize).toBe(24);
@@ -549,6 +562,266 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect(
       (await queries.playerPerformance("oracle:player:10-mid", { league: "LPL" })).killsPerGame,
     ).toEqual({ value: null, sampleCount: 0 });
+    // The champion pool: Ahri in both 2026 games, with each value over the games that report it.
+    const pool = await queries.playerChampionPool("oracle:player:10-mid", { year: 2026 });
+    expect(pool).toEqual({
+      sort: "games",
+      page: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        items: [
+          {
+            champion: "Ahri",
+            games: 2,
+            wins: 2,
+            winRate: { value: 1, sampleCount: 2 },
+            kda: { value: 6.5, sampleCount: 2 },
+            killParticipation: { value: 1, sampleCount: 1 },
+            csPerMinute: { value: 10, sampleCount: 2 },
+            goldPerMinute: { value: 500, sampleCount: 1 },
+            damagePerMinute: { value: 600, sampleCount: 1 },
+            goldDiffAt15: { value: 100, sampleCount: 2 },
+            csDiffAt15: { value: null, sampleCount: 0 },
+          },
+        ],
+      },
+    });
+    expect(
+      (
+        await queries.playerChampionPool(
+          "oracle:player:10-mid",
+          { year: 2026 },
+          { poolSort: "kda", poolPage: 2 },
+        )
+      ).page,
+    ).toMatchObject({ items: [], total: 0, page: 2 });
+    expect(
+      (await queries.playerChampionPool("oracle:player:10-mid", { league: "LPL" })).page.total,
+    ).toBe(0);
+  });
+  it("aggregates a team's side records, game lengths, early leads and objective control", async () => {
+    // Acceptance Blue plays blue and wins both games.
+    await importCsv(
+      historyCsv({
+        id: "team-1",
+        metrics: {
+          gamelength: "1800",
+          golddiffat15: "1000",
+          "team kpm": "0.6",
+          firstblood: "1",
+          firsttower: "1",
+          dragons: "3",
+          opp_dragons: "1",
+          towers: "9",
+        },
+      }) +
+        historyCsv({
+          id: "team-2",
+          metrics: {
+            gamelength: "2400",
+            golddiffat15: "-200",
+            "team kpm": "0.4",
+            firstblood: "0",
+            firsttower: "",
+            dragons: "1",
+            opp_dragons: "1",
+            towers: "",
+          },
+        })
+          .split("\n")
+          .slice(1)
+          .join("\n"),
+    );
+    const stats = await queries.teamStatistics("oracle:team:10");
+    expect(stats).toMatchObject({
+      games: 2,
+      winRate: { value: 1, sampleCount: 2 },
+      sides: [
+        { side: "blue", games: 2, winRate: { value: 1, sampleCount: 2 } },
+        { side: "red", games: 0, winRate: { value: null, sampleCount: 0 } },
+      ],
+      gameLength: {
+        wins: { value: 2100, sampleCount: 2 },
+        losses: { value: null, sampleCount: 0 },
+      },
+      goldDiffAt15: { value: 400, sampleCount: 2 },
+      firstBlood: { value: 0.5, sampleCount: 2 },
+      // Not recorded in the second game: counted over the first only.
+      firstTower: { value: 1, sampleCount: 1 },
+      towersPerGame: { value: 9, sampleCount: 1 },
+      firstBaron: { value: null, sampleCount: 0 },
+    });
+    expect(stats.killsPerMinute.value).toBeCloseTo(0.5);
+    expect(stats.dragonControl.value).toBeCloseTo(4 / 6);
+    expect(stats.dragonControl.sampleCount).toBe(2);
+    expect((await queries.teamStatistics("oracle:team:11")).sides[1]).toMatchObject({
+      side: "red",
+      games: 2,
+      winRate: { value: 0, sampleCount: 2 },
+    });
+    expect((await queries.teamStatistics("oracle:team:10", { league: "LPL" })).games).toBe(0);
+  });
+  it("scopes profiles and pro statistics by split and stage", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    await importCsv(
+      draftCsv({ id: "split-1", metrics: { split: "Spring", playoffs: "0" } }) +
+        body(draftCsv({ id: "split-2", metrics: { split: "Summer", playoffs: "1" } })) +
+        body(draftCsv({ id: "split-3", metrics: { split: "", playoffs: "" } })),
+    );
+    const player = "oracle:player:10-mid";
+    expect(await queries.entitySplits(player)).toEqual(["Spring", "Summer", "Unknown"]);
+    expect(await queries.entitySplits("oracle:team:10", 2026)).toEqual([
+      "Spring",
+      "Summer",
+      "Unknown",
+    ]);
+    expect((await queries.playerPerformance(player, {})).games).toBe(3);
+    expect((await queries.playerPerformance(player, { split: "Spring" })).games).toBe(1);
+    expect((await queries.playerPerformance(player, { stage: "playoffs" })).games).toBe(1);
+    expect((await queries.playerPerformance(player, { stage: "regular" })).games).toBe(1);
+    expect(
+      (await queries.teamStatistics("oracle:team:10", { split: "Summer", stage: "regular" })).games,
+    ).toBe(0);
+    // Pro draft statistics, rebuilt by the import, keep the split and stage of each game.
+    expect((await proChampionStats(pool, { championKey: 103 })).games).toBe(3);
+    expect(await proChampionStats(pool, { championKey: 103, split: "Spring" })).toMatchObject({
+      games: 1,
+      picks: 1,
+      split: "Spring",
+      splits: ["Spring", "Summer"],
+    });
+    expect((await proChampionStats(pool, { championKey: 103, stage: "playoffs" })).games).toBe(1);
+    expect(
+      (await proChampionPerformance(pool, { championKey: 103, patch: "16.4", split: "Summer" }))
+        .games,
+    ).toBe(1);
+    expect(
+      (await proChampionHistory(pool, { championKey: 103, stage: "regular" })).page.items[0],
+    ).toMatchObject({ games: 1, picks: 1 });
+    // The pro tier list slices by the same split (tier) and stage (queue).
+    const list = await tierList(pool, { source: "pro", tier: "Summer" }, everyChampion);
+    expect(list.facets.tiers).toEqual(["Spring", "Summer", "Unknown"]);
+    expect(list.sliceGames).toBe(1);
+  });
+  it("breaks a champion's pro play down by league and lists who played it", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    // Ahri is the red mid laner in every fixture draft; blue wins each game.
+    await importCsv(
+      draftCsv({ id: "lck-1", league: "LCK" }) +
+        body(draftCsv({ id: "lck-2", league: "LCK" })) +
+        body(draftCsv({ id: "lec-1", league: "LEC" })),
+    );
+    const stats = await proChampionStats(pool, { championKey: 103 });
+    const players = await proChampionPlayers(pool, { championId: "Ahri", patch: "16.4" });
+    const lec = await proChampionPlayers(pool, {
+      championId: "Ahri",
+      patch: "16.4",
+      league: "LEC",
+    });
+    // Picked in every game of each league; three results are below the minimum sample.
+    expect(stats.byLeague).toEqual([
+      {
+        league: "LCK",
+        games: 2,
+        picks: 2,
+        bans: 0,
+        presence: { value: 1, sampleCount: 2 },
+        winRate: { value: null, sampleCount: 2 },
+      },
+      {
+        league: "LEC",
+        games: 1,
+        picks: 1,
+        bans: 0,
+        presence: { value: 1, sampleCount: 1 },
+        winRate: { value: null, sampleCount: 1 },
+      },
+    ]);
+    // One player across both leagues, linked to their profile, with the fixture's 6 KDA.
+    const player = {
+      name: "Player Red mid",
+      team: "Acceptance Red",
+      profile: { name: "Player Red mid", publicSlug: "player-red-mid" },
+      kda: { value: 6, sampleCount: 3 },
+    };
+    expect(players).toEqual({
+      total: 1,
+      items: [
+        { ...player, leagues: ["LCK", "LEC"], games: 3, winRate: { value: null, sampleCount: 3 } },
+      ],
+    });
+    expect(lec.items).toEqual([
+      {
+        ...player,
+        leagues: ["LEC"],
+        games: 1,
+        kda: { value: 6, sampleCount: 1 },
+        winRate: { value: null, sampleCount: 1 },
+      },
+    ]);
+    // A champion no one played, and a missing patch, list no players.
+    expect(await proChampionPlayers(pool, { championId: "Ahri", patch: null })).toEqual({
+      items: [],
+      total: 0,
+    });
+    const overview = await championOverview(pool, {
+      champion: "Ahri",
+      source: "pro",
+      region: "LEC",
+    });
+    expect(overview?.proPlayers?.items.map((p) => p.leagues)).toEqual([["LEC"]]);
+    expect(overview?.pro.games).toBe(1);
+    expect((await championOverview(pool, { champion: "Ahri" }))?.proPlayers).toBeNull();
+  });
+  it("opens pro statistics on the newest patch with enough games and leaves out small samples", async () => {
+    serveDataDragon(["16.4.1", "16.3.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    // One hundred games on 16.3, then two on the patch that has just started.
+    const games = Array.from({ length: 100 }, (_, i) =>
+      draftCsv({ id: `full-${i}`, patch: "16.3" }),
+    ).concat(draftCsv({ id: "new-1" }), draftCsv({ id: "new-2" }));
+    await importCsv(games[0]! + games.slice(1).map(body).join(""));
+    const list = await tierList(pool, { source: "pro" });
+    expect(list).toMatchObject({ patch: "16.3", sliceGames: 100, hiddenChampions: 0 });
+    // Only Ahri is in the test catalog; she is picked in all hundred games.
+    expect(list.page.items.map((r) => [r.championKey, r.games])).toEqual([[103, 100]]);
+    expect((await proChampionStats(pool, { championKey: 103 })).patch).toBe("16.3");
+    // The new patch is still selectable; with two games every champion is left out.
+    expect(list.facets.patches).toEqual(["16.4", "16.3"]);
+    expect(await tierList(pool, { source: "pro", patch: "16.4" })).toMatchObject({
+      patch: "16.4",
+      sliceGames: 2,
+      page: { total: 0, items: [] },
+      hiddenChampions: list.page.total,
+    });
+    const overview = await championOverview(pool, { champion: "Ahri", source: "pro" });
+    expect(overview).toMatchObject({ patch: "16.3", games: 100 });
+
+    // Chosen together, both patches' games are added up; the newest names the selection.
+    for (const patch of [["16.3", "16.4"], "16.4,16.3", ["16.4", "16.3", "16.3", "9.9"]]) {
+      expect(await tierList(pool, { source: "pro", patch })).toMatchObject({
+        patch: "16.4",
+        combined: ["16.4", "16.3"],
+        sliceGames: 102,
+        page: { items: [{ championKey: 103, games: 102 }] },
+      });
+    }
+    const both = await championOverview(pool, {
+      champion: "Ahri",
+      source: "pro",
+      patch: ["16.3", "16.4"],
+    });
+    expect(both).toMatchObject({ patch: "16.4", combined: ["16.4", "16.3"], games: 102 });
+    expect(both?.pro).toMatchObject({ patch: "16.4", games: 102, picks: 102 });
+    expect(both?.proPlayers?.items[0]?.games).toBe(
+      (overview?.proPlayers?.items[0]?.games ?? 0) + 2,
+    );
   });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
@@ -1335,6 +1608,41 @@ describe("Riot accounts", () => {
       await worker.close();
     }
   });
+  it("ends a run when the shared limit runs out instead of waiting ahead of the match crawl", async () => {
+    await saveLadder(pool, "euw1", [entry(puuids[0]!), entry(puuids[1]!)], now);
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      // Riot reports one request per two minutes, so the second lookup cannot reserve.
+      fetcher.mockImplementation((input) => {
+        const puuid = decodeURIComponent(new URL(endpoint(input)).pathname.split("/").pop()!);
+        return Promise.resolve(
+          json({ puuid, gameName: "Named", tagLine: "EUW" }, { "x-app-rate-limit": "1:120" }),
+        );
+      });
+      await worker.request({ kind: "riot-accounts" });
+      let result;
+      do result = await worker.runNext();
+      while (result.state !== "idle" && !("records" in result && result.records === 1));
+      expect(result).toMatchObject({ state: "done", records: 1 });
+      expect(await account(pool, puuids[0]!)).toMatchObject({ gameName: "Named" });
+      expect(await account(pool, puuids[1]!)).toBeNull();
+      // Nothing holds the queue: the next scheduled run resolves the rest.
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::integer n FROM sync_jobs WHERE state='queued' AND request->>'kind'='riot-accounts'",
+          )
+        ).rows[0],
+      ).toEqual({ n: 0 });
+    } finally {
+      await worker.close();
+    }
+  });
 });
 describe("Riot match id crawl", () => {
   const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
@@ -1760,6 +2068,14 @@ describe("Riot match details", () => {
         await w.request({ kind: "aggregate" });
         expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
         expect(await fetched()).toBe(3);
+        // Each match brings its timeline in the same run; this fixture has none (404).
+        expect(
+          (
+            await pool.query(
+              "SELECT timeline_state,count(*)::integer n FROM riot_matches GROUP BY 1",
+            )
+          ).rows,
+        ).toEqual([{ timeline_state: "missing", n: 3 }]);
         // Aggregates for the ingested games are rebuilt with the run.
         expect(
           (await pool.query("SELECT 1 FROM champion_aggregates WHERE source='solo' LIMIT 1"))
@@ -1789,7 +2105,8 @@ describe("Riot match details", () => {
       const w = worker({ maxMs: 250_000 });
       try {
         await w.request({ kind: "riot-match" });
-        expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
+        // Each match and its timeline take two requests: 200 seconds per match.
+        expect(await w.runNext()).toMatchObject({ state: "done", records: 2 });
         expect(await jobs()).toEqual(["riot-match:done", "riot-match:queued"]);
       } finally {
         await w.close();
@@ -1798,9 +2115,11 @@ describe("Riot match details", () => {
     it("keeps items fetched before a mid-run deferral and resumes when capacity frees up", async () => {
       const served = fetcher.getMockImplementation()!;
       let calls = 0;
-      // Count match requests only; the worker's key check makes its own.
+      // Count match requests only; the worker's key check and the timelines make their own.
       fetcher.mockImplementation((input, init) =>
-        endpoint(input).includes("/lol/match/v5/") && ++calls === 3
+        endpoint(input).includes("/lol/match/v5/") &&
+        !endpoint(input).endsWith("/timeline") &&
+        ++calls === 3
           ? Promise.resolve(
               new Response("", {
                 status: 429,
@@ -2419,6 +2738,45 @@ describe("Champion aggregates", () => {
     // An empty patch with nothing to count.
     await pool.query("INSERT INTO aggregate_dirty VALUES('solo','16.21',$1)", [now]);
     await runAggregate();
+    // Solo-queue performance: Ahri goes 3/2/5 with 190 CS, 11,000 gold, 20,000 of her team's
+    // 100,010 damage and 25 vision in a 1,834-second game, in each challenger game.
+    const minutes = 1834 / 60;
+    const ahriPerformance = await soloChampionPerformance(pool, {
+      championKey: 103,
+      patch: "16.22",
+      tier: "CHALLENGER",
+      role: "MIDDLE",
+    });
+    expect(ahriPerformance).toMatchObject({
+      games: 2,
+      kda: { value: 4, sampleCount: 2 },
+      killsPerGame: { value: 3, sampleCount: 2 },
+      killParticipation: { value: 16 / 50, sampleCount: 2 },
+      gameLength: { value: 1834, sampleCount: 2 },
+      // Not computed for solo queue: unknown, never zero.
+      goldDiffAt15: { value: null, sampleCount: 0 },
+      firstBloodParticipation: { value: null, sampleCount: 0 },
+    });
+    expect(ahriPerformance.csPerMinute.value).toBeCloseTo(190 / minutes);
+    expect(ahriPerformance.goldPerMinute.value).toBeCloseTo(11000 / minutes);
+    expect(ahriPerformance.damagePerMinute.value).toBeCloseTo(20000 / minutes);
+    expect(ahriPerformance.damageShare.value).toBeCloseTo(20000 / 100010);
+    expect(ahriPerformance.visionScorePerMinute.value).toBeCloseTo(25 / minutes);
+    // The master game counts too without a tier filter; the remake never does.
+    expect((await soloChampionPerformance(pool, { championKey: 103, patch: "16.22" })).games).toBe(
+      3,
+    );
+    // The tier list carries KDA and DPM for solo queue, and a tier from the shrunk win rate.
+    const soloList = await tierList(
+      pool,
+      { source: "solo", role: "MIDDLE", sort: "tier" },
+      everyChampion,
+    );
+    const ahriRow = soloList.page.items.find((r) => r.championKey === 103)!;
+    // Every tier, so the master game counts as well.
+    expect(ahriRow.performance.kda).toEqual({ value: 4, sampleCount: 3 });
+    expect(ahriRow.performance.goldDiffAt15).toEqual({ value: null, sampleCount: 0 });
+    expect(["S", "A", "B", "C", "D", null]).toContain(ahriRow.tier);
     // Ahri (103), always mid for the winning blue side in the fixture.
     expect(await aggregates("source='solo' AND champion_key=103")).toEqual([
       {
@@ -2554,7 +2912,7 @@ describe("Champion aggregates", () => {
       delete m.info.participants[0]!.win;
     });
     await runAggregate();
-    const list = await tierList(pool, {});
+    const list = await tierList(pool, {}, everyChampion);
     expect(list).toMatchObject({ patch: "16.22", sliceGames: 3 });
     expect(list.facets).toEqual({
       patches: ["16.22"],
@@ -2588,31 +2946,33 @@ describe("Champion aggregates", () => {
     });
 
     // Win rate ascending keeps unknown win rates last; descending puts winners first.
-    const ascending = await tierList(pool, { sort: "winRate", order: "asc" });
+    const ascending = await tierList(pool, { sort: "winRate", order: "asc" }, everyChampion);
     expect(ascending.page.items[0]!.winRate.value).toBe(0);
     expect(ascending.page.items.at(-1)!.winRate.value).toBeNull();
-    const descending = await tierList(pool, { sort: "winRate" });
+    const descending = await tierList(pool, { sort: "winRate" }, everyChampion);
     expect(descending.page.items[0]!.winRate.value).toBe(1);
-    expect((await tierList(pool, { sort: "banRate" })).page.items[0]!.championKey).toBe(238);
+    expect(
+      (await tierList(pool, { sort: "banRate" }, everyChampion)).page.items[0]!.championKey,
+    ).toBe(238);
 
     // Role, tier and page filters.
-    const mid = await tierList(pool, { role: "MIDDLE", tier: "MASTER" });
+    const mid = await tierList(pool, { role: "MIDDLE", tier: "MASTER" }, everyChampion);
     expect(mid.sliceGames).toBe(1);
     // Both mid laners of the one master-tier game: Ahri's result is unknown, Yasuo lost.
     expect(mid.page.items.map((r) => [r.championKey, r.games, r.winRate.value])).toEqual([
       [103, 1, null],
       [157, 1, 0],
     ]);
-    expect((await tierList(pool, { page: 2 })).page).toMatchObject({
+    expect((await tierList(pool, { page: 2 }, everyChampion)).page).toMatchObject({
       items: [],
       total: 0,
       page: 2,
     });
-    expect(await tierList(pool, { source: "pro" })).toMatchObject({
+    expect(await tierList(pool, { source: "pro" }, everyChampion)).toMatchObject({
       patch: null,
       page: { total: 0 },
     });
-    await expect(tierList(pool, { sort: "name" as "games" })).rejects.toThrow();
+    await expect(tierList(pool, { sort: "name" as "games" }, everyChampion)).rejects.toThrow();
     expect((await queries.tierList({ patch: "16.21" })).page.total).toBe(0);
   });
   it("gives a champion overview with a shrunk-rate tier and a trend with gaps", async () => {
@@ -2740,7 +3100,13 @@ describe("Champion aggregates", () => {
     await saveTimeline(
       pool,
       parseRiotTimeline(
-        withEvents("EUW1_1", [buy(600, 3020), buy(900, 4645), buy(1200, 3089), buy(1500, 3157)]),
+        withEvents("EUW1_1", [
+          buy(600, 3020),
+          buy(900, 4645),
+          buy(1200, 3089),
+          buy(1500, 3157),
+          buy(1800, 3135),
+        ]),
         "EUW1_1",
       ),
       now,
@@ -2777,6 +3143,8 @@ describe("Champion aggregates", () => {
       { kind: "slot2", build: "3089", games: 1, result_games: 1, wins: 1 },
       { kind: "slot2", build: "3135", games: 1, result_games: 1, wins: 0 },
       { kind: "slot3", build: "3157", games: 2, result_games: 2, wins: 1 },
+      // The fourth completed item, the first option after the core.
+      { kind: "slot4", build: "3135", games: 1, result_games: 1, wins: 1 },
       { kind: "start", build: "1056", games: 2, result_games: 2, wins: 1 },
     ]);
     const overview = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!;
@@ -2792,9 +3160,10 @@ describe("Champion aggregates", () => {
           },
         ],
         games: 2,
-        pickRate: { value: null, sampleCount: 0 },
-        // Two results are below the minimum sample, so the win rate is not shown.
-        winRate: { value: null, sampleCount: 2 },
+        // An item's pick rate is its share of every option in the slot.
+        pickRate: { value: 1, sampleCount: 2 },
+        // Rates are shown at any sample; the status still marks a small one.
+        winRate: { value: 0.5, sampleCount: 2 },
         sample: "hidden",
       },
     ]);
@@ -2809,7 +3178,8 @@ describe("Champion aggregates", () => {
     expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.builds).toBeNull();
   });
   it("counts rune pages, keystones, stat shards and spell pairs from every game", async () => {
-    serveDataDragon(["16.22.1"]);
+    // Icons are cached for the newest patch only; the games are on 16.22.
+    serveDataDragon(["16.23.1", "16.22.1"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");
     await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
     await ingest("EUW1_1", challenger);
@@ -2846,24 +3216,62 @@ describe("Champion aggregates", () => {
       { kind: "spells", build: "4,14", games: 2, result_games: 2, wins: 1 },
     ]);
     const builds = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!.builds!;
+    // Each icon falls back to the newest cached icon for the same id.
     expect(builds.keystone[0]!.items).toEqual([
-      expect.objectContaining({ kind: "rune", id: 8112, name: "Electrocute" }),
+      expect.objectContaining({
+        kind: "rune",
+        id: 8112,
+        name: "Electrocute",
+        imageUrl: expect.stringMatching(/^\/api\/images\/[a-f0-9]{64}$/) as string,
+      }),
     ]);
+    expect(builds.spells[0]!.items[0]!.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
     expect(builds.spells[0]).toMatchObject({
       items: [
         { kind: "spell", id: 4, catalogId: "SummonerFlash", name: "Flash" },
         { kind: "spell", id: 14, catalogId: "SummonerDot", name: "Ignite" },
       ],
       games: 2,
-      // Three Ahri games are below the minimum sample: both rates stay unknown.
-      pickRate: { value: null, sampleCount: 3 },
-      winRate: { value: null, sampleCount: 2 },
+      // Rates are shown at any sample, over the champion's three games.
+      pickRate: { value: 2 / 3, sampleCount: 3 },
+      winRate: { value: 0.5, sampleCount: 2 },
     });
-    // Data Dragon has no stat shard entries, so they keep their ids without names.
+    // The client's shard rows, offense, flex and defense, each option named.
+    expect(builds.shardRows.map((row) => row.map((i) => i.name))).toEqual([
+      ["Adaptive Force", "Attack Speed", "Ability Haste"],
+      ["Adaptive Force", "Move Speed", "Health Scaling"],
+      ["Health", "Tenacity and Slow Resist", "Health Scaling"],
+    ]);
+    // Shard icons are queued for the image cache with their Data Dragon paths.
+    const shardIcons = await pool.query<{ image: string }>(
+      "SELECT DISTINCT image FROM catalog_icon_entries WHERE kind='rune' AND id='5008'",
+    );
+    expect(shardIcons.rows.map((r) => r.image)).toEqual([
+      "perk-images/StatMods/StatModsAdaptiveForceIcon.png",
+    ]);
+    // Data Dragon has no stat shard entries; they are named from Riot's shard ids.
     expect(builds.shards[0]!.items.map((i) => [i.kind, i.id, i.name])).toEqual([
-      ["shard", 5005, null],
-      ["shard", 5008, null],
-      ["shard", 5001, null],
+      ["shard", 5005, "Attack Speed"],
+      ["shard", 5008, "Adaptive Force"],
+      ["shard", 5001, "Health Scaling"],
+    ]);
+    // Each tree the page uses, with its rows of runes from the catalog, keystones first. The
+    // fixture catalog lists only Domination, so Sorcery has no tree to draw.
+    expect(
+      builds.runeTrees.map((t) => [
+        t.tree.id,
+        t.tree.name,
+        t.rows.map((row) => row.map((x) => x.id)),
+      ]),
+    ).toEqual([
+      [
+        8100,
+        "Domination",
+        [
+          [8112, 8128],
+          [8126, 8139],
+        ],
+      ],
     ]);
   });
   it("derives skill orders and counts games whose skill-ups do not decide one", async () => {
@@ -2906,6 +3314,8 @@ describe("Champion aggregates", () => {
     ).toEqual([
       { kind: "skillmax", build: "1,3,2", games: 1 },
       { kind: "skillmax_incomplete", build: "0", games: 1 },
+      // The fixture's level-1 Q, then the first fourteen saved level-ups; EUW1_2 ends too early.
+      { kind: "skillpath", build: "1,3,2,1,1,4,1,3,1,3,4,3,3,2,2", games: 1 },
       { kind: "skills", build: "1,3,2", games: 1 },
       { kind: "skills_incomplete", build: "0", games: 1 },
     ]);
@@ -2915,11 +3325,11 @@ describe("Champion aggregates", () => {
       ["skill", 3, "E"],
       ["skill", 2, "W"],
     ]);
-    expect(builds.skillmax[0]).toMatchObject({
-      games: 1,
-      winRate: { value: null, sampleCount: 1 },
-    });
+    expect(builds.skillmax[0]).toMatchObject({ games: 1, winRate: { sampleCount: 1 } });
+    expect(builds.skillmax[0]!.winRate.value).not.toBeNull();
     expect(builds.excluded).toEqual({ skills: 1, skillmax: 1 });
+    // The stored fifteen levels continue to 18 by the client's rules: R, then W twice.
+    expect(builds.skillpath[0]!.items.map((i) => i.name).join("")).toBe("QEWQQRQEQEREEWWRWW");
   });
   it("buckets win rate by game length and by gold and level lead over the lane opponent", async () => {
     serveDataDragon(["16.22.1"]);
@@ -3035,7 +3445,7 @@ describe("Champion aggregates", () => {
     });
 
     // Garen lost one of his games, so the Ahri and Garen pair is expected to win less: the
-    // highest (least negative) delta. Small samples keep the shown values unknown.
+    // highest (least negative) delta. The win rate is shown; a small sample keeps the delta unknown.
     const byDelta = await championSynergies(pool, {
       championKey: 103,
       patch: "16.22",
@@ -3048,9 +3458,10 @@ describe("Champion aggregates", () => {
       allyKey: 86,
       allyRole: "TOP",
       games: 3,
-      winRate: { value: null, sampleCount: 3 },
+      winRate: { sampleCount: 3 },
       delta: { value: null, sampleCount: 3 },
     });
+    expect(byDelta.page.items[0]!.winRate.value).not.toBeNull();
     expect(byDelta.page.items[0]!.expected).toBeCloseTo(2 / 3 + 2 / 3 - 0.5);
     expect(byDelta.page.items.find((r) => r.allyKey === 222)!.expected).toBe(1);
     expect(
@@ -3082,6 +3493,71 @@ describe("Champion aggregates", () => {
     expect(
       (await championOverview(pool, { champion: "Ahri", source: "pro" }))!.synergies,
     ).toBeNull();
+  });
+  it("averages pro champion performance per role and league from each player's row", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    // Every row: 5/2/7, 15 team kills, 600 damage and 8.5 CS a minute, +500 gold at 15, first blood.
+    const metrics = {
+      teamkills: "15",
+      dpm: "600",
+      cspm: "8.5",
+      damageshare: "0.25",
+      golddiffat15: "500",
+      vspm: "1.2",
+      firstbloodkill: "1",
+      firstbloodassist: "0",
+      gamelength: "1800",
+    };
+    await importCsv(draftCsv({ id: "perf-1", league: "LCK", metrics }));
+    await importCsv(draftCsv({ id: "perf-2", league: "LEC", metrics }), 2026);
+    // Ahri is red's mid in each game.
+    const mid = await proChampionPerformance(pool, {
+      championKey: 103,
+      patch: "16.4",
+      role: "MIDDLE",
+    });
+    expect(mid).toMatchObject({
+      games: 2,
+      kda: { value: 6, sampleCount: 2 },
+      killsPerGame: { value: 5, sampleCount: 2 },
+      killParticipation: { value: 0.8, sampleCount: 2 },
+      damagePerMinute: { value: 600, sampleCount: 2 },
+      csPerMinute: { value: 8.5, sampleCount: 2 },
+      damageShare: { value: 0.25, sampleCount: 2 },
+      goldDiffAt15: { value: 500, sampleCount: 2 },
+      firstBloodParticipation: { value: 1, sampleCount: 2 },
+      visionScorePerMinute: { value: 1.2, sampleCount: 2 },
+      gameLength: { value: 1800, sampleCount: 2 },
+      // Not in the file: unknown, never zero.
+      csDiffAt15: { value: null, sampleCount: 0 },
+      goldPerMinute: { value: null, sampleCount: 0 },
+    });
+    expect(
+      await proChampionPerformance(pool, { championKey: 103, patch: "16.4", league: "LEC" }),
+    ).toMatchObject({ games: 1, kda: { value: 6, sampleCount: 1 } });
+    expect(
+      await proChampionPerformance(pool, { championKey: 103, patch: "16.4", role: "TOP" }),
+    ).toMatchObject({ games: 0, kda: { value: null, sampleCount: 0 } });
+    expect(
+      (await championOverview(pool, { champion: "Ahri", source: "pro", role: "MIDDLE" }))!.pro
+        .performance,
+    ).toMatchObject({ games: 2, damagePerMinute: { value: 600, sampleCount: 2 } });
+    // The pro tier list carries the same averages and sorts by them.
+    const list = await tierList(
+      pool,
+      { source: "pro", role: "MIDDLE", sort: "kda" },
+      everyChampion,
+    );
+    const ahri = list.page.items.find((r) => r.championKey === 103)!;
+    expect(ahri.performance).toEqual({
+      kda: { value: 6, sampleCount: 2 },
+      damagePerMinute: { value: 600, sampleCount: 2 },
+      goldDiffAt15: { value: 500, sampleCount: 2 },
+    });
+    expect(
+      (await tierList(pool, { source: "solo", role: "MIDDLE" }, everyChampion)).page.items,
+    ).toEqual([]);
   });
   it("aggregates pro draft use per champion and league, reporting unmapped names", async () => {
     serveDataDragon(["16.4.1"]);
@@ -3130,10 +3606,11 @@ describe("Champion aggregates", () => {
       picks: 3,
       presence: { value: 1, sampleCount: 3 },
       banRate: { value: 0, sampleCount: 3 },
-      winRate: { value: 0, sampleCount: 2 },
+      // Two known results are below the minimum sample: the win rates stay unknown.
+      winRate: { value: null, sampleCount: 2 },
       sides: [
         { side: "blue", picks: 0, winRate: { value: null, sampleCount: 0 } },
-        { side: "red", picks: 3, winRate: { value: 0, sampleCount: 2 } },
+        { side: "red", picks: 3, winRate: { value: null, sampleCount: 2 } },
       ],
       blindRate: { value: 1, sampleCount: 3 },
       counterRate: { value: 0, sampleCount: 3 },
@@ -3159,6 +3636,41 @@ describe("Champion aggregates", () => {
       games: 0,
       presence: { value: null, sampleCount: 0 },
     });
+    // Patch history: one row per patch the champion was drafted on, filtered by league.
+    expect(await proChampionHistory(pool, { championKey: 103 })).toEqual({
+      league: null,
+      page: {
+        page: 1,
+        pageSize: 12,
+        total: 1,
+        items: [
+          {
+            patch: "16.4",
+            games: 3,
+            picks: 3,
+            bans: 0,
+            presence: { value: 1, sampleCount: 3 },
+            pickRate: { value: 1, sampleCount: 3 },
+            banRate: { value: 0, sampleCount: 3 },
+            winRate: { value: null, sampleCount: 2 },
+            blueWinRate: { value: null, sampleCount: 0 },
+            redWinRate: { value: null, sampleCount: 2 },
+          },
+        ],
+      },
+    });
+    expect(
+      (await proChampionHistory(pool, { championKey: 103, league: "LEC" })).page.items[0],
+    ).toMatchObject({ games: 1, picks: 1, winRate: { value: null, sampleCount: 1 } });
+    expect((await proChampionHistory(pool, { championKey: 103, page: 2 })).page).toMatchObject({
+      items: [],
+      total: 0,
+    });
+    // A champion never drafted has no history; the overview carries the same rows.
+    expect((await proChampionHistory(pool, { championKey: 62 })).page.total).toBe(0);
+    expect(
+      (await championOverview(pool, { champion: "Ahri", league: "LCK" }))!.proHistory.page.items[0],
+    ).toMatchObject({ patch: "16.4", games: 2, picks: 2 });
   });
   it("stores versioned win probability features reproducible from frames and events", async () => {
     serveDataDragon(["16.22.1"]);
@@ -3561,96 +4073,6 @@ describe("Champion aggregates", () => {
     expect(await soloGameMapEvents(pool, "EUW1_2")).toEqual({ events: [], truncated: false });
     expect(await soloGameMapEvents(pool, "EUW1_999")).toBeNull();
     await expect(soloGameMapEvents(pool, "not a match")).rejects.toThrow();
-  });
-  it("bins heatmaps per champion, player and role on the fixed grid with red side mirrored", async () => {
-    serveDataDragon(["16.22.1"]);
-    expect((await run({ kind: "metadata" })).state).toBe("done");
-    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
-    await ingest("EUW1_1", challenger);
-    // A game without a stored timeline is not part of any heatmap's sample.
-    await ingest("EUW1_2", challenger);
-    const timeline = JSON.parse(
-      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
-    ) as { metadata: { matchId: string } };
-    timeline.metadata.matchId = "EUW1_1";
-    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
-    // A kill outside the map bounds is not binned.
-    await pool.query(
-      `INSERT INTO riot_timeline_events(match_id,seq,type,timestamp_ms,participant_id,victim_id,x,y)
-       VALUES ('EUW1_1',100,'CHAMPION_KILL',129000,2,8,20000,100)`,
-    );
-    await runAggregate();
-    // One game is below the minimum sample: the sample is reported and nothing is drawn.
-    const below = (await queries.heatmap({ subjectKind: "champion", subject: "Ahri" }))!;
-    expect(below).toMatchObject({
-      label: "Ahri",
-      patch: "16.22",
-      patches: [{ patch: "16.22", games: 1, points: 2 }],
-      games: 1,
-      points: 2,
-      minimumGames: 10,
-      cells: [],
-    });
-    expect((await pool.query("SELECT 1 FROM heatmap_cells")).rowCount).toBe(0);
-
-    await transaction(pool, (c) => rebuildHeatmaps(c, "16.22", now, 1));
-    const cells = async (subjectKind: string, subject: string, kind: string) =>
-      (
-        await pool.query<{ cell_x: number; cell_y: number; points: number }>(
-          `SELECT cell_x,cell_y,points FROM heatmap_cells
-           WHERE subject_kind=$1 AND subject=$2 AND kind=$3 ORDER BY cell_x,cell_y`,
-          [subjectKind, subject, kind],
-        )
-      ).rows.map((r) => [r.cell_x, r.cell_y, r.points]);
-    // Cells are 936.875 x 943.75 world units. Ahri (blue) stands at (610,500) and (620,500)
-    // at minutes 1 and 2; minute 0 is the fountain and is skipped.
-    expect(await cells("champion", "103", "position")).toEqual([[0, 0, 2]]);
-    // Red side is rotated about the centre: (1110,1000) becomes (13640,13860), cell (14,14).
-    expect(await cells("champion", "157", "position")).toEqual([[14, 14, 2]]);
-    expect(await cells("role", "MIDDLE", "position")).toEqual([
-      [0, 0, 2],
-      [14, 14, 2],
-    ]);
-    // The kill at (7200,7100): the blue killer's cell (7,7), the red victim's mirrored (8,8).
-    expect(await cells("champion", "64", "kill")).toEqual([[7, 7, 1]]);
-    expect(await cells("champion", "121", "death")).toEqual([[8, 8, 1]]);
-    expect(await cells("role", "JUNGLE", "death")).toEqual([[8, 8, 1]]);
-    expect(await cells("champion", "121", "kill")).toEqual([]);
-    const killer = (
-      await pool.query<{ puuid: string }>(
-        "SELECT puuid FROM riot_match_participants WHERE match_id='EUW1_1' AND participant_id=2",
-      )
-    ).rows[0]!.puuid;
-    expect(await cells("player", killer, "kill")).toEqual([[7, 7, 1]]);
-    const samples = (
-      await pool.query(
-        `SELECT subject,kind,games,points FROM heatmap_samples
-         WHERE subject_kind='champion' AND subject IN ('64','103') ORDER BY subject,kind`,
-      )
-    ).rows;
-    expect(samples).toEqual([
-      { subject: "103", kind: "death", games: 1, points: 0 },
-      { subject: "103", kind: "kill", games: 1, points: 0 },
-      { subject: "103", kind: "position", games: 1, points: 2 },
-      // The out-of-bounds kill is not counted.
-      { subject: "64", kind: "death", games: 1, points: 0 },
-      { subject: "64", kind: "kill", games: 1, points: 1 },
-      { subject: "64", kind: "position", games: 1, points: 2 },
-    ]);
-
-    // Reads draw cells at their centres once the sample reaches the minimum.
-    await pool.query("UPDATE heatmap_samples SET games=10 WHERE subject_kind='role'");
-    const role = (await heatmap(pool, { subjectKind: "role", subject: "JUNGLE", kind: "death" }))!;
-    expect(role).toMatchObject({ label: null, games: 10, points: 1 });
-    expect(role.cells).toEqual([{ cellX: 8, cellY: 8, x: 7843, y: 7902, points: 1 }]);
-    const player = (await heatmap(pool, { subjectKind: "player", subject: killer, kind: "kill" }))!;
-    expect(player).toMatchObject({ games: 1, points: 1, cells: [] });
-    expect(
-      await heatmap(pool, { subjectKind: "champion", subject: "Ahri", patch: "16.21" }),
-    ).toMatchObject({ patch: "16.21", games: 0, points: 0, cells: [] });
-    expect(await heatmap(pool, { subjectKind: "champion", subject: "NotAChampion" })).toBeNull();
-    expect(await heatmap(pool, { subjectKind: "role", subject: "SUPPORT" })).toBeNull();
-    await expect(heatmap(pool, { subjectKind: "role", subject: "../x" })).rejects.toThrow();
   });
   it("stores inferred jungle paths per game and clusters them per champion and patch", async () => {
     serveDataDragon(["16.22.1"]);
@@ -4101,7 +4523,7 @@ describe("Champion aggregates", () => {
       await aggregates("source='pro' AND champion_key=103 AND role IN ('ALL','MIDDLE')"),
     ).toEqual([
       {
-        tier: "PRO",
+        tier: "Unknown",
         role: "ALL",
         games: 10,
         result_games: 10,
@@ -4113,7 +4535,7 @@ describe("Champion aggregates", () => {
         ban_rate: 0,
       },
       {
-        tier: "PRO",
+        tier: "Unknown",
         role: "MIDDLE",
         games: 2,
         result_games: 2,
@@ -4145,8 +4567,9 @@ describe("Champion aggregates", () => {
     const pro = await championStats(pool, {
       source: "pro",
       region: "LCK",
-      tier: "PRO",
-      queue: "pro",
+      // Fixture games record no split or stage, so pro play slices them as unknown.
+      tier: "Unknown",
+      queue: "unknown",
     });
     expect([solo.patch, pro.patch]).toEqual(["16.22", "16.4"]);
 
@@ -4516,6 +4939,39 @@ describe("durable synchronization and request budgeting", () => {
     expect((await queries.historicalCoverage()).find((entry) => entry.year === 2026)?.games).toBe(
       1,
     );
+
+    // A quota page after the confirmation waits six hours, like one before it.
+    const html = (body: string, status = 200) =>
+      new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+    fetcher.mockReset();
+    fetcher.mockResolvedValueOnce(html(warning(id)));
+    fetcher.mockResolvedValueOnce(
+      html("<!DOCTYPE html><title>Google Drive - Quota exceeded</title>", 403),
+    );
+    await sync.request({ kind: "history", year: 2026 });
+    expect(await sync.runNext()).toMatchObject({
+      state: "queued",
+      error: expect.stringContaining("quota exceeded") as string,
+    });
+    const [deferred] = (
+      await pool.query<{ available_at: Date; attempts: number }>(
+        "SELECT available_at,attempts FROM sync_jobs WHERE state='queued' AND request->>'kind'='history'",
+      )
+    ).rows;
+    expect(deferred).toEqual({
+      available_at: new Date(instant.valueOf() + 6 * 3_600_000),
+      attempts: 0,
+    });
+
+    // Any other page after the confirmation still fails.
+    instant = deferred!.available_at;
+    fetcher.mockReset();
+    fetcher.mockResolvedValueOnce(html(warning(id)));
+    fetcher.mockResolvedValueOnce(html("<!DOCTYPE html><title>Sign in</title>"));
+    expect(await sync.runNext()).toMatchObject({
+      state: "failed",
+      error: expect.stringContaining("after the download confirmation") as string,
+    });
   });
 });
 
@@ -6599,13 +7055,31 @@ describe("lane matchup aggregates", () => {
     await game(999, true, 9000, { patch: "16.21" });
     await aggregate();
     const calls = fetcher.mock.calls.length;
-    const data = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-    });
+    const data = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+      },
+      everyChampion,
+    );
     expect(data?.page).toMatchObject({ total: 3, pageSize: 1 });
+    // By default, opponents below the minimum sample are left out and counted.
+    const rated = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    expect(rated).toMatchObject({ minimumGames: 10, hiddenOpponents: 1, page: { total: 2 } });
+    expect(rated?.page.items.map((r) => r.opponent.championKey).sort()).toEqual([20, 62]);
+    // Combined with 16.21, an opponent met on both patches adds up its games and results. One
+    // result is shown as observed, but too few to shrink.
+    const combined = await queries.championMatchups(
+      { champion: "Ahri", patch: ["16.21", "16.22"] },
+      everyChampion,
+    );
+    expect(combined).toMatchObject({ patch: "16.22", combined: ["16.22", "16.21"] });
+    const byKey = new Map(combined?.page.items.map((r) => [r.opponent.championKey, r]));
+    expect(byKey.get(999)).toMatchObject({ games: 2 });
+    expect(byKey.get(999)?.metrics.winRate).toMatchObject({ raw: 1, shrunk: null, sampleCount: 1 });
+    expect(byKey.get(20)).toMatchObject({ games: 10 });
     const row = data!.page.items[0]!;
     expect(row.opponent).toMatchObject({
       championKey: 20,
@@ -6628,59 +7102,77 @@ describe("lane matchup aggregates", () => {
       baselineSampleCount: 20,
     });
     expect(row.metrics.xp10).toMatchObject({ raw: 200, shrunk: 75, sampleCount: 10 });
+    // Below the minimum sample the observed mean is shown, but not shrunk.
     expect(row.metrics.cs10).toMatchObject({
-      raw: null,
+      raw: 10,
       shrunk: null,
       sampleCount: 9,
       baseline: 10,
       baselineSampleCount: 19,
     });
-    expect(row.metrics.gold15).toMatchObject({ raw: null, shrunk: null, sampleCount: 9 });
+    expect(row.metrics.gold15).toMatchObject({ raw: 100, shrunk: null, sampleCount: 9 });
     expect(row.metrics.firstBlood).toMatchObject({ raw: 0.8, shrunk: 0.55, sampleCount: 10 });
     expect(row.metrics.firstTower).toMatchObject({ raw: 0.2, shrunk: 0.45, sampleCount: 10 });
-    const second = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-      page: 2,
-    });
+    const second = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+        page: 2,
+      },
+      everyChampion,
+    );
     expect(second?.page.items[0]?.opponent.championKey).toBe(62);
     expect(second?.page.items[0]?.metrics.gold10.shrunk).toBe(12.5);
     expect(
       (
-        await queries.championMatchups({
-          champion: "Ahri",
-          patch: "16.22",
-          sort: "winRate",
-          value: "raw",
-          order: "asc",
-        })
+        await queries.championMatchups(
+          {
+            champion: "Ahri",
+            patch: "16.22",
+            sort: "winRate",
+            value: "raw",
+            order: "asc",
+          },
+          everyChampion,
+        )
       )?.page.items[0]?.opponent.championKey,
     ).toBe(62);
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.22", page: 10000 }))?.page,
+      (
+        await queries.championMatchups(
+          { champion: "Ahri", patch: "16.22", page: 10000 },
+          everyChampion,
+        )
+      )?.page,
     ).toMatchObject({ total: 3, items: [] });
-    const last = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-      page: 3,
-    });
+    const last = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+        page: 3,
+      },
+      everyChampion,
+    );
     expect(last?.page.items[0]).toMatchObject({
       opponent: { championKey: 999, championId: null, name: null, imageUrl: null },
       metrics: { winRate: { raw: null, shrunk: null, sampleCount: 0 } },
     });
     expect(fetcher.mock.calls.length).toBe(calls);
-    expect(await queries.championMatchups({ champion: "Unknown" })).toBeNull();
+    expect(await queries.championMatchups({ champion: "Unknown" }, everyChampion)).toBeNull();
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.99" }))?.patch,
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.99" }, everyChampion))?.patch,
     ).toBeNull();
-    expect((await queries.championMatchups({ champion: "Ahri", role: "TOP" }))?.page.items).toEqual(
-      [],
-    );
-    expect((await queries.championMatchups({ champion: "Ahri", source: "pro" }))?.patch).toBeNull();
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", role: "TOP" }, everyChampion))?.page
+        .items,
+    ).toEqual([]);
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", source: "pro" }, everyChampion))?.patch,
+    ).toBeNull();
   });
   it("counts unpairable games once per role and preserves missing metrics through rebuilds", async () => {
     await catalog();
@@ -6688,13 +7180,13 @@ describe("lane matchup aggregates", () => {
     await game(20, true, 100, { ambiguous: true });
     await game(20, true, 100, { missingOpponent: true });
     await aggregate();
-    let data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    let data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion);
     expect(data?.page.items[0]).toMatchObject({
       games: 1,
       metrics: {
         winRate: { raw: null, shrunk: null, sampleCount: 0 },
         firstBlood: { raw: null, sampleCount: 0 },
-        gold10: { raw: null, sampleCount: 1 },
+        gold10: { raw: 100, shrunk: null, sampleCount: 1 },
       },
     });
     expect(data?.exclusions.find((r) => r.role === "MIDDLE")).toEqual({
@@ -6714,19 +7206,20 @@ describe("lane matchup aggregates", () => {
     // A replacement timeline changes its sample, without duplicating the game or other source rows.
     await saveTimeline(pool, { matchId: valid, frames: [], events: [] }, now);
     await aggregate();
-    data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion);
     expect(data?.page.items[0]?.games).toBe(1);
     expect(data?.page.items[0]?.metrics.gold10).toMatchObject({ raw: null, sampleCount: 0 });
     expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
-    expect((await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page).toEqual(
-      data?.page,
-    );
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion))?.page,
+    ).toEqual(data?.page);
     await pool.query("UPDATE riot_matches SET remake=true WHERE match_id=$1", [valid]);
     expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page.items,
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion))?.page
+        .items,
     ).toEqual([]);
-    const excluded = await queries.championMatchups({ champion: "Ahri" });
+    const excluded = await queries.championMatchups({ champion: "Ahri" }, everyChampion);
     expect(excluded).toMatchObject({ patch: "16.22", patches: ["16.22"], page: { items: [] } });
     expect(excluded?.exclusions.find((r) => r.role === "MIDDLE")?.games).toBe(2);
   });
@@ -6751,7 +7244,7 @@ describe("lane matchup aggregates", () => {
     expect(cell.estimate.shrunk).toBeCloseTo((8 + (50 * 10) / 28) / 60);
     expect(
       matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 200)?.estimate,
-    ).toMatchObject({ raw: null, shrunk: null, sampleCount: 1 });
+    ).toMatchObject({ raw: 0, shrunk: null, sampleCount: 1 });
     expect(matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 103)).toMatchObject({
       games: 0,
       estimate: { raw: null, shrunk: null, sampleCount: 0 },
@@ -7165,11 +7658,14 @@ describe("lane matchup aggregates", () => {
       }
     }
     await importCsv(header + "\n" + rows.join("\n") + "\n");
-    const data = await queries.championMatchups({
-      champion: "Ahri",
-      source: "pro",
-      patch: "16.22",
-    });
+    const data = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        source: "pro",
+        patch: "16.22",
+      },
+      everyChampion,
+    );
     expect(data?.page.items).toHaveLength(1);
     expect(data?.page.items[0]).toMatchObject({
       games: 10,
@@ -7179,16 +7675,19 @@ describe("lane matchup aggregates", () => {
         gold10: { raw: 100, shrunk: 100, sampleCount: 10 },
         xp15: { raw: 400, sampleCount: 10 },
         cs15: { raw: 20, sampleCount: 10 },
-        gold15: { raw: null, sampleCount: 9 },
+        gold15: { shrunk: null, sampleCount: 9 },
         firstBlood: { raw: 1, sampleCount: 10 },
         firstTower: { raw: 0, sampleCount: 10 },
       },
     });
-    const missing = await queries.championMatchups({
-      champion: "Ahri",
-      source: "pro",
-      role: "TOP",
-    });
+    const missing = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        source: "pro",
+        role: "TOP",
+      },
+      everyChampion,
+    );
     expect(missing?.exclusions).toEqual([
       {
         role: "TOP",
@@ -7201,12 +7700,16 @@ describe("lane matchup aggregates", () => {
       },
     ]);
     for (const role of ["JUNGLE", "BOTTOM", "UTILITY"] as const) {
-      const skipped = await queries.championMatchups({ champion: "Ahri", source: "pro", role });
+      const skipped = await queries.championMatchups(
+        { champion: "Ahri", source: "pro", role },
+        everyChampion,
+      );
       expect(skipped?.exclusions).toHaveLength(1);
       expect(skipped?.exclusions[0]).toMatchObject({ role, games: 10, unmappedChampion: 20 });
     }
     expect(
-      (await queries.championMatchups({ champion: "Ahri", source: "solo" }))?.page.items,
+      (await queries.championMatchups({ champion: "Ahri", source: "solo" }, everyChampion))?.page
+        .items,
     ).toEqual([]);
   });
 });

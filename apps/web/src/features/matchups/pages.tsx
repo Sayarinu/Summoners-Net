@@ -8,6 +8,7 @@ import {
   ChampionIdentity,
   FilterBar,
   HeatGrid,
+  MultiSelect,
   PageHeader,
   Panel,
   Select,
@@ -23,19 +24,17 @@ import {
   matchupMinimumSample,
   blindabilityMinimumCoverage,
   blindabilityMinimumOpponents,
-  blindabilityTailShare,
   counterPickSorts,
   type BlindabilityReason,
   type ChampionBlindability,
   type CounterPickList,
   type CounterPickReason,
-  type ChampionMatchups,
   type MatchupMatrix,
   type MatchupMetric,
   type PatchChampion,
 } from "@summonersnet/data/contracts";
-import { ChampionPages, championHeatmapsHref } from "../champions/champion-pages";
 import { goToPage, PageFooter } from "../champions/paging";
+import { appendPatches } from "../champions/presentation";
 const roles = {
   TOP: "Top",
   JUNGLE: "Jungle",
@@ -57,21 +56,11 @@ const metrics: Record<MatchupMetric, string> = {
 };
 const sources = { solo: "Solo Queue", pro: "Pro" } as Record<string, string>;
 const isRate = (metric: MatchupMetric) => ["winRate", "firstBlood", "firstTower"].includes(metric);
-const display = (value: number | null, metric: MatchupMetric) =>
-  value === null
-    ? "Unknown"
-    : isRate(metric)
-      ? `${(value * 100).toFixed(1)}%`
-      : `${value > 0 ? "+" : ""}${value.toFixed(1)}`;
 const name = (c: PatchChampion) => c.name ?? c.championId ?? `Champion ${c.championKey}`;
-/** Two related panels side by side, the first wider, stacking on narrow screens. */
-const pairGrid =
-  "grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] items-start gap-4 max-[1150px]:grid-cols-1";
 const toolbar = "flex flex-wrap items-end gap-x-6 gap-y-3 border-y border-line py-3";
-function selection(q: { source: string; value: string }, patch: string | null) {
+function selection(q: { source: string; value: string }, patch: string | null | readonly string[]) {
   const params = new URLSearchParams({ source: q.source, value: q.value });
-  if (patch) params.set("patch", patch);
-  return params;
+  return appendPatches(params, typeof patch === "string" ? [patch] : (patch ?? []));
 }
 /** The role list takes only source and patch filters. */
 function counterPicksHref(role: string, source: string, patch: string | null) {
@@ -95,12 +84,16 @@ function Filters({
   query: q,
   patches,
   patch,
+  chosen,
 }: {
   query: { source: string; value: string };
   patches: string[];
   patch: string | null;
+  /** Patches the reader chose to combine; the patch filter then takes several. */
+  chosen?: readonly string[] | undefined;
 }) {
   const choices = [...new Set([...(patch ? [patch] : []), ...patches])];
+  const patchOptions = choices.map((p) => ({ value: p, label: p }));
   return (
     <>
       <Select
@@ -112,15 +105,22 @@ function Filters({
           { value: "pro", label: "Pro" },
         ]}
       />
-      <Select
-        label="Patch"
-        name="patch"
-        defaultValue={patch ?? "all"}
-        options={[
-          { value: "all", label: "Latest Available" },
-          ...choices.map((p) => ({ value: p, label: p })),
-        ]}
-      />
+      {chosen ? (
+        <MultiSelect
+          label="Patches"
+          name="patch"
+          defaultValue={chosen}
+          placeholder="Latest with Enough Games"
+          options={patchOptions}
+        />
+      ) : (
+        <Select
+          label="Patch"
+          name="patch"
+          defaultValue={patch ?? "all"}
+          options={[{ value: "all", label: "Latest Available" }, ...patchOptions]}
+        />
+      )}
       <Select
         label="Values"
         name="value"
@@ -139,16 +139,18 @@ function Pages({
   page,
   total,
   size,
+  note,
 }: {
   label: string;
   field: string;
   page: number;
   total: number;
   size: number;
+  note?: string | undefined;
 }) {
   return (
     <PageFooter
-      summary={`${label}: page ${page} · ${total} champions`}
+      summary={`${label}: page ${page} · ${total} champions${note ? ` · ${note}` : ""}`}
       label={label}
       page={page}
       total={total}
@@ -252,292 +254,6 @@ export function CounterPickSummary({
       <p className="text-sm">
         <TextLink href={listHref}>Compare the Role</TextLink>
       </p>
-    </div>
-  );
-}
-function BlindabilityMethod() {
-  const tail = blindabilityTailShare * 100;
-  return (
-    <details className="flex flex-col gap-2 border-t border-line pt-3 text-sm text-fg-secondary">
-      <summary className="cursor-pointer text-fg">How Blindability Is Calculated</summary>
-      <div className="mt-2 flex max-w-reading flex-col gap-3">
-        <p>
-          A champion is safe to pick blind when it has few bad matchups that opponents actually
-          pick. Each opponent’s win rate is the shrunk matchup estimate shown below. Opponents with
-          fewer than {matchupMinimumSample} win-rate observations are left out, and the covered pick
-          share says how much of the role’s opponent picks remain. Each opponent is weighted by how
-          often it is picked in this role, patch and source (its paired lane games, w).
-        </p>
-        <pre className="overflow-x-auto rounded-md bg-raised p-3 text-xs">{`expected  E = Σ wᵢ·pᵢ / Σ wᵢ
-worst     min pᵢ   (the enemy counter-picks optimally)
-variance  Σ wᵢ·(pᵢ − E)² / Σ wᵢ
-tail      mean pᵢ over the worst ${tail}% of Σ wᵢ, worst matchups first
-score     tail`}</pre>
-        <p>
-          The score is the lower-tail win rate: what the champion can expect when the enemy picks
-          from its worst common matchups. It is unknown when fewer than{" "}
-          {blindabilityMinimumOpponents} opponents meet the minimum or they cover less than{" "}
-          {blindabilityMinimumCoverage * 100}% of opponent picks. Like the matchups, it describes
-          stored samples and is not evidence of causation.
-        </p>
-      </div>
-    </details>
-  );
-}
-function Blindability({ score: b }: { score: ChampionBlindability | null }) {
-  const tail = blindabilityTailShare * 100;
-  return (
-    <Panel title="Blindability">
-      <div className="flex flex-col gap-4">
-        {!b ? (
-          <p className="np-meta">No stored blindability score for this role, source and patch.</p>
-        ) : (
-          <>
-            <StatGroup label="Blindability Statistics" className={statGrid}>
-              <Stat label="Blindability Score" value={percent(b.score)} tone="accent" />
-              <Stat label="Pick-Weighted Win Rate" value={percent(b.expected)} />
-              <Stat
-                label="Counter-Pick Worst Case"
-                value={percent(b.worstCase)}
-                {...(b.worstOpponent ? { detail: `against ${name(b.worstOpponent)}` } : {})}
-              />
-              <Stat
-                label={`Lower-Tail Win Rate (${tail}% of Picks)`}
-                value={percent(b.lowerTail)}
-              />
-              <Stat
-                label="Variance"
-                value={b.variance === null ? "Unknown" : b.variance.toFixed(4)}
-              />
-              <Stat
-                label="Covered Pick Share"
-                value={percent(b.coverage)}
-                detail={`${b.coveredPicks} of ${b.rolePicks} opponent picks`}
-              />
-            </StatGroup>
-            {b.reason ? (
-              <p role="status" className="text-sm text-fg-secondary">
-                Score unavailable: {blindabilityReasons[b.reason]}
-              </p>
-            ) : null}
-            <p className="np-meta">
-              {b.coveredOpponents} of {b.sampledOpponents} sampled opponents meet the minimum ·{" "}
-              {b.games} lane games
-            </p>
-          </>
-        )}
-        <BlindabilityMethod />
-      </div>
-    </Panel>
-  );
-}
-export function ChampionMatchupsPage({
-  matchups: m,
-  blindability = null,
-  error,
-}: {
-  matchups: ChampionMatchups | null;
-  blindability?: ChampionBlindability | null;
-  error: string | null;
-}) {
-  if (!m)
-    return (
-      <div className="flex min-w-0 flex-col gap-6">
-        <PageHeader
-          breadcrumbs={[{ label: "Champions", href: "/champions" }, { label: "Matchups" }]}
-          title="Champion Matchups"
-        />
-        <p role="alert">{error}</p>
-      </div>
-    );
-  const q = m.query,
-    params = selection(q, m.patch);
-  params.set("role", q.role);
-  const championName = name(m.champion);
-  const championHref = `/champions/${encodeURIComponent(q.champion)}`;
-  const score = m.patch ? blindability : null;
-  const listHref = counterPicksHref(q.role, q.source, m.patch);
-  return (
-    <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
-      <PageHeader
-        breadcrumbs={[
-          { label: "Champions", href: "/champions" },
-          { label: championName, href: championHref },
-          { label: "Lane Matchups" },
-        ]}
-        eyebrow={[
-          sources[q.source],
-          roles[q.role],
-          `Patch ${m.patch ?? "unavailable"}`,
-          q.value === "raw" ? "Raw observations" : "Shrunk estimates",
-          `${m.page.total} opponents`,
-        ].join(" · ")}
-        title={`${championName} Matchups`}
-        actions={
-          <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            <TextLink href={`/matchups/${q.role}?${selection(q, m.patch)}`}>
-              {roles[q.role]} Matchup Matrix
-            </TextLink>
-            <TextLink href={listHref}>{roles[q.role]} Counter-Pick Values</TextLink>
-          </span>
-        }
-      >
-        <ChampionPages
-          current="matchups"
-          overviewHref={`${championHref}?source=${q.source}${m.patch ? `&patch=${m.patch}` : ""}&role=${q.role}`}
-          matchupsHref={`${championHref}/matchups?${params}`}
-          heatmapsHref={championHeatmapsHref(q.champion, q.source, m.patch)}
-        />
-      </PageHeader>
-      <FilterBar
-        className="border-y border-line py-3"
-        method="get"
-        action={`/champions/${q.champion}/matchups`}
-      >
-        <Filters query={q} patches={m.patches} patch={m.patch} />
-        <Select
-          label="Role"
-          name="role"
-          defaultValue={q.role}
-          options={matchupRoles.map((r) => ({
-            value: r,
-            label: roles[r],
-            icon: <RoleIcon role={r} />,
-          }))}
-        />
-        <Select
-          label="Sort Opponents By"
-          name="sort"
-          defaultValue={q.sort}
-          options={[
-            { value: "games", label: "Games" },
-            ...matchupMetrics.map((metric) => ({ value: metric, label: metrics[metric] })),
-          ]}
-        />
-        <Select
-          label="Order"
-          name="order"
-          defaultValue={q.order}
-          options={[
-            { value: "desc", label: "Descending" },
-            { value: "asc", label: "Ascending" },
-          ]}
-        />
-        <input type="hidden" name="pageSize" value={q.pageSize} />
-        <Button type="submit">Apply Filters</Button>
-      </FilterBar>
-      {score ? (
-        <div className={pairGrid}>
-          <Blindability score={score} />
-          <Panel title="Counter-Pick Value">
-            <CounterPickSummary value={score} listHref={listHref} />
-          </Panel>
-        </div>
-      ) : (
-        <Blindability score={null} />
-      )}
-      <Panel
-        title="Lane Opponents"
-        padding="none"
-        actions={
-          <ExportLink
-            table="champion-matchups"
-            filters={{
-              champion: q.champion,
-              source: q.source,
-              patch: m.patch,
-              role: q.role,
-              sort: q.sort,
-              order: q.order,
-            }}
-          />
-        }
-      >
-        <Table
-          caption={`${championName} Lane Opponents`}
-          rows={m.page.items}
-          getRowKey={(r) => String(r.opponent.championKey)}
-          emptyMessage="No matchup observations on this page. Try another role, source, patch or page."
-          columns={[
-            {
-              id: "opponent",
-              header: "Opponent",
-              render: (r) => (
-                <Champion
-                  champion={r.opponent}
-                  {...(r.opponent.championId
-                    ? { href: `/champions/${r.opponent.championId}/matchups?${params}` }
-                    : {})}
-                />
-              ),
-            },
-            { id: "games", header: "Games", align: "end", render: (r) => r.games },
-            ...matchupMetrics.map((metric) => ({
-              id: metric,
-              header: metrics[metric],
-              align: "end" as const,
-              render: (r: ChampionMatchups["page"]["items"][number]) => (
-                <span className="whitespace-nowrap">
-                  {display(r.metrics[metric][q.value], metric)}{" "}
-                  <small className="text-fg-muted">· n={r.metrics[metric].sampleCount}</small>
-                </span>
-              ),
-            })),
-          ]}
-        />
-        <Pages
-          label="Opponent Pages"
-          field="page"
-          page={q.page}
-          total={m.page.total}
-          size={q.pageSize}
-        />
-      </Panel>
-      {m.exclusions.length > 0 ? (
-        <Panel title="Excluded Role Observations" padding="none">
-          <p className="px-4 pt-3 text-sm text-fg-muted">
-            A game can occur in more than one row; these game counts must not be added together.
-          </p>
-          <Table
-            caption="Unpairable Roles"
-            rows={m.exclusions}
-            getRowKey={(r) => r.role}
-            columns={[
-              {
-                id: "role",
-                header: "Role",
-                render: (r) => <RoleIcon role={r.role} />,
-              },
-              { id: "games", header: "Games", align: "end", render: (r) => r.games },
-              {
-                id: "players",
-                header: "Participants",
-                align: "end",
-                render: (r) => r.participants,
-              },
-              { id: "unknown", header: "Unknown Role", align: "end", render: (r) => r.unknownRole },
-              {
-                id: "ambiguous",
-                header: "Ambiguous Role",
-                align: "end",
-                render: (r) => r.ambiguousRole,
-              },
-              {
-                id: "missing",
-                header: "Missing Opponent",
-                align: "end",
-                render: (r) => r.missingOpponent,
-              },
-              {
-                id: "unmapped",
-                header: "Unmapped Champion",
-                align: "end",
-                render: (r) => r.unmappedChampion,
-              },
-            ]}
-          />
-        </Panel>
-      ) : null}
     </div>
   );
 }

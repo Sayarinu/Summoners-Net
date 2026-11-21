@@ -354,7 +354,20 @@ test("search, history, observed rosters and independently accessible played line
       .getByRole("region", { name: "Player Blue mid" })
       .getByRole("link", { name: /Acceptance Blue/ }),
   ).toBeVisible();
-  await expect(page.getByText("100.0%")).toBeVisible();
+  await expect(page.getByText("100.0%", { exact: true }).first()).toBeVisible();
+  // The champion pool lists each champion the player played with its statistics.
+  const pool = page.getByRole("table", { name: "Champion Pool" });
+  await expect(pool.getByRole("row").nth(1)).toContainText("Ahri");
+  await page
+    .getByRole("navigation", { name: "Sort Champion Pool" })
+    .getByRole("link", { name: "KDA" })
+    .click();
+  await expect(page).toHaveURL(/poolSort=kda/);
+  // Profiles filter by stage (and split) from the archive.
+  await page.locator(".np-select", { hasText: "Stage" }).getByRole("button").click();
+  await page.getByRole("option", { name: "Playoffs", exact: true }).click();
+  await expect(page).toHaveURL(/stage=playoffs/);
+  await page.goBack();
   await page
     .getByRole("link", { name: /^Game \d+: / })
     .first()
@@ -373,6 +386,8 @@ test("search, history, observed rosters and independently accessible played line
     const filter = page.getByRole("searchbox", { name: "Filter Games" });
     const [toggles, input] = await Promise.all([bar.boundingBox(), filter.boundingBox()]);
     expect(Math.abs(toggles!.y + toggles!.height - input!.y - input!.height)).toBeLessThan(2);
+    // The view switch sits at the right, after the filters.
+    expect(toggles!.x).toBeGreaterThan(input!.x + input!.width);
   }
   await page.goto("/history?year=2014");
   await expect(page.getByText("No Past Matches in This View")).toBeVisible();
@@ -494,74 +509,83 @@ test("data management pages and import endpoints are not part of the app", async
   await page.goto("/history");
   await expect(page.getByRole("link", { name: "Manage Imports" })).toHaveCount(0);
 });
-test("the tier list filters by role and source and sorts in SQL", async ({ page }) => {
+test("the tier list filters by role and source and leaves out champions with too few games", async ({
+  page,
+}) => {
   await page.goto("/tier-list");
   const table = page.getByRole("table", { name: "Champion Tier List" });
-  // Ten picked champions and one only banned, from one solo-queue game.
-  await expect(table.getByRole("row")).toHaveCount(12);
+  // Ten picked champions and one only banned, from one solo-queue game: all below the minimum.
   await expect(page.getByText(/Patch 16\.4 · 1 game/)).toBeVisible();
+  await expect(table).toContainText("No champion has enough games in this selection yet.");
+  // Champions left out for too few games are not mentioned.
+  await expect(page.getByText(/not listed/)).toHaveCount(0);
+  await expect(table.getByRole("columnheader", { name: /Interval|Sample/ })).toHaveCount(0);
   const choose = async (label: string, option: string) => {
     await page.locator(".np-select", { hasText: label }).getByRole("button").click();
     await page.getByRole("option", { name: option, exact: true }).click();
   };
+  // The Patches filter keeps several patches chosen; it stays open until dismissed.
+  const patches = page.locator(".np-select", { hasText: "Patches" }).getByRole("button");
+  await expect(patches).toHaveText(/Latest with Enough Games/);
+  await patches.click();
+  await page.getByRole("option", { name: "16.4", exact: true }).click();
+  await expect(page.getByRole("option", { name: "16.4", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  await expect(patches).toHaveText(/16\.4/);
   await choose("Role", "Mid");
   await choose("Sort By", "Win Rate");
-  await page.getByRole("button", { name: "Apply Filters" }).click();
-  await expect(page).toHaveURL(/role=MIDDLE/);
-  await expect(page).toHaveURL(/sort=winRate/);
-  await expect(table.getByRole("row")).toHaveCount(3);
-  await expect(table.getByRole("row").nth(1).getByRole("img", { name: "Ahri" })).toBeVisible();
-  await expect(table.getByRole("row").nth(1)).toContainText("Too Few Games");
   await choose("Order", "Lowest First");
   await page.getByRole("button", { name: "Apply Filters" }).click();
+  await expect(page).toHaveURL(/patch=16\.4/);
+  await expect(page).toHaveURL(/role=MIDDLE/);
+  await expect(page).toHaveURL(/sort=winRate/);
   await expect(page).toHaveURL(/order=asc/);
-  await expect(
-    table.getByRole("row").nth(1).getByRole("img", { name: "Champion 157" }),
-  ).toBeVisible();
   await choose("Source", "Pro");
   await page.getByRole("button", { name: "Apply Filters" }).click();
   await expect(page).toHaveURL(/source=pro/);
-  await expect(table.getByRole("row").nth(1).getByRole("img", { name: "Ahri" })).toBeVisible();
   await page.goto("/tier-list?role=SUPPORT");
   await expect(page.getByText(/Choose filters from the lists/)).toBeVisible();
 });
 test("a champion page shows rates, tier and trend, and unknown champions are not found", async ({
   page,
 }) => {
-  await page.goto("/tier-list?role=MIDDLE");
-  await page.getByRole("link", { name: "Ahri", exact: true }).click();
-  await expect(page).toHaveURL(/\/champions\/Ahri$/);
+  await page.goto("/champions/Ahri");
   // The name is shown in the champion's identity; the page heading carries it for screen readers.
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toHaveCount(1);
   await expect(page.getByRole("region", { name: "Ahri", exact: true })).toBeVisible();
-  const stats = page.getByRole("region", { name: "Champion Statistics" });
+  const stats = page.getByLabel("Headline Statistics");
   await expect(
     page.getByRole("region", { name: "Ahri", exact: true }).getByText("Patch 16.4"),
   ).toBeVisible();
-  await expect(stats).toContainText("1 Results100.0%");
+  await expect(stats).toContainText("1 Games100.0%");
+  await expect(stats).not.toContainText("95%");
   await expect(stats).toContainText("Tier");
+  // Trends are collapsed below the builds.
+  await page.getByText("Patch Trends and When It Wins").click();
   await expect(page.getByRole("img", { name: "Ahri Pick Rate by Patch" })).toContainText("16.4");
-  // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.
-  const build = page.getByRole("region", { name: "Most Common Build" });
-  await expect(build.getByRole("region", { name: "Starting Items" })).toContainText(
-    "Too Few Games (1)",
+  // The seeded game's timeline opens with Doran's Ring; its rates show even from one game.
+  const items = page.getByRole("region", { name: "Items" });
+  await expect(items.getByRole("region", { name: "Starting Items" })).toContainText(
+    /\d+\.\d%WR100\.0% Pick1 Games/,
   );
-  await expect(build.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  await expect(items.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  // The rune page is drawn over its tree, the chosen keystone lit.
+  await expect(
+    page.getByRole("region", { name: "Runes" }).getByRole("img", { name: "Electrocute" }).first(),
+  ).toHaveAttribute("data-state", "selected");
   await page.getByText("All Builds, Runes and Skills").click();
   const start = page.getByRole("table", { name: "Starting Items" });
   await expect(start).toContainText("Doran's Ring");
   await expect(page.getByRole("table", { name: "Keystones" })).toContainText("Electrocute");
   await expect(page.getByRole("table", { name: "Summoner Spells" })).toContainText("Flash");
-  // The seeded timeline levels Ahri's Q once: too few skill-ups to decide an order.
-  await expect(page.getByText(/1 for the first levels, 1 for the max order/)).toBeVisible();
-  // One game is below the minimum sample for every bucket.
-  await expect(page.getByRole("region", { name: "When It Wins" })).toContainText(
-    "No bucket has enough results yet.",
-  );
   // Ahri's four teammates from the seeded game; the catalog fixture names only a few champions.
   await expect(
-    page.getByRole("table", { name: "Allies" }).getByRole("img", { name: "Champion 412" }),
+    page.getByRole("table", { name: "Top Allies" }).getByRole("img", { name: "Champion 412" }),
   ).toBeVisible();
+  await page.getByText("Show All 4 Allies").click();
   await expect(page.getByText("4 allies · Page 1")).toBeVisible();
   await page.locator(".np-select", { hasText: "Sort Allies By" }).getByRole("button").click();
   await page.getByRole("option", { name: "Delta", exact: true }).click();
@@ -569,13 +593,8 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/synergySort=delta/);
   await expect(page).toHaveURL(/source=solo/);
   await expect(page.getByText("Bot-Lane Pairs: Win Rate (%)").first()).toBeAttached();
-  // The seeded pro draft picks Ahri once.
-  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence1 Games100.0%");
-  await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
-  await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
-  await page.getByRole("button", { name: "Apply League" }).click();
-  await expect(page).toHaveURL(/league=Draft\+acceptance/);
-  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / BansDrafts1 / 0");
+  // Pro panels belong to the Pro Play view, not the solo-queue page.
+  await expect(page.getByLabel("Pro-Play Statistics")).toHaveCount(0);
   await page.goto("/champions/Ahri?source=pro");
   await expect(
     page.getByRole("navigation", { name: "Source" }).locator('[aria-current="page"]'),
@@ -583,6 +602,23 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(
     page.getByRole("navigation", { name: "Role" }).locator('[aria-current="page"]'),
   ).toHaveAccessibleName("All Roles");
+  // The seeded pro draft picks Ahri once.
+  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence1 Games100.0%");
+  // The league breakdown lists the drafted league; the page's League filter narrows every panel.
+  await expect(page.getByRole("table", { name: "Ahri by League" })).toContainText(
+    "Draft acceptance",
+  );
+  await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
+  await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
+  await page.getByRole("button", { name: "Apply Filters" }).click();
+  await expect(page).toHaveURL(/region=Draft\+acceptance/);
+  await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / BansDrafts1 / 0");
+  await expect(page.getByRole("table", { name: "Ahri Pro Players" })).toBeVisible();
+  // Patch history lists the drafted patch for the chosen league and opens that patch's page.
+  const history = page.getByRole("table", { name: "Ahri Pro Play by Patch · Draft acceptance" });
+  await expect(history.getByRole("row")).toHaveCount(2);
+  await history.getByRole("row").nth(1).getByRole("link").click();
+  await expect(page).toHaveURL(/source=pro.*patch=\d+\.\d+.*region=Draft\+acceptance/);
   const missing = await page.goto("/champions/NotAChampion");
   expect(missing?.status()).toBe(404);
 });
@@ -655,29 +691,17 @@ test("the game map overlays timeline events and jumps to a selected event", asyn
   await expect(page.locator(".np-minimap__event--kill")).toHaveCount(0);
   await expect(list).not.toContainText("killed");
 });
-test("heatmaps report their sample and are not drawn below the minimum", async ({ page }) => {
-  await page.goto("/champions/Ahri");
-  await page.getByRole("link", { name: "Heatmaps", exact: true }).click();
-  await expect(page).toHaveURL(/\/heatmaps\?subjectKind=champion&subject=Ahri/);
-  await expect(page.getByRole("heading", { name: "Ahri: positions" })).toBeVisible();
-  // The one seeded game with a timeline: Ahri's minute 1 and 2 frames.
-  const sample = page.getByRole("status", { name: "Sample" });
-  await expect(sample).toContainText("Patch 16.4");
-  await expect(sample.getByRole("definition")).toHaveText(["1", "2", "10 games"]);
-  await expect(page.getByText("Too Few Games to Draw")).toBeVisible();
-  await expect(page.locator(".np-minimap")).toHaveCount(0);
-  await page
-    .getByRole("navigation", { name: "Heatmap Type" })
-    .getByRole("link", { name: "Kills" })
-    .click();
-  await expect(page.getByRole("heading", { name: "Ahri: kills" })).toBeVisible();
-  await page.getByRole("link", { name: "Jungle", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Jungle: kills" })).toBeVisible();
-  await expect(sample.getByRole("definition")).toHaveText(["1", "1", "10 games"]);
-  await page.goto("/heatmaps?subjectKind=champion&subject=Ahri&kind=assists");
-  await expect(page.getByText(/^Choose a champion, player or role/)).toBeVisible();
-  const missing = await page.goto("/heatmaps?subjectKind=champion&subject=NotAChampion");
-  expect(missing?.status()).toBe(404);
+test("the champion page is one page: no heatmaps and no separate matchups page", async ({
+  page,
+}) => {
+  await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
+  await expect(page.getByRole("navigation", { name: "Champion Pages" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Heatmaps", exact: true })).toHaveCount(0);
+  expect((await page.goto("/heatmaps?subjectKind=champion&subject=Ahri"))?.status()).toBe(404);
+  // Older matchup links open the champion page with their source, role and patch.
+  await page.goto("/champions/Ahri/matchups?source=solo&patch=16.4&role=MIDDLE&value=raw");
+  await expect(page).toHaveURL(/\/champions\/Ahri\?source=solo&role=MIDDLE&patch=16\.4#matchups$/);
+  await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeAttached();
 });
 test("the champion page shows inferred early jungle paths for the jungle role", async ({
   page,
@@ -793,22 +817,11 @@ test("a pro game without recorded events or probabilities omits the timeline", a
   if (await reveal.isVisible()) await reveal.click();
   await expect(page.getByRole("heading", { name: "Timeline" })).toHaveCount(0);
 });
-test("model diagnostics show versions, calibration and named weights", async ({ page }) => {
+test("model diagnostics live in the CLI, not the app", async ({ page }) => {
   await page.goto("/solo-games/EUW1_7000000001");
-  await page.getByRole("link", { name: "Model Diagnostics" }).click();
-  await expect(page).toHaveURL(/\/models\?model=1/);
-  await expect(page.getByRole("heading", { name: "Model Diagnostics", level: 1 })).toBeVisible();
-  await expect(page.getByRole("table", { name: "Model Versions" })).toContainText(
-    "Solo Queue (Timelines)",
-  );
-  await expect(
-    page.getByText("Reliability: Predicted vs Observed Blue Win Rate (%)").first(),
-  ).toBeAttached();
-  await expect(page.getByRole("table", { name: "Feature Weights" })).toContainText(
-    "Gold difference (per 5,000)",
-  );
-  await page.goto("/models?model=nope");
-  await expect(page.getByText("Choose a model from the list.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Model Diagnostics" })).toHaveCount(0);
+  const removed = await page.goto("/models");
+  expect(removed?.status()).toBe(404);
 });
 test("keyboard navigation, accessible names and responsive layout", async ({ page }, info) => {
   await page.goto("/");
@@ -934,6 +947,12 @@ test("missing and failed portraits show a person across search and profiles", as
     failedRequests++;
     return route.abort();
   });
+  await page.goto("/players?role=mid");
+  await expect(page.getByRole("button", { name: /Role/ })).toHaveText(/Mid/);
+  const mids = page.getByRole("list", { name: "Players" }).getByRole("listitem");
+  await expect(mids.first()).toBeVisible();
+  for (const card of await mids.all())
+    await expect(card.locator('[aria-label="Mid"]')).toHaveCount(1);
   await page.goto("/players?q=Observed+Player");
   const result = page.getByRole("link", { name: /Observed Player/ });
   await expect(result.locator('[data-entity-kind="player"] svg')).toBeVisible();
@@ -1119,10 +1138,10 @@ test("champion players explain their minimum sample and validate sort and page s
   page,
 }) => {
   await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
-  const section = page.getByRole("region", { name: "Top Sampled Ladder Players" });
-  await expect(section).toContainText("At least 10 retained ranked solo games");
+  const section = page.getByRole("region", { name: "Top Ladder Players" });
+  await expect(section).not.toContainText(/At least|retained/);
   await expect(section.getByRole("table")).toContainText(
-    "No current ladder players have enough sampled games",
+    "No ladder players on this champion in this selection yet.",
   );
   await section.getByRole("button", { name: /Sort Players By$/ }).click();
   await page.getByRole("option", { name: "Win Rate", exact: true }).click();
@@ -1134,36 +1153,18 @@ test("champion players explain their minimum sample and validate sort and page s
   await expect(page.getByRole("alert").filter({ hasText: "Choose filters" })).toBeVisible();
 });
 
-test("champion matchups show sampled metrics, switch values and validate selections", async ({
-  page,
-}) => {
+test("the champion page lists every lane opponent in place", async ({ page }) => {
   await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
-  await page.getByRole("link", { name: "Lane Matchups", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
-  // One seeded lane game: the stored blindability score stays unknown, with its reason.
-  await expect(page.getByLabel("Blindability Statistics")).toContainText(
-    "Blindability ScoreUnknown",
-  );
-  await expect(page.getByRole("status").filter({ hasText: "Score unavailable" })).toContainText(
-    "Fewer than 3 opponents",
-  );
-  await page.getByText("How Blindability Is Calculated").click();
-  await expect(page.getByText(/E = Σ wᵢ·pᵢ/)).toBeVisible();
-  const table = page.getByRole("table", { name: "Ahri lane opponents" });
-  await expect(table).toContainText("Unknown · n=1");
-  await expect(table).toContainText("Team First Blood");
-  await expect(table).toContainText("XP Δ at 15");
-  await page.getByRole("button", { name: /Values$/ }).click();
-  await page.getByRole("option", { name: "Raw", exact: true }).click();
-  await page.getByRole("button", { name: "Apply Filters" }).click();
-  await expect(page).toHaveURL(/value=raw/);
-  await expect(table).toContainText("Unknown · n=1");
-  await page.goto("/champions/Ahri/matchups?patch=16.4&page=2");
-  await expect(table).toContainText("No matchup observations on this page");
-  await page.goto("/champions/Ahri/matchups?source=all");
-  await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
-  const missing = await page.goto("/champions/NoSuchChampion/matchups");
-  expect(missing?.status()).toBe(404);
+  // One seeded lane game: too few for good or bad matchups, but the opponent is still listed.
+  const matchups = page.getByRole("region", { name: /^Matchups/ });
+  await expect(matchups.getByRole("region", { name: "Good Against" })).toHaveCount(0);
+  await expect(matchups).not.toContainText(/fewer than|not listed/);
+  await matchups.getByText("Show All 1 Opponents").click();
+  const all = matchups.getByRole("table", { name: "All Lane Opponents" });
+  await expect(all.getByRole("row")).toHaveCount(2);
+  await expect(all).toContainText(/100\.0%|0\.0%/);
+  // Without a stored score there is no counter-pick panel.
+  await expect(page.getByRole("heading", { name: "Counter-Pick Value" })).toHaveCount(0);
 });
 test("the draft assistant ranks stored candidates from the URL and excludes picks and bans", async ({
   page,
@@ -1189,11 +1190,7 @@ test("the draft assistant ranks stored candidates from the URL and excludes pick
 test("role counter-pick values list stored values with reasons and validate filters", async ({
   page,
 }) => {
-  await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
-  await expect(page.getByLabel("Counter-Pick Statistics")).toContainText(
-    "Counter-Pick ValueUnknown",
-  );
-  await page.getByRole("link", { name: "Mid Counter-Pick Values" }).click();
+  await page.goto("/matchups/MIDDLE/counter-picks?patch=16.4");
   await expect(page.getByRole("heading", { name: "Mid Counter-Pick Values" })).toBeVisible();
   const table = page.getByRole("table", { name: "Mid Counter-Pick Values" });
   await expect(table.getByRole("img", { name: "Ahri" }).first()).toBeVisible();
@@ -1219,17 +1216,13 @@ test("aggregate tables download as CSV with the page's filters", async ({ page }
   const csv = await readFile(await tier.path(), "utf8");
   expect(csv.split("\r\n")[0]).toContain("champion_key,champion_id,champion_name,role,games");
   expect(csv).toContain(",Ahri,Ahri,MIDDLE,1,1,");
-  await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
-  const link = page.getByRole("link", { name: "Download CSV" });
-  await expect(link).toHaveAttribute(
-    "href",
+  const matchups = await page.request.get(
     "/api/export/champion-matchups?champion=Ahri&source=solo&patch=16.4&role=MIDDLE&sort=games&order=desc",
   );
-  const matchups = await page.request.get((await link.getAttribute("href"))!);
   expect(matchups.headers()["content-type"]).toBe("text/csv; charset=utf-8");
-  // One game against a champion missing from the catalog: its key stays, its name is empty, and
-  // rates below the minimum are empty with their sample counts.
-  expect(await matchups.text()).toContain("\r\nsolo,16.4,MIDDLE,103,Ahri,Ahri,157,,,1,,,1,,1,");
+  // One game against a champion missing from the catalog: its key stays and its name is empty.
+  // The observed rate is shown; the shrunk estimate is empty below the minimum sample.
+  expect(await matchups.text()).toMatch(/\r\nsolo,16\.4,MIDDLE,103,Ahri,Ahri,157,,,1,[01],,1,/);
   expect((await page.request.get("/api/export/tier-list?role=SUPPORT")).status()).toBe(400);
   expect((await page.request.get("/api/export/unknown")).status()).toBe(404);
 });
@@ -1242,6 +1235,18 @@ test("navigation reaches every analytics section and search finds champions", as
   await page.goto("/champions");
   await expect(page.getByRole("heading", { name: "Champions", exact: true })).toBeVisible();
   await expect(nav("Champions")).toHaveAttribute("aria-current", "page");
+  // The selected entry reads in the gold accent, with no accent bar beside it.
+  const selected = await nav("Champions").evaluate((link) => {
+    const style = getComputedStyle(link);
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-text-accent)";
+    document.body.append(probe);
+    const accent = getComputedStyle(probe).color;
+    probe.remove();
+    return { color: style.color, accent, shadow: style.boxShadow };
+  });
+  expect(selected.color).toBe(selected.accent);
+  expect(selected.shadow).toBe("none");
   // Each champion card opens the champion, whose tabs lead on to its lane matchups.
   await expect(
     page
@@ -1267,7 +1272,6 @@ test("navigation reaches every analytics section and search finds champions", as
   for (const [name, href] of [
     ["Tier List", "/tier-list"],
     ["Drafts", "/drafts"],
-    ["Models", "/models"],
   ] as const)
     await expect(nav(name)).toHaveAttribute("href", href);
   await page.goto("/search?q=ahri");
@@ -1299,8 +1303,10 @@ test("role matchup matrices retain null-cell samples and expose a table alternat
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  // A champion's matchups are on its champion page.
   await page.getByRole("link", { name: "Ahri matchups", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
+  await expect(page).toHaveURL(/\/champions\/Ahri\?.*#matchups$/);
+  await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toBeAttached();
   await page.goto("/matchups/MIDDLE?source=pro&patch=16.4&metric=gold10&value=raw&columnPage=2");
   await expect(page.getByText("No observations available", { exact: true })).toBeVisible();
   await page.goto("/matchups/MIDDLE?columnPage=0");

@@ -2,7 +2,7 @@ import type { Executor } from "./database.js";
 import { leagueOrder } from "./team-directory.js";
 import {
   directoryQuerySchema,
-  type BrowseQuery,
+  type DirectoryQuery,
   type Identity,
   type Page,
 } from "../domain/models.js";
@@ -12,11 +12,12 @@ export type PlayerDirectoryEntry = Identity & { team: Identity | null };
 /**
  * Lists player profiles with their current team: the team of their latest recent game or of a
  * current saved roster, as long as that team played or has a fixture recently. A league filter
- * keeps players whose current team played in that league in its latest season.
+ * keeps players whose current team played in that league in its latest season; a role filter
+ * matches the player's recorded lane under any of its spellings.
  */
 export async function playerDirectory(
   db: Executor,
-  input: BrowseQuery,
+  input: DirectoryQuery,
   now: Date,
 ): Promise<Page<PlayerDirectoryEntry>> {
   const q = directoryQuerySchema.parse(input);
@@ -60,13 +61,19 @@ export async function playerDirectory(
         LEFT JOIN entity_profiles t ON t.id=c.team_id
         LEFT JOIN latest l ON l.entity_id=c.team_id
       WHERE p.kind='player' AND ($2::text IS NULL OR $2=ANY(l.competitions))
+        AND ($6::text IS NULL OR CASE lower(p.document->>'role')
+          WHEN 'top' THEN 'top' WHEN 'jungle' THEN 'jungle' WHEN 'jng' THEN 'jungle'
+          WHEN 'jun' THEN 'jungle' WHEN 'mid' THEN 'mid' WHEN 'middle' THEN 'mid'
+          WHEN 'bottom' THEN 'bottom' WHEN 'bot' THEN 'bottom' WHEN 'adc' THEN 'bottom'
+          WHEN 'support' THEN 'support' WHEN 'sup' THEN 'support' WHEN 'utility' THEN 'support'
+          END=$6)
         AND EXISTS (SELECT 1 FROM identity_aliases a JOIN entity_members m ON m.id=a.identity_id
           WHERE m.entity_id=p.id AND lower(a.name) LIKE '%'||$1||'%')
     ) SELECT (SELECT count(*)::integer FROM filtered) AS total,
       coalesce((SELECT jsonb_agg(document ORDER BY active DESC,lower(name),id) FROM (
         SELECT * FROM filtered ORDER BY active DESC,lower(name),id LIMIT $4 OFFSET $5
       ) batch),'[]') AS items`,
-    [pattern, q.league ?? null, now, q.pageSize, (q.page - 1) * q.pageSize],
+    [pattern, q.league ?? null, now, q.pageSize, (q.page - 1) * q.pageSize, q.role ?? null],
   );
   return { ...rows[0]!, page: q.page, pageSize: q.pageSize };
 }

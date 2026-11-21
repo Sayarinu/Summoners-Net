@@ -88,6 +88,11 @@ Open <http://127.0.0.1:3000>. Keep `pnpm sync` running in another terminal for c
 Everything binds to loopback. Stop PostgreSQL with `docker compose stop`; never use
 `docker compose down -v` on a library you want to keep.
 
+After the first setup, `pnpm prod` runs the routine steps in one terminal: it starts PostgreSQL,
+builds, applies migrations, then runs the web server and the sync worker side by side, with each
+line prefixed `[web]` or `[sync]`. `pnpm prod --skip-build` reuses the last build. Ctrl+C stops
+both, and if either one exits the other stops too.
+
 Settings live in the ignored `.env` (see `.env.example`): `DATABASE_URL`, `TEST_DATABASE_URL`,
 `PANDASCORE_TOKEN`, `GOOGLE_DRIVE_API_KEY` (used when anonymous Google Drive downloads are
 quota-blocked) and `ORACLE_CURRENT_FILE` (a local current-year CSV that the daily refresh rereads).
@@ -110,13 +115,13 @@ or rejected and why) or queue it for the worker with `pnpm queue wp-train`. A sa
 small is stored as rejected and the active model stays. The pro model trains on every recorded
 minute once at least 500 training games have a Leaguepedia timeline, and is evaluated on whole
 held-out games, overall and per game phase (before 15:00, 15:00 to 25:00, after 25:00). The same job
-trains the pre-game [draft model](docs/analytics/draft-model.md). `/models` shows every stored
-model's calibration.
+trains the pre-game [draft model](docs/analytics/draft-model.md). `pnpm models` prints every stored
+model version, and `pnpm models <id>` one model's evaluation, calibration and feature weights.
 
 The navigation leads to **Champions** (every catalog champion, the role matchup matrices,
 counter-pick values and the draft assistant), the **Tier list**, **Leaderboards** (win probability
-added, pro accounts and regional ladders), **Patches**, **Drafts** and **Models**. Search also finds
-champions by name and sampled solo-queue players by Riot ID (`Name#TAG`).
+added, pro accounts and regional ladders), **Patches** and **Drafts**. Search also finds champions
+by name and sampled solo-queue players by Riot ID (`Name#TAG`).
 
 Aggregate tables (tier list, trending, patch overview, WPA leaderboards, matchups, the role matrix,
 counter-pick values and pro drafts) have a **Download CSV** link. It streams the whole table with

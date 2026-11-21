@@ -270,23 +270,8 @@ export function worker(pool: Pool, options: WorkerOptions) {
       }
     }
     const response = await request(archiveDownload(year), false, 300000);
-    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) return response;
-    const reader = response.body?.getReader();
-    if (!reader) throw new ProviderError("Archive returned an HTML/quota page.");
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        bytes += value.byteLength;
-        if (bytes > 16384) throw new ProviderError("Archive returned an oversized HTML page.");
-        chunks.push(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    const html = Buffer.concat(chunks).toString("utf8");
+    if (!isHtml(response)) return response;
+    const html = await htmlPage(response);
     const form = html.match(
       /<form\b[^>]*action="([^"]+)"[^>]*method="get"[^>]*>([\s\S]*?)<\/form>/i,
     );
@@ -297,15 +282,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
       if (name && value) fields.set(name, value);
     }
     const uuid = fields.get("uuid");
-    // Drive's download quota lasts hours, not minutes: wait it out without using up the job's
-    // attempts, so a blocked year keeps retrying until the file can be downloaded.
-    if (/<title>[^<]*Quota exceeded/i.test(html)) {
-      const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
-      throw new DeferredRequest(
-        until,
-        `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
-      );
-    }
+    if (quotaPage(html)) throw quotaDeferral();
     if (
       !html.includes("Google Drive - Virus scan warning") ||
       form?.[1] !== "https://drive.usercontent.google.com/download" ||
@@ -321,7 +298,61 @@ export function worker(pool: Pool, options: WorkerOptions) {
     const url = new URL("https://drive.usercontent.google.com/download");
     for (const name of ["id", "export", "confirm", "uuid"])
       url.searchParams.set(name, fields.get(name)!);
-    return request(url.toString(), false, 300000);
+    // The confirmed download can still meet the quota, as an HTML page with or without an error status.
+    let confirmed: Response;
+    try {
+      confirmed = await fetcher(url.toString(), {
+        signal: AbortSignal.timeout(300000),
+        redirect: "follow",
+      });
+    } catch {
+      throw new ProviderError("Provider connection failed; saved data is unchanged.", true);
+    }
+    if (isHtml(confirmed)) {
+      if (quotaPage(await htmlPage(confirmed))) throw quotaDeferral();
+      throw new ProviderError(
+        "Archive returned an HTML page after the download confirmation; official download unavailable.",
+      );
+    }
+    if (!confirmed.ok)
+      throw new ProviderError(
+        `Provider returned HTTP ${confirmed.status}.`,
+        confirmed.status === 429 || confirmed.status >= 500,
+      );
+    return confirmed;
+  }
+  const isHtml = (response: Response) =>
+    response.headers.get("content-type")?.toLowerCase().includes("text/html") ?? false;
+  /** An HTML reply's text, refusing anything larger than a Drive notice page. */
+  async function htmlPage(response: Response) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new ProviderError("Archive returned an HTML/quota page.");
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 16384) throw new ProviderError("Archive returned an oversized HTML page.");
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks).toString("utf8");
+  }
+  const quotaPage = (html: string) => /<title>[^<]*Quota exceeded/i.test(html);
+  /**
+   * Drive's download quota lasts hours, not minutes: wait it out without using up the job's
+   * attempts, so a blocked year keeps retrying until the file can be downloaded.
+   */
+  function quotaDeferral() {
+    const until = new Date(clock().valueOf() + archiveQuotaWaitMs);
+    return new DeferredRequest(
+      until,
+      `Archive download quota exceeded; the official download is retried after ${until.toISOString()}.`,
+    );
   }
   async function pandaPages(path: string) {
     const all: unknown[] = [];
@@ -434,6 +465,10 @@ export function worker(pool: Pool, options: WorkerOptions) {
   /**
    * Resolves ladder players with no account or a check older than a week, a bounded batch per
    * run. A failed lookup leaves the stored account and its timestamps untouched.
+   *
+   * Riot IDs are only displayed, and the lookups share the regional limit with the match crawl.
+   * When that limit runs out the run ends with what it resolved instead of waiting for a slot:
+   * a deferred job would be claimed first every time a slot frees, starving the crawl.
    */
   async function resolveAccounts(): Promise<number> {
     if (!riot) return 0;
@@ -451,7 +486,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         await saveAccount(pool, parseAccount(await response.json(), puuid), clock());
         resolved++;
       } catch (error) {
-        if (error instanceof DeferredRequest) throw error;
+        if (error instanceof DeferredRequest) return resolved;
         failures++;
       }
     }
@@ -587,9 +622,50 @@ export function worker(pool: Pool, options: WorkerOptions) {
           return false;
         }
         await saveRiotMatch(pool, match, payload, clock());
+        // Builds and skills come from timelines, so each match brings its timeline
+        // rather than waiting for every match first. A failed timeline stays pending for the
+        // timeline job; running out of budget defers this run as any request does.
+        try {
+          await fetchTimeline({ matchId, region });
+        } catch (error) {
+          if (!(error instanceof ProviderError)) throw error;
+        }
         return true;
       },
     );
+  }
+  /** Fetches, validates and stores one match's timeline; a 404 or invalid one is recorded. */
+  async function fetchTimeline({ matchId, region }: { matchId: string; region: string }) {
+    const response = await riot!(
+      riotRoutingSchema.parse(region),
+      "match-v5.getTimeline",
+      `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
+    );
+    if (response.status === 404) {
+      await markTimelineUnavailable(pool, matchId, "missing", clock());
+      return false;
+    }
+    if (!response.ok)
+      throw new ProviderError(
+        `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
+        response.status === 429 || response.status >= 500,
+      );
+    let timeline;
+    try {
+      timeline = parseRiotTimeline(await response.json(), matchId);
+    } catch {
+      await markTimelineUnavailable(pool, matchId, "invalid", clock());
+      return false;
+    }
+    try {
+      await saveTimeline(pool, timeline, clock());
+      return true;
+    } catch (error) {
+      // A timeline naming participants the ingested match does not have (foreign key).
+      if ((error as { code?: string }).code !== "23503") throw error;
+      await markTimelineUnavailable(pool, matchId, "invalid", clock());
+      return false;
+    }
   }
   /**
    * Fetches timelines for ingested matches, oldest first. Each timeline is validated and written
@@ -597,41 +673,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
    */
   async function ingestTimelines(): Promise<number> {
     if (!riot) return 0;
-    return drainRiot(
-      (limit) => pendingTimelines(pool, limit),
-      async ({ matchId, region }) => {
-        const response = await riot(
-          riotRoutingSchema.parse(region),
-          "match-v5.getTimeline",
-          `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
-        );
-        if (response.status === 404) {
-          await markTimelineUnavailable(pool, matchId, "missing", clock());
-          return false;
-        }
-        if (!response.ok)
-          throw new ProviderError(
-            `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
-            response.status === 429 || response.status >= 500,
-          );
-        let timeline;
-        try {
-          timeline = parseRiotTimeline(await response.json(), matchId);
-        } catch {
-          await markTimelineUnavailable(pool, matchId, "invalid", clock());
-          return false;
-        }
-        try {
-          await saveTimeline(pool, timeline, clock());
-          return true;
-        } catch (error) {
-          // A timeline naming participants the ingested match does not have (foreign key).
-          if ((error as { code?: string }).code !== "23503") throw error;
-          await markTimelineUnavailable(pool, matchId, "invalid", clock());
-          return false;
-        }
-      },
-    );
+    return drainRiot((limit) => pendingTimelines(pool, limit), fetchTimeline);
   }
   /**
    * Keeps solo-queue data for the current patch and the configured previous patches. Prunes in

@@ -247,7 +247,7 @@ describe("browse presentation", () => {
           ]),
           pageSize: 36,
         }}
-        query={{ q: "Player", league: "LCK" }}
+        query={{ q: "Player", league: "LCK", role: "mid" }}
       />,
     );
     const card = screen.getByRole("link", { name: /Player Blue mid/ }).closest("li")!;
@@ -264,6 +264,7 @@ describe("browse presentation", () => {
     expect(screen.getByText("No current team")).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "Search Players" })).toHaveValue("Player");
     expect(screen.getByRole("button", { name: /League/ })).toHaveTextContent("LCK");
+    expect(screen.getByRole("button", { name: /Role/ })).toHaveTextContent("Mid");
     expect(document.querySelector('input[name="pageSize"]')).toHaveValue("36");
     const { replace } = useRouter() as unknown as Record<"replace", Mock>;
     replace.mockClear();
@@ -271,7 +272,10 @@ describe("browse presentation", () => {
       target: { value: "Faker" },
     });
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    expect(replace.mock.calls[0]).toEqual(["/?q=Faker&league=LCK&pageSize=36", { scroll: false }]);
+    expect(replace.mock.calls[0]).toEqual([
+      "/?q=Faker&league=LCK&role=mid&pageSize=36",
+      { scroll: false },
+    ]);
     view.rerender(<PlayerFinder data={page([])} query={{ q: "none" }} />);
     expect(screen.getByText("No Players Found")).toBeVisible();
     view.rerender(

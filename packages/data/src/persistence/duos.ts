@@ -49,6 +49,8 @@ export async function championSynergies(
   input: {
     championKey: number;
     patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     role: string;
     region?: string | undefined;
     tier?: string | undefined;
@@ -71,7 +73,7 @@ export async function championSynergies(
     total: number;
   }>(
     `WITH filtered AS (
-       SELECT * FROM champion_aggregates WHERE source='solo' AND patch_key=$1
+       SELECT * FROM champion_aggregates WHERE source='solo' AND patch_key=ANY($9::text[])
          AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)),
      rates AS (
        SELECT champion_key,role,sum(wins)::double precision/nullif(sum(result_games),0) AS rate
@@ -79,7 +81,7 @@ export async function championSynergies(
      duo AS (
        SELECT ally_key,ally_role,sum(games)::integer AS games,
          sum(result_games)::integer AS result_games,sum(wins)::integer AS wins
-       FROM champion_duos WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
+       FROM champion_duos WHERE patch_key=ANY($9::text[]) AND champion_key=$2 AND ($3='ALL' OR role=$3)
          AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
        GROUP BY ally_key,ally_role),
      scored AS (
@@ -106,16 +108,18 @@ export async function championSynergies(
       deltaShrinkGames,
       synergyPageSize,
       (input.page - 1) * synergyPageSize,
+      input.patches ?? [input.patch],
     ],
   );
   return {
     sort: input.sort,
     page: {
       items: rows.rows.map((r): SynergyRow => {
-        const win = applySamplePolicy({
+        // The win rate is shown at any sample; the delta keeps the minimum.
+        const win = {
           value: r.result_games ? r.wins / r.result_games : null,
           sampleCount: r.result_games,
-        });
+        };
         const delta = applySamplePolicy({ value: r.delta, sampleCount: r.result_games });
         return {
           allyKey: r.ally_key,
@@ -139,7 +143,13 @@ export async function championSynergies(
 /** Win rates of the most played bot-lane carries with the most played supports. */
 export async function botLaneMatrix(
   db: Executor,
-  input: { patch: string; region?: string | undefined; tier?: string | undefined },
+  input: {
+    patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
+    region?: string | undefined;
+    tier?: string | undefined;
+  },
   size = 8,
 ): Promise<BotLaneMatrix> {
   const pairs = await db.query<{
@@ -152,7 +162,7 @@ export async function botLaneMatrix(
     `WITH pairs AS (
        SELECT champion_key AS carry,ally_key AS support,sum(games)::integer AS games,
          sum(result_games)::integer AS result_games,sum(wins)::integer AS wins
-       FROM champion_duos WHERE patch_key=$1 AND role='BOTTOM' AND ally_role='UTILITY'
+       FROM champion_duos WHERE patch_key=ANY($1::text[]) AND role='BOTTOM' AND ally_role='UTILITY'
          AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
        GROUP BY champion_key,ally_key),
      carries AS (SELECT carry FROM pairs GROUP BY carry ORDER BY sum(games) DESC,carry LIMIT $4),
@@ -160,7 +170,7 @@ export async function botLaneMatrix(
      SELECT p.* FROM pairs p WHERE p.carry IN (SELECT carry FROM carries)
        AND p.support IN (SELECT support FROM supports)
      ORDER BY p.carry,p.support`,
-    [input.patch, input.region ?? null, input.tier ?? null, size],
+    [input.patches ?? [input.patch], input.region ?? null, input.tier ?? null, size],
   );
   const keys = [...new Set(pairs.rows.flatMap((p) => [p.carry, p.support]))];
   const named = new Map(

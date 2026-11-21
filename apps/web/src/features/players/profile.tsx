@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import type { ChampionPool as ChampionPoolData } from "@summonersnet/data/contracts";
 import type {
   BrowseQuery,
   Game,
@@ -21,6 +22,7 @@ import { useSpoilerPreference } from "../browse/match-group";
 import { dateTime, gameTeams, identityHref } from "../browse/presentation";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 import { ChampionPool } from "../teams/pages";
+import { PlayerChampionPool } from "./champion-pool";
 
 type Metric = keyof Omit<PlayerPerformance, "games">;
 type StatLine = { label: string; metric: Metric; format: (value: number) => string };
@@ -141,7 +143,7 @@ function PlayerGameRow({
   const versus = ordered.map((t) => t.name).join(" versus ");
   return (
     <article
-      className="relative grid min-h-19 grid-cols-[minmax(120px,18%)_44px_minmax(0,1fr)_minmax(120px,max-content)] items-center gap-4 border-b border-line px-5 py-3 last:border-b-0 focus-within:bg-interactive/50 hover:bg-interactive/50 border-l-3 border-l-transparent data-[result=false]:border-l-loss data-[result=true]:border-l-success max-[700px]:grid-cols-[44px_minmax(0,1fr)_auto] max-[700px]:gap-x-3 max-[700px]:gap-y-2 max-[700px]:px-3"
+      className="relative grid min-h-19 grid-cols-[minmax(120px,18%)_44px_minmax(0,1fr)_minmax(120px,max-content)] items-center gap-4 border-b border-line px-5 py-3 last:border-b-0 focus-within:bg-interactive/50 hover:bg-interactive/50 max-[700px]:grid-cols-[44px_minmax(0,1fr)_auto] max-[700px]:gap-x-3 max-[700px]:gap-y-2 max-[700px]:px-3"
       data-result={hidden ? undefined : (own?.won ?? undefined)}
     >
       <div className="grid gap-0.5 text-sm text-fg-muted max-[700px]:col-span-full max-[700px]:flex max-[700px]:gap-2">
@@ -203,6 +205,8 @@ export function PlayerProfile({
   seasons,
   query,
   hideSpoilers,
+  championPool,
+  splits,
 }: {
   profile: Profile;
   performance: PlayerPerformance;
@@ -210,6 +214,10 @@ export function PlayerProfile({
   seasons: PlayerSeason[];
   query: BrowseQuery;
   hideSpoilers: boolean;
+  /** The player's champions with per-champion statistics; without it the compact pool shows. */
+  championPool?: ChampionPoolData;
+  /** The pro splits this player played in the selected year. */
+  splits?: string[];
 }) {
   const { identity, summary, roster, games } = profile;
   const spoilersHidden = useSpoilerPreference(hideSpoilers);
@@ -258,12 +266,13 @@ export function PlayerProfile({
             ) : null}
           </div>
           <Filters
-            key={[year, query.q, query.league].join("-")}
+            key={[year, query.q, query.league, query.split, query.stage].join("-")}
             history
             view="series"
             query={query}
             seasons={years}
             selectedYear={year}
+            {...(splits ? { splits } : {})}
             className="max-[600px]:w-full"
           />
         </div>
@@ -338,9 +347,18 @@ export function PlayerProfile({
           </div>
         )}
       </Panel>
-      {!hidden && summary.champions.length > 0 && (
+      {!hidden && championPool && championPool.page.total > 0 ? (
+        <PlayerChampionPool
+          pool={championPool}
+          portraits={portraits}
+          filters={{
+            ...(typeof query.year === "number" ? { year: String(query.year) } : { year: "all" }),
+            ...(query.league ? { league: query.league } : {}),
+          }}
+        />
+      ) : !hidden && summary.champions.length > 0 ? (
         <ChampionPool champions={summary.champions} portraits={portraits} />
-      )}
+      ) : null}
     </div>
   );
 }

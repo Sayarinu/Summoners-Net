@@ -9,12 +9,12 @@ import type { Executor } from "./database.js";
 export const trendScope = `chosen AS (
    SELECT p.patch_key,p.release_order FROM patches p WHERE p.patch_key=coalesce($1::text,(
      SELECT a.patch_key FROM champion_aggregates a JOIN patches p USING(patch_key)
-     WHERE a.source=$2 AND a.queue=$3 ORDER BY p.release_order DESC LIMIT 1))
+     WHERE a.source=$2 AND ($3::text IS NULL OR a.queue=$3) ORDER BY p.release_order DESC LIMIT 1))
  ), prior AS (
    SELECT p.patch_key FROM patches p,chosen c WHERE p.release_order<c.release_order
    ORDER BY p.release_order DESC LIMIT 1
  ), scoped AS (
-   SELECT * FROM champion_aggregates WHERE source=$2 AND queue=$3
+   SELECT * FROM champion_aggregates WHERE source=$2 AND ($3::text IS NULL OR queue=$3)
      AND patch_key IN (SELECT patch_key FROM chosen UNION ALL SELECT patch_key FROM prior)
  ), samples AS (
    SELECT patch_key,sum(slice_games)::integer AS games FROM (
@@ -72,7 +72,7 @@ export async function trending(db: Executor, input: TrendingQuery): Promise<Tren
    (SELECT count(*)::integer FROM pairs) AS total,
    coalesce((SELECT jsonb_agg(to_jsonb(rows) ORDER BY "championKey") FROM rows),'[]'::jsonb) AS items
  `,
-      [q.patch ?? null, q.source, q.source === "solo" ? "420" : "pro", q.role, (q.page - 1) * 50],
+      [q.patch ?? null, q.source, q.source === "solo" ? "420" : null, q.role, (q.page - 1) * 50],
     )
   ).rows[0]!;
   // Invalid aggregate numerators cannot define a proportion; retain unknown instead of clamping.

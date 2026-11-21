@@ -64,9 +64,22 @@ function HeatGridShapes() {
         cells={["Ahri", "Orianna", "Syndra", "Azir"].map((c, i) => cell("Mid", c, 0.45 + i * 0.03))}
         color={5}
       />
+      <HeatGrid
+        title="Crowded columns"
+        cells={["Jinx", "Kai'Sa", "Ezreal", "Jhin", "Zeri", "Caitlyn", "Lucian", "Xayah"].flatMap(
+          (row, r) =>
+            ["Nautilus", "Thresh", "Rell", "Braum", "Milio", "Lulu", "Nami", "Karma"].map(
+              (column, c) => cell(row, column, 0.45 + ((r + c) % 5) * 0.02),
+            ),
+        )}
+        color={2}
+      />
     </main>
   );
 }
 
-/** One cell or one row keeps square cells instead of stretching across the chart. */
+/**
+ * One cell or one row keeps square cells instead of stretching across the chart. Crowded column
+ * labels alternate between two lines and are shortened only when they still do not fit.
+ */
 export const SmallGrids: StoryObj<typeof HeatGridShapes> = { render: () => <HeatGridShapes /> };

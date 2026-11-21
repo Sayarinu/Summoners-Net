@@ -4,6 +4,7 @@ import {
   directoryQuerySchema,
   querySchema,
   type BrowseQuery,
+  type DirectoryQuery,
 } from "@summonersnet/data";
 import { cookies } from "next/headers";
 import { parsePreferences, preferencesCookie } from "../features/preferences/model";
@@ -28,20 +29,24 @@ export async function preferencesState() {
 export async function preferences() {
   return (await preferencesState()).value;
 }
-export async function browseQuery(
-  params: Promise<Record<string, string | string[] | undefined>>,
-  schema: typeof querySchema | typeof directoryQuerySchema = querySchema,
-): Promise<BrowseQuery> {
+async function rawQuery(params: Promise<Record<string, string | string[] | undefined>>) {
   const entries = await params;
   const prefs = await preferences();
   const raw = Object.fromEntries(
     Object.entries(entries).filter(([, v]) => v !== "" && v !== "all"),
   );
-  return schema.parse({ timezone: prefs.timezone, ...raw });
+  return { timezone: prefs.timezone, ...raw };
+}
+export async function browseQuery(
+  params: Promise<Record<string, string | string[] | undefined>>,
+): Promise<BrowseQuery> {
+  return querySchema.parse(await rawQuery(params));
 }
 /** Directory grids accept larger, clamped page sizes so a page can fill the visible area. */
-export function directoryQuery(params: Promise<Record<string, string | string[] | undefined>>) {
-  return browseQuery(params, directoryQuerySchema);
+export async function directoryQuery(
+  params: Promise<Record<string, string | string[] | undefined>>,
+): Promise<DirectoryQuery> {
+  return directoryQuerySchema.parse(await rawQuery(params));
 }
 // Next 16.2 passes URI-encoded dynamic segments to App Router page handlers.
 export async function sourceIdFromRoute(params: Promise<{ id: string }>) {

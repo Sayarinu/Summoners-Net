@@ -1,18 +1,13 @@
 import { expect, it } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
-  championMatchupsQuerySchema,
   counterPickListQuerySchema,
   matchupMatrixQuerySchema,
-  matchupMetrics,
-  type ChampionBlindability,
-  type ChampionMatchups,
   type CounterPickList,
   type MatchupMatrix,
   type MatchupEstimate,
-  type MatchupMetric,
 } from "@summonersnet/data/contracts";
-import { ChampionMatchupsPage, CounterPickListPage, MatchupMatrixPage } from "./pages";
+import { CounterPickListPage, MatchupMatrixPage } from "./pages";
 const ahri = { championKey: 103, championId: "Ahri", name: "Ahri", imageUrl: null };
 const nunu = { championKey: 20, championId: "Nunu", name: "Nunu & Willump", imageUrl: null };
 const unknown = { championKey: 999, championId: null, name: null, imageUrl: null };
@@ -23,174 +18,8 @@ const estimate: MatchupEstimate = {
   baseline: 0.5,
   baselineSampleCount: 20,
 };
-const metricValues = Object.fromEntries(matchupMetrics.map((m) => [m, estimate])) as Record<
-  MatchupMetric,
-  MatchupEstimate
->;
-const matchups: ChampionMatchups = {
-  query: championMatchupsQuerySchema.parse({ champion: "Ahri" }),
-  champion: ahri,
-  patch: "16.22",
-  patches: ["16.22"],
-  page: {
-    page: 1,
-    pageSize: 25,
-    total: 2,
-    items: [
-      {
-        opponent: nunu,
-        games: 10,
-        metrics: {
-          ...metricValues,
-          gold10: { ...estimate, raw: 100, shrunk: 37.5 },
-          gold15: { ...estimate, raw: -50, shrunk: -20 },
-          cs10: { ...estimate, raw: null, shrunk: null, sampleCount: 9 },
-        },
-      },
-      {
-        opponent: unknown,
-        games: 1,
-        metrics: Object.fromEntries(
-          matchupMetrics.map((m) => [m, { ...estimate, raw: null, shrunk: null, sampleCount: 1 }]),
-        ) as Record<MatchupMetric, MatchupEstimate>,
-      },
-    ],
-  },
-  exclusions: [
-    {
-      role: "UNKNOWN",
-      games: 2,
-      participants: 3,
-      unknownRole: 3,
-      ambiguousRole: 0,
-      missingOpponent: 0,
-      unmappedChampion: 0,
-    },
-  ],
-};
-it("shows shrunk estimates, independent samples and team labels with raw values available", () => {
-  const { rerender } = render(<ChampionMatchupsPage matchups={matchups} error={null} />);
-  expect(screen.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
-  const table = screen.getByRole("table", { name: "Ahri Lane Opponents" });
-  expect(table).toHaveTextContent("55.0% · n=10");
-  expect(table).toHaveTextContent("+37.5 · n=10");
-  expect(table).toHaveTextContent("-20.0 · n=10");
-  expect(table).toHaveTextContent("Unknown · n=9");
-  expect(table).toHaveTextContent("Team First Blood");
-  expect(within(table).getByRole("img", { name: "Champion 999" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Nunu & Willump" })).toHaveAttribute(
-    "href",
-    "/champions/Nunu/matchups?source=solo&value=shrunk&patch=16.22&role=MIDDLE",
-  );
-  expect(
-    within(screen.getByRole("table", { name: "Unpairable Roles" })).getByRole("img", {
-      name: "Unknown Role",
-    }),
-  ).toBeVisible();
-  rerender(
-    <ChampionMatchupsPage
-      matchups={{ ...matchups, query: { ...matchups.query, value: "raw", source: "pro" } }}
-      error={null}
-    />,
-  );
-  expect(table).toHaveTextContent("80.0% · n=10");
-  expect(table).toHaveTextContent("+100.0 · n=10");
-});
-const scored: ChampionBlindability = {
-  games: 158,
-  sampledOpponents: 4,
-  coveredOpponents: 3,
-  coveredPicks: 100,
-  rolePicks: 160,
-  coverage: 0.625,
-  expected: 0.515,
-  worstCase: 0.45,
-  worstOpponent: nunu,
-  variance: 0.001525,
-  lowerTail: 0.45,
-  score: 0.45,
-  reason: null,
-  counterWinRate: 0.55,
-  counterOpponents: 1,
-  counterPicks: 50,
-  counterReason: null,
-  counterDifference: 0.035,
-  builtAt: "2026-11-16T12:00:00.000Z",
-};
-it("shows the blindability score, its coverage and the method with the formula", () => {
-  const { rerender } = render(
-    <ChampionMatchupsPage matchups={matchups} blindability={scored} error={null} />,
-  );
-  const stats = screen.getByLabelText("Blindability Statistics");
-  expect(stats).toHaveTextContent("Blindability Score45.0%");
-  expect(stats).toHaveTextContent("Pick-Weighted Win Rate51.5%");
-  expect(stats).toHaveTextContent("Counter-Pick Worst Caseagainst Nunu & Willump45.0%");
-  expect(stats).toHaveTextContent("Lower-Tail Win Rate (20% of Picks)45.0%");
-  expect(stats).toHaveTextContent("Variance0.0015");
-  expect(stats).toHaveTextContent("Covered Pick Share100 of 160 opponent picks62.5%");
-  expect(screen.getByText(/3 of 4 sampled opponents meet the minimum/)).toBeVisible();
-  expect(screen.getByText("How Blindability Is Calculated")).toBeVisible();
-  expect(screen.getByText(/E = Σ wᵢ·pᵢ \/ Σ wᵢ/)).toBeInTheDocument();
-  expect(screen.queryByRole("status")).toBeNull();
-  const counter = screen.getByLabelText("Counter-Pick Statistics");
-  expect(counter).toHaveTextContent("Blind Win Rate51.5%");
-  expect(counter).toHaveTextContent("Counter-Pick Win Rate55.0%");
-  expect(counter).toHaveTextContent("Counter-Pick Value+3.5 pts");
-  expect(counter).toHaveTextContent("Best Response Toopponent · 50 of 160 opponent picks1");
-  expect(screen.getByRole("link", { name: "Compare the Role" })).toHaveAttribute(
-    "href",
-    "/matchups/MIDDLE/counter-picks?source=solo&patch=16.22",
-  );
-  rerender(
-    <ChampionMatchupsPage
-      matchups={matchups}
-      blindability={{
-        ...scored,
-        rolePicks: 220,
-        coverage: 100 / 220,
-        expected: null,
-        worstCase: null,
-        worstOpponent: null,
-        variance: null,
-        lowerTail: null,
-        score: null,
-        reason: "low-coverage",
-        counterWinRate: null,
-        counterDifference: null,
-        counterReason: "blind-unavailable",
-      }}
-      error={null}
-    />,
-  );
-  expect(screen.getByLabelText("Blindability Statistics")).toHaveTextContent(
-    "Blindability ScoreUnknown",
-  );
-  expect(screen.getByText(/Counter-pick value unavailable/)).toHaveTextContent(
-    "nothing to compare with",
-  );
-  expect(screen.getByText(/^Score unavailable/)).toHaveTextContent(
-    "Score unavailable: Opponents with at least 10 win-rate observations cover less than 50% of opponent picks.",
-  );
-  rerender(<ChampionMatchupsPage matchups={matchups} blindability={null} error={null} />);
-  expect(screen.getByText(/No stored blindability score/)).toBeVisible();
-});
-it("explains empty selections and renders validation errors without data", () => {
-  const { rerender } = render(
-    <ChampionMatchupsPage
-      matchups={{
-        ...matchups,
-        patch: null,
-        patches: [],
-        page: { ...matchups.page, total: 0, items: [] },
-        exclusions: [],
-      }}
-      error={null}
-    />,
-  );
-  expect(screen.getByText(/No matchup observations/)).toBeVisible();
-  rerender(<ChampionMatchupsPage matchups={null} error="Invalid selection" />);
-  expect(screen.getByRole("alert")).toHaveTextContent("Invalid selection");
-  rerender(<MatchupMatrixPage matrix={null} error="Invalid matrix" />);
+it("renders the matrix's validation error without data", () => {
+  render(<MatchupMatrixPage matrix={null} error="Invalid matrix" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Invalid matrix");
 });
 it("keeps sparse matrix cells blank with sample tooltips and a readable table", () => {

@@ -1,5 +1,11 @@
 export type { TeamDirectoryEntry, TeamSeason } from "./persistence/team-directory.js";
-export type { PlayerPerformance, PlayerSeason } from "./domain/player-performance.js";
+export type {
+  ChampionPool,
+  ChampionPoolRow,
+  PlayerPerformance,
+  PlayerSeason,
+} from "./domain/player-performance.js";
+export { championPoolQuerySchema, championPoolSorts } from "./domain/player-performance.js";
 export type { PlayerDirectoryEntry } from "./persistence/player-directory.js";
 import { database } from "./persistence/database.js";
 import { queries } from "./persistence/queries.js";
@@ -7,6 +13,7 @@ export { directoryPageSize, directoryQuerySchema, querySchema, regions } from ".
 export { historicalQuerySchema, historicalSubjectSchema } from "./domain/historical.js";
 export type {
   BrowseQuery,
+  DirectoryQuery,
   ParsedQuery,
   Match,
   SeriesGame,
@@ -66,11 +73,20 @@ export type {
   ChampionOverviewQuery,
   ChampionTier,
 } from "./domain/champion-stats.js";
-export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
+export type { BuildItem, BuildRow, ChampionBuilds, RuneTree } from "./domain/builds.js";
 export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
-export type { ProChampionStats } from "./domain/pro-stats.js";
+export type {
+  ProChampionPerformance,
+  ProChampionPlayer,
+  ProChampionPlayers,
+  ProChampionStats,
+  ProLeagueRow,
+  ProPatchHistory,
+  ProPatchHistoryRow,
+} from "./domain/pro-stats.js";
+export { proChampionPlayersLimit, proHistoryPageSize } from "./domain/pro-stats.js";
 export type {
   SoloGame,
   SoloGameMarker,
@@ -80,20 +96,6 @@ export type {
   SoloGameMapEvents,
 } from "./domain/solo-games.js";
 export { mapEventLimit, soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
-export {
-  heatmapKinds,
-  heatmapMinimumGames,
-  heatmapQuerySchema,
-  heatmapRoles,
-  heatmapSubjectKinds,
-} from "./domain/heatmaps.js";
-export type {
-  Heatmap,
-  HeatmapKind,
-  HeatmapQuery,
-  HeatmapSample,
-  HeatmapSubjectKind,
-} from "./domain/heatmaps.js";
 export { clearMinutes, junglePathMinimumSample } from "./domain/jungle-paths.js";
 export type {
   ChampionJunglePaths,
@@ -256,3 +258,4 @@ export {
 
 export { draftFeatures, type DraftInput, type DraftWinProbability } from "./domain/draft-model.js";
 export type { ChampionDirectory, PatchDirectory } from "./domain/directories.js";
+export type { TeamStatistics } from "./domain/team-statistics.js";

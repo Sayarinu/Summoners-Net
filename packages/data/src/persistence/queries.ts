@@ -1,5 +1,7 @@
 import { teamDirectory, teamSeasons } from "./team-directory.js";
-import { playerPerformance, playerSeasons } from "./player-stats.js";
+import { playerChampionPool, playerPerformance, playerSeasons } from "./player-stats.js";
+import type { ChampionPoolQuery } from "../domain/player-performance.js";
+import { teamStatistics } from "./team-stats.js";
 import { playerDirectory } from "./player-directory.js";
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championDirectory, patchDirectory } from "./directories.js";
@@ -39,6 +41,7 @@ import { enrichIdentities } from "./entities.js";
 import {
   querySchema,
   type BrowseQuery,
+  type DirectoryQuery,
   type Game,
   type Identity,
   type Match,
@@ -52,8 +55,6 @@ import { draftQueries } from "./draft-queries.js";
 import { championOverview, championStats, tierList } from "./aggregates.js";
 import { soloGame } from "./solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "./solo-game-positions.js";
-import { heatmap } from "./heatmaps.js";
-import type { HeatmapQuery } from "../domain/heatmaps.js";
 import { championJunglePaths } from "./jungle-paths.js";
 import { proGameWinProbability } from "./pro-wp.js";
 import { archiveGameVods } from "./pro-game-vods.js";
@@ -97,6 +98,18 @@ function filters(input: BrowseQuery, kind: "matches" | "games") {
   }
   if (q.q) add("search_text LIKE ?", `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
   if (kind === "matches" && q.state) add("state=?", q.state);
+  // Split and stage come from the game's archive row, looked up by its primary key.
+  if (kind === "games" && q.split)
+    add(
+      `EXISTS(SELECT 1 FROM oracle_archive_games a WHERE a.id=archive_game_id
+        AND coalesce(nullif(trim(a.split),''),'Unknown')=?)`,
+      q.split,
+    );
+  if (kind === "games" && q.stage)
+    add(
+      "EXISTS(SELECT 1 FROM oracle_archive_games a WHERE a.id=archive_game_id AND a.playoffs=?)",
+      q.stage === "playoffs",
+    );
   return { q, values, clauses };
 }
 async function page<T>(
@@ -284,7 +297,10 @@ export function queries(pool: Pool, clock: () => Date) {
     championDirectory: () => championDirectory(pool),
     patchDirectory: () => patchDirectory(pool),
     matchupPairs: (input: MatchupPairsQuery) => matchupPairs(pool, input),
-    championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
+    championMatchups: (
+      input: ChampionMatchupsQuery,
+      options?: Parameters<typeof championMatchups>[2],
+    ) => championMatchups(pool, input, options),
     championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
     counterPickList: (input: CounterPickListQuery) => counterPickList(pool, input),
     draftAssistant: (input: DraftAssistantQuery) => draftAssistant(pool, input),
@@ -300,13 +316,13 @@ export function queries(pool: Pool, clock: () => Date) {
     matchTrackRange: (input: TrackRangeQuery) => matchTrackRange(pool, input),
     trackAccuracy: (matchId: string) => trackAccuracy(pool, matchId),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
-    tierList: (input?: TierListQuery) => tierList(pool, input),
+    tierList: (input?: TierListQuery, options?: Parameters<typeof tierList>[2]) =>
+      tierList(pool, input, options),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
     soloDraftWinProbability: (matchId: string) => soloDraftWinProbability(pool, matchId),
     soloGamePositions: (matchId: string) => soloGamePositions(pool, matchId),
     soloGameMapEvents: (matchId: string) => soloGameMapEvents(pool, matchId),
-    heatmap: (input: HeatmapQuery) => heatmap(pool, input),
     championJunglePaths: (input: { championKey: number; patch: string }) =>
       championJunglePaths(pool, input),
     proGameWinProbability: (gameId: string) => proGameWinProbability(pool, idSchema.parse(gameId)),
@@ -318,7 +334,7 @@ export function queries(pool: Pool, clock: () => Date) {
     },
     games,
     teamDirectory: (input: BrowseQuery = {}) => teamDirectory(pool, input, clock()),
-    playerDirectory: (input: BrowseQuery = {}) => playerDirectory(pool, input, clock()),
+    playerDirectory: (input: DirectoryQuery = {}) => playerDirectory(pool, input, clock()),
     async teamContext(id: string) {
       const identity = await profileIdentity(id, "team");
       if (identity?.kind !== "team") return null;
@@ -334,6 +350,43 @@ export function queries(pool: Pool, clock: () => Date) {
       const { values, clauses } = filters(input, "games");
       clauses.push("complete");
       return playerPerformance(pool, idSchema.parse(entityId), clauses.join(" AND "), values);
+    },
+    /** The champions a player entity played over the complete games matching the filters. */
+    async playerChampionPool(
+      entityId: string,
+      input: BrowseQuery = {},
+      poolQuery: ChampionPoolQuery = {},
+    ) {
+      const { values, clauses } = filters(input, "games");
+      clauses.push("complete");
+      return playerChampionPool(
+        pool,
+        idSchema.parse(entityId),
+        clauses.join(" AND "),
+        values,
+        poolQuery,
+      );
+    },
+    /** The splits a player or team entity played in, for one year or every year. */
+    async entitySplits(entityId: string, year?: number) {
+      return (
+        await pool.query<{ split: string }>(
+          `SELECT DISTINCT coalesce(nullif(trim(a.split),''),'Unknown') AS split
+           FROM participants p JOIN games g ON g.id=p.game_id
+           JOIN oracle_archive_games a ON a.id=g.archive_game_id
+           WHERE (p.player_id IN (SELECT id FROM entity_members WHERE entity_id=$1)
+               OR (p.role='team' AND p.team_id IN (SELECT id FROM entity_members WHERE entity_id=$1)))
+             AND ($2::integer IS NULL OR g.year=$2)
+           ORDER BY split`,
+          [idSchema.parse(entityId), year ?? null],
+        )
+      ).rows.map((r) => r.split);
+    },
+    /** How a team entity plays over the complete games matching the filters. */
+    async teamStatistics(entityId: string, input: BrowseQuery = {}) {
+      const { values, clauses } = filters(input, "games");
+      clauses.push("complete");
+      return teamStatistics(pool, idSchema.parse(entityId), clauses.join(" AND "), values);
     },
     async matches(input: BrowseQuery = {}, teamEntityId?: string) {
       const { q, values, clauses } = filters(input, "matches");

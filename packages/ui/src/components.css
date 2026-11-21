@@ -176,6 +176,17 @@
     object-fit: contain;
   }
 
+  .np-avatar[data-state="selected"] {
+    border-color: var(--color-border-accent);
+    outline: 2px solid var(--color-border-accent);
+    outline-offset: 1px;
+  }
+
+  .np-avatar[data-state="muted"] {
+    opacity: 0.32;
+    filter: grayscale(1);
+  }
+
   .np-avatar--small {
     width: 28px;
     height: 28px;
@@ -710,21 +721,96 @@
     background: var(--color-bg-interactive);
   }
 
+  /* The selected entry reads in gold on a subtle fill, with no accent bar. */
   .np-navigation a[aria-current="page"] {
-    color: var(--color-text-primary);
+    color: var(--color-text-accent);
     background: var(--color-bg-selected);
   }
 
-  .np-navigation--large ul {
-    gap: var(--space-2, 8px);
+  .np-navigation a[aria-current="page"] .np-icon {
+    color: var(--color-text-accent);
+  }
+
+  .np-navigation__group + .np-navigation__group {
+    margin-top: var(--space-5, 20px);
+  }
+
+  .np-navigation__heading {
+    margin-bottom: var(--space-2, 8px);
+    padding: 0 var(--space-3, 12px);
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs, 12px);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .np-navigation--large a {
-    min-height: var(--size-control, 44px);
-    font-size: var(--font-size-md, 16px);
+    min-height: 40px;
+    font-size: var(--font-size-sm, 14px);
   }
 
-  .np-navigation a > span:nth-last-child(2) {
+  .np-navigation--collapsed a {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .np-navigation--collapsed .np-navigation__group + .np-navigation__group {
+    margin-top: var(--space-3, 12px);
+    padding-top: var(--space-3, 12px);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .np-brand {
+    display: inline-flex;
+    min-height: var(--size-control, 44px);
+    align-items: center;
+    gap: var(--space-3, 12px);
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+
+  .np-brand__mark {
+    flex: none;
+    color: var(--color-text-primary);
+  }
+
+  .np-brand__name {
+    font-size: var(--font-size-md, 16px);
+    font-weight: var(--font-weight-semibold, 600);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .np-brand__accent {
+    color: var(--color-text-accent);
+  }
+
+  @media (min-width: 851px) and (max-width: 1150px) {
+    .np-navigation--responsive a {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .np-navigation--responsive .np-navigation__label,
+    .np-navigation--responsive .np-navigation__heading,
+    .np-brand--responsive .np-brand__name {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .np-navigation--responsive .np-navigation__group + .np-navigation__group {
+      margin-top: var(--space-3, 12px);
+      padding-top: var(--space-3, 12px);
+      border-top: 1px solid var(--color-border-subtle);
+    }
+  }
+
+  .np-navigation__label {
     flex: 1;
   }
 
@@ -1073,10 +1159,6 @@
   .np-match-row:hover,
   .np-match-row:focus-within {
     background: color-mix(in srgb, var(--color-bg-interactive) 48%, transparent);
-  }
-
-  .np-match-row--live {
-    box-shadow: inset 2px 0 var(--color-status-live);
   }
 
   .np-match-row__time,
@@ -1590,5 +1672,53 @@
     .np-identity--display .np-identity__copy strong {
       font-size: var(--font-size-xl);
     }
+  }
+}
+
+@layer np-components {
+  .np-skill-grid {
+    border-collapse: separate;
+    border-spacing: 2px;
+    font-family: var(--font-family-mono), monospace;
+    font-size: var(--font-size-2xs, 10px);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .np-skill-grid th,
+  .np-skill-grid td {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    text-align: center;
+  }
+
+  .np-skill-grid thead th {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-regular, 400);
+  }
+
+  .np-skill-grid tbody th {
+    color: var(--color-text-accent);
+    font-weight: var(--font-weight-semibold, 600);
+  }
+
+  .np-skill-grid td {
+    background: var(--color-bg-interactive);
+    border-radius: var(--radius-sm, 2px);
+  }
+
+  .np-skill-grid td[data-ranked] {
+    color: var(--color-bg-surface);
+    font-weight: var(--font-weight-semibold, 600);
+    background: var(--color-text-accent);
+  }
+
+  .np-skill-grid tr[data-ability="R"] td[data-ranked] {
+    background: var(--color-text-secondary);
+  }
+
+  /* Levels the order is projected to rather than observed. */
+  .np-skill-grid td[data-projected] {
+    opacity: 0.55;
   }
 }

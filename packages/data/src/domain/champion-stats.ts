@@ -1,9 +1,15 @@
 import { championPlayersOptionsSchema, type ChampionPlayers } from "./champion-players.js";
 import { z } from "zod";
+import { patchSelectionSchema } from "./patch-selection.js";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
-import type { ProChampionStats } from "./pro-stats.js";
+import type {
+  ProChampionPerformance,
+  ProChampionPlayers,
+  ProChampionStats,
+  ProPatchHistory,
+} from "./pro-stats.js";
 import { synergyQuerySchema, type BotLaneMatrix, type Synergies } from "./synergies.js";
 
 export const championRoles = [
@@ -55,18 +61,27 @@ export interface ChampionStats {
   rows: ChampionStatsRow[];
 }
 
-export const tierListSorts = ["winRate", "pickRate", "banRate", "games"] as const;
+export const tierListSorts = [
+  "winRate",
+  "pickRate",
+  "banRate",
+  "games",
+  "kda",
+  "damagePerMinute",
+  "goldDiffAt15",
+  "tier",
+] as const;
 /** Tier list filters as they arrive in a query string. */
 export const tierListQuerySchema = z
   .object({
     source: z.enum(["solo", "pro"]).default("solo"),
-    patch: z
-      .string()
-      .regex(/^\d{1,2}\.\d{1,2}$/)
-      .optional(),
+    /** One patch, or several whose games are combined. */
+    patch: patchSelectionSchema.optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
-    tier: z.string().trim().min(1).max(20).optional(),
+    tier: z.string().trim().min(1).max(60).optional(),
+    /** Pro play only: the regular season or playoffs. */
+    stage: z.enum(["regular", "playoffs"]).optional(),
     sort: z.enum(tierListSorts).default("games"),
     order: z.enum(["asc", "desc"]).default("desc"),
     page: z.coerce.number().int().min(1).max(10000).default(1),
@@ -89,12 +104,26 @@ export interface TierListRow {
   banRate: SampledValue;
   /** From the shared minimum-sample policy, applied to the win rate's sample. */
   sample: "shown" | "low-sample" | "hidden";
+  /** S–D from the win rate shrunk toward the slice's baseline, as on the champion page. */
+  tier: ChampionTier | null;
+  /** Per-game performance once picked. Solo queue has no gold difference at 15 yet. */
+  performance: { kda: SampledValue; damagePerMinute: SampledValue; goldDiffAt15: SampledValue };
 }
 export interface TierList {
   query: ParsedTierListQuery;
-  /** The patch shown: the requested one, or the newest with aggregates for the source. */
+  /**
+   * The patch shown: the requested one, or the newest with enough games in the selection
+   * (`defaultPatchMinimumGames`), or else the newest with aggregates for the source. With
+   * several patches chosen, the newest of them; names and icons come from its catalog.
+   */
   patch: string | null;
+  /** The patches whose games are combined, newest first; empty without data. */
+  combined: string[];
   sliceGames: number;
+  /** Games with a result, or bans, a champion needs to be listed. */
+  minimumGames: number;
+  /** Champions left out because both their games with a result and their bans are fewer. */
+  hiddenChampions: number;
   page: { items: TierListRow[]; page: number; pageSize: number; total: number };
   facets: { patches: string[]; regions: string[]; tiers: string[] };
 }
@@ -104,20 +133,29 @@ export const championOverviewQuerySchema = z
   .object({
     champion: z.string().regex(/^[A-Za-z0-9]{1,40}$/),
     source: z.enum(["solo", "pro"]).default("solo"),
-    patch: z
-      .string()
-      .regex(/^\d{1,2}\.\d{1,2}$/)
-      .optional(),
+    /** One patch, or several whose games are combined. */
+    patch: patchSelectionSchema.optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
-    tier: z.string().trim().min(1).max(20).optional(),
+    tier: z.string().trim().min(1).max(60).optional(),
+    /** Pro play only: the regular season or playoffs. */
+    stage: z.enum(["regular", "playoffs"]).optional(),
   })
   .extend(synergyQuerySchema.shape)
   .extend(championPlayersOptionsSchema.shape)
-  .extend({ league: z.string().trim().min(1).max(100).optional() })
+  .extend({
+    league: z.string().trim().min(1).max(100).optional(),
+    /** The page of the pro patch history. */
+    historyPage: z.coerce.number().int().min(1).max(1000).default(1),
+  })
   .strict();
 export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
 export type ParsedChampionOverviewQuery = z.output<typeof championOverviewQuerySchema>;
+/**
+ * Games a patch needs in the selection before champion statistics open on it by default. A new
+ * patch starts with a handful of games, where every rate is noise; it stays selectable.
+ */
+export const defaultPatchMinimumGames = { solo: 1000, pro: 100 } as const;
 export type ChampionTier = "S" | "A" | "B" | "C" | "D";
 /**
  * Tier from the shrunk win rate's distance to the slice's baseline, in percentage points:
@@ -131,7 +169,10 @@ export function tierFromDelta(delta: number | null): ChampionTier | null {
 export interface ChampionOverview {
   query: ParsedChampionOverviewQuery;
   champion: { id: string; key: number; name: string; imageUrl: string | null };
+  /** The newest chosen patch; per-patch sections such as jungle paths and draft value use it. */
   patch: string | null;
+  /** The patches whose games are combined, newest first. */
+  combined: string[];
   sliceGames: number;
   games: number;
   winRate: SampledValue & { lower: number | null; upper: number | null };
@@ -164,6 +205,15 @@ export interface ChampionOverview {
   buckets: ChampionBuckets | null;
   /** Pro-play draft statistics, shown with either source. */
   pro: ProChampionStats;
+  /** Pro players on the champion in the pro patch and selection; null for solo queue. */
+  proPlayers: ProChampionPlayers | null;
+  /**
+   * Solo-queue per-game averages once picked, in the selected region, tier and role; null for pro
+   * play, whose averages are in `pro.performance`.
+   */
+  performance: ProChampionPerformance | null;
+  /** The champion's pro play on every patch, newest first, filtered by league. */
+  proHistory: ProPatchHistory;
   /** Solo-queue allies, one page sorted in SQL; null for pro play. */
   synergies: Synergies | null;
   /** Current ladder players with enough retained ranked games on this champion and patch. */

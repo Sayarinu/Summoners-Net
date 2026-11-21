@@ -24,9 +24,11 @@ export default async function Page({
   const year = raw.year === "all" ? undefined : (query.year ?? context.seasons[0]?.year);
   const scoped = { ...query, year, pageSize: 5 };
   const view = raw.view === "games" ? "games" : "series";
-  const [profile, series, prefs] = await Promise.all([
+  const [profile, series, statistics, splits, prefs] = await Promise.all([
     data().profile(context.identity.id, scoped, "team"),
     view === "series" ? data().matches({ ...scoped, state: "final" }, context.identity.id) : null,
+    data().teamStatistics(context.identity.id, scoped),
+    data().entitySplits(context.identity.id, typeof year === "number" ? year : undefined),
     preferences(),
   ]);
   if (!profile) notFound();
@@ -39,6 +41,8 @@ export default async function Page({
       )}
       seasons={context.seasons}
       series={series}
+      statistics={statistics}
+      splits={splits}
       query={scoped}
       hideSpoilers={prefs.hideSpoilers}
       now={new Date().toISOString()}
