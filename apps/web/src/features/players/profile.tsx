@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import type { ChampionPool as ChampionPoolData } from "@summonersnet/data/contracts";
 import type {
   BrowseQuery,
   Game,
@@ -21,6 +22,7 @@ import { useSpoilerPreference } from "../browse/match-group";
 import { dateTime, gameTeams, identityHref } from "../browse/presentation";
 import { ChampionPortrait, GameRecord, type ChampionPortraits } from "../browse/visuals";
 import { ChampionPool } from "../teams/pages";
+import { PlayerChampionPool } from "./champion-pool";
 
 type Metric = keyof Omit<PlayerPerformance, "games">;
 type StatLine = { label: string; metric: Metric; format: (value: number) => string };
@@ -203,6 +205,7 @@ export function PlayerProfile({
   seasons,
   query,
   hideSpoilers,
+  championPool,
 }: {
   profile: Profile;
   performance: PlayerPerformance;
@@ -210,6 +213,8 @@ export function PlayerProfile({
   seasons: PlayerSeason[];
   query: BrowseQuery;
   hideSpoilers: boolean;
+  /** The player's champions with per-champion statistics; without it the compact pool shows. */
+  championPool?: ChampionPoolData;
 }) {
   const { identity, summary, roster, games } = profile;
   const spoilersHidden = useSpoilerPreference(hideSpoilers);
@@ -338,9 +343,18 @@ export function PlayerProfile({
           </div>
         )}
       </Panel>
-      {!hidden && summary.champions.length > 0 && (
+      {!hidden && championPool && championPool.page.total > 0 ? (
+        <PlayerChampionPool
+          pool={championPool}
+          portraits={portraits}
+          filters={{
+            ...(typeof query.year === "number" ? { year: String(query.year) } : { year: "all" }),
+            ...(query.league ? { league: query.league } : {}),
+          }}
+        />
+      ) : !hidden && summary.champions.length > 0 ? (
         <ChampionPool champions={summary.champions} portraits={portraits} />
-      )}
+      ) : null}
     </div>
   );
 }

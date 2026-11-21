@@ -1,5 +1,6 @@
 import { teamDirectory, teamSeasons } from "./team-directory.js";
-import { playerPerformance, playerSeasons } from "./player-stats.js";
+import { playerChampionPool, playerPerformance, playerSeasons } from "./player-stats.js";
+import type { ChampionPoolQuery } from "../domain/player-performance.js";
 import { playerDirectory } from "./player-directory.js";
 import { matchupMatrix, matchupPairs } from "./matchup-matrix.js";
 import { championDirectory, patchDirectory } from "./directories.js";
@@ -334,6 +335,22 @@ export function queries(pool: Pool, clock: () => Date) {
       const { values, clauses } = filters(input, "games");
       clauses.push("complete");
       return playerPerformance(pool, idSchema.parse(entityId), clauses.join(" AND "), values);
+    },
+    /** The champions a player entity played over the complete games matching the filters. */
+    async playerChampionPool(
+      entityId: string,
+      input: BrowseQuery = {},
+      poolQuery: ChampionPoolQuery = {},
+    ) {
+      const { values, clauses } = filters(input, "games");
+      clauses.push("complete");
+      return playerChampionPool(
+        pool,
+        idSchema.parse(entityId),
+        clauses.join(" AND "),
+        values,
+        poolQuery,
+      );
     },
     async matches(input: BrowseQuery = {}, teamEntityId?: string) {
       const { q, values, clauses } = filters(input, "matches");

@@ -553,6 +553,43 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     expect(
       (await queries.playerPerformance("oracle:player:10-mid", { league: "LPL" })).killsPerGame,
     ).toEqual({ value: null, sampleCount: 0 });
+    // The champion pool: Ahri in both 2026 games, with each value over the games that report it.
+    const pool = await queries.playerChampionPool("oracle:player:10-mid", { year: 2026 });
+    expect(pool).toEqual({
+      sort: "games",
+      page: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        items: [
+          {
+            champion: "Ahri",
+            games: 2,
+            wins: 2,
+            winRate: { value: 1, sampleCount: 2 },
+            kda: { value: 6.5, sampleCount: 2 },
+            killParticipation: { value: 1, sampleCount: 1 },
+            csPerMinute: { value: 10, sampleCount: 2 },
+            goldPerMinute: { value: 500, sampleCount: 1 },
+            damagePerMinute: { value: 600, sampleCount: 1 },
+            goldDiffAt15: { value: 100, sampleCount: 2 },
+            csDiffAt15: { value: null, sampleCount: 0 },
+          },
+        ],
+      },
+    });
+    expect(
+      (
+        await queries.playerChampionPool(
+          "oracle:player:10-mid",
+          { year: 2026 },
+          { poolSort: "kda", poolPage: 2 },
+        )
+      ).page,
+    ).toMatchObject({ items: [], total: 0, page: 2 });
+    expect(
+      (await queries.playerChampionPool("oracle:player:10-mid", { league: "LPL" })).page.total,
+    ).toBe(0);
   });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));

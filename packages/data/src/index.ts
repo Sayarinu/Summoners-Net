@@ -1,5 +1,11 @@
 export type { TeamDirectoryEntry, TeamSeason } from "./persistence/team-directory.js";
-export type { PlayerPerformance, PlayerSeason } from "./domain/player-performance.js";
+export type {
+  ChampionPool,
+  ChampionPoolRow,
+  PlayerPerformance,
+  PlayerSeason,
+} from "./domain/player-performance.js";
+export { championPoolQuerySchema, championPoolSorts } from "./domain/player-performance.js";
 export type { PlayerDirectoryEntry } from "./persistence/player-directory.js";
 import { database } from "./persistence/database.js";
 import { queries } from "./persistence/queries.js";
