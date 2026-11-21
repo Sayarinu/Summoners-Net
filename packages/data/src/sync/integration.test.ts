@@ -591,6 +591,68 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
       (await queries.playerChampionPool("oracle:player:10-mid", { league: "LPL" })).page.total,
     ).toBe(0);
   });
+  it("aggregates a team's side records, game lengths, early leads and objective control", async () => {
+    // Acceptance Blue plays blue and wins both games.
+    await importCsv(
+      historyCsv({
+        id: "team-1",
+        metrics: {
+          gamelength: "1800",
+          golddiffat15: "1000",
+          "team kpm": "0.6",
+          firstblood: "1",
+          firsttower: "1",
+          dragons: "3",
+          opp_dragons: "1",
+          towers: "9",
+        },
+      }) +
+        historyCsv({
+          id: "team-2",
+          metrics: {
+            gamelength: "2400",
+            golddiffat15: "-200",
+            "team kpm": "0.4",
+            firstblood: "0",
+            firsttower: "",
+            dragons: "1",
+            opp_dragons: "1",
+            towers: "",
+          },
+        })
+          .split("\n")
+          .slice(1)
+          .join("\n"),
+    );
+    const stats = await queries.teamStatistics("oracle:team:10");
+    expect(stats).toMatchObject({
+      games: 2,
+      winRate: { value: 1, sampleCount: 2 },
+      sides: [
+        { side: "blue", games: 2, winRate: { value: 1, sampleCount: 2 } },
+        { side: "red", games: 0, winRate: { value: null, sampleCount: 0 } },
+      ],
+      gameLength: {
+        wins: { value: 2100, sampleCount: 2 },
+        losses: { value: null, sampleCount: 0 },
+      },
+      goldDiffAt15: { value: 400, sampleCount: 2 },
+      firstBlood: { value: 0.5, sampleCount: 2 },
+      // Not recorded in the second game: counted over the first only.
+      firstTower: { value: 1, sampleCount: 1 },
+      towersPerGame: { value: 9, sampleCount: 1 },
+      firstBaron: { value: null, sampleCount: 0 },
+    });
+    expect(stats.killsPerMinute.value).toBeCloseTo(0.5);
+    expect(stats.dragonControl.value).toBeCloseTo(4 / 6);
+    expect(stats.dragonControl.sampleCount).toBe(2);
+    expect((await queries.teamStatistics("oracle:team:11")).sides[1]).toMatchObject({
+      side: "red",
+      games: 2,
+      winRate: { value: 0, sampleCount: 2 },
+    });
+    expect((await queries.teamStatistics("oracle:team:10", { league: "LPL" })).games).toBe(0);
+  });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
     const matchesRun = await run({ kind: "matches" });
