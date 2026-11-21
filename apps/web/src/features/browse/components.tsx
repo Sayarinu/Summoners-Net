@@ -37,6 +37,7 @@ export function Filters({
   search = false,
   view,
   className,
+  splits,
 }: {
   query: BrowseQuery;
   history?: boolean;
@@ -47,6 +48,8 @@ export function Filters({
   /** The past matches view; the games view is kept when the filters are submitted. */
   view?: "series" | "games";
   className?: string;
+  /** Pro splits to filter by, with the regular season or playoffs; omit to hide both. */
+  splits?: string[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timeoutRef = useRef<number | undefined>(undefined);
@@ -185,6 +188,33 @@ export function Filters({
               />
             </>
           )}
+          {splits ? (
+            <>
+              <Select
+                label="Split"
+                name="split"
+                defaultValue={query.split ?? "all"}
+                onValueChange={scheduleSubmit}
+                options={[
+                  { label: "All Splits", value: "all" },
+                  ...[...new Set([...splits, ...(query.split ? [query.split] : [])])].map(
+                    (split) => ({ label: split, value: split }),
+                  ),
+                ]}
+              />
+              <Select
+                label="Stage"
+                name="stage"
+                defaultValue={query.stage ?? "all"}
+                onValueChange={scheduleSubmit}
+                options={[
+                  { label: "All Stages", value: "all" },
+                  { label: "Regular Season", value: "regular" },
+                  { label: "Playoffs", value: "playoffs" },
+                ]}
+              />
+            </>
+          ) : null}
         </>
       )}
     </FilterBar>

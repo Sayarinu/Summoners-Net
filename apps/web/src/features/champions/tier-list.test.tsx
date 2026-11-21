@@ -123,6 +123,9 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
   expect(proUnknown).toHaveTextContent("UnknownUnknownUnknown");
   expect(trigger("League")).toHaveTextContent("All");
   expect(trigger("Tier")).toBeUndefined();
+  // Pro play's tier is its split, with the stage beside it.
+  expect(trigger("Split")).toHaveTextContent("CHALLENGER");
+  expect(trigger("Stage")).toHaveTextContent("All Stages");
   expect(trigger("Region")).toBeUndefined();
 });
 it("shows an empty state without data and an error for an invalid query", () => {

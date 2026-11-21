@@ -165,6 +165,10 @@ export const querySchema = z.object({
   date: z.iso.date().optional(),
   timezone: timezoneSchema.default("UTC"),
   state: matchSchema.shape.state.optional(),
+  /** A pro split as the archive records it, such as "Spring" or "Split 2"; games only. */
+  split: z.string().trim().min(1).max(60).optional(),
+  /** Regular season or playoffs, from the archive; games only. */
+  stage: z.enum(["regular", "playoffs"]).optional(),
 });
 export type BrowseQuery = z.input<typeof querySchema>;
 /** Directory grids size their pages to whole rows of the visible area, within these bounds. */

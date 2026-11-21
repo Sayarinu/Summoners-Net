@@ -4,6 +4,10 @@ export interface ProChampionStats {
   patch: string | null;
   league: string | null;
   leagues: string[];
+  /** The selected split and stage, and the splits recorded on this patch and league. */
+  split: string | null;
+  stage: string | null;
+  splits: string[];
   /** Games with a complete derived draft in the selection; every rate's denominator here. */
   games: number;
   picks: number;

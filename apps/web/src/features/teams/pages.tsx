@@ -150,6 +150,7 @@ export function TeamProfile({
   now,
   hideSpoilers,
   statistics,
+  splits,
 }: {
   profile: Profile;
   portraits?: ChampionPortraits;
@@ -160,6 +161,8 @@ export function TeamProfile({
   hideSpoilers: boolean;
   /** Side records, game lengths and objective control; omitted where not loaded. */
   statistics?: TeamStatistics;
+  /** The pro splits this team played in the selected year. */
+  splits?: string[];
 }) {
   const { identity, summary, roster, games } = profile;
   const rows = useMatchRows(hideSpoilers);
@@ -193,12 +196,13 @@ export function TeamProfile({
             {...(identity.imageUrl ? { logo: identity.imageUrl } : {})}
           />
           <Filters
-            key={[year, view, query.q, query.league].join("-")}
+            key={[year, view, query.q, query.league, query.split, query.stage].join("-")}
             history
             view={view}
             query={query}
             seasons={years}
             selectedYear={year}
+            {...(splits ? { splits } : {})}
             className="max-[600px]:w-full"
           />
         </div>

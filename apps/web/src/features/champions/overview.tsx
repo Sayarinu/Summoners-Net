@@ -55,7 +55,7 @@ type Query = ChampionOverview["query"];
 function championHref(id: string, q: Query, change: Partial<Pick<Query, "source" | "role">>) {
   const next = { ...q, ...change };
   const params = new URLSearchParams({ source: next.source, role: next.role });
-  for (const name of ["patch", "region", "tier", "league"] as const) {
+  for (const name of ["patch", "region", "tier", "stage", "league"] as const) {
     const value = next[name];
     if (value) params.set(name, value);
   }

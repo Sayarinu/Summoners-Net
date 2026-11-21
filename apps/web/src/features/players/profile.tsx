@@ -206,6 +206,7 @@ export function PlayerProfile({
   query,
   hideSpoilers,
   championPool,
+  splits,
 }: {
   profile: Profile;
   performance: PlayerPerformance;
@@ -215,6 +216,8 @@ export function PlayerProfile({
   hideSpoilers: boolean;
   /** The player's champions with per-champion statistics; without it the compact pool shows. */
   championPool?: ChampionPoolData;
+  /** The pro splits this player played in the selected year. */
+  splits?: string[];
 }) {
   const { identity, summary, roster, games } = profile;
   const spoilersHidden = useSpoilerPreference(hideSpoilers);
@@ -263,12 +266,13 @@ export function PlayerProfile({
             ) : null}
           </div>
           <Filters
-            key={[year, query.q, query.league].join("-")}
+            key={[year, query.q, query.league, query.split, query.stage].join("-")}
             history
             view="series"
             query={query}
             seasons={years}
             selectedYear={year}
+            {...(splits ? { splits } : {})}
             className="max-[600px]:w-full"
           />
         </div>

@@ -75,7 +75,9 @@ export const tierListQuerySchema = z
       .optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
-    tier: z.string().trim().min(1).max(20).optional(),
+    tier: z.string().trim().min(1).max(60).optional(),
+    /** Pro play only: the regular season or playoffs. */
+    stage: z.enum(["regular", "playoffs"]).optional(),
     sort: z.enum(tierListSorts).default("games"),
     order: z.enum(["asc", "desc"]).default("desc"),
     page: z.coerce.number().int().min(1).max(10000).default(1),
@@ -123,7 +125,9 @@ export const championOverviewQuerySchema = z
       .optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
-    tier: z.string().trim().min(1).max(20).optional(),
+    tier: z.string().trim().min(1).max(60).optional(),
+    /** Pro play only: the regular season or playoffs. */
+    stage: z.enum(["regular", "playoffs"]).optional(),
   })
   .extend(synergyQuerySchema.shape)
   .extend(championPlayersOptionsSchema.shape)

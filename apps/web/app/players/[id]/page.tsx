@@ -29,9 +29,10 @@ export default async function Page({
     ...(typeof raw.poolSort === "string" ? { poolSort: raw.poolSort } : {}),
     ...(typeof raw.poolPage === "string" ? { poolPage: raw.poolPage } : {}),
   });
-  const [profile, performance, championPool, prefs] = await Promise.all([
+  const [profile, performance, splits, championPool, prefs] = await Promise.all([
     data().profile(context.identity.id, scoped, "player"),
     data().playerPerformance(context.identity.id, scoped),
+    data().entitySplits(context.identity.id, typeof year === "number" ? year : undefined),
     data().playerChampionPool(context.identity.id, scoped, poolQuery.success ? poolQuery.data : {}),
     preferences(),
   ]);
@@ -42,6 +43,7 @@ export default async function Page({
       profile={profile}
       performance={performance}
       championPool={championPool}
+      splits={splits}
       portraits={await data().championIconsByName([
         ...profile.summary.champions.map((champion) => champion.name),
         ...championPool.page.items.map((row) => row.champion),

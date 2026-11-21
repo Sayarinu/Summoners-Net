@@ -26,7 +26,7 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
       title="Pro Play"
       actions={
         <FilterBar action={`/champions/${champion.id}`} method="get">
-          {(["source", "patch", "role", "region", "tier"] as const).map((name) =>
+          {(["source", "patch", "role", "region", "tier", "stage"] as const).map((name) =>
             q[name] ? <input key={name} type="hidden" name={name} value={q[name]} /> : null,
           )}
           <Select
