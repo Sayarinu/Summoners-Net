@@ -576,6 +576,11 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await page.getByRole("button", { name: "Apply League" }).click();
   await expect(page).toHaveURL(/league=Draft\+acceptance/);
   await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / BansDrafts1 / 0");
+  // Patch history lists the drafted patch for the chosen league and opens that patch's page.
+  const history = page.getByRole("table", { name: "Ahri Pro Play by Patch · Draft acceptance" });
+  await expect(history.getByRole("row")).toHaveCount(2);
+  await history.getByRole("row").nth(1).getByRole("link").click();
+  await expect(page).toHaveURL(/source=pro.*patch=\d+\.\d+.*league=Draft\+acceptance/);
   await page.goto("/champions/Ahri?source=pro");
   await expect(
     page.getByRole("navigation", { name: "Source" }).locator('[aria-current="page"]'),

@@ -30,7 +30,7 @@ import { championBuckets, rebuildBuckets } from "./buckets.js";
 import { rebuildHeatmaps } from "./heatmaps.js";
 import { rebuildJunglePaths } from "./jungle-paths.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
-import { proChampionStats, rebuildProStats } from "./pro-stats.js";
+import { proChampionHistory, proChampionStats, rebuildProStats } from "./pro-stats.js";
 import { computeFeatures } from "./wp-features.js";
 
 export type AggregateSource = "solo" | "pro";
@@ -561,6 +561,11 @@ export async function championOverview(
       championKey: champion.champion_key,
       patch: q.source === "pro" ? (list.patch ?? undefined) : q.patch,
       league: q.league,
+    }),
+    proHistory: await proChampionHistory(db, {
+      championKey: champion.champion_key,
+      league: q.league,
+      page: q.historyPage,
     }),
     players:
       q.source === "solo" && list.patch

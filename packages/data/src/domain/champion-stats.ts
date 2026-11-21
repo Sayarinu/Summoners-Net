@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
-import type { ProChampionStats } from "./pro-stats.js";
+import type { ProChampionStats, ProPatchHistory } from "./pro-stats.js";
 import { synergyQuerySchema, type BotLaneMatrix, type Synergies } from "./synergies.js";
 
 export const championRoles = [
@@ -114,7 +114,11 @@ export const championOverviewQuerySchema = z
   })
   .extend(synergyQuerySchema.shape)
   .extend(championPlayersOptionsSchema.shape)
-  .extend({ league: z.string().trim().min(1).max(100).optional() })
+  .extend({
+    league: z.string().trim().min(1).max(100).optional(),
+    /** The page of the pro patch history. */
+    historyPage: z.coerce.number().int().min(1).max(1000).default(1),
+  })
   .strict();
 export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
 export type ParsedChampionOverviewQuery = z.output<typeof championOverviewQuerySchema>;
@@ -164,6 +168,8 @@ export interface ChampionOverview {
   buckets: ChampionBuckets | null;
   /** Pro-play draft statistics, shown with either source. */
   pro: ProChampionStats;
+  /** The champion's pro play on every patch, newest first, filtered by league. */
+  proHistory: ProPatchHistory;
   /** Solo-queue allies, one page sorted in SQL; null for pro play. */
   synergies: Synergies | null;
   /** Current ladder players with enough retained ranked games on this champion and patch. */

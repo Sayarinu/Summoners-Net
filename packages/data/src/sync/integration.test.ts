@@ -36,7 +36,7 @@ import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
-import { proChampionStats } from "../persistence/pro-stats.js";
+import { proChampionHistory, proChampionStats } from "../persistence/pro-stats.js";
 import { matchFeatures } from "../persistence/wp-features.js";
 import {
   activeWinProbabilityModel,
@@ -3159,6 +3159,41 @@ describe("Champion aggregates", () => {
       games: 0,
       presence: { value: null, sampleCount: 0 },
     });
+    // Patch history: one row per patch the champion was drafted on, filtered by league.
+    expect(await proChampionHistory(pool, { championKey: 103 })).toEqual({
+      league: null,
+      page: {
+        page: 1,
+        pageSize: 12,
+        total: 1,
+        items: [
+          {
+            patch: "16.4",
+            games: 3,
+            picks: 3,
+            bans: 0,
+            presence: { value: 1, sampleCount: 3 },
+            pickRate: { value: 1, sampleCount: 3 },
+            banRate: { value: 0, sampleCount: 3 },
+            winRate: { value: 0, sampleCount: 2 },
+            blueWinRate: { value: null, sampleCount: 0 },
+            redWinRate: { value: 0, sampleCount: 2 },
+          },
+        ],
+      },
+    });
+    expect(
+      (await proChampionHistory(pool, { championKey: 103, league: "LEC" })).page.items[0],
+    ).toMatchObject({ games: 1, picks: 1, winRate: { value: 0, sampleCount: 1 } });
+    expect((await proChampionHistory(pool, { championKey: 103, page: 2 })).page).toMatchObject({
+      items: [],
+      total: 0,
+    });
+    // A champion never drafted has no history; the overview carries the same rows.
+    expect((await proChampionHistory(pool, { championKey: 62 })).page.total).toBe(0);
+    expect(
+      (await championOverview(pool, { champion: "Ahri", league: "LCK" }))!.proHistory.page.items[0],
+    ).toMatchObject({ patch: "16.4", games: 2, picks: 2 });
   });
   it("stores versioned win probability features reproducible from frames and events", async () => {
     serveDataDragon(["16.22.1"]);
