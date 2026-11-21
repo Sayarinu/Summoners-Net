@@ -15,8 +15,9 @@ function filters(params: Params) {
 export async function loadChampionMatchups(champion: string, params: Params) {
   if (!championMatchupsQuerySchema.shape.champion.safeParse(champion).success) return null;
   const parsed = championMatchupsQuerySchema.omit({ champion: true }).safeParse(filters(params));
-  if (!parsed.success || Object.values(params).some(Array.isArray))
-    return { matchups: null, error };
+  // Several patches arrive as repeated values; every other filter takes one.
+  const repeated = Object.entries(params).some(([key, v]) => key !== "patch" && Array.isArray(v));
+  if (!parsed.success || repeated) return { matchups: null, error };
   const matchups = await data().championMatchups({ ...parsed.data, champion });
   if (!matchups) return null;
   // The stored score for the patch the matchup page resolved, so both describe the same sample.
