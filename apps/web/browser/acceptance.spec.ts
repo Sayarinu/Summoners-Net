@@ -545,7 +545,7 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   // The name is shown in the champion's identity; the page heading carries it for screen readers.
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toHaveCount(1);
   await expect(page.getByRole("region", { name: "Ahri", exact: true })).toBeVisible();
-  const stats = page.getByRole("region", { name: "Champion Statistics" });
+  const stats = page.getByLabel("Headline Statistics");
   await expect(
     page.getByRole("region", { name: "Ahri", exact: true }).getByText("Patch 16.4"),
   ).toBeVisible();
@@ -554,11 +554,13 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(stats).toContainText("Tier");
   await expect(page.getByRole("img", { name: "Ahri Pick Rate by Patch" })).toContainText("16.4");
   // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.
-  const build = page.getByRole("region", { name: "Most Common Build" });
-  await expect(build.getByRole("region", { name: "Starting Items" })).toContainText(
-    "Too Few Games (1)",
-  );
-  await expect(build.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  const items = page.getByRole("region", { name: "Items" });
+  await expect(items.getByRole("region", { name: "Starting Items" })).toContainText("—WR1 Games");
+  await expect(items.getByRole("img", { name: "Doran's Ring" })).toBeVisible();
+  // The rune page is drawn over its tree, the chosen keystone lit.
+  await expect(
+    page.getByRole("region", { name: "Runes" }).getByRole("img", { name: "Electrocute" }).first(),
+  ).toHaveAttribute("data-state", "selected");
   await page.getByText("All Builds, Runes and Skills").click();
   const start = page.getByRole("table", { name: "Starting Items" });
   await expect(start).toContainText("Doran's Ring");

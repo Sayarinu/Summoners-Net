@@ -10,6 +10,9 @@ const itemSections = [
   { kind: "slot1", title: "First Completed Item" },
   { kind: "slot2", title: "Second Completed Item" },
   { kind: "slot3", title: "Third Completed Item" },
+  { kind: "slot4", title: "Fourth Completed Item" },
+  { kind: "slot5", title: "Fifth Completed Item" },
+  { kind: "slot6", title: "Sixth Completed Item" },
 ] as const;
 const loadoutSections = [
   { kind: "keystone", title: "Keystones" },

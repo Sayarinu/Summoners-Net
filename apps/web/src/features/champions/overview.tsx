@@ -26,7 +26,7 @@ import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
 import { PerformanceStats, ProHistorySection, ProSection } from "./pro";
 import { ChampionFilters } from "./filters";
-import { BuildCard } from "./build-card";
+import { ItemsPanel, RunesPanel, SpellsAndSkillsPanel } from "./solo-build";
 import { MatchupCards } from "./matchup-cards";
 import { ChampionPages, championHeatmapsHref } from "./champion-pages";
 import { percent, type MatchupSummary } from "./presentation";
@@ -91,47 +91,54 @@ function TrendChart({
   );
 }
 
-function Performance({ overview }: { overview: ChampionOverview }) {
+/** The headline figures beside the champion: tier, win, pick and ban rates, and games. */
+function HeaderStats({ overview }: { overview: ChampionOverview }) {
   return (
-    <Panel title="Performance">
-      <StatGroup className="grid grid-cols-2 gap-5 max-[1150px]:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
-        <Stat
-          label="Tier"
-          value={
-            <span
-              className={overview.tier ? tierColors[overview.tier] : "text-fg-muted"}
-              title={
-                overview.tier && overview.baseline !== null && overview.shrunkWinRate.value !== null
-                  ? `Shrunk win rate ${percent(overview.shrunkWinRate)}, ${tierNotes[overview.tier]} the ${percent({ value: overview.baseline, sampleCount: 1 })} average of this selection.`
-                  : "Unknown until this champion has games with known results."
-              }
-            >
-              {overview.tier ?? "Unknown"}
-            </span>
-          }
-        />
-        <Stat
-          label="Win Rate"
-          value={percent(overview.winRate)}
-          detail={`${overview.winRate.sampleCount.toLocaleString()} Games`}
-        />
-        <Stat
-          label="Pick Rate"
-          value={percent(overview.pickRate)}
-          detail={`${overview.pickRate.sampleCount.toLocaleString()} Games`}
-        />
-        <Stat
-          label="Ban Rate"
-          value={percent(overview.banRate)}
-          detail={`${overview.banRate.sampleCount.toLocaleString()} Games`}
-        />
-        <Stat
-          label="Games"
-          value={overview.games.toLocaleString()}
-          detail={`of ${overview.sliceGames.toLocaleString()}`}
-        />
-      </StatGroup>
-    </Panel>
+    <StatGroup
+      label="Headline Statistics"
+      className="grid grid-cols-5 gap-5 max-[900px]:grid-cols-3 max-[500px]:grid-cols-2"
+    >
+      <Stat
+        label="Tier"
+        size="lg"
+        value={
+          <span
+            className={overview.tier ? tierColors[overview.tier] : "text-fg-muted"}
+            title={
+              overview.tier && overview.baseline !== null && overview.shrunkWinRate.value !== null
+                ? `Shrunk win rate ${percent(overview.shrunkWinRate)}, ${tierNotes[overview.tier]} the ${percent({ value: overview.baseline, sampleCount: 1 })} average of this selection.`
+                : "Unknown until this champion has games with known results."
+            }
+          >
+            {overview.tier ?? "Unknown"}
+          </span>
+        }
+      />
+      <Stat
+        label="Win Rate"
+        size="lg"
+        value={percent(overview.winRate)}
+        detail={`${overview.winRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Pick Rate"
+        size="lg"
+        value={percent(overview.pickRate)}
+        detail={`${overview.pickRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Ban Rate"
+        size="lg"
+        value={percent(overview.banRate)}
+        detail={`${overview.banRate.sampleCount.toLocaleString()} Games`}
+      />
+      <Stat
+        label="Games"
+        size="lg"
+        value={overview.games.toLocaleString()}
+        detail={`of ${overview.sliceGames.toLocaleString()}`}
+      />
+    </StatGroup>
   );
 }
 
@@ -189,6 +196,11 @@ export function ChampionOverviewPage({
               }))}
             />
           </div>
+          {overview.patch ? (
+            <div className="border-t border-line pt-4">
+              <HeaderStats overview={overview} />
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
             <TabNav
               label="Role"
@@ -238,13 +250,14 @@ export function ChampionOverviewPage({
       ) : (
         <section className="flex min-w-0 flex-col gap-6" aria-label="Champion Statistics">
           {overview.builds ? (
-            <div className={pairGrid}>
-              <BuildCard builds={overview.builds} />
-              <Performance overview={overview} />
-            </div>
-          ) : (
-            <Performance overview={overview} />
-          )}
+            <>
+              <div className="grid grid-cols-2 items-start gap-4 max-[1150px]:grid-cols-1">
+                <RunesPanel builds={overview.builds} />
+                <SpellsAndSkillsPanel builds={overview.builds} />
+              </div>
+              <ItemsPanel builds={overview.builds} />
+            </>
+          ) : null}
           {counterPick &&
           matchupSummary &&
           (matchupSummary.best.length || matchupSummary.worst.length) ? (
@@ -258,6 +271,21 @@ export function ChampionOverviewPage({
               {counterPick}
             </>
           )}
+          {overview.performance && overview.performance.games > 0 ? (
+            <Panel title="Game Statistics">
+              <PerformanceStats
+                label="Solo-Queue Performance"
+                performance={overview.performance}
+                omitUnrecorded
+              />
+            </Panel>
+          ) : null}
+          {q.source === "pro" ? (
+            <>
+              <ProSection overview={overview} />
+              <ProHistorySection overview={overview} />
+            </>
+          ) : null}
           <Panel title="Patch Trends">
             <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
               <TrendChart
@@ -280,17 +308,6 @@ export function ChampionOverviewPage({
               />
             </div>
           </Panel>
-          {overview.performance && overview.performance.games > 0 ? (
-            <Panel title="Performance">
-              <PerformanceStats
-                label="Solo-Queue Performance"
-                performance={overview.performance}
-                omitUnrecorded
-              />
-            </Panel>
-          ) : null}
-          <ProSection overview={overview} />
-          <ProHistorySection overview={overview} />
           <BucketsSection buckets={overview.buckets} />
           {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
             <JunglePathsSection paths={junglePaths} champion={champion.name} />

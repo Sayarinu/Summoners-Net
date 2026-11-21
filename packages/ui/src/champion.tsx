@@ -53,3 +53,45 @@ export function ChampionIdentity({
     <div className={className}>{content}</div>
   );
 }
+
+const abilityKeys = ["Q", "W", "E", "R"] as const;
+export interface SkillOrderGridProps {
+  /** A caption naming the order, read by screen readers. */
+  readonly caption: string;
+  readonly className?: string;
+  /** The ability ranked at each level, from level 1: 1 Q, 2 W, 3 E, 4 R. */
+  readonly path: readonly number[];
+}
+
+/** Which ability was ranked at each level, as a grid of abilities by level. */
+export function SkillOrderGrid({ caption, className, path }: SkillOrderGridProps) {
+  return (
+    <table className={cx("np-skill-grid", className)}>
+      <caption className="np-visually-hidden">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">
+            <span className="np-visually-hidden">Ability</span>
+          </th>
+          {path.map((_, level) => (
+            <th key={level} scope="col">
+              {level + 1}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {abilityKeys.map((key, slot) => (
+          <tr key={key} data-ability={key}>
+            <th scope="row">{key}</th>
+            {path.map((ranked, level) => (
+              <td key={level} data-ranked={ranked === slot + 1 ? "" : undefined}>
+                {ranked === slot + 1 ? key : ""}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
