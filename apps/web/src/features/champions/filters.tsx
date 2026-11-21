@@ -59,7 +59,7 @@ export function ChampionFilters({
         name="patch"
         defaultValue={query?.patch ?? "all"}
         options={[
-          { label: "Newest", value: "all" },
+          { label: "Latest with Enough Games", value: "all" },
           ...(facets?.patches ?? []).map((p) => ({ label: p, value: p })),
         ]}
       />
