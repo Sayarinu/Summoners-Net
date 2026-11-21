@@ -2962,7 +2962,13 @@ describe("Champion aggregates", () => {
     await saveTimeline(
       pool,
       parseRiotTimeline(
-        withEvents("EUW1_1", [buy(600, 3020), buy(900, 4645), buy(1200, 3089), buy(1500, 3157)]),
+        withEvents("EUW1_1", [
+          buy(600, 3020),
+          buy(900, 4645),
+          buy(1200, 3089),
+          buy(1500, 3157),
+          buy(1800, 3135),
+        ]),
         "EUW1_1",
       ),
       now,
@@ -2999,6 +3005,8 @@ describe("Champion aggregates", () => {
       { kind: "slot2", build: "3089", games: 1, result_games: 1, wins: 1 },
       { kind: "slot2", build: "3135", games: 1, result_games: 1, wins: 0 },
       { kind: "slot3", build: "3157", games: 2, result_games: 2, wins: 1 },
+      // The fourth completed item, the first option after the core.
+      { kind: "slot4", build: "3135", games: 1, result_games: 1, wins: 1 },
       { kind: "start", build: "1056", games: 2, result_games: 2, wins: 1 },
     ]);
     const overview = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!;
@@ -3031,7 +3039,8 @@ describe("Champion aggregates", () => {
     expect((await championOverview(pool, { champion: "Ahri", source: "pro" }))!.builds).toBeNull();
   });
   it("counts rune pages, keystones, stat shards and spell pairs from every game", async () => {
-    serveDataDragon(["16.22.1"]);
+    // Icons are cached for the newest patch only; the games are on 16.22.
+    serveDataDragon(["16.23.1", "16.22.1"]);
     expect((await run({ kind: "metadata" })).state).toBe("done");
     await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
     await ingest("EUW1_1", challenger);
@@ -3068,9 +3077,16 @@ describe("Champion aggregates", () => {
       { kind: "spells", build: "4,14", games: 2, result_games: 2, wins: 1 },
     ]);
     const builds = (await championOverview(pool, { champion: "Ahri", role: "MIDDLE" }))!.builds!;
+    // Each icon falls back to the newest cached icon for the same id.
     expect(builds.keystone[0]!.items).toEqual([
-      expect.objectContaining({ kind: "rune", id: 8112, name: "Electrocute" }),
+      expect.objectContaining({
+        kind: "rune",
+        id: 8112,
+        name: "Electrocute",
+        imageUrl: expect.stringMatching(/^\/api\/images\/[a-f0-9]{64}$/) as string,
+      }),
     ]);
+    expect(builds.spells[0]!.items[0]!.imageUrl).toMatch(/^\/api\/images\/[a-f0-9]{64}$/);
     expect(builds.spells[0]).toMatchObject({
       items: [
         { kind: "spell", id: 4, catalogId: "SummonerFlash", name: "Flash" },
@@ -3081,11 +3097,29 @@ describe("Champion aggregates", () => {
       pickRate: { value: null, sampleCount: 3 },
       winRate: { value: null, sampleCount: 2 },
     });
-    // Data Dragon has no stat shard entries, so they keep their ids without names.
+    // Data Dragon has no stat shard entries; they are named from Riot's shard ids.
     expect(builds.shards[0]!.items.map((i) => [i.kind, i.id, i.name])).toEqual([
-      ["shard", 5005, null],
-      ["shard", 5008, null],
-      ["shard", 5001, null],
+      ["shard", 5005, "Attack Speed"],
+      ["shard", 5008, "Adaptive Force"],
+      ["shard", 5001, "Health Scaling"],
+    ]);
+    // Each tree the page uses, with its rows of runes from the catalog, keystones first. The
+    // fixture catalog lists only Domination, so Sorcery has no tree to draw.
+    expect(
+      builds.runeTrees.map((t) => [
+        t.tree.id,
+        t.tree.name,
+        t.rows.map((row) => row.map((x) => x.id)),
+      ]),
+    ).toEqual([
+      [
+        8100,
+        "Domination",
+        [
+          [8112, 8128],
+          [8126, 8139],
+        ],
+      ],
     ]);
   });
   it("derives skill orders and counts games whose skill-ups do not decide one", async () => {
@@ -3128,6 +3162,8 @@ describe("Champion aggregates", () => {
     ).toEqual([
       { kind: "skillmax", build: "1,3,2", games: 1 },
       { kind: "skillmax_incomplete", build: "0", games: 1 },
+      // The fixture's level-1 Q, then the first fourteen saved level-ups; EUW1_2 ends too early.
+      { kind: "skillpath", build: "1,3,2,1,1,4,1,3,1,3,4,3,3,2,2", games: 1 },
       { kind: "skills", build: "1,3,2", games: 1 },
       { kind: "skills_incomplete", build: "0", games: 1 },
     ]);
@@ -3142,6 +3178,7 @@ describe("Champion aggregates", () => {
       winRate: { value: null, sampleCount: 1 },
     });
     expect(builds.excluded).toEqual({ skills: 1, skillmax: 1 });
+    expect(builds.skillpath[0]!.items.map((i) => i.name).join("")).toBe("QEWQQRQEQEREEWW");
   });
   it("buckets win rate by game length and by gold and level lead over the lane opponent", async () => {
     serveDataDragon(["16.22.1"]);

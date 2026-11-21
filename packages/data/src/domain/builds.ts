@@ -82,12 +82,16 @@ export const buildKinds = [
   "slot1",
   "slot2",
   "slot3",
+  "slot4",
+  "slot5",
+  "slot6",
   "runes",
   "keystone",
   "shards",
   "spells",
   "skills",
   "skillmax",
+  "skillpath",
 ] as const;
 export interface BuildItem {
   kind: "item" | "rune" | "shard" | "spell" | "skill";
@@ -114,7 +118,32 @@ export interface BuildRow {
   winRate: { value: number | null; sampleCount: number };
   sample: "shown" | "low-sample" | "hidden";
 }
+/**
+ * A rune tree as the catalog lists it: the tree itself and each row's runes, keystones first.
+ * Used to draw a rune page with the chosen runes among the alternatives.
+ */
+export interface RuneTree {
+  tree: BuildItem;
+  rows: BuildItem[][];
+}
 export type ChampionBuilds = Record<(typeof buildKinds)[number], BuildRow[]> & {
   /** Games whose skill-ups did not decide the order, left out of skills and skillmax. */
   excluded: { skills: number; skillmax: number };
+  /** Every tree used by a listed rune page, by tree id. */
+  runeTrees: RuneTree[];
+};
+/**
+ * Riot's stat shard ids, which Data Dragon does not list. Names follow the client's rune page;
+ * 5002 and 5003 are the retired armor and magic resist shards still found in older games.
+ */
+export const statShardNames: Record<number, string> = {
+  5001: "Health Scaling",
+  5002: "Armor",
+  5003: "Magic Resist",
+  5005: "Attack Speed",
+  5007: "Ability Haste",
+  5008: "Adaptive Force",
+  5010: "Move Speed",
+  5011: "Health",
+  5013: "Tenacity and Slow Resist",
 };

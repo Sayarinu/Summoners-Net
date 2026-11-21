@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { deriveSkillOrder, type SkillEvent } from "./skills.js";
+import { deriveSkillOrder, deriveSkillPath, type SkillEvent } from "./skills.js";
 
 const ups = (...slots: (number | [number, string])[]): SkillEvent[] =>
   slots.map((s, i) => ({
@@ -26,4 +26,11 @@ it("leaves orders unknown when the game ends before they are decided", () => {
   expect(
     deriveSkillOrder([{ timestampMs: 0, skillSlot: null, levelUpType: null }]).first,
   ).toBeNull();
+});
+it("keeps the first fifteen level-ups with the ultimate, and nothing for a shorter game", () => {
+  const levels = [1, 3, 2, 1, 1, 4, 1, 3, 1, 3, 4, 3, 3, 2, 2, 4, 2, 2];
+  expect(deriveSkillPath(ups(...levels))).toEqual(levels.slice(0, 15));
+  // Evolutions are not level-ups; a game that ends at level 14 has no full path.
+  expect(deriveSkillPath(ups([2, "EVOLVE"], ...levels.slice(0, 14)))).toBeNull();
+  expect(deriveSkillPath([...ups(...levels)].reverse())).toEqual(levels.slice(0, 15));
 });

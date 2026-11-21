@@ -39,3 +39,23 @@ export function deriveSkillOrder(events: readonly SkillEvent[]): SkillOrder {
       : null;
   return { first: basics.length >= 3 ? basics.slice(0, 3) : null, max };
 }
+
+/** Levels in a skill path: most ranked games reach 15, fewer reach 18. */
+export const skillPathLevels = 15;
+/**
+ * Every normal level-up in order, the ultimate included (slot 4), for the first
+ * `skillPathLevels` levels; null when the game ended before the champion reached that level.
+ */
+export function deriveSkillPath(events: readonly SkillEvent[]): number[] | null {
+  const ups = [...events]
+    .sort((a, b) => a.timestampMs - b.timestampMs)
+    .filter(
+      (e) =>
+        (e.levelUpType === null || e.levelUpType === "NORMAL") &&
+        e.skillSlot !== null &&
+        e.skillSlot >= 1 &&
+        e.skillSlot <= 4,
+    )
+    .map((e) => e.skillSlot!);
+  return ups.length >= skillPathLevels ? ups.slice(0, skillPathLevels) : null;
+}

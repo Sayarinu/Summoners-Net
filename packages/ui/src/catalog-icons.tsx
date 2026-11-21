@@ -9,12 +9,18 @@ export interface CatalogIconProps {
   readonly name: string;
   readonly imageUrl: string | null;
   readonly size?: AvatarProps["size"];
+  /**
+   * Within a set of alternatives, such as a rune tree: `selected` rings the chosen entry and
+   * `muted` dims the others.
+   */
+  readonly state?: "muted" | "selected" | undefined;
 }
 function CatalogIcon({
   id,
   name,
   imageUrl,
   size = "medium",
+  state,
   kind,
 }: CatalogIconProps & { kind: string }) {
   const src =
@@ -33,6 +39,7 @@ function CatalogIcon({
       size={size}
       data-catalog-id={id}
       data-catalog-kind={kind}
+      data-state={state}
     />
   );
 }
