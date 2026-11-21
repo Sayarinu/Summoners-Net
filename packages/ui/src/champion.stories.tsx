@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChampionIdentity } from "./champion.js";
+import { ChampionIdentity, SkillOrderGrid } from "./champion.js";
 import { Card } from "./layout.js";
 
 const meta = {
@@ -45,5 +45,14 @@ export const CardGrid: Story = {
         </li>
       ))}
     </ul>
+  ),
+};
+/** Levels 1–15 of a Q > E > W order, ultimate at 6 and 11. */
+export const SkillOrder: Story = {
+  render: () => (
+    <SkillOrderGrid
+      caption="Most Common Skill Order"
+      path={[1, 3, 2, 1, 1, 4, 1, 3, 1, 3, 4, 3, 3, 2, 2]}
+    />
   ),
 };

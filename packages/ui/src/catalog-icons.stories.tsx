@@ -48,3 +48,28 @@ export const Missing: Story = {
     </div>
   ),
 };
+export const RuneChoices: Story = {
+  name: "Rune Choices (Selected and Muted)",
+  render: () => (
+    <div style={{ display: "flex", gap: 12 }}>
+      <RuneIcon
+        id="8112"
+        name="Electrocute"
+        imageUrl="/api/images/catalog/16.22/rune/8112"
+        state="selected"
+      />
+      <RuneIcon
+        id="8128"
+        name="Dark Harvest"
+        imageUrl="/api/images/catalog/16.22/rune/8128"
+        state="muted"
+      />
+      <RuneIcon
+        id="9923"
+        name="Hail of Blades"
+        imageUrl="/api/images/catalog/16.22/rune/9923"
+        state="muted"
+      />
+    </div>
+  ),
+};

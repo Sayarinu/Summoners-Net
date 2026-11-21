@@ -73,7 +73,7 @@ export type {
   ChampionOverviewQuery,
   ChampionTier,
 } from "./domain/champion-stats.js";
-export type { BuildItem, BuildRow, ChampionBuilds } from "./domain/builds.js";
+export type { BuildItem, BuildRow, ChampionBuilds, RuneTree } from "./domain/builds.js";
 export type { BucketKind, BucketPoint, ChampionBuckets } from "./domain/buckets.js";
 export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js";
 export { synergySorts } from "./domain/synergies.js";
