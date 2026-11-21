@@ -1255,6 +1255,18 @@ test("navigation reaches every analytics section and search finds champions", as
   await page.goto("/champions");
   await expect(page.getByRole("heading", { name: "Champions", exact: true })).toBeVisible();
   await expect(nav("Champions")).toHaveAttribute("aria-current", "page");
+  // The selected entry reads in the gold accent, with no accent bar beside it.
+  const selected = await nav("Champions").evaluate((link) => {
+    const style = getComputedStyle(link);
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-text-accent)";
+    document.body.append(probe);
+    const accent = getComputedStyle(probe).color;
+    probe.remove();
+    return { color: style.color, accent, shadow: style.boxShadow };
+  });
+  expect(selected.color).toBe(selected.accent);
+  expect(selected.shadow).toBe("none");
   // Each champion card opens the champion, whose tabs lead on to its lane matchups.
   await expect(
     page

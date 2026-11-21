@@ -143,7 +143,7 @@ function PlayerGameRow({
   const versus = ordered.map((t) => t.name).join(" versus ");
   return (
     <article
-      className="relative grid min-h-19 grid-cols-[minmax(120px,18%)_44px_minmax(0,1fr)_minmax(120px,max-content)] items-center gap-4 border-b border-line px-5 py-3 last:border-b-0 focus-within:bg-interactive/50 hover:bg-interactive/50 border-l-3 border-l-transparent data-[result=false]:border-l-loss data-[result=true]:border-l-success max-[700px]:grid-cols-[44px_minmax(0,1fr)_auto] max-[700px]:gap-x-3 max-[700px]:gap-y-2 max-[700px]:px-3"
+      className="relative grid min-h-19 grid-cols-[minmax(120px,18%)_44px_minmax(0,1fr)_minmax(120px,max-content)] items-center gap-4 border-b border-line px-5 py-3 last:border-b-0 focus-within:bg-interactive/50 hover:bg-interactive/50 max-[700px]:grid-cols-[44px_minmax(0,1fr)_auto] max-[700px]:gap-x-3 max-[700px]:gap-y-2 max-[700px]:px-3"
       data-result={hidden ? undefined : (own?.won ?? undefined)}
     >
       <div className="grid gap-0.5 text-sm text-fg-muted max-[700px]:col-span-full max-[700px]:flex max-[700px]:gap-2">
