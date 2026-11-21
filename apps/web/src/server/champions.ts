@@ -13,7 +13,10 @@ const filters = (params: Record<string, string | string[] | undefined>) =>
   Object.fromEntries(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== "" && v !== "all"),
   );
-/** Validates the tier list query string; an invalid one shows an error instead of data. */
+/**
+ * Validates the tier list query string; an invalid one shows an error instead of data. Without a
+ * chosen source it opens on pro play when no solo-queue games are stored.
+ */
 export async function loadTierList(params: Record<string, string | string[] | undefined>) {
   const parsed = tierListQuerySchema.safeParse(filters(params));
   if (!parsed.success)
@@ -22,7 +25,10 @@ export async function loadTierList(params: Record<string, string | string[] | un
       error:
         "Choose filters from the lists: a patch such as 16.22, a role, a region, a tier and a sort.",
     };
-  return { list: await data().tierList(parsed.data), error: null };
+  const list = await data().tierList(parsed.data);
+  if (params.source === undefined && list.query.source === "solo" && !list.facets.patches.length)
+    return { list: await data().tierList({ ...parsed.data, source: "pro" }), error: null };
+  return { list, error: null };
 }
 
 const filterError =
@@ -41,10 +47,16 @@ export async function loadChampionOverview(
   for (const name of ["playersSort", "playersPage"])
     if (params[name] !== undefined) input[name] = params[name];
   const parsed = championOverviewQuerySchema.safeParse({ ...input, champion: id.data });
-  const overview = await data().championOverview(
-    parsed.success ? parsed.data : { champion: id.data },
-  );
+  const query = parsed.success ? parsed.data : { champion: id.data };
+  let overview = await data().championOverview(query);
   if (!overview) return null;
+  // Without a chosen source, open on pro play when no solo-queue games are stored.
+  if (
+    params.source === undefined &&
+    overview.query.source === "solo" &&
+    !overview.facets.patches.length
+  )
+    overview = (await data().championOverview({ ...query, source: "pro" })) ?? overview;
   // Counter-pick values are per lane role; the all-roles view has none.
   const role = matchupRoles.find((r) => r === overview.query.role);
   const draftValue =

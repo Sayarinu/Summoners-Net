@@ -32,6 +32,7 @@ export function ChampionFilters({
   scopeOnly?: boolean;
   className?: string;
 }) {
+  const pro = query?.source === "pro";
   return (
     <FilterBar action={action} method="get" className={className} key={JSON.stringify(query)}>
       {scopeOnly ? (
@@ -71,18 +72,21 @@ export function ChampionFilters({
           }))}
         />
       )}
+      {/* Pro play is sliced by league, and its only tier is PRO. */}
       <Select
-        label="Region"
+        label={pro ? "League" : "Region"}
         name="region"
         defaultValue={query?.region ?? "all"}
         options={[all, ...(facets?.regions ?? []).map((r) => ({ label: r, value: r }))]}
       />
-      <Select
-        label="Tier"
-        name="tier"
-        defaultValue={query?.tier ?? "all"}
-        options={[all, ...(facets?.tiers ?? []).map((t) => ({ label: t, value: t }))]}
-      />
+      {pro ? null : (
+        <Select
+          label="Tier"
+          name="tier"
+          defaultValue={query?.tier ?? "all"}
+          options={[all, ...(facets?.tiers ?? []).map((t) => ({ label: t, value: t }))]}
+        />
+      )}
       {sortable && (
         <>
           <Select

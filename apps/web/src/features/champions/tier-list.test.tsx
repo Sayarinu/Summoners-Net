@@ -52,7 +52,7 @@ const list: TierList = {
   },
 };
 it("shows rates, intervals and samples, with unknown values never shown as zero", () => {
-  render(<TierListPage list={list} error={null} />);
+  const view = render(<TierListPage list={list} error={null} />);
   const table = screen.getByRole("table", { name: "Champion Tier List" });
   const [ahri, unknown] = within(table).getAllByRole("row").slice(1);
   expect(within(ahri!).getByRole("img", { name: "Ahri" })).toBeVisible();
@@ -74,6 +74,13 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
   expect(trigger("Sort By")).toHaveTextContent("Win Rate");
   expect(trigger("Region")).toHaveTextContent("All");
   expect(screen.getByText(/Patch 16.22 · 120 games/)).toBeVisible();
+  // Pro play is sliced by league, with no ranked tier.
+  view.rerender(
+    <TierListPage list={{ ...list, query: { ...list.query, source: "pro" } }} error={null} />,
+  );
+  expect(trigger("League")).toHaveTextContent("All");
+  expect(trigger("Tier")).toBeUndefined();
+  expect(trigger("Region")).toBeUndefined();
 });
 it("shows an empty state without data and an error for an invalid query", () => {
   const view = render(
