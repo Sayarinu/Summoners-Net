@@ -139,16 +139,18 @@ function Pages({
   page,
   total,
   size,
+  note,
 }: {
   label: string;
   field: string;
   page: number;
   total: number;
   size: number;
+  note?: string | undefined;
 }) {
   return (
     <PageFooter
-      summary={`${label}: page ${page} · ${total} champions`}
+      summary={`${label}: page ${page} · ${total} champions${note ? ` · ${note}` : ""}`}
       label={label}
       page={page}
       total={total}
@@ -426,7 +428,7 @@ export function ChampionMatchupsPage({
         <input type="hidden" name="pageSize" value={q.pageSize} />
         <Button type="submit">Apply Filters</Button>
       </FilterBar>
-      {score ? (
+      {score && score.score !== null ? (
         <div className={pairGrid}>
           <Blindability score={score} />
           <Panel title="Counter-Pick Value">
@@ -434,7 +436,13 @@ export function ChampionMatchupsPage({
           </Panel>
         </div>
       ) : (
-        <Blindability score={null} />
+        <p role="status" className="text-sm text-fg-secondary">
+          Blindability and counter-pick value are unavailable:{" "}
+          {score?.reason
+            ? `${blindabilityReasons[score.reason]} ${score.coveredOpponents} of ${score.sampledOpponents} sampled opponents meet the minimum.`
+            : "no stored score for this role, source and patch."}{" "}
+          <TextLink href={listHref}>Compare the Role</TextLink>
+        </p>
       )}
       <Panel
         title="Lane Opponents"
@@ -457,7 +465,11 @@ export function ChampionMatchupsPage({
           caption={`${championName} Lane Opponents`}
           rows={m.page.items}
           getRowKey={(r) => String(r.opponent.championKey)}
-          emptyMessage="No matchup observations on this page. Try another role, source, patch or page."
+          emptyMessage={
+            m.hiddenOpponents
+              ? `No opponent has ${m.minimumGames} games in this role and patch yet.`
+              : "No matchup observations on this page. Try another role, source, patch or page."
+          }
           columns={[
             {
               id: "opponent",
@@ -472,17 +484,28 @@ export function ChampionMatchupsPage({
               ),
             },
             { id: "games", header: "Games", align: "end", render: (r) => r.games },
-            ...matchupMetrics.map((metric) => ({
-              id: metric,
-              header: metrics[metric],
-              align: "end" as const,
-              render: (r: ChampionMatchups["page"]["items"][number]) => (
-                <span className="whitespace-nowrap">
-                  {display(r.metrics[metric][q.value], metric)}{" "}
-                  <small className="text-fg-muted">· n={r.metrics[metric].sampleCount}</small>
-                </span>
-              ),
-            })),
+            // Only metrics some listed opponent recorded; the rest would be a column of unknowns.
+            ...matchupMetrics
+              .filter(
+                (metric) =>
+                  metric === "winRate" || m.page.items.some((r) => r.metrics[metric].sampleCount),
+              )
+              .map((metric) => ({
+                id: metric,
+                header: metrics[metric],
+                align: "end" as const,
+                render: (r: ChampionMatchups["page"]["items"][number]) => {
+                  const value = r.metrics[metric][q.value];
+                  return (
+                    <span
+                      className="whitespace-nowrap"
+                      title={`${r.metrics[metric].sampleCount} observations`}
+                    >
+                      {value === null ? "—" : display(value, metric)}
+                    </span>
+                  );
+                },
+              })),
           ]}
         />
         <Pages
@@ -491,6 +514,11 @@ export function ChampionMatchupsPage({
           page={q.page}
           total={m.page.total}
           size={q.pageSize}
+          note={
+            m.hiddenOpponents
+              ? `${m.hiddenOpponents} with fewer than ${m.minimumGames} games not listed`
+              : undefined
+          }
         />
       </Panel>
       {m.exclusions.length > 0 ? (

@@ -81,7 +81,10 @@ export interface ChampionMatchups {
   champion: PatchChampion;
   patch: string | null;
   patches: string[];
+  /** Opponents with at least `minimumGames` win-rate observations; the rest are counted. */
   page: Page<MatchupRow>;
+  minimumGames: number;
+  hiddenOpponents: number;
   exclusions: MatchupExclusions[];
 }
 
