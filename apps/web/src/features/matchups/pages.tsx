@@ -8,6 +8,7 @@ import {
   ChampionIdentity,
   FilterBar,
   HeatGrid,
+  MultiSelect,
   PageHeader,
   Panel,
   Select,
@@ -36,6 +37,7 @@ import {
 } from "@summonersnet/data/contracts";
 import { ChampionPages, championHeatmapsHref } from "../champions/champion-pages";
 import { goToPage, PageFooter } from "../champions/paging";
+import { appendPatches, patchesLabel } from "../champions/presentation";
 const roles = {
   TOP: "Top",
   JUNGLE: "Jungle",
@@ -68,10 +70,9 @@ const name = (c: PatchChampion) => c.name ?? c.championId ?? `Champion ${c.champ
 const pairGrid =
   "grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] items-start gap-4 max-[1150px]:grid-cols-1";
 const toolbar = "flex flex-wrap items-end gap-x-6 gap-y-3 border-y border-line py-3";
-function selection(q: { source: string; value: string }, patch: string | null) {
+function selection(q: { source: string; value: string }, patch: string | null | readonly string[]) {
   const params = new URLSearchParams({ source: q.source, value: q.value });
-  if (patch) params.set("patch", patch);
-  return params;
+  return appendPatches(params, typeof patch === "string" ? [patch] : (patch ?? []));
 }
 /** The role list takes only source and patch filters. */
 function counterPicksHref(role: string, source: string, patch: string | null) {
@@ -95,12 +96,16 @@ function Filters({
   query: q,
   patches,
   patch,
+  chosen,
 }: {
   query: { source: string; value: string };
   patches: string[];
   patch: string | null;
+  /** Patches the reader chose to combine; the patch filter then takes several. */
+  chosen?: readonly string[] | undefined;
 }) {
   const choices = [...new Set([...(patch ? [patch] : []), ...patches])];
+  const patchOptions = choices.map((p) => ({ value: p, label: p }));
   return (
     <>
       <Select
@@ -112,15 +117,22 @@ function Filters({
           { value: "pro", label: "Pro" },
         ]}
       />
-      <Select
-        label="Patch"
-        name="patch"
-        defaultValue={patch ?? "all"}
-        options={[
-          { value: "all", label: "Latest Available" },
-          ...choices.map((p) => ({ value: p, label: p })),
-        ]}
-      />
+      {chosen ? (
+        <MultiSelect
+          label="Patches"
+          name="patch"
+          defaultValue={chosen}
+          placeholder="Latest with Enough Games"
+          options={patchOptions}
+        />
+      ) : (
+        <Select
+          label="Patch"
+          name="patch"
+          defaultValue={patch ?? "all"}
+          options={[{ value: "all", label: "Latest Available" }, ...patchOptions]}
+        />
+      )}
       <Select
         label="Values"
         name="value"
@@ -353,12 +365,14 @@ export function ChampionMatchupsPage({
       </div>
     );
   const q = m.query,
-    params = selection(q, m.patch);
+    params = selection(q, m.combined);
   params.set("role", q.role);
   const championName = name(m.champion);
   const championHref = `/champions/${encodeURIComponent(q.champion)}`;
   const score = m.patch ? blindability : null;
   const listHref = counterPicksHref(q.role, q.source, m.patch);
+  const overviewParams = appendPatches(new URLSearchParams({ source: q.source }), m.combined);
+  overviewParams.set("role", q.role);
   return (
     <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
       <PageHeader
@@ -370,7 +384,7 @@ export function ChampionMatchupsPage({
         eyebrow={[
           sources[q.source],
           roles[q.role],
-          `Patch ${m.patch ?? "unavailable"}`,
+          patchesLabel(m.combined),
           q.value === "raw" ? "Raw observations" : "Shrunk estimates",
           `${m.page.total} opponents`,
         ].join(" · ")}
@@ -386,7 +400,7 @@ export function ChampionMatchupsPage({
       >
         <ChampionPages
           current="matchups"
-          overviewHref={`${championHref}?source=${q.source}${m.patch ? `&patch=${m.patch}` : ""}&role=${q.role}`}
+          overviewHref={`${championHref}?${overviewParams}`}
           matchupsHref={`${championHref}/matchups?${params}`}
           heatmapsHref={championHeatmapsHref(q.champion, q.source, m.patch)}
         />
@@ -396,7 +410,7 @@ export function ChampionMatchupsPage({
         method="get"
         action={`/champions/${q.champion}/matchups`}
       >
-        <Filters query={q} patches={m.patches} patch={m.patch} />
+        <Filters query={q} patches={m.patches} patch={m.patch} chosen={q.patch ?? []} />
         <Select
           label="Role"
           name="role"
@@ -453,7 +467,7 @@ export function ChampionMatchupsPage({
             filters={{
               champion: q.champion,
               source: q.source,
-              patch: m.patch,
+              patch: m.combined.join(","),
               role: q.role,
               sort: q.sort,
               order: q.order,

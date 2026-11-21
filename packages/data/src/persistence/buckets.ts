@@ -78,6 +78,8 @@ export async function championBuckets(
   input: {
     championKey: number;
     patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     role: string;
     region?: string | undefined;
     tier?: string | undefined;
@@ -92,10 +94,16 @@ export async function championBuckets(
   }>(
     `SELECT kind,bucket,sum(games)::integer AS games,sum(result_games)::integer AS result_games,
        sum(wins)::integer AS wins
-     FROM champion_buckets WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
+     FROM champion_buckets WHERE patch_key=ANY($1::text[]) AND champion_key=$2 AND ($3='ALL' OR role=$3)
        AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
      GROUP BY kind,bucket`,
-    [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null],
+    [
+      input.patches ?? [input.patch],
+      input.championKey,
+      input.role,
+      input.region ?? null,
+      input.tier ?? null,
+    ],
   );
   return Object.fromEntries(
     bucketKinds.map((kind) => [

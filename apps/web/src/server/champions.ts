@@ -82,7 +82,7 @@ export async function loadChampionOverview(
     matchupRole && overview.patch
       ? await loadMatchupSummary(overview.champion.id, {
           source: overview.query.source,
-          patch: overview.patch,
+          patches: overview.combined,
           role: matchupRole,
         })
       : null;
@@ -102,11 +102,13 @@ const summarySize = 5;
  */
 async function loadMatchupSummary(
   champion: string,
-  scope: { source: "solo" | "pro"; patch: string; role: (typeof matchupRoles)[number] },
+  scope: { source: "solo" | "pro"; patches: string[]; role: (typeof matchupRoles)[number] },
 ): Promise<MatchupSummary | null> {
   const page = (order: "asc" | "desc") =>
     data().championMatchups({
-      ...scope,
+      source: scope.source,
+      role: scope.role,
+      patch: scope.patches,
       champion,
       sort: "winRate",
       value: "shrunk",
@@ -114,7 +116,7 @@ async function loadMatchupSummary(
       pageSize: summarySize,
     });
   const [best, worst] = await Promise.all([page("desc"), page("asc")]);
-  if (!best || !worst || best.patch !== scope.patch) return null;
+  if (!best || !worst || best.patch !== scope.patches[0]) return null;
   const known = (rows: MatchupRow[]) => rows.filter((r) => r.metrics.winRate.shrunk !== null);
   // An opponent is a strength above the champion's own win rate and a weakness below it.
   const above = (r: MatchupRow) => r.metrics.winRate.shrunk! >= (r.metrics.winRate.baseline ?? 0.5);
@@ -123,7 +125,7 @@ async function loadMatchupSummary(
   return {
     role: scope.role,
     source: scope.source,
-    patch: scope.patch,
+    patches: best.combined,
     opponents: best.page.total,
     best: strong,
     worst: weak,

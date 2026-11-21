@@ -6,7 +6,7 @@ import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionViews } from "./directory";
 import { ChampionFilters } from "./filters";
 import { goToPage, PageFooter } from "./paging";
-import { average, percent, roleLabels } from "./presentation";
+import { average, patchesLabel, percent, roleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
   const q = list?.query;
   return (
@@ -15,7 +15,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
         title="Tier List"
         {...(list?.patch
           ? {
-              eyebrow: `Patch ${list.patch} · ${list.sliceGames} ${list.sliceGames === 1 ? "game" : "games"}`,
+              eyebrow: `${patchesLabel(list.combined)} · ${list.sliceGames} ${list.sliceGames === 1 ? "game" : "games"}`,
             }
           : {})}
       >
@@ -41,7 +41,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               table="tier-list"
               filters={{
                 source: list.query.source,
-                patch: list.patch,
+                patch: list.combined.join(","),
                 role: list.query.role,
                 region: list.query.region,
                 tier: list.query.tier,

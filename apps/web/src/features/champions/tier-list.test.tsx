@@ -15,6 +15,7 @@ const list: TierList = {
     tier: "CHALLENGER",
   },
   patch: "16.22",
+  combined: ["16.22"],
   sliceGames: 120,
   minimumGames: 10,
   hiddenChampions: 3,

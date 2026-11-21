@@ -2,7 +2,7 @@ import { AtSign, Globe2, Hash } from "lucide-react";
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Combobox, Input, Select, Switch } from "./forms.js";
+import { Combobox, Input, MultiSelect, Select, Switch } from "./forms.js";
 import { Icon } from "./internal.js";
 import "./review.stories.css";
 
@@ -82,6 +82,12 @@ function FormsGallery() {
               label="Required region"
               options={regions}
               required
+            />
+            <MultiSelect
+              defaultValue={["lck", "lpl"]}
+              description="Choose several to combine them."
+              label="Regions"
+              options={regions}
             />
           </div>
         </section>

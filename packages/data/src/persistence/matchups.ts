@@ -13,16 +13,19 @@ import {
 import type { PatchChampion } from "../domain/patch-overview.js";
 import type { Executor } from "./database.js";
 import { defaultPatch } from "./aggregates.js";
-// Both matchup queries bind source at $2 and the optional patch at $3.
+// Both matchup queries bind source at $2 and the optional chosen patches at $3; without them the
+// newest patch with matchups is chosen. `newest` is the newest chosen patch.
 export const matchupPatchScope = `available AS (
       SELECT p.patch_key FROM patches p
       WHERE EXISTS (SELECT 1 FROM matchup_aggregates a WHERE a.source=$2 AND a.patch_key=p.patch_key)
          OR EXISTS (SELECT 1 FROM matchup_exclusions e WHERE e.source=$2 AND e.patch_key=p.patch_key)
     ), chosen AS (
-      SELECT p.patch_key FROM patches p WHERE p.patch_key=coalesce($3::text,(
+      SELECT p.patch_key FROM patches p WHERE p.patch_key=ANY(coalesce($3::text[],ARRAY(
         SELECT a.patch_key FROM available a JOIN patches p USING(patch_key)
-        ORDER BY p.release_order DESC LIMIT 1))
-
+        ORDER BY p.release_order DESC LIMIT 1)))
+    ), newest AS (
+      SELECT c.patch_key FROM chosen c JOIN patches p USING(patch_key)
+      ORDER BY p.release_order DESC LIMIT 1
     )`;
 /**
  * Aggregate-only, bounded opponent pages. The pooled baseline is computed before pagination.
@@ -35,11 +38,13 @@ export async function championMatchups(
   { minimumGames = matchupMinimumSample }: { minimumGames?: number } = {},
 ): Promise<ChampionMatchups | null> {
   const q = championMatchupsQuerySchema.parse(input);
-  const patch = q.patch ?? (await defaultPatch(db, q.source, null, null, null));
+  const fallback = q.patch ? null : await defaultPatch(db, q.source, null, null, null);
+  const patches = q.patch ?? (fallback ? [fallback] : null);
   const row = (
     await db.query<{
       champion: PatchChampion | null;
       patch: string | null;
+      combined: string[];
       patches: string[];
       total: number;
       hidden: number;
@@ -58,9 +63,20 @@ export async function championMatchups(
       FROM catalog_champions c JOIN patches p USING(patch_key)
       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
       WHERE c.champion_id=$1 ORDER BY p.release_order DESC LIMIT 1
-    ), scoped AS (
-      SELECT * FROM matchup_aggregates WHERE source=$2 AND patch_key=(SELECT patch_key FROM chosen)
+    ), observed AS (
+      SELECT * FROM matchup_aggregates WHERE source=$2 AND patch_key IN (SELECT patch_key FROM chosen)
         AND champion_key=(SELECT "championKey" FROM champion) AND role=$4
+    ), summed AS (
+      -- Each opponent's counts added up across the chosen patches.
+      SELECT opponent_key,key,sum((value->>'total')::double precision) AS total,
+        sum((value->>'count')::integer)::integer AS n
+      FROM observed CROSS JOIN LATERAL jsonb_each(metrics) GROUP BY opponent_key,key
+    ), scoped AS (
+      SELECT g.opponent_key,g.games,m.metrics FROM (
+        SELECT opponent_key,sum(games)::integer AS games FROM observed GROUP BY opponent_key) g
+      JOIN (
+        SELECT opponent_key,jsonb_object_agg(key,jsonb_build_object('total',total,'count',n)) AS metrics
+        FROM summed GROUP BY opponent_key) m USING (opponent_key)
     ), totals AS (
       SELECT key,sum((value->>'total')::double precision) AS total,sum((value->>'count')::integer)::integer AS n
       FROM scoped CROSS JOIN LATERAL jsonb_each(metrics) GROUP BY key
@@ -84,13 +100,18 @@ export async function championMatchups(
       FROM selected s LEFT JOIN LATERAL (
         SELECT c.champion_id,c.name,i.asset_hash FROM catalog_champions c JOIN patches p USING(patch_key)
         LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='champion' AND i.catalog_id=c.champion_id
-        WHERE c.champion_key=s.opponent_key ORDER BY (c.patch_key=(SELECT patch_key FROM chosen)) DESC,p.release_order DESC LIMIT 1
+        WHERE c.champion_key=s.opponent_key ORDER BY (c.patch_key=(SELECT patch_key FROM newest)) DESC,p.release_order DESC LIMIT 1
       ) c ON true
     ), exclusions AS (
-      SELECT role,games,participants,unknown_role AS "unknownRole",ambiguous_role AS "ambiguousRole",
-        missing_opponent AS "missingOpponent",unmapped_champion AS "unmappedChampion"
-      FROM matchup_exclusions WHERE source=$2 AND patch_key=(SELECT patch_key FROM chosen) AND role IN ($4,'UNKNOWN')
-    ) SELECT (SELECT to_jsonb(champion) FROM champion) AS champion,(SELECT patch_key FROM chosen) AS patch,
+      SELECT role,sum(games)::integer AS games,sum(participants)::integer AS participants,
+        sum(unknown_role)::integer AS "unknownRole",sum(ambiguous_role)::integer AS "ambiguousRole",
+        sum(missing_opponent)::integer AS "missingOpponent",
+        sum(unmapped_champion)::integer AS "unmappedChampion"
+      FROM matchup_exclusions WHERE source=$2 AND patch_key IN (SELECT patch_key FROM chosen)
+        AND role IN ($4,'UNKNOWN') GROUP BY role
+    ) SELECT (SELECT to_jsonb(champion) FROM champion) AS champion,(SELECT patch_key FROM newest) AS patch,
+      coalesce((SELECT jsonb_agg(c.patch_key ORDER BY p.release_order DESC) FROM chosen c
+        JOIN patches p USING(patch_key)),'[]') AS combined,
       coalesce((SELECT jsonb_agg(patch_key ORDER BY release_order DESC) FROM (
         SELECT a.patch_key,p.release_order FROM available a JOIN patches p USING(patch_key)
         ORDER BY p.release_order DESC LIMIT 50) p),'[]') AS patches,
@@ -103,7 +124,7 @@ export async function championMatchups(
       [
         q.champion,
         q.source,
-        patch,
+        patches,
         q.role,
         q.sort,
         q.value,
@@ -118,6 +139,7 @@ export async function championMatchups(
     query: q,
     champion: row.champion,
     patch: row.patch,
+    combined: row.combined,
     patches: row.patches,
     exclusions: row.exclusions,
     minimumGames,

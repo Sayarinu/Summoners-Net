@@ -803,6 +803,26 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     });
     const overview = await championOverview(pool, { champion: "Ahri", source: "pro" });
     expect(overview).toMatchObject({ patch: "16.3", games: 100 });
+
+    // Chosen together, both patches' games are added up; the newest names the selection.
+    for (const patch of [["16.3", "16.4"], "16.4,16.3", ["16.4", "16.3", "16.3", "9.9"]]) {
+      expect(await tierList(pool, { source: "pro", patch })).toMatchObject({
+        patch: "16.4",
+        combined: ["16.4", "16.3"],
+        sliceGames: 102,
+        page: { items: [{ championKey: 103, games: 102 }] },
+      });
+    }
+    const both = await championOverview(pool, {
+      champion: "Ahri",
+      source: "pro",
+      patch: ["16.3", "16.4"],
+    });
+    expect(both).toMatchObject({ patch: "16.4", combined: ["16.4", "16.3"], games: 102 });
+    expect(both?.pro).toMatchObject({ patch: "16.4", games: 102, picks: 102 });
+    expect(both?.proPlayers?.items[0]?.games).toBe(
+      (overview?.proPlayers?.items[0]?.games ?? 0) + 2,
+    );
   });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
@@ -7126,6 +7146,16 @@ describe("lane matchup aggregates", () => {
     const rated = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
     expect(rated).toMatchObject({ minimumGames: 10, hiddenOpponents: 1, page: { total: 2 } });
     expect(rated?.page.items.map((r) => r.opponent.championKey).sort()).toEqual([20, 62]);
+    // Combined with 16.21, an opponent met on both patches adds up its games and results; one result is still too few for a rate.
+    const combined = await queries.championMatchups(
+      { champion: "Ahri", patch: ["16.21", "16.22"] },
+      everyChampion,
+    );
+    expect(combined).toMatchObject({ patch: "16.22", combined: ["16.22", "16.21"] });
+    const byKey = new Map(combined?.page.items.map((r) => [r.opponent.championKey, r]));
+    expect(byKey.get(999)).toMatchObject({ games: 2 });
+    expect(byKey.get(999)?.metrics.winRate).toMatchObject({ raw: null, sampleCount: 1 });
+    expect(byKey.get(20)).toMatchObject({ games: 10 });
     const row = data!.page.items[0]!;
     expect(row.opponent).toMatchObject({
       championKey: 20,

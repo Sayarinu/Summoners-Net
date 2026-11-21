@@ -260,6 +260,8 @@ export async function championBuilds(
   input: {
     championKey: number;
     patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     role: string;
     region?: string | undefined;
     tier?: string | undefined;
@@ -280,12 +282,19 @@ export async function championBuilds(
          sum(wins)::integer AS wins,
          row_number() OVER(PARTITION BY kind ORDER BY sum(games) DESC,build) AS n
        FROM champion_builds
-       WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
+       WHERE patch_key=ANY($1::text[]) AND champion_key=$2 AND ($3='ALL' OR role=$3)
          AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
          AND kind NOT IN ('skills_incomplete','skillmax_incomplete')
        GROUP BY kind,build) b
      WHERE n<=$6 ORDER BY kind,n`,
-    [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null, perKind],
+    [
+      input.patches ?? [input.patch],
+      input.championKey,
+      input.role,
+      input.region ?? null,
+      input.tier ?? null,
+      perKind,
+    ],
   );
   const ids = (kind: BuildItem["kind"]) => [
     ...new Set(
@@ -346,10 +355,16 @@ export async function championBuilds(
   };
   const excluded = await db.query<{ kind: string; games: number }>(
     `SELECT kind,sum(games)::integer AS games FROM champion_builds
-     WHERE patch_key=$1 AND champion_key=$2 AND ($3='ALL' OR role=$3)
+     WHERE patch_key=ANY($1::text[]) AND champion_key=$2 AND ($3='ALL' OR role=$3)
        AND ($4::text IS NULL OR region=$4) AND ($5::text IS NULL OR tier=$5)
        AND kind IN ('skills_incomplete','skillmax_incomplete') GROUP BY kind`,
-    [input.patch, input.championKey, input.role, input.region ?? null, input.tier ?? null],
+    [
+      input.patches ?? [input.patch],
+      input.championKey,
+      input.role,
+      input.region ?? null,
+      input.tier ?? null,
+    ],
   );
   const excludedGames = (kind: string) => excluded.rows.find((r) => r.kind === kind)?.games ?? 0;
   const result = {

@@ -523,10 +523,22 @@ test("the tier list filters by role and source and leaves out champions with too
     await page.locator(".np-select", { hasText: label }).getByRole("button").click();
     await page.getByRole("option", { name: option, exact: true }).click();
   };
+  // The Patches filter keeps several patches chosen; it stays open until dismissed.
+  const patches = page.locator(".np-select", { hasText: "Patches" }).getByRole("button");
+  await expect(patches).toHaveText(/Latest with Enough Games/);
+  await patches.click();
+  await page.getByRole("option", { name: "16.4", exact: true }).click();
+  await expect(page.getByRole("option", { name: "16.4", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  await expect(patches).toHaveText(/16\.4/);
   await choose("Role", "Mid");
   await choose("Sort By", "Win Rate");
   await choose("Order", "Lowest First");
   await page.getByRole("button", { name: "Apply Filters" }).click();
+  await expect(page).toHaveURL(/patch=16\.4/);
   await expect(page).toHaveURL(/role=MIDDLE/);
   await expect(page).toHaveURL(/sort=winRate/);
   await expect(page).toHaveURL(/order=asc/);

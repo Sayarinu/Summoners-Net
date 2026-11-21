@@ -33,6 +33,7 @@ const row = (k: number) => ({
 const tierPage = (page: number, total: number, size = 50) => ({
   query: {},
   patch: "16.22",
+  combined: ["16.22"],
   sliceGames: 100,
   facets: { patches: [], regions: [], tiers: [] },
   page: {
@@ -125,6 +126,7 @@ it("exports matchups, pairs and counter-pick values with samples and source iden
   mocks.championMatchups.mockResolvedValue({
     champion: champion(103),
     patch: "16.22",
+    combined: ["16.22"],
     page: {
       page: 1,
       pageSize: 100,

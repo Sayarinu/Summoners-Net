@@ -71,7 +71,7 @@ it("passes validated filters, normalizes only patch sentinels and preserves not 
     champion: "Ahri",
     source: "pro",
     role: "TOP",
-    patch: "16.22",
+    patch: ["16.22"],
     value: "raw",
     page: 2,
     pageSize: 25,
