@@ -7,9 +7,16 @@ import {
   type ChampionBuilds,
   type ItemEvent,
   type ItemInfo,
+  type RuneTree,
+  statShardNames,
 } from "../domain/builds.js";
 import { applySamplePolicy } from "../domain/statistics.js";
-import { deriveSkillOrder, skillNames, type SkillEvent } from "../domain/skills.js";
+import {
+  deriveSkillOrder,
+  deriveSkillPath,
+  skillNames,
+  type SkillEvent,
+} from "../domain/skills.js";
 import type { Executor } from "./database.js";
 
 const itemEventTypes = [
@@ -134,11 +141,13 @@ export async function rebuildBuilds(c: PoolClient, patchKey: string, now: Date) 
       if (build.start) add(base, "start", build.start, p.win);
       if (build.boots) add(base, "boots", [build.boots], p.win);
       if (build.completed.length >= 3) add(base, "path", build.completed.slice(0, 3), p.win);
-      build.completed.slice(0, 3).forEach((item, n) => add(base, `slot${n + 1}`, [item], p.win));
+      build.completed.slice(0, 6).forEach((item, n) => add(base, `slot${n + 1}`, [item], p.win));
       // Incomplete skill-ups are counted on their own, never as an order.
       const order = deriveSkillOrder(skills.get(`${p.match_id}|${p.participant_id}`) ?? []);
       add(base, order.first ? "skills" : "skills_incomplete", order.first ?? [0], p.win);
       add(base, order.max ? "skillmax" : "skillmax_incomplete", order.max ?? [0], p.win);
+      const path = deriveSkillPath(skills.get(`${p.match_id}|${p.participant_id}`) ?? []);
+      if (path) add(base, "skillpath", path, p.win);
     }
   }
   const rows = [...counts].map(([key, n]) => {
@@ -233,7 +242,7 @@ async function rebuildLoadouts(c: PoolClient, patchKey: string, now: Date) {
 }
 
 const entryKind = (kind: (typeof buildKinds)[number]): BuildItem["kind"] =>
-  kind === "skills" || kind === "skillmax"
+  kind === "skills" || kind === "skillmax" || kind === "skillpath"
     ? "skill"
     : kind === "runes" || kind === "keystone"
       ? "rune"
@@ -285,7 +294,12 @@ export async function championBuilds(
         .flatMap((r) => r.build.split(",").map(Number)),
     ),
   ];
-  // Names and cached icons from the patch's catalog, or the newest catalog that has the entry.
+  // Names from the patch's catalog, or the newest catalog that has the entry. Icons are cached
+  // per patch, so each takes the patch's icon or else the newest cached one for the same id.
+  const icon = (kind: string, id: string) =>
+    `(SELECT i.asset_hash FROM catalog_images i JOIN patches ip USING (patch_key)
+      WHERE i.kind='${kind}' AND i.catalog_id=${id} AND i.asset_hash IS NOT NULL
+      ORDER BY (i.patch_key=$1) DESC,ip.release_order DESC LIMIT 1) AS asset_hash`;
   const lookup = async (sql: string, values: number[]) =>
     new Map(
       (
@@ -297,27 +311,32 @@ export async function championBuilds(
     );
   const catalogs = {
     item: await lookup(
-      `SELECT DISTINCT ON (c.item_id) c.item_id AS id,c.item_id::text AS catalog_id,c.name,i.asset_hash
+      `SELECT DISTINCT ON (c.item_id) c.item_id AS id,c.item_id::text AS catalog_id,c.name,
+         ${icon("item", "c.item_id::text")}
        FROM catalog_items c JOIN patches p USING (patch_key)
-       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='item' AND i.catalog_id=c.item_id::text
        WHERE c.item_id=ANY($2::integer[]) ORDER BY c.item_id,(c.patch_key=$1) DESC,p.release_order DESC`,
       ids("item"),
     ),
     rune: await lookup(
-      `SELECT DISTINCT ON (c.rune_id) c.rune_id AS id,c.rune_id::text AS catalog_id,c.name,i.asset_hash
+      `SELECT DISTINCT ON (c.rune_id) c.rune_id AS id,c.rune_id::text AS catalog_id,c.name,
+         ${icon("rune", "c.rune_id::text")}
        FROM catalog_runes c JOIN patches p USING (patch_key)
-       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='rune' AND i.catalog_id=c.rune_id::text
        WHERE c.rune_id=ANY($2::integer[]) ORDER BY c.rune_id,(c.patch_key=$1) DESC,p.release_order DESC`,
       ids("rune"),
     ),
     spell: await lookup(
-      `SELECT DISTINCT ON (c.spell_key) c.spell_key AS id,c.spell_id AS catalog_id,c.name,i.asset_hash
+      `SELECT DISTINCT ON (c.spell_key) c.spell_key AS id,c.spell_id AS catalog_id,c.name,
+         ${icon("spell", "c.spell_id")}
        FROM catalog_summoner_spells c JOIN patches p USING (patch_key)
-       LEFT JOIN catalog_images i ON i.patch_key=c.patch_key AND i.kind='spell' AND i.catalog_id=c.spell_id
        WHERE c.spell_key=ANY($2::integer[]) ORDER BY c.spell_key,(c.patch_key=$1) DESC,p.release_order DESC`,
       ids("spell"),
     ),
-    shard: new Map<number, { catalog_id: string; name: string; asset_hash: string | null }>(),
+    shard: new Map(
+      Object.entries(statShardNames).map(([id, name]) => [
+        Number(id),
+        { catalog_id: id, name, asset_hash: null as string | null },
+      ]),
+    ),
     skill: new Map(
       Object.entries(skillNames).map(([slot, name]) => [
         Number(slot),
@@ -336,12 +355,13 @@ export async function championBuilds(
   const result = {
     ...(Object.fromEntries(buildKinds.map((k) => [k, [] as BuildRow[]])) as Omit<
       ChampionBuilds,
-      "excluded"
+      "excluded" | "runeTrees"
     >),
     excluded: {
       skills: excludedGames("skills_incomplete"),
       skillmax: excludedGames("skillmax_incomplete"),
     },
+    runeTrees: [],
   } as ChampionBuilds;
   for (const r of rows.rows) {
     const kind = entryKind(r.kind);
@@ -376,5 +396,60 @@ export async function championBuilds(
       sample: win.status,
     });
   }
+  result.runeTrees = await runeTrees(
+    db,
+    input.patch,
+    // A rune page lists its primary tree first and its secondary tree sixth.
+    [...new Set(result.runes.flatMap((r) => [r.items[0]?.id, r.items[5]?.id]))].filter(
+      (id): id is number => id !== undefined,
+    ),
+    (id) => icon("rune", id),
+  );
   return result;
+}
+
+/**
+ * Each tree's runes by row from one catalog: the patch's own, or the newest that lists runes,
+ * so runes retired in other patches never appear among the alternatives.
+ */
+async function runeTrees(
+  db: Executor,
+  patch: string,
+  trees: number[],
+  icon: (id: string) => string,
+): Promise<RuneTree[]> {
+  if (!trees.length) return [];
+  const rows = await db.query<{
+    rune_id: number;
+    name: string;
+    tree_id: number | null;
+    slot: number | null;
+    asset_hash: string | null;
+  }>(
+    `WITH catalog AS (
+       SELECT c.patch_key FROM catalog_runes c JOIN patches p USING (patch_key)
+       GROUP BY c.patch_key,p.release_order
+       ORDER BY (c.patch_key=$1) DESC,p.release_order DESC LIMIT 1)
+     SELECT c.rune_id,c.name,c.tree_id,c.slot,${icon("c.rune_id::text")}
+     FROM catalog_runes c JOIN catalog USING (patch_key)
+     WHERE coalesce(c.tree_id,c.rune_id)=ANY($2::integer[])
+     ORDER BY c.slot NULLS FIRST,c.rune_id`,
+    [patch, trees],
+  );
+  const entry = (r: (typeof rows.rows)[number]): BuildItem => ({
+    kind: "rune",
+    id: r.rune_id,
+    catalogId: String(r.rune_id),
+    name: r.name,
+    imageUrl: r.asset_hash ? `/api/images/${r.asset_hash}` : null,
+  });
+  return trees.flatMap((id) => {
+    const tree = rows.rows.find((r) => r.rune_id === id && r.tree_id === null);
+    if (!tree) return [];
+    const runes = rows.rows.filter((r) => r.tree_id === id);
+    const slots = [...new Set(runes.map((r) => r.slot!))].sort((a, b) => a - b);
+    return [
+      { tree: entry(tree), rows: slots.map((n) => runes.filter((r) => r.slot === n).map(entry)) },
+    ];
+  });
 }

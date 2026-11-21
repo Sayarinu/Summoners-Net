@@ -79,6 +79,9 @@ const overview: ChampionOverview = {
     slot1: [],
     slot2: [],
     slot3: [],
+    slot4: [],
+    slot5: [],
+    slot6: [],
     runes: [],
     keystone: [
       {
@@ -115,7 +118,9 @@ const overview: ChampionOverview = {
       },
     ],
     skillmax: [],
+    skillpath: [],
     excluded: { skills: 2, skillmax: 7 },
+    runeTrees: [],
     spells: [
       {
         items: [
@@ -246,6 +251,8 @@ const overview: ChampionOverview = {
     cells: [{ carry: 222, support: 412, games: 80, winRate: { value: 0.6, sampleCount: 80 } }],
   },
 };
+/** The same champion on the Pro Play view, where the pro panels appear. */
+const pro: ChampionOverview = { ...overview, query: { ...overview.query, source: "pro" } };
 it("shows rates with samples, the tier and its basis, and the trend", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
@@ -259,7 +266,7 @@ it("shows rates with samples, the tier and its basis, and the trend", () => {
   expect(within(roles).getByRole("link", { name: "Jungle" })).toBeVisible();
   const sources = screen.getByRole("navigation", { name: "Source" });
   expect(within(sources).getByRole("link", { current: "page" })).toHaveTextContent("Solo Queue");
-  const stats = screen.getByRole("region", { name: "Champion Statistics" });
+  const stats = screen.getByLabelText("Headline Statistics");
   expect(stats).toHaveTextContent("TierA");
   expect(stats).toHaveTextContent("Win Rate40 Games55.0%");
   expect(stats).not.toHaveTextContent("40.0–69.0%");
@@ -289,27 +296,124 @@ it("explains an unknown tier, shows an empty state without data, and shows filte
   view.rerender(<ChampionOverviewPage overview={overview} error="Choose filters from the lists" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Choose filters from the lists");
 });
-it("shows the most common build as icons with win rates and games", () => {
-  const view = render(<ChampionOverviewPage overview={overview} error={null} />);
-  const card = screen.getByRole("region", { name: "Most Common Build" });
-  const block = (name: string) => within(card).getByRole("region", { name });
-  expect(block("Starting Items")).toHaveTextContent("60.0% Win Rate · 30 Games");
+it("draws the rune page over its trees, with spells, skills and items in build order", () => {
+  const rune = (id: number, name: string) => ({
+    kind: "rune" as const,
+    id,
+    catalogId: String(id),
+    name,
+    imageUrl: null,
+  });
+  const skill = (id: number) => ({
+    kind: "skill" as const,
+    id,
+    catalogId: String(id),
+    name: ["", "Q", "W", "E", "R"][id]!,
+    imageUrl: null,
+  });
+  const builds = overview.builds!;
+  const sampled = { games: 25, pickRate: { value: 0.625, sampleCount: 40 } };
+  const page = [
+    rune(8100, "Domination"),
+    rune(8112, "Electrocute"),
+    rune(8139, "Taste of Blood"),
+    rune(8138, "Eyeball Collection"),
+    rune(8106, "Ultimate Hunter"),
+    rune(8200, "Sorcery"),
+    rune(8226, "Manaflow Band"),
+    rune(8237, "Scorch"),
+  ];
+  const view = render(
+    <ChampionOverviewPage
+      overview={{
+        ...overview,
+        builds: {
+          ...builds,
+          runes: [
+            {
+              ...sampled,
+              items: page,
+              winRate: { value: 0.56, sampleCount: 25 },
+              sample: "low-sample",
+            },
+          ],
+          runeTrees: [
+            {
+              tree: page[0]!,
+              rows: [[page[1]!, rune(8128, "Dark Harvest")], [page[2]!], [page[3]!], [page[4]!]],
+            },
+            { tree: page[5]!, rows: [[rune(8214, "Summon Aery")], [page[6]!], [page[7]!]] },
+          ],
+          shards: [
+            {
+              ...builds.shards[0]!,
+              items: [
+                {
+                  kind: "shard",
+                  id: 5008,
+                  catalogId: "5008",
+                  name: "Adaptive Force",
+                  imageUrl: null,
+                },
+                { kind: "shard", id: 5011, catalogId: "5011", name: "Health", imageUrl: null },
+              ],
+            },
+          ],
+          skillmax: [{ ...builds.skills[0]!, items: [skill(1), skill(3), skill(2)] }],
+          skillpath: [{ ...builds.skills[0]!, items: [1, 3, 2, 1, 1, 4].map(skill), games: 12 }],
+          slot4: [{ ...builds.start[0]!, items: [builds.path[0]!.items[2]!], games: 9 }],
+        },
+      }}
+      error={null}
+    />,
+  );
+  const runes = screen.getByRole("region", { name: "Runes" });
+  const primary = within(runes).getByRole("region", { name: "Primary: Domination" });
+  expect(within(primary).getByRole("img", { name: "Electrocute" })).toHaveAttribute(
+    "data-state",
+    "selected",
+  );
+  expect(within(primary).getByRole("img", { name: "Dark Harvest" })).toHaveAttribute(
+    "data-state",
+    "muted",
+  );
+  // A secondary tree has no keystone row.
+  const secondary = within(runes).getByRole("region", { name: "Secondary: Sorcery" });
+  expect(within(secondary).queryByRole("img", { name: "Summon Aery" })).toBeNull();
+  expect(within(secondary).getByRole("img", { name: "Scorch" })).toHaveAttribute(
+    "data-state",
+    "selected",
+  );
+  expect(within(runes).getByRole("region", { name: "Stat Shards" })).toHaveTextContent(
+    "Adaptive ForceHealth",
+  );
+  expect(runes).toHaveTextContent("56.0%WR62.5% Pick25 Games");
+  const skills = screen.getByRole("region", { name: "Summoner Spells and Skills" });
+  expect(within(skills).getByRole("group", { name: "Q then E then W" })).toBeVisible();
+  expect(within(skills).getByRole("group", { name: "Flash, Ignite" })).toBeVisible();
+  const grid = within(skills).getByRole("table", { name: "Most Common Skill Order" });
+  expect(within(grid).getByRole("row", { name: /^R/ })).toHaveTextContent(/^RR$/);
+  const items = screen.getByRole("region", { name: "Items" });
+  expect(within(items).getByRole("group", { name: "Doran's Ring, Health Potion" })).toBeVisible();
   expect(
-    within(block("Starting Items")).getByLabelText("Doran's Ring, Health Potion"),
+    within(items).getByRole("group", {
+      name: "Shadowflame then Item 3089 then Zhonya's Hourglass",
+    }),
   ).toBeVisible();
-  expect(
-    within(block("Core Build")).getByLabelText(
-      "Shadowflame then Item 3089 then Zhonya's Hourglass",
-    ),
-  ).toBeVisible();
-  expect(block("Core Build")).toHaveTextContent("Too Few Games (4)");
-  expect(block("Skill Order")).toHaveTextContent(/Q.*E.*W.*55\.0% Win Rate · 20 Games/);
-  expect(block("Summoner Spells")).toHaveTextContent("50.0% Win Rate · 30 Games");
-  expect(block("Runes")).toHaveTextContent(/5005.*5008.*56\.0% Win Rate · 25 Games/);
-  expect(block("Boots")).toHaveTextContent("No Games Yet");
+  // Below the minimum sample only the games are known.
+  expect(items).toHaveTextContent("—WR4 Games");
+  expect(within(items).getByRole("region", { name: "Fourth Item" })).toHaveTextContent(
+    "60.0%WR9 Games",
+  );
+  expect(items).toHaveTextContent("No Games With Timelines Yet");
   view.rerender(<ChampionOverviewPage overview={{ ...overview, builds: null }} error={null} />);
-  expect(screen.queryByRole("region", { name: "Most Common Build" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Runes" })).toBeNull();
   expect(screen.queryByText("All Builds, Runes and Skills")).toBeNull();
+});
+it("keeps pro panels off the solo-queue view", () => {
+  render(<ChampionOverviewPage overview={overview} error={null} />);
+  expect(screen.queryByLabelText("Pro-Play Statistics")).toBeNull();
+  expect(screen.queryByRole("table", { name: "Ahri Pro Play by Patch" })).toBeNull();
 });
 /** The section renders its tables once its toggle event arrives. */
 async function openAllBuilds() {
@@ -379,7 +483,7 @@ it("lists allies with expected rates and deltas, keeps filters when sorting, and
   expect(screen.getByText("1 allies · Page 1")).toBeVisible();
 });
 it("shows pro presence, sides and draft order with samples, and reports unmapped names", () => {
-  const view = render(<ChampionOverviewPage overview={overview} error={null} />);
+  const view = render(<ChampionOverviewPage overview={pro} error={null} />);
   const stats = screen.getByLabelText("Pro-Play Statistics");
   expect(stats).toHaveTextContent("Presence40 Games50.0%");
   expect(stats).toHaveTextContent("Picks / BansDrafts12 / 8");
@@ -390,14 +494,14 @@ it("shows pro presence, sides and draft order with samples, and reports unmapped
   expect(screen.getByText(/no champion mapping: Mel/)).toBeVisible();
   view.rerender(
     <ChampionOverviewPage
-      overview={{ ...overview, pro: { ...overview.pro, patch: null, leagues: [] } }}
+      overview={{ ...pro, pro: { ...overview.pro, patch: null, leagues: [] } }}
       error={null}
     />,
   );
   expect(screen.getByText("No pro drafts imported yet.")).toBeVisible();
 });
 it("shows how the champion performs in pro play once picked, with unknown values left empty", () => {
-  render(<ChampionOverviewPage overview={overview} error={null} />);
+  render(<ChampionOverviewPage overview={pro} error={null} />);
   const stats = screen.getByLabelText("Pro-Play Performance");
   for (const text of [
     "KDA12 Games4.50",
@@ -422,7 +526,7 @@ it("shows solo-queue performance once picked, leaving out what solo queue does n
 });
 
 it("lists pro play by patch, linking each patch, with unknown rates left empty", () => {
-  render(<ChampionOverviewPage overview={overview} error={null} />);
+  render(<ChampionOverviewPage overview={pro} error={null} />);
   const table = screen.getByRole("table", { name: "Ahri Pro Play by Patch" });
   const [row] = within(table).getAllByRole("row").slice(1);
   expect(row).toHaveTextContent("16.224050.0%12850.0% (12)60.0%Unknown");

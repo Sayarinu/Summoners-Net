@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { ChampionIdentity } from "./champion.js";
+import { ChampionIdentity, SkillOrderGrid } from "./champion.js";
 
 it("announces a linked champion once, by its portrait, and keeps the detail readable", () => {
   render(
@@ -25,4 +25,23 @@ it("renders an unlinked identity at the display size", () => {
   expect(screen.queryByRole("link")).toBeNull();
   expect(screen.getByRole("img", { name: "Ahri" })).toBeVisible();
   expect(container.firstElementChild).toHaveClass("np-identity--display");
+});
+
+it("marks the ability ranked at each level in a grid of abilities by level", () => {
+  render(<SkillOrderGrid caption="Skill Order" path={[1, 3, 2, 1, 1, 4]} />);
+  const grid = screen.getByRole("table", { name: "Skill Order" });
+  const row = (key: string) => screen.getByRole("row", { name: new RegExp(`^${key}`) });
+  expect(grid).toBeVisible();
+  expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+    "Ability",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+  ]);
+  expect(row("Q")).toHaveTextContent(/^QQQQ$/);
+  expect(row("Q").querySelectorAll("td[data-ranked]")).toHaveLength(3);
+  expect(row("R").querySelectorAll("td[data-ranked]")).toHaveLength(1);
 });
