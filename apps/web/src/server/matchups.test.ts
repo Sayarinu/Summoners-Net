@@ -31,7 +31,7 @@ it("validates routes, filters and both page axes before any data query", async (
   expect(await loadMatchupMatrix("ALL", {})).toBeNull();
   for (const params of [
     { source: "all" },
-    { patch: ["16.22"] },
+    { patch: ["16.22", "latest"] },
     { page: ["1"] },
     { page: "0" },
     { value: "unknown" },
@@ -71,7 +71,7 @@ it("passes validated filters, normalizes only patch sentinels and preserves not 
     champion: "Ahri",
     source: "pro",
     role: "TOP",
-    patch: "16.22",
+    patch: ["16.22"],
     value: "raw",
     page: 2,
     pageSize: 25,
@@ -84,6 +84,9 @@ it("passes validated filters, normalizes only patch sentinels and preserves not 
     patch: "16.22",
     role: "TOP",
   });
+  // Several chosen patches are combined.
+  await loadChampionMatchups("Ahri", { patch: ["16.21", "16.22"] });
+  expect(championMatchups.mock.lastCall?.[0].patch).toEqual(["16.21", "16.22"]);
   expect(await loadChampionMatchups("Ahri", { patch: "all" })).toMatchObject({
     blindability: { score: 0.46 },
     error: null,

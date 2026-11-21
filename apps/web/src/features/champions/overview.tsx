@@ -36,7 +36,7 @@ import { ChampionFilters } from "./filters";
 import { ItemsPanel, RunesPanel, SpellsAndSkillsPanel } from "./solo-build";
 import { MatchupCards } from "./matchup-cards";
 import { ChampionPages, championHeatmapsHref } from "./champion-pages";
-import { percent, type MatchupSummary } from "./presentation";
+import { appendPatches, patchesLabel, percent, type MatchupSummary } from "./presentation";
 
 const tierNotes = {
   S: "well above",
@@ -62,7 +62,8 @@ type Query = ChampionOverview["query"];
 function championHref(id: string, q: Query, change: Partial<Pick<Query, "source" | "role">>) {
   const next = { ...q, ...change };
   const params = new URLSearchParams({ source: next.source, role: next.role });
-  for (const name of ["patch", "region", "tier", "stage", "league"] as const) {
+  appendPatches(params, next.patch ?? []);
+  for (const name of ["region", "tier", "stage", "league"] as const) {
     const value = next[name];
     if (value) params.set(name, value);
   }
@@ -191,7 +192,7 @@ export function ChampionOverviewPage({
               name={champion.name}
               imageUrl={champion.imageUrl}
               size="display"
-              {...(overview.patch ? { detail: `Patch ${overview.patch}` } : {})}
+              {...(overview.patch ? { detail: patchesLabel(overview.combined) } : {})}
             />
             <TabNav
               label="Source"
@@ -243,7 +244,7 @@ export function ChampionOverviewPage({
       <ChampionPages
         current="overview"
         overviewHref={championHref(champion.id, q, {})}
-        matchupsHref={`/champions/${champion.id}/matchups?source=${q.source}&role=${matchupRole}${overview.patch ? `&patch=${overview.patch}` : ""}`}
+        matchupsHref={`/champions/${champion.id}/matchups?${appendPatches(new URLSearchParams({ source: q.source, role: matchupRole }), overview.combined)}`}
         heatmapsHref={championHeatmapsHref(champion.id, q.source, overview.patch)}
       />
       {error ? (

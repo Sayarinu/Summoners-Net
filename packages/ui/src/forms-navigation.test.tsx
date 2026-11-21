@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Combobox, Input, Select, Switch } from "./forms.js";
+import { Combobox, Input, MultiSelect, Select, Switch } from "./forms.js";
 import { Icon } from "./internal.js";
 import {
   Brand,
@@ -79,6 +79,22 @@ describe("forms", () => {
     await user.click(await screen.findByRole("option", { name: /^LCK/ }));
     expect(onComboSelect).toHaveBeenCalledWith("lck");
     expect(screen.getByText("Required")).toBeVisible();
+  });
+
+  it("keeps several options chosen and submits each with the form", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <form>
+        <MultiSelect defaultValue={["lck"]} label="Regions" name="region" options={options} />
+      </form>,
+    );
+    const trigger = screen.getByRole("button", { name: /Regions/ });
+    expect(trigger).toHaveTextContent("LCK");
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: /^LPL/ }));
+    expect(trigger).toHaveTextContent("LCK, LPL");
+    const form = container.querySelector("form")!;
+    expect(new FormData(form).getAll("region")).toEqual(["lck", "lpl"]);
   });
 
   it("supports switch input", async () => {

@@ -68,6 +68,8 @@ export async function soloChampionPerformance(
   input: {
     championKey: number;
     patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     region?: string | undefined;
     tier?: string | undefined;
     role?: string | undefined;
@@ -81,9 +83,15 @@ export async function soloChampionPerformance(
          sum(kp_team_kills) AS kp_team_kills,sum(kp_n)::integer AS kp_n,
          ${metrics.map(([m]) => `sum(${m}_sum) AS ${m}_sum,sum(${m}_n)::integer AS ${m}_n`).join(",")}
        FROM solo_champion_performance
-       WHERE champion_key=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+       WHERE champion_key=$1 AND patch_key=ANY($2::text[]) AND ($3::text IS NULL OR region=$3)
          AND ($4::text IS NULL OR tier=$4) AND ($5::text IS NULL OR role=$5)`,
-      [input.championKey, input.patch, input.region ?? null, input.tier ?? null, role],
+      [
+        input.championKey,
+        input.patches ?? [input.patch],
+        input.region ?? null,
+        input.tier ?? null,
+        role,
+      ],
     )
   ).rows[0]!;
   const n = (key: string) => Number(sums[key] ?? 0);

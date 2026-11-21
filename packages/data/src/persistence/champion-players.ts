@@ -12,6 +12,8 @@ export async function championPlayers(
   input: {
     championKey: number;
     patch: string;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     role: ParsedChampionOverviewQuery["role"];
     region: string | undefined;
     tier: string | undefined;
@@ -32,7 +34,7 @@ export async function championPlayers(
       FROM riot_match_participants p JOIN riot_matches m USING(match_id)
       JOIN riot_match_ids i USING(match_id)
       JOIN current_ladder e ON e.puuid=p.puuid AND e.platform=lower(m.platform_id)
-      WHERE p.champion_id=$1 AND m.patch_key=$2 AND m.queue_id=420 AND m.remake IS NOT TRUE
+      WHERE p.champion_id=$1 AND m.patch_key=ANY($2::text[]) AND m.queue_id=420 AND m.remake IS NOT TRUE
         AND ($3='ALL' OR CASE WHEN p.team_position IN ('TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY')
           THEN p.team_position ELSE 'UNKNOWN' END=$3)
         AND ($4::text IS NULL OR i.region=$4)
@@ -59,7 +61,7 @@ export async function championPlayers(
   `,
       [
         input.championKey,
-        input.patch,
+        input.patches ?? [input.patch],
         input.role,
         input.region ?? null,
         input.tier ?? null,

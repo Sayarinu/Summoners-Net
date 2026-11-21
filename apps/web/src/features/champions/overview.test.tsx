@@ -20,6 +20,7 @@ const overview: ChampionOverview = {
   },
   champion: { id: "Ahri", key: 103, name: "Ahri", imageUrl: null },
   patch: "16.22",
+  combined: ["16.22"],
   sliceGames: 200,
   games: 40,
   winRate: { value: 0.55, sampleCount: 40, lower: 0.4, upper: 0.69 },
@@ -657,7 +658,7 @@ it("shows the best and worst lane opponents as cards with signed differences", (
       matchupSummary={{
         role: "MIDDLE",
         source: "solo",
-        patch: "16.22",
+        patches: ["16.22"],
         opponents: 12,
         best: [opponent("Zed", 238, 0.556, 80)],
         worst: [opponent("Annie", 1, 0.47, 64)],
@@ -686,7 +687,7 @@ it("shows the best and worst lane opponents as cards with signed differences", (
       matchupSummary={{
         role: "MIDDLE",
         source: "solo",
-        patch: "16.22",
+        patches: ["16.22"],
         opponents: 0,
         best: [],
         worst: [],

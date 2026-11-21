@@ -1,5 +1,6 @@
 import { championPlayersOptionsSchema, type ChampionPlayers } from "./champion-players.js";
 import { z } from "zod";
+import { patchSelectionSchema } from "./patch-selection.js";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
@@ -74,10 +75,8 @@ export const tierListSorts = [
 export const tierListQuerySchema = z
   .object({
     source: z.enum(["solo", "pro"]).default("solo"),
-    patch: z
-      .string()
-      .regex(/^\d{1,2}\.\d{1,2}$/)
-      .optional(),
+    /** One patch, or several whose games are combined. */
+    patch: patchSelectionSchema.optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
     tier: z.string().trim().min(1).max(60).optional(),
@@ -114,9 +113,12 @@ export interface TierList {
   query: ParsedTierListQuery;
   /**
    * The patch shown: the requested one, or the newest with enough games in the selection
-   * (`defaultPatchMinimumGames`), or else the newest with aggregates for the source.
+   * (`defaultPatchMinimumGames`), or else the newest with aggregates for the source. With
+   * several patches chosen, the newest of them; names and icons come from its catalog.
    */
   patch: string | null;
+  /** The patches whose games are combined, newest first; empty without data. */
+  combined: string[];
   sliceGames: number;
   /** Games with a result, or bans, a champion needs to be listed. */
   minimumGames: number;
@@ -131,10 +133,8 @@ export const championOverviewQuerySchema = z
   .object({
     champion: z.string().regex(/^[A-Za-z0-9]{1,40}$/),
     source: z.enum(["solo", "pro"]).default("solo"),
-    patch: z
-      .string()
-      .regex(/^\d{1,2}\.\d{1,2}$/)
-      .optional(),
+    /** One patch, or several whose games are combined. */
+    patch: patchSelectionSchema.optional(),
     role: z.enum(championRoles).default("ALL"),
     region: z.string().trim().min(1).max(100).optional(),
     tier: z.string().trim().min(1).max(60).optional(),
@@ -169,7 +169,10 @@ export function tierFromDelta(delta: number | null): ChampionTier | null {
 export interface ChampionOverview {
   query: ParsedChampionOverviewQuery;
   champion: { id: string; key: number; name: string; imageUrl: string | null };
+  /** The newest chosen patch; per-patch sections such as jungle paths and draft value use it. */
   patch: string | null;
+  /** The patches whose games are combined, newest first. */
+  combined: string[];
   sliceGames: number;
   games: number;
   winRate: SampledValue & { lower: number | null; upper: number | null };

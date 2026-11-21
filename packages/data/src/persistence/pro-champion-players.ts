@@ -18,6 +18,8 @@ export async function proChampionPlayers(
     /** Data Dragon's champion id; Oracle names map to it. */
     championId: string;
     patch: string | null;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     league?: string | undefined;
     split?: string | undefined;
     stage?: string | undefined;
@@ -42,7 +44,7 @@ export async function proChampionPlayers(
      scoped AS (
        SELECT g.id,g.source_league AS league,g.occurred_at FROM oracle_archive_games g
        JOIN patch_sources p ON p.source='oracle' AND p.source_string=g.patch
-       WHERE p.patch_key=$2 AND ($3::text IS NULL OR g.source_league=$3)
+       WHERE p.patch_key=ANY($2::text[]) AND ($3::text IS NULL OR g.source_league=$3)
          AND ($4::text IS NULL OR ${splitOf("g")}=$4) AND ($5::text IS NULL OR ${stageOf("g")}=$5)),
      played AS (
        SELECT o.*,s.league,s.occurred_at,
@@ -72,7 +74,7 @@ export async function proChampionPlayers(
      ORDER BY g.games DESC,g.wins DESC,g.name LIMIT $6`,
     [
       input.championId,
-      input.patch,
+      input.patches ?? [input.patch],
       input.league ?? null,
       input.split ?? null,
       input.stage ?? null,

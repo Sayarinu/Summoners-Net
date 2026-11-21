@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { patchKeySchema, patchSelectionSchema } from "./patch-selection.js";
 import type { Page } from "./models.js";
 import type { PatchChampion } from "./patch-overview.js";
 import { defaultSamplePolicy } from "./statistics.js";
@@ -50,10 +51,8 @@ export function matchupEstimate(value: MetricCounts, baseline: MetricCounts): Ma
 export const championMatchupsQuerySchema = z.strictObject({
   champion: z.string().regex(/^[A-Za-z0-9]{1,40}$/),
   source: z.enum(["solo", "pro"]).default("solo"),
-  patch: z
-    .string()
-    .regex(/^\d{1,2}\.\d{1,2}$/)
-    .optional(),
+  /** One patch, or several whose games are combined. */
+  patch: patchSelectionSchema.optional(),
   role: z.enum(matchupRoles).default("MIDDLE"),
   sort: z.enum(["games", ...matchupMetrics]).default("games"),
   value: z.enum(["shrunk", "raw"]).default("shrunk"),
@@ -79,7 +78,11 @@ export interface MatchupExclusions {
 export interface ChampionMatchups {
   query: z.output<typeof championMatchupsQuerySchema>;
   champion: PatchChampion;
+  /** The newest chosen patch. */
   patch: string | null;
+  /** The chosen patches whose games are combined, newest first. */
+  combined: string[];
+  /** Patches with matchups, newest first. */
   patches: string[];
   /** Opponents with at least `minimumGames` win-rate observations; the rest are counted. */
   page: Page<MatchupRow>;
@@ -97,6 +100,8 @@ export const matchupMatrixQuerySchema = championMatchupsQuerySchema
     page: true,
   })
   .extend({
+    // The matrix compares one patch at a time.
+    patch: patchKeySchema.optional(),
     role: z.enum(matchupRoles),
     metric: z.enum(matchupMetrics).default("winRate"),
     columnPage: z.coerce.number().int().min(1).max(10000).default(1),

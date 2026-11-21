@@ -1,5 +1,5 @@
 "use client";
-import { RoleIcon, Button, FilterBar, Select } from "@summonersnet/ui";
+import { RoleIcon, Button, FilterBar, MultiSelect, Select } from "@summonersnet/ui";
 import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/contracts";
 import { roleLabels, sortLabels } from "./presentation";
 
@@ -8,7 +8,8 @@ const all = { label: "All", value: "all" };
 const proOnlySorts = new Set<string>(["goldDiffAt15"]);
 interface Filters {
   source: "solo" | "pro";
-  patch?: string | undefined;
+  /** Chosen patches, combined; none means the newest with enough games. */
+  patch?: readonly string[] | undefined;
   role: (typeof championRoles)[number];
   region?: string | undefined;
   tier?: string | undefined;
@@ -54,14 +55,13 @@ export function ChampionFilters({
           ]}
         />
       )}
-      <Select
-        label="Patch"
+      {/* Several chosen patches are combined into one set of statistics. */}
+      <MultiSelect
+        label="Patches"
         name="patch"
-        defaultValue={query?.patch ?? "all"}
-        options={[
-          { label: "Latest with Enough Games", value: "all" },
-          ...(facets?.patches ?? []).map((p) => ({ label: p, value: p })),
-        ]}
+        defaultValue={query?.patch ?? []}
+        placeholder="Latest with Enough Games"
+        options={(facets?.patches ?? []).map((p) => ({ label: p, value: p }))}
       />
       {scopeOnly ? null : (
         <Select

@@ -24,6 +24,7 @@ const ahri = (
   champion: { id: "Ahri", key: 103 },
   query: { role, source },
   patch,
+  combined: patch ? [patch] : [],
   roles,
   facets: { patches: patch ? [patch] : [], regions: [], tiers: [] },
 });
@@ -142,6 +143,7 @@ it("summarizes the best and worst opponents for the role, or the most played one
   championMatchups.mockReset().mockImplementation(({ order }: { order: string }) =>
     Promise.resolve({
       patch: "16.22",
+      combined: ["16.22"],
       page: {
         total: 9,
         items:
@@ -154,10 +156,16 @@ it("summarizes the best and worst opponents for the role, or the most played one
   championOverview.mockReset().mockResolvedValue(ahri("ALL", "16.22", [{ role: "TOP" }]));
   const result = await loadChampionOverview("Ahri", {});
   expect(championMatchups).toHaveBeenCalledWith(
-    expect.objectContaining({ champion: "Ahri", role: "TOP", sort: "winRate", order: "asc" }),
+    expect.objectContaining({
+      champion: "Ahri",
+      role: "TOP",
+      patch: ["16.22"],
+      sort: "winRate",
+      order: "asc",
+    }),
   );
   // Above-average opponents are strengths and below-average ones weaknesses, each listed once.
-  expect(result?.matchupSummary).toMatchObject({ role: "TOP", patch: "16.22", opponents: 9 });
+  expect(result?.matchupSummary).toMatchObject({ role: "TOP", patches: ["16.22"], opponents: 9 });
   expect(result?.matchupSummary?.best.map((r) => r.opponent.championKey)).toEqual([1, 2]);
   expect(result?.matchupSummary?.worst.map((r) => r.opponent.championKey)).toEqual([4, 3]);
   // No lane role played and no role selected: no summary is read.

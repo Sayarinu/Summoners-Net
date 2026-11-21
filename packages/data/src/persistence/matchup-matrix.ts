@@ -74,7 +74,7 @@ export async function matchupMatrix(
       [
         q.role,
         q.source,
-        q.patch ?? null,
+        q.patch ? [q.patch] : null,
         q.metric,
         matchupMatrixPageSize,
         (q.page - 1) * matchupMatrixPageSize,
@@ -136,7 +136,14 @@ export async function matchupPairs(db: Executor, input: MatchupPairsQuery): Prom
         FROM selected s JOIN baseline b USING(champion_key)
         LEFT JOIN named c ON c.champion_key=s.champion_key LEFT JOIN named o ON o.champion_key=s.opponent_key),'[]') AS items
   `,
-      [q.role, q.source, q.patch ?? null, q.metric, q.pageSize, (q.page - 1) * q.pageSize],
+      [
+        q.role,
+        q.source,
+        q.patch ? [q.patch] : null,
+        q.metric,
+        q.pageSize,
+        (q.page - 1) * q.pageSize,
+      ],
     )
   ).rows[0]!;
   return {

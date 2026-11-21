@@ -1,7 +1,7 @@
 "use client";
 import { Card, ChampionIcon, Panel, RoleIcon, TextLink } from "@summonersnet/ui";
 import type { MatchupRow } from "@summonersnet/data/contracts";
-import { signedPoints, type MatchupSummary } from "./presentation";
+import { appendPatches, signedPoints, type MatchupSummary } from "./presentation";
 
 function OpponentCard({ row, tone }: { row: MatchupRow; tone: "good" | "bad" }) {
   const { opponent } = row;
@@ -81,11 +81,10 @@ export function MatchupCards({
   summary: MatchupSummary | null;
 }) {
   if (!summary || (!summary.best.length && !summary.worst.length)) return null;
-  const fullList = `/champions/${encodeURIComponent(championId)}/matchups?${new URLSearchParams({
-    source: summary.source,
-    role: summary.role,
-    patch: summary.patch,
-  })}`;
+  const fullList = `/champions/${encodeURIComponent(championId)}/matchups?${appendPatches(
+    new URLSearchParams({ source: summary.source, role: summary.role }),
+    summary.patches,
+  )}`;
   return (
     <Panel
       title={

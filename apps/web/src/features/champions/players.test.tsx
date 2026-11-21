@@ -31,7 +31,7 @@ const overview: Pick<ChampionOverview, "players" | "query" | "champion"> = {
   query: {
     champion: "Ahri",
     source: "solo",
-    patch: "16.22",
+    patch: ["16.22"],
     role: "MIDDLE",
     region: "europe",
     tier: "CHALLENGER",

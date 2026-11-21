@@ -150,6 +150,8 @@ export async function proChampionStats(
   input: {
     championKey: number;
     patch?: string | undefined;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     league?: string | undefined;
     role?: string | undefined;
     split?: string | undefined;
@@ -170,22 +172,23 @@ export async function proChampionStats(
       )
     ).rows[0]?.patch_key ??
     null;
+  const keys = input.patches ?? (patch ? [patch] : []);
   const leagues = patch
     ? (
         await db.query<{ league: string }>(
-          "SELECT DISTINCT league FROM pro_league_games WHERE patch_key=$1 ORDER BY league",
-          [patch],
+          "SELECT DISTINCT league FROM pro_league_games WHERE patch_key=ANY($1::text[]) ORDER BY league",
+          [keys],
         )
       ).rows.map((r) => r.league)
     : [];
-  const filters = [patch, input.league ?? null, input.split ?? null, input.stage ?? null];
+  const filters = [keys, input.league ?? null, input.split ?? null, input.stage ?? null];
   const splits = patch
     ? (
         await db.query<{ split: string }>(
           `SELECT DISTINCT split FROM pro_league_games
-           WHERE patch_key=$1 AND ($2::text IS NULL OR league=$2) AND split<>'Unknown'
+           WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR league=$2) AND split<>'Unknown'
            ORDER BY split`,
-          [patch, input.league ?? null],
+          [keys, input.league ?? null],
         )
       ).rows.map((r) => r.split)
     : [];
@@ -193,7 +196,7 @@ export async function proChampionStats(
     ? (
         await db.query<{ n: number }>(
           `SELECT coalesce(sum(games),0)::integer AS n FROM pro_league_games
-           WHERE patch_key=$1 AND ($2::text IS NULL OR league=$2) AND ($3::text IS NULL OR split=$3) AND ($4::text IS NULL OR stage=$4)`,
+           WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR league=$2) AND ($3::text IS NULL OR split=$3) AND ($4::text IS NULL OR stage=$4)`,
           filters,
         )
       ).rows[0]!.n
@@ -212,7 +215,7 @@ export async function proChampionStats(
              coalesce(sum(red_wins),0)::integer AS red_wins,
              coalesce(sum(blind_picks),0)::integer AS blind_picks,
              coalesce(sum(counter_picks),0)::integer AS counter_picks
-           FROM pro_champion_stats WHERE patch_key=$1 AND ($2::text IS NULL OR league=$2)
+           FROM pro_champion_stats WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR league=$2)
              AND ($3::text IS NULL OR split=$3) AND ($4::text IS NULL OR stage=$4) AND champion_key=$5`,
           [...filters, input.championKey],
         )
@@ -223,7 +226,7 @@ export async function proChampionStats(
     ? (
         await db.query<{ name: string; picks: number; bans: number }>(
           `SELECT name,sum(picks)::integer AS picks,sum(bans)::integer AS bans
-           FROM pro_unmapped_drafts WHERE patch_key=$1 AND ($2::text IS NULL OR league=$2)
+           FROM pro_unmapped_drafts WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR league=$2)
              AND ($3::text IS NULL OR split=$3) AND ($4::text IS NULL OR stage=$4)
            GROUP BY name ORDER BY name LIMIT 50`,
           filters,
@@ -243,18 +246,18 @@ export async function proChampionStats(
         }>(
           `WITH league_games AS (
              SELECT league,sum(games)::integer AS games FROM pro_league_games
-             WHERE patch_key=$1 AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
+             WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
              GROUP BY league),
            champion AS (
              SELECT league,sum(picks)::integer AS picks,sum(bans)::integer AS bans,
                sum(wins)::integer AS wins,sum(result_picks)::integer AS result_picks
              FROM pro_champion_stats
-             WHERE patch_key=$1 AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
+             WHERE patch_key=ANY($1::text[]) AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
                AND champion_key=$4
              GROUP BY league)
            SELECT * FROM champion JOIN league_games USING (league)
            WHERE picks+bans>0 ORDER BY picks+bans DESC,games DESC,league`,
-          [patch, input.split ?? null, input.stage ?? null, input.championKey],
+          [keys, input.split ?? null, input.stage ?? null, input.championKey],
         )
       ).rows.map((r) => {
         return {
@@ -300,6 +303,7 @@ export async function proChampionStats(
     performance: await proChampionPerformance(db, {
       championKey: input.championKey,
       patch,
+      patches: keys,
       league: input.league,
       role: input.role,
       split: input.split,
@@ -315,6 +319,8 @@ export async function proChampionPerformance(
   input: {
     championKey: number;
     patch: string | null;
+    /** Patches whose games are combined, the patch among them; only the patch when absent. */
+    patches?: readonly string[] | undefined;
     league?: string | undefined;
     role?: string | undefined;
     split?: string | undefined;
@@ -330,12 +336,12 @@ export async function proChampionPerformance(
              sum(kp_team_kills) AS kp_team_kills,sum(kp_n)::integer AS kp_n,
              ${performanceMetrics.map(([m]) => `sum(${m}_sum) AS ${m}_sum,sum(${m}_n)::integer AS ${m}_n`).join(",")}
            FROM pro_champion_performance
-           WHERE champion_key=$1 AND patch_key=$2 AND ($3::text IS NULL OR league=$3)
+           WHERE champion_key=$1 AND patch_key=ANY($2::text[]) AND ($3::text IS NULL OR league=$3)
              AND ($4::text IS NULL OR role=$4) AND ($5::text IS NULL OR split=$5)
              AND ($6::text IS NULL OR stage=$6)`,
           [
             input.championKey,
-            input.patch,
+            input.patches ?? [input.patch],
             input.league ?? null,
             role,
             input.split ?? null,

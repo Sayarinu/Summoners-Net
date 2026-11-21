@@ -31,6 +31,7 @@ const matchups: ChampionMatchups = {
   query: championMatchupsQuerySchema.parse({ champion: "Ahri" }),
   champion: ahri,
   patch: "16.22",
+  combined: ["16.22"],
   patches: ["16.22"],
   page: {
     page: 1,
