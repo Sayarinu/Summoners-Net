@@ -210,13 +210,10 @@
     background: var(--color-bg-interactive);
   }
 
+  /* Selected tabs read in gold, like the sidebar, without an indicator bar. */
   .np-tab[aria-current="page"] {
-    color: var(--color-text-primary);
+    color: var(--color-text-accent);
     background: var(--color-bg-selected);
-  }
-
-  .np-tabs--underline .np-tab[aria-current="page"] {
-    box-shadow: inset 0 -2px var(--color-text-accent);
   }
 
   .np-tab[aria-disabled="true"] {

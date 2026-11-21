@@ -710,13 +710,10 @@
     background: var(--color-bg-interactive);
   }
 
+  /* The selected entry reads in gold on a subtle fill, with no accent bar. */
   .np-navigation a[aria-current="page"] {
-    color: var(--color-text-primary);
+    color: var(--color-text-accent);
     background: var(--color-bg-selected);
-  }
-
-  .np-navigation a[aria-current="page"] {
-    box-shadow: inset 2px 0 0 var(--color-text-accent);
   }
 
   .np-navigation a[aria-current="page"] .np-icon {
@@ -1151,10 +1148,6 @@
   .np-match-row:hover,
   .np-match-row:focus-within {
     background: color-mix(in srgb, var(--color-bg-interactive) 48%, transparent);
-  }
-
-  .np-match-row--live {
-    box-shadow: inset 2px 0 var(--color-status-live);
   }
 
   .np-match-row__time,
