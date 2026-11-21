@@ -24,7 +24,14 @@ import { SavedViewsPanel } from "../saved-views/panel";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
-import { PerformanceStats, ProHistorySection, ProSection } from "./pro";
+import {
+  PerformanceStats,
+  ProHeaderStats,
+  ProHistorySection,
+  ProLeaguesSection,
+  ProPlayersSection,
+  ProSection,
+} from "./pro";
 import { ChampionFilters } from "./filters";
 import { ItemsPanel, RunesPanel, SpellsAndSkillsPanel } from "./solo-build";
 import { MatchupCards } from "./matchup-cards";
@@ -198,7 +205,11 @@ export function ChampionOverviewPage({
           </div>
           {overview.patch ? (
             <div className="border-t border-line pt-4">
-              <HeaderStats overview={overview} />
+              {q.source === "pro" ? (
+                <ProHeaderStats pro={overview.pro} />
+              ) : (
+                <HeaderStats overview={overview} />
+              )}
             </div>
           ) : null}
           <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
@@ -258,6 +269,13 @@ export function ChampionOverviewPage({
               <ItemsPanel builds={overview.builds} />
             </>
           ) : null}
+          {q.source === "pro" ? (
+            <>
+              <ProSection overview={overview} />
+              <ProLeaguesSection overview={overview} />
+              <ProPlayersSection overview={overview} />
+            </>
+          ) : null}
           {counterPick &&
           matchupSummary &&
           (matchupSummary.best.length || matchupSummary.worst.length) ? (
@@ -279,12 +297,6 @@ export function ChampionOverviewPage({
                 omitUnrecorded
               />
             </Panel>
-          ) : null}
-          {q.source === "pro" ? (
-            <>
-              <ProSection overview={overview} />
-              <ProHistorySection overview={overview} />
-            </>
           ) : null}
           <Panel title="Patch Trends">
             <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
@@ -308,6 +320,7 @@ export function ChampionOverviewPage({
               />
             </div>
           </Panel>
+          {q.source === "pro" ? <ProHistorySection overview={overview} /> : null}
           <BucketsSection buckets={overview.buckets} />
           {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
             <JunglePathsSection paths={junglePaths} champion={champion.name} />

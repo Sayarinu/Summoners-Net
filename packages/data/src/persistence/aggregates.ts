@@ -40,6 +40,7 @@ import {
   stageOf,
 } from "./pro-stats.js";
 import { rebuildSoloPerformance, soloChampionPerformance } from "./solo-performance.js";
+import { proChampionPlayers } from "./pro-champion-players.js";
 import { computeFeatures } from "./wp-features.js";
 
 export type AggregateSource = "solo" | "pro";
@@ -545,6 +546,9 @@ export async function championOverview(
     ...(q.stage ? { stage: q.stage } : {}),
   });
   const filters = [q.source, q.region ?? null, q.tier ?? null, q.role];
+  // On the pro view the page's league filter is its region; the pro sections follow it. On the
+  // solo view the pro section keeps its own league choice.
+  const proLeague = q.source === "pro" ? (q.region ?? q.league) : q.league;
   // Pro play's stage is its aggregate queue; solo queue is never filtered by it.
   const stage = q.source === "pro" ? (q.stage ?? null) : null;
   // Every champion's results in the slice, for the empirical-Bayes prior.
@@ -705,11 +709,21 @@ export async function championOverview(
     pro: await proChampionStats(db, {
       championKey: champion.champion_key,
       patch: q.source === "pro" ? (list.patch ?? undefined) : q.patch,
-      league: q.league,
+      league: proLeague,
       role: q.role,
       split: q.source === "pro" ? q.tier : undefined,
       stage: q.source === "pro" ? q.stage : undefined,
     }),
+    proPlayers:
+      q.source === "pro"
+        ? await proChampionPlayers(db, {
+            championId: champion.champion_id,
+            patch: list.patch,
+            league: proLeague,
+            split: q.tier,
+            stage: q.stage,
+          })
+        : null,
     performance:
       q.source === "solo" && list.patch
         ? await soloChampionPerformance(db, {
@@ -722,7 +736,7 @@ export async function championOverview(
         : null,
     proHistory: await proChampionHistory(db, {
       championKey: champion.champion_key,
-      league: q.league,
+      league: proLeague,
       page: q.historyPage,
       split: q.source === "pro" ? q.tier : undefined,
       stage: q.source === "pro" ? q.stage : undefined,
