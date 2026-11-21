@@ -583,9 +583,19 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(page).toHaveURL(/synergySort=delta/);
   await expect(page).toHaveURL(/source=solo/);
   await expect(page.getByText("Bot-Lane Pairs: Win Rate (%)").first()).toBeAttached();
+  // Pro panels belong to the Pro Play view, not the solo-queue page.
+  await expect(page.getByLabel("Pro-Play Statistics")).toHaveCount(0);
+  await page.goto("/champions/Ahri?source=pro");
+  await expect(
+    page.getByRole("navigation", { name: "Source" }).locator('[aria-current="page"]'),
+  ).toHaveText("Pro Play");
+  await expect(
+    page.getByRole("navigation", { name: "Role" }).locator('[aria-current="page"]'),
+  ).toHaveAccessibleName("All Roles");
   // The seeded pro draft picks Ahri once.
   await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence1 Games100.0%");
-  await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
+  const proPanel = page.getByRole("region", { name: "Pro Play" });
+  await proPanel.locator(".np-select", { hasText: "League" }).getByRole("button").click();
   await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
   await page.getByRole("button", { name: "Apply League" }).click();
   await expect(page).toHaveURL(/league=Draft\+acceptance/);
@@ -595,13 +605,6 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(history.getByRole("row")).toHaveCount(2);
   await history.getByRole("row").nth(1).getByRole("link").click();
   await expect(page).toHaveURL(/source=pro.*patch=\d+\.\d+.*league=Draft\+acceptance/);
-  await page.goto("/champions/Ahri?source=pro");
-  await expect(
-    page.getByRole("navigation", { name: "Source" }).locator('[aria-current="page"]'),
-  ).toHaveText("Pro Play");
-  await expect(
-    page.getByRole("navigation", { name: "Role" }).locator('[aria-current="page"]'),
-  ).toHaveAccessibleName("All Roles");
   const missing = await page.goto("/champions/NotAChampion");
   expect(missing?.status()).toBe(404);
 });
