@@ -107,9 +107,16 @@ export interface TierListRow {
 }
 export interface TierList {
   query: ParsedTierListQuery;
-  /** The patch shown: the requested one, or the newest with aggregates for the source. */
+  /**
+   * The patch shown: the requested one, or the newest with enough games in the selection
+   * (`defaultPatchMinimumGames`), or else the newest with aggregates for the source.
+   */
   patch: string | null;
   sliceGames: number;
+  /** Games with a result, or bans, a champion needs to be listed. */
+  minimumGames: number;
+  /** Champions left out because both their games with a result and their bans are fewer. */
+  hiddenChampions: number;
   page: { items: TierListRow[]; page: number; pageSize: number; total: number };
   facets: { patches: string[]; regions: string[]; tiers: string[] };
 }
@@ -139,6 +146,11 @@ export const championOverviewQuerySchema = z
   .strict();
 export type ChampionOverviewQuery = z.input<typeof championOverviewQuerySchema>;
 export type ParsedChampionOverviewQuery = z.output<typeof championOverviewQuerySchema>;
+/**
+ * Games a patch needs in the selection before champion statistics open on it by default. A new
+ * patch starts with a handful of games, where every rate is noise; it stays selectable.
+ */
+export const defaultPatchMinimumGames = { solo: 1000, pro: 100 } as const;
 export type ChampionTier = "S" | "A" | "B" | "C" | "D";
 /**
  * Tier from the shrunk win rate's distance to the slice's baseline, in percentage points:

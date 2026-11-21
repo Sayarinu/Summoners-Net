@@ -34,11 +34,6 @@ export function average(value: SampledValue, digits = 1, signed = false) {
 export function percent(rate: SampledValue) {
   return rate.value === null ? "Unknown" : `${(rate.value * 100).toFixed(1)}%`;
 }
-export function interval(rate: { lower: number | null; upper: number | null }) {
-  return rate.lower === null || rate.upper === null
-    ? "Unknown"
-    : `${(rate.lower * 100).toFixed(1)}–${(rate.upper * 100).toFixed(1)}%`;
-}
 export const sampleLabels: Record<TierListRow["sample"], string> = {
   shown: "",
   "low-sample": "Low Sample",

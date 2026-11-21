@@ -509,43 +509,39 @@ test("data management pages and import endpoints are not part of the app", async
   await page.goto("/history");
   await expect(page.getByRole("link", { name: "Manage Imports" })).toHaveCount(0);
 });
-test("the tier list filters by role and source and sorts in SQL", async ({ page }) => {
+test("the tier list filters by role and source and leaves out champions with too few games", async ({
+  page,
+}) => {
   await page.goto("/tier-list");
   const table = page.getByRole("table", { name: "Champion Tier List" });
-  // Ten picked champions and one only banned, from one solo-queue game.
-  await expect(table.getByRole("row")).toHaveCount(12);
+  // Ten picked champions and one only banned, from one solo-queue game: all below the minimum.
   await expect(page.getByText(/Patch 16\.4 · 1 game/)).toBeVisible();
+  await expect(table).toContainText("No champion has 10 games in this selection yet.");
+  await expect(page.getByText("11 with fewer than 10 games not listed")).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: /Interval|Sample/ })).toHaveCount(0);
   const choose = async (label: string, option: string) => {
     await page.locator(".np-select", { hasText: label }).getByRole("button").click();
     await page.getByRole("option", { name: option, exact: true }).click();
   };
   await choose("Role", "Mid");
   await choose("Sort By", "Win Rate");
+  await choose("Order", "Lowest First");
   await page.getByRole("button", { name: "Apply Filters" }).click();
   await expect(page).toHaveURL(/role=MIDDLE/);
   await expect(page).toHaveURL(/sort=winRate/);
-  await expect(table.getByRole("row")).toHaveCount(3);
-  await expect(table.getByRole("row").nth(1).getByRole("img", { name: "Ahri" })).toBeVisible();
-  await expect(table.getByRole("row").nth(1)).toContainText("Too Few Games");
-  await choose("Order", "Lowest First");
-  await page.getByRole("button", { name: "Apply Filters" }).click();
   await expect(page).toHaveURL(/order=asc/);
-  await expect(
-    table.getByRole("row").nth(1).getByRole("img", { name: "Champion 157" }),
-  ).toBeVisible();
+  await expect(page.getByText("2 with fewer than 10 games not listed")).toBeVisible();
   await choose("Source", "Pro");
   await page.getByRole("button", { name: "Apply Filters" }).click();
   await expect(page).toHaveURL(/source=pro/);
-  await expect(table.getByRole("row").nth(1).getByRole("img", { name: "Ahri" })).toBeVisible();
+  await expect(page.getByText(/with fewer than 10 games not listed/)).toBeVisible();
   await page.goto("/tier-list?role=SUPPORT");
   await expect(page.getByText(/Choose filters from the lists/)).toBeVisible();
 });
 test("a champion page shows rates, tier and trend, and unknown champions are not found", async ({
   page,
 }) => {
-  await page.goto("/tier-list?role=MIDDLE");
-  await page.getByRole("link", { name: "Ahri", exact: true }).click();
-  await expect(page).toHaveURL(/\/champions\/Ahri$/);
+  await page.goto("/champions/Ahri");
   // The name is shown in the champion's identity; the page heading carries it for screen readers.
   await expect(page.getByRole("heading", { name: "Ahri", level: 1 })).toHaveCount(1);
   await expect(page.getByRole("region", { name: "Ahri", exact: true })).toBeVisible();
@@ -553,7 +549,8 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   await expect(
     page.getByRole("region", { name: "Ahri", exact: true }).getByText("Patch 16.4"),
   ).toBeVisible();
-  await expect(stats).toContainText("1 Results100.0%");
+  await expect(stats).toContainText("1 Games100.0%");
+  await expect(stats).not.toContainText("95%");
   await expect(stats).toContainText("Tier");
   await expect(page.getByRole("img", { name: "Ahri Pick Rate by Patch" })).toContainText("16.4");
   // The seeded game's timeline opens with Doran's Ring; one game is below the minimum sample.

@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import {
   championLaneRoles,
   championOverviewQuerySchema,
+  defaultPatchMinimumGames,
   championStatsQuerySchema,
   tierFromDelta,
   tierListQuerySchema,
@@ -20,6 +21,7 @@ import {
 } from "../domain/champion-stats.js";
 import {
   applySamplePolicy,
+  defaultSamplePolicy,
   fitRatePrior,
   shrinkRate,
   wilsonInterval,
@@ -267,12 +269,46 @@ export async function championStats(
   };
 }
 
+/**
+ * The newest patch whose selection has at least the source's minimum games, so statistics do not
+ * open on a patch that has barely started. Null when no patch has that many.
+ */
+export async function defaultPatch(
+  db: Executor,
+  source: "solo" | "pro",
+  region: string | null,
+  tier: string | null,
+  stage: string | null,
+): Promise<string | null> {
+  return (
+    (
+      await db.query<{ patch_key: string }>(
+        // Newest first, stopping at the first patch with enough games.
+        `SELECT p.patch_key FROM patches p
+         CROSS JOIN LATERAL (
+           SELECT coalesce(sum(n),0) AS games FROM (
+             SELECT DISTINCT queue,region,tier,slice_games AS n FROM champion_aggregates a
+             WHERE a.source=$1 AND a.patch_key=p.patch_key AND a.role='ALL'
+               AND ($2::text IS NULL OR a.region=$2) AND ($3::text IS NULL OR a.tier=$3)
+               AND ($4::text IS NULL OR a.queue=$4)) s) g
+         WHERE g.games>=$5 ORDER BY p.release_order DESC LIMIT 1`,
+        [source, region, tier, stage, defaultPatchMinimumGames[source]],
+      )
+    ).rows[0]?.patch_key ?? null
+  );
+}
+
 export const tierListPageSize = 50;
 /**
  * The tier list for one patch: champion rows summed over the filtered regions and tiers, sorted
  * and paginated in SQL. Reads only aggregates and the champion catalog.
  */
-export async function tierList(db: Executor, input: TierListQuery = {}): Promise<TierList> {
+export async function tierList(
+  db: Executor,
+  input: TierListQuery = {},
+  /** Champions with fewer games of known result and fewer bans are left out and counted. */
+  { minimumGames = defaultSamplePolicy.minimum }: { minimumGames?: number } = {},
+): Promise<TierList> {
   const q = tierListQuerySchema.parse(input);
   const patches = (
     await db.query<{ patch_key: string }>(
@@ -283,13 +319,20 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       [q.source],
     )
   ).rows.map((r) => r.patch_key);
-  const patch = q.patch ?? patches[0] ?? null;
+  const stage = q.source === "pro" ? (q.stage ?? null) : null;
+  const patch =
+    q.patch ??
+    (await defaultPatch(db, q.source, q.region ?? null, q.tier ?? null, stage)) ??
+    patches[0] ??
+    null;
   const empty = { items: [], page: q.page, pageSize: tierListPageSize, total: 0 };
   if (!patch)
     return {
       query: q,
       patch: null,
       sliceGames: 0,
+      minimumGames,
+      hiddenChampions: 0,
       page: empty,
       facets: { patches, regions: [], tiers: [] },
     };
@@ -302,7 +345,6 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
     )
   ).rows[0]!;
   const filters = [q.source, patch, q.region ?? null, q.tier ?? null];
-  const stage = q.source === "pro" ? (q.stage ?? null) : null;
   const sliceGames = (
     await db.query<{ n: number }>(
       `SELECT coalesce(sum(n),0)::integer AS n FROM (
@@ -347,6 +389,7 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
     name: string | null;
     asset_hash: string | null;
     total: number;
+    hidden: number;
     kda: number | null;
     kda_n: number | null;
     dpm: number | null;
@@ -388,6 +431,8 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
        FROM catalog_champions c JOIN patches p USING (patch_key)
        ORDER BY c.champion_key,(c.patch_key=$2) DESC,p.release_order DESC)
      SELECT s.*,n.champion_id,n.name,i.asset_hash,count(*) OVER()::integer AS total,
+       (SELECT count(*)::integer FROM summed
+        WHERE result_games<$11 AND coalesce(bans,0)<$11) AS hidden,
        CASE WHEN $8::double precision IS NOT NULL AND s.result_games>0
          THEN (s.wins+$8::double precision*$9::double precision)/(s.result_games+$9::double precision)
        END AS shrunk,
@@ -396,6 +441,9 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
      LEFT JOIN performance f USING (champion_key)
      LEFT JOIN catalog_images i ON i.patch_key=n.patch_key AND i.kind='champion'
        AND i.catalog_id=n.champion_id
+     -- Below the minimum sample a champion's rates are noise, so it is left out of the list,
+     -- unless it is banned often enough for its ban rate to matter.
+     WHERE s.result_games>=$11 OR coalesce(s.bans,0)>=$11
      ORDER BY ${sortColumn} ${direction} NULLS LAST,s.champion_key
      LIMIT $6 OFFSET $7`,
     [
@@ -406,12 +454,29 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       prior?.baseline ?? null,
       prior?.strength ?? null,
       stage,
+      minimumGames,
     ],
   );
+  // Without listed rows the window count is unknown, so count the hidden champions directly.
+  const hiddenChampions =
+    rows.rows[0]?.hidden ??
+    (
+      await db.query<{ n: number }>(
+        `SELECT count(*)::integer AS n FROM (
+           SELECT champion_key FROM champion_aggregates
+           WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+             AND ($4::text IS NULL OR tier=$4) AND role=$5 AND ($6::text IS NULL OR queue=$6)
+           GROUP BY champion_key,role
+           HAVING sum(result_games)<$7 AND coalesce(sum(bans),0)<$7) h`,
+        [...filters, q.role, stage, minimumGames],
+      )
+    ).rows[0]!.n;
   return {
     query: q,
     patch,
     sliceGames,
+    minimumGames,
+    hiddenChampions,
     facets: { patches, regions: facets.regions, tiers: facets.tiers },
     page: {
       items: rows.rows.map((r) => {

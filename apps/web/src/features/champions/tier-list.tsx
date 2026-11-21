@@ -1,19 +1,12 @@
 "use client";
 import { ExportLink } from "../shell/export-link";
-import {
-  ChampionIdentity,
-  EmptyState,
-  PageHeader,
-  Panel,
-  StatusIndicator,
-  Table,
-} from "@summonersnet/ui";
+import { ChampionIdentity, EmptyState, PageHeader, Panel, Table } from "@summonersnet/ui";
 import type { TierList, TierListRow } from "@summonersnet/data/contracts";
 import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionViews } from "./directory";
 import { ChampionFilters } from "./filters";
 import { goToPage, PageFooter } from "./paging";
-import { average, interval, percent, roleLabels, sampleLabels } from "./presentation";
+import { average, percent, roleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
   const q = list?.query;
   return (
@@ -62,7 +55,11 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             caption="Champion Tier List"
             rows={list.page.items}
             getRowKey={(r) => `${r.championKey}:${r.role}`}
-            emptyMessage="No champions match these filters."
+            emptyMessage={
+              list.hiddenChampions
+                ? `No champion has ${list.minimumGames} games in this selection yet.`
+                : "No champions match these filters."
+            }
             columns={[
               {
                 id: "champion",
@@ -81,12 +78,6 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               { id: "tier", header: "Tier", align: "center", render: (r) => r.tier ?? "—" },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
-              {
-                id: "interval",
-                header: "95% Interval",
-                align: "end",
-                render: (r) => interval(r.winRate),
-              },
               { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
               { id: "ban", header: "Ban Rate", align: "end", render: (r) => percent(r.banRate) },
               {
@@ -111,20 +102,10 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
                     },
                   ]
                 : []),
-              {
-                id: "sample",
-                header: "Sample",
-                render: (r) =>
-                  r.sample === "shown" ? (
-                    `${r.winRate.sampleCount} results`
-                  ) : (
-                    <StatusIndicator label={sampleLabels[r.sample]} tone="warning" />
-                  ),
-              },
             ]}
           />
           <PageFooter
-            summary={`${list.page.total} champions · Page ${list.page.page}`}
+            summary={`${list.page.total} champions · Page ${list.page.page}${list.hiddenChampions ? ` · ${list.hiddenChampions} with fewer than ${list.minimumGames} games not listed` : ""}`}
             label="Tier List Pages"
             page={list.page.page}
             total={list.page.total}

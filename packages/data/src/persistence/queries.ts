@@ -315,7 +315,8 @@ export function queries(pool: Pool, clock: () => Date) {
     matchTrackRange: (input: TrackRangeQuery) => matchTrackRange(pool, input),
     trackAccuracy: (matchId: string) => trackAccuracy(pool, matchId),
     championStats: (input?: ChampionStatsQuery) => championStats(pool, input),
-    tierList: (input?: TierListQuery) => tierList(pool, input),
+    tierList: (input?: TierListQuery, options?: Parameters<typeof tierList>[2]) =>
+      tierList(pool, input, options),
     championOverview: (input: ChampionOverviewQuery) => championOverview(pool, input),
     soloGame: (matchId: string) => soloGame(pool, matchId),
     soloDraftWinProbability: (matchId: string) => soloDraftWinProbability(pool, matchId),
