@@ -30,7 +30,13 @@ import { championBuckets, rebuildBuckets } from "./buckets.js";
 import { rebuildHeatmaps } from "./heatmaps.js";
 import { rebuildJunglePaths } from "./jungle-paths.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
-import { proChampionHistory, proChampionStats, rebuildProStats } from "./pro-stats.js";
+import {
+  proChampionHistory,
+  proChampionStats,
+  rebuildProStats,
+  splitOf,
+  stageOf,
+} from "./pro-stats.js";
 import { rebuildSoloPerformance, soloChampionPerformance } from "./solo-performance.js";
 import { computeFeatures } from "./wp-features.js";
 
@@ -102,7 +108,7 @@ const proKeys = `
   SELECT DISTINCT ON (n.name) n.name,c.champion_key FROM oracle_champion_names n
   JOIN catalog_champions c ON c.champion_id=n.champion_id ORDER BY n.name,c.observed_at DESC`;
 const proGames = `
-  SELECT g.id AS game_id,'pro' AS queue,g.source_league AS region,'PRO' AS tier
+  SELECT g.id AS game_id,${stageOf("g")} AS queue,g.source_league AS region,${splitOf("g")} AS tier
   FROM oracle_archive_games g
   JOIN patch_sources s ON s.source='oracle' AND s.source_string=g.patch
   WHERE s.patch_key=$1 AND g.summary_eligible`;
@@ -296,13 +302,14 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
     )
   ).rows[0]!;
   const filters = [q.source, patch, q.region ?? null, q.tier ?? null];
+  const stage = q.source === "pro" ? (q.stage ?? null) : null;
   const sliceGames = (
     await db.query<{ n: number }>(
       `SELECT coalesce(sum(n),0)::integer AS n FROM (
          SELECT DISTINCT queue,region,tier,slice_games AS n FROM champion_aggregates
          WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
-           AND ($4::text IS NULL OR tier=$4)) s`,
-      filters,
+           AND ($4::text IS NULL OR tier=$4) AND ($5::text IS NULL OR queue=$5)) s`,
+      [...filters, stage],
     )
   ).rows[0]!.n;
   // Sort keys are fixed column names, never user text.
@@ -312,9 +319,9 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       await db.query<{ wins: number; result_games: number }>(
         `SELECT sum(wins)::integer AS wins,sum(result_games)::integer AS result_games
          FROM champion_aggregates WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
-           AND ($4::text IS NULL OR tier=$4) AND role=$5
+           AND ($4::text IS NULL OR tier=$4) AND role=$5 AND ($6::text IS NULL OR queue=$6)
          GROUP BY champion_key`,
-        [...filters, q.role],
+        [...filters, q.role, stage],
       )
     ).rows.map((r) => ({ successes: r.wins, trials: r.result_games })),
   );
@@ -359,6 +366,7 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
          SELECT champion_key,kills,deaths,assists,kda_n,dpm_sum,dpm_n,gd15_sum,gd15_n
          FROM pro_champion_performance
          WHERE $1='pro' AND patch_key=$2 AND ($3::text IS NULL OR league=$3)
+           AND ($4::text IS NULL OR split=$4) AND ($10::text IS NULL OR stage=$10)
            AND ($5='ALL' OR role=$5)
          UNION ALL
          SELECT champion_key,kills,deaths,assists,kda_n,dpm_sum,dpm_n,0,0
@@ -373,7 +381,7 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
          sum(wins)::double precision/nullif(sum(result_games),0) AS win_rate
        FROM champion_aggregates
        WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
-         AND ($4::text IS NULL OR tier=$4) AND role=$5
+         AND ($4::text IS NULL OR tier=$4) AND role=$5 AND ($10::text IS NULL OR queue=$10)
        GROUP BY champion_key,role),
      names AS (
        SELECT DISTINCT ON (c.champion_key) c.champion_key,c.champion_id,c.name,c.patch_key
@@ -397,6 +405,7 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
       (q.page - 1) * tierListPageSize,
       prior?.baseline ?? null,
       prior?.strength ?? null,
+      stage,
     ],
   );
   return {
@@ -468,8 +477,11 @@ export async function championOverview(
     ...(q.patch ? { patch: q.patch } : {}),
     ...(q.region ? { region: q.region } : {}),
     ...(q.tier ? { tier: q.tier } : {}),
+    ...(q.stage ? { stage: q.stage } : {}),
   });
   const filters = [q.source, q.region ?? null, q.tier ?? null, q.role];
+  // Pro play's stage is its aggregate queue; solo queue is never filtered by it.
+  const stage = q.source === "pro" ? (q.stage ?? null) : null;
   // Every champion's results in the slice, for the empirical-Bayes prior.
   const slice = list.patch
     ? (
@@ -484,8 +496,9 @@ export async function championOverview(
              sum(games)::integer AS games,sum(bans)::integer AS bans
            FROM champion_aggregates WHERE source=$1 AND ($2::text IS NULL OR region=$2)
              AND ($3::text IS NULL OR tier=$3) AND role=$4 AND patch_key=$5
+             AND ($6::text IS NULL OR queue=$6)
            GROUP BY champion_key`,
-          [...filters, list.patch],
+          [...filters, list.patch, stage],
         )
       ).rows
     : [];
@@ -525,16 +538,17 @@ export async function championOverview(
              sum(games)::integer AS games,sum(bans)::integer AS bans FROM champion_aggregates
            WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
              AND role=$4 AND champion_key=$5 AND patch_key=ANY($6::text[])
+             AND ($7::text IS NULL OR queue=$7)
            GROUP BY patch_key
          ), slice AS (
            SELECT patch_key,sum(n)::integer AS slice_games FROM (
              SELECT DISTINCT patch_key,queue,region,tier,slice_games AS n FROM champion_aggregates
              WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
-               AND patch_key=ANY($6::text[])) s
+               AND patch_key=ANY($6::text[]) AND ($7::text IS NULL OR queue=$7)) s
            GROUP BY patch_key
          ) SELECT own.*,coalesce(slice.slice_games,0) AS slice_games
            FROM own LEFT JOIN slice USING (patch_key)`,
-        [...filters, champion.champion_key, span],
+        [...filters, champion.champion_key, span, stage],
       )
     ).rows.map((r) => [r.patch_key, r]),
   );
@@ -545,6 +559,7 @@ export async function championOverview(
           `SELECT role,sum(games)::integer AS games FROM champion_aggregates
            WHERE source=$1 AND ($2::text IS NULL OR region=$2) AND ($3::text IS NULL OR tier=$3)
              AND role=ANY($4::text[]) AND champion_key=$5 AND patch_key=$6
+             AND ($7::text IS NULL OR queue=$7)
            GROUP BY role HAVING sum(games)>0 ORDER BY games DESC,role`,
           [
             q.source,
@@ -553,6 +568,7 @@ export async function championOverview(
             [...championLaneRoles],
             champion.champion_key,
             list.patch,
+            stage,
           ],
         )
       ).rows
@@ -626,6 +642,8 @@ export async function championOverview(
       patch: q.source === "pro" ? (list.patch ?? undefined) : q.patch,
       league: q.league,
       role: q.role,
+      split: q.source === "pro" ? q.tier : undefined,
+      stage: q.source === "pro" ? q.stage : undefined,
     }),
     performance:
       q.source === "solo" && list.patch
@@ -641,6 +659,8 @@ export async function championOverview(
       championKey: champion.champion_key,
       league: q.league,
       page: q.historyPage,
+      split: q.source === "pro" ? q.tier : undefined,
+      stage: q.source === "pro" ? q.stage : undefined,
     }),
     players:
       q.source === "solo" && list.patch

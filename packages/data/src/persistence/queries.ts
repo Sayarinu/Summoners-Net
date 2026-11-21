@@ -99,6 +99,18 @@ function filters(input: BrowseQuery, kind: "matches" | "games") {
   }
   if (q.q) add("search_text LIKE ?", `%${q.q.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
   if (kind === "matches" && q.state) add("state=?", q.state);
+  // Split and stage come from the game's archive row, looked up by its primary key.
+  if (kind === "games" && q.split)
+    add(
+      `EXISTS(SELECT 1 FROM oracle_archive_games a WHERE a.id=archive_game_id
+        AND coalesce(nullif(trim(a.split),''),'Unknown')=?)`,
+      q.split,
+    );
+  if (kind === "games" && q.stage)
+    add(
+      "EXISTS(SELECT 1 FROM oracle_archive_games a WHERE a.id=archive_game_id AND a.playoffs=?)",
+      q.stage === "playoffs",
+    );
   return { q, values, clauses };
 }
 async function page<T>(
@@ -352,6 +364,21 @@ export function queries(pool: Pool, clock: () => Date) {
         values,
         poolQuery,
       );
+    },
+    /** The splits a player or team entity played in, for one year or every year. */
+    async entitySplits(entityId: string, year?: number) {
+      return (
+        await pool.query<{ split: string }>(
+          `SELECT DISTINCT coalesce(nullif(trim(a.split),''),'Unknown') AS split
+           FROM participants p JOIN games g ON g.id=p.game_id
+           JOIN oracle_archive_games a ON a.id=g.archive_game_id
+           WHERE (p.player_id IN (SELECT id FROM entity_members WHERE entity_id=$1)
+               OR (p.role='team' AND p.team_id IN (SELECT id FROM entity_members WHERE entity_id=$1)))
+             AND ($2::integer IS NULL OR g.year=$2)
+           ORDER BY split`,
+          [idSchema.parse(entityId), year ?? null],
+        )
+      ).rows.map((r) => r.split);
     },
     /** How a team entity plays over the complete games matching the filters. */
     async teamStatistics(entityId: string, input: BrowseQuery = {}) {

@@ -12,6 +12,7 @@ interface Filters {
   role: (typeof championRoles)[number];
   region?: string | undefined;
   tier?: string | undefined;
+  stage?: "regular" | "playoffs" | undefined;
   sort?: (typeof tierListSorts)[number];
   order?: "asc" | "desc";
 }
@@ -74,21 +75,32 @@ export function ChampionFilters({
           }))}
         />
       )}
-      {/* Pro play is sliced by league, and its only tier is PRO. */}
+      {/* Pro play is sliced by league. */}
       <Select
         label={pro ? "League" : "Region"}
         name="region"
         defaultValue={query?.region ?? "all"}
         options={[all, ...(facets?.regions ?? []).map((r) => ({ label: r, value: r }))]}
       />
-      {pro ? null : (
+      {/* Pro play's tier is its split; it adds the stage. */}
+      <Select
+        label={pro ? "Split" : "Tier"}
+        name="tier"
+        defaultValue={query?.tier ?? "all"}
+        options={[all, ...(facets?.tiers ?? []).map((t) => ({ label: t, value: t }))]}
+      />
+      {pro ? (
         <Select
-          label="Tier"
-          name="tier"
-          defaultValue={query?.tier ?? "all"}
-          options={[all, ...(facets?.tiers ?? []).map((t) => ({ label: t, value: t }))]}
+          label="Stage"
+          name="stage"
+          defaultValue={query?.stage ?? "all"}
+          options={[
+            { label: "All Stages", value: "all" },
+            { label: "Regular Season", value: "regular" },
+            { label: "Playoffs", value: "playoffs" },
+          ]}
         />
-      )}
+      ) : null}
       {sortable && (
         <>
           <Select

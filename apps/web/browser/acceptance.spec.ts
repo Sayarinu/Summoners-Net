@@ -363,6 +363,11 @@ test("search, history, observed rosters and independently accessible played line
     .getByRole("link", { name: "KDA" })
     .click();
   await expect(page).toHaveURL(/poolSort=kda/);
+  // Profiles filter by stage (and split) from the archive.
+  await page.locator(".np-select", { hasText: "Stage" }).getByRole("button").click();
+  await page.getByRole("option", { name: "Playoffs", exact: true }).click();
+  await expect(page).toHaveURL(/stage=playoffs/);
+  await page.goBack();
   await page
     .getByRole("link", { name: /^Game \d+: / })
     .first()

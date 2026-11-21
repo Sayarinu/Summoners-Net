@@ -654,6 +654,50 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     });
     expect((await queries.teamStatistics("oracle:team:10", { league: "LPL" })).games).toBe(0);
   });
+  it("scopes profiles and pro statistics by split and stage", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    const body = (csv: string) => csv.slice(csv.indexOf("\n") + 1);
+    await importCsv(
+      draftCsv({ id: "split-1", metrics: { split: "Spring", playoffs: "0" } }) +
+        body(draftCsv({ id: "split-2", metrics: { split: "Summer", playoffs: "1" } })) +
+        body(draftCsv({ id: "split-3", metrics: { split: "", playoffs: "" } })),
+    );
+    const player = "oracle:player:10-mid";
+    expect(await queries.entitySplits(player)).toEqual(["Spring", "Summer", "Unknown"]);
+    expect(await queries.entitySplits("oracle:team:10", 2026)).toEqual([
+      "Spring",
+      "Summer",
+      "Unknown",
+    ]);
+    expect((await queries.playerPerformance(player, {})).games).toBe(3);
+    expect((await queries.playerPerformance(player, { split: "Spring" })).games).toBe(1);
+    expect((await queries.playerPerformance(player, { stage: "playoffs" })).games).toBe(1);
+    expect((await queries.playerPerformance(player, { stage: "regular" })).games).toBe(1);
+    expect(
+      (await queries.teamStatistics("oracle:team:10", { split: "Summer", stage: "regular" })).games,
+    ).toBe(0);
+    // Pro draft statistics, rebuilt by the import, keep the split and stage of each game.
+    expect((await proChampionStats(pool, { championKey: 103 })).games).toBe(3);
+    expect(await proChampionStats(pool, { championKey: 103, split: "Spring" })).toMatchObject({
+      games: 1,
+      picks: 1,
+      split: "Spring",
+      splits: ["Spring", "Summer"],
+    });
+    expect((await proChampionStats(pool, { championKey: 103, stage: "playoffs" })).games).toBe(1);
+    expect(
+      (await proChampionPerformance(pool, { championKey: 103, patch: "16.4", split: "Summer" }))
+        .games,
+    ).toBe(1);
+    expect(
+      (await proChampionHistory(pool, { championKey: 103, stage: "regular" })).page.items[0],
+    ).toMatchObject({ games: 1, picks: 1 });
+    // The pro tier list slices by the same split (tier) and stage (queue).
+    const list = await tierList(pool, { source: "pro", tier: "Summer" });
+    expect(list.facets.tiers).toEqual(["Spring", "Summer", "Unknown"]);
+    expect(list.sliceGames).toBe(1);
+  });
   it("filters games and matches by their visible values through trigram indexes", async () => {
     fetcher.mockImplementation(() => Promise.resolve(json([rawMatch()])));
     const matchesRun = await run({ kind: "matches" });
@@ -4334,7 +4378,7 @@ describe("Champion aggregates", () => {
       await aggregates("source='pro' AND champion_key=103 AND role IN ('ALL','MIDDLE')"),
     ).toEqual([
       {
-        tier: "PRO",
+        tier: "Unknown",
         role: "ALL",
         games: 10,
         result_games: 10,
@@ -4346,7 +4390,7 @@ describe("Champion aggregates", () => {
         ban_rate: 0,
       },
       {
-        tier: "PRO",
+        tier: "Unknown",
         role: "MIDDLE",
         games: 2,
         result_games: 2,
@@ -4378,8 +4422,9 @@ describe("Champion aggregates", () => {
     const pro = await championStats(pool, {
       source: "pro",
       region: "LCK",
-      tier: "PRO",
-      queue: "pro",
+      // Fixture games record no split or stage, so pro play slices them as unknown.
+      tier: "Unknown",
+      queue: "unknown",
     });
     expect([solo.patch, pro.patch]).toEqual(["16.22", "16.4"]);
 
