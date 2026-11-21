@@ -160,7 +160,9 @@ const exporters: Record<
   async "champion-matchups"(params) {
     const q = championMatchupsQuerySchema.omit({ page: true, pageSize: true }).safeParse(params);
     if (!q.success) return null;
-    const read = (page: number) => data().championMatchups({ ...q.data, page, pageSize: 100 });
+    // The export is the raw table: opponents below the page's minimum sample are included.
+    const read = (page: number) =>
+      data().championMatchups({ ...q.data, page, pageSize: 100 }, { minimumGames: 0 });
     const first = await read(1);
     if (!first) return undefined;
     return {

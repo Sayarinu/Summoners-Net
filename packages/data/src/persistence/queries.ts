@@ -299,7 +299,10 @@ export function queries(pool: Pool, clock: () => Date) {
     championDirectory: () => championDirectory(pool),
     patchDirectory: () => patchDirectory(pool),
     matchupPairs: (input: MatchupPairsQuery) => matchupPairs(pool, input),
-    championMatchups: (input: ChampionMatchupsQuery) => championMatchups(pool, input),
+    championMatchups: (
+      input: ChampionMatchupsQuery,
+      options?: Parameters<typeof championMatchups>[2],
+    ) => championMatchups(pool, input, options),
     championBlindability: (input: ChampionBlindabilityQuery) => championBlindability(pool, input),
     counterPickList: (input: CounterPickListQuery) => counterPickList(pool, input),
     draftAssistant: (input: DraftAssistantQuery) => draftAssistant(pool, input),

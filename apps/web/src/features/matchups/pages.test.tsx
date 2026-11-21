@@ -56,6 +56,8 @@ const matchups: ChampionMatchups = {
       },
     ],
   },
+  minimumGames: 10,
+  hiddenOpponents: 4,
   exclusions: [
     {
       role: "UNKNOWN",
@@ -72,11 +74,13 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
   const { rerender } = render(<ChampionMatchupsPage matchups={matchups} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
   const table = screen.getByRole("table", { name: "Ahri Lane Opponents" });
-  expect(table).toHaveTextContent("55.0% · n=10");
-  expect(table).toHaveTextContent("+37.5 · n=10");
-  expect(table).toHaveTextContent("-20.0 · n=10");
-  expect(table).toHaveTextContent("Unknown · n=9");
+  const [nunuRow] = within(table).getAllByRole("row").slice(1);
+  // Values without per-cell sample clutter; an unknown value is a dash with its sample on hover.
+  expect(nunuRow).toHaveTextContent("1055.0%+37.5-20.0+0.6+0.6—+0.655.0%55.0%");
+  expect(within(nunuRow!).getByTitle("9 observations")).toHaveTextContent("—");
   expect(table).toHaveTextContent("Team First Blood");
+  expect(table).not.toHaveTextContent("n=");
+  expect(screen.getByText(/4 with fewer than 10 games not listed/)).toBeVisible();
   expect(within(table).getByRole("img", { name: "Champion 999" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Nunu & Willump" })).toHaveAttribute(
     "href",
@@ -93,8 +97,34 @@ it("shows shrunk estimates, independent samples and team labels with raw values 
       error={null}
     />,
   );
-  expect(table).toHaveTextContent("80.0% · n=10");
-  expect(table).toHaveTextContent("+100.0 · n=10");
+  expect(table).toHaveTextContent("80.0%");
+  expect(table).toHaveTextContent("+100.0");
+  // A metric no listed opponent recorded is left out rather than shown as a column of unknowns.
+  const unrecorded = { ...estimate, raw: null, shrunk: null, sampleCount: 0 };
+  rerender(
+    <ChampionMatchupsPage
+      matchups={{
+        ...matchups,
+        page: {
+          ...matchups.page,
+          items: matchups.page.items.map((row) => ({
+            ...row,
+            metrics: { ...row.metrics, firstTower: unrecorded },
+          })),
+        },
+      }}
+      error={null}
+    />,
+  );
+  expect(screen.queryByRole("columnheader", { name: "Team First Tower" })).toBeNull();
+  expect(screen.getByRole("columnheader", { name: "Team First Blood" })).toBeVisible();
+  rerender(
+    <ChampionMatchupsPage
+      matchups={{ ...matchups, page: { ...matchups.page, items: [], total: 0 } }}
+      error={null}
+    />,
+  );
+  expect(screen.getByText("No opponent has 10 games in this role and patch yet.")).toBeVisible();
 });
 const scored: ChampionBlindability = {
   games: 158,
@@ -162,17 +192,13 @@ it("shows the blindability score, its coverage and the method with the formula",
       error={null}
     />,
   );
-  expect(screen.getByLabelText("Blindability Statistics")).toHaveTextContent(
-    "Blindability ScoreUnknown",
-  );
-  expect(screen.getByText(/Counter-pick value unavailable/)).toHaveTextContent(
-    "nothing to compare with",
-  );
-  expect(screen.getByText(/^Score unavailable/)).toHaveTextContent(
-    "Score unavailable: Opponents with at least 10 win-rate observations cover less than 50% of opponent picks.",
+  // Without a score the panels give way to one line saying why.
+  expect(screen.queryByLabelText("Blindability Statistics")).toBeNull();
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Blindability and counter-pick value are unavailable: Opponents with at least 10 win-rate observations cover less than 50% of opponent picks. 3 of 4 sampled opponents meet the minimum.",
   );
   rerender(<ChampionMatchupsPage matchups={matchups} blindability={null} error={null} />);
-  expect(screen.getByText(/No stored blindability score/)).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("no stored score for this role");
 });
 it("explains empty selections and renders validation errors without data", () => {
   const { rerender } = render(
@@ -182,6 +208,7 @@ it("explains empty selections and renders validation errors without data", () =>
         patch: null,
         patches: [],
         page: { ...matchups.page, total: 0, items: [] },
+        hiddenOpponents: 0,
         exclusions: [],
       }}
       error={null}

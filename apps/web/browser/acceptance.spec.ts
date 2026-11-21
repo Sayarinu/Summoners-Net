@@ -1161,26 +1161,19 @@ test("champion matchups show sampled metrics, switch values and validate selecti
   await page.goto("/champions/Ahri?source=solo&patch=16.4&role=MIDDLE");
   await page.getByRole("link", { name: "Lane Matchups", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ahri Matchups" })).toBeVisible();
-  // One seeded lane game: the stored blindability score stays unknown, with its reason.
-  await expect(page.getByLabel("Blindability Statistics")).toContainText(
-    "Blindability ScoreUnknown",
-  );
-  await expect(page.getByRole("status").filter({ hasText: "Score unavailable" })).toContainText(
-    "Fewer than 3 opponents",
-  );
-  await page.getByText("How Blindability Is Calculated").click();
-  await expect(page.getByText(/E = Σ wᵢ·pᵢ/)).toBeVisible();
+  // One seeded lane game: no score, so one line says why, and the opponent is below the minimum.
+  await expect(
+    page.getByRole("status").filter({ hasText: "Blindability and counter-pick value" }),
+  ).toContainText("Fewer than 3 opponents");
+  await expect(page.getByLabel("Blindability Statistics")).toHaveCount(0);
   const table = page.getByRole("table", { name: "Ahri lane opponents" });
-  await expect(table).toContainText("Unknown · n=1");
-  await expect(table).toContainText("Team First Blood");
-  await expect(table).toContainText("XP Δ at 15");
+  await expect(table).toContainText("No opponent has 10 games in this role and patch yet.");
+  await expect(page.getByText(/1 with fewer than 10 games not listed/)).toBeVisible();
   await page.getByRole("button", { name: /Values$/ }).click();
   await page.getByRole("option", { name: "Raw", exact: true }).click();
   await page.getByRole("button", { name: "Apply Filters" }).click();
   await expect(page).toHaveURL(/value=raw/);
-  await expect(table).toContainText("Unknown · n=1");
-  await page.goto("/champions/Ahri/matchups?patch=16.4&page=2");
-  await expect(table).toContainText("No matchup observations on this page");
+  await expect(page.getByText(/1 with fewer than 10 games not listed/)).toBeVisible();
   await page.goto("/champions/Ahri/matchups?source=all");
   await expect(page.getByRole("alert").filter({ hasText: "Choose Solo queue" })).toBeVisible();
   const missing = await page.goto("/champions/NoSuchChampion/matchups");
@@ -1211,9 +1204,10 @@ test("role counter-pick values list stored values with reasons and validate filt
   page,
 }) => {
   await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
-  await expect(page.getByLabel("Counter-Pick Statistics")).toContainText(
-    "Counter-Pick ValueUnknown",
-  );
+  // With one seeded game there is no value: one line says why and links to the role's list.
+  await expect(
+    page.getByRole("status").filter({ hasText: "Blindability and counter-pick value" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Mid Counter-Pick Values" }).click();
   await expect(page.getByRole("heading", { name: "Mid Counter-Pick Values" })).toBeVisible();
   const table = page.getByRole("table", { name: "Mid Counter-Pick Values" });
