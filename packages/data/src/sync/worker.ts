@@ -465,6 +465,10 @@ export function worker(pool: Pool, options: WorkerOptions) {
   /**
    * Resolves ladder players with no account or a check older than a week, a bounded batch per
    * run. A failed lookup leaves the stored account and its timestamps untouched.
+   *
+   * Riot IDs are only displayed, and the lookups share the regional limit with the match crawl.
+   * When that limit runs out the run ends with what it resolved instead of waiting for a slot:
+   * a deferred job would be claimed first every time a slot frees, starving the crawl.
    */
   async function resolveAccounts(): Promise<number> {
     if (!riot) return 0;
@@ -482,7 +486,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
         await saveAccount(pool, parseAccount(await response.json(), puuid), clock());
         resolved++;
       } catch (error) {
-        if (error instanceof DeferredRequest) throw error;
+        if (error instanceof DeferredRequest) return resolved;
         failures++;
       }
     }
