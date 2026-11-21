@@ -1204,9 +1204,10 @@ test("role counter-pick values list stored values with reasons and validate filt
   page,
 }) => {
   await page.goto("/champions/Ahri/matchups?patch=16.4&role=MIDDLE");
-  await expect(page.getByLabel("Counter-Pick Statistics")).toContainText(
-    "Counter-Pick ValueUnknown",
-  );
+  // With one seeded game there is no value: one line says why and links to the role's list.
+  await expect(
+    page.getByRole("status").filter({ hasText: "Blindability and counter-pick value" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Mid Counter-Pick Values" }).click();
   await expect(page.getByRole("heading", { name: "Mid Counter-Pick Values" })).toBeVisible();
   const table = page.getByRole("table", { name: "Mid Counter-Pick Values" });
