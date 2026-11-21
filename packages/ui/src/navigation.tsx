@@ -1,4 +1,21 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Activity,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  LayoutList,
+  Menu,
+  Search,
+  ScrollText,
+  Settings,
+  Shield,
+  Sparkles,
+  Swords,
+  Trophy,
+  User,
+  Columns3,
+} from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 import { Button as AriaButton } from "react-aria-components";
 
@@ -115,56 +132,168 @@ export interface NavigationItem {
   readonly label: string;
 }
 
+/** A titled set of entries, such as "Esports" or "Champions". */
+export interface NavigationGroup {
+  readonly label: string;
+  readonly items: readonly NavigationItem[];
+}
+
 export interface NavigationProps {
   readonly currentHref: string;
-  readonly items: readonly NavigationItem[];
+  /** A flat list of entries; ignored when `groups` is given. */
+  readonly items?: readonly NavigationItem[];
+  /** Entries under group headings. */
+  readonly groups?: readonly NavigationGroup[];
   readonly label?: string;
   readonly onNavigate?: (href: string) => void;
   /** `large` gives touch-sized entries for an application sidebar. */
   readonly size?: "large" | "medium";
+  /** Shows icons only, as a narrow rail; each label stays the entry's accessible name and tooltip. */
+  readonly collapsed?: boolean;
+  /** Collapses to a rail on medium screens (851–1150px) only, without JavaScript. */
+  readonly responsive?: boolean;
 }
 
 export function Navigation({
   currentHref,
-  items,
+  items = [],
+  groups,
   label = "Primary",
   onNavigate,
   size = "medium",
+  collapsed = false,
+  responsive = false,
 }: NavigationProps) {
+  const entry = (item: NavigationItem) => (
+    <li key={item.href}>
+      <a
+        aria-current={item.href === currentHref ? "page" : undefined}
+        href={item.href}
+        title={collapsed || responsive ? item.label : undefined}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+          if (
+            !onNavigate ||
+            event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          onNavigate(item.href);
+        }}
+      >
+        {item.icon}
+        <span className={collapsed ? "np-visually-hidden" : "np-navigation__label"}>
+          {item.label}
+        </span>
+        {collapsed ? null : item.meta}
+      </a>
+    </li>
+  );
   return (
     <nav
       aria-label={label}
-      className={size === "large" ? "np-navigation np-navigation--large" : "np-navigation"}
+      className={[
+        "np-navigation",
+        size === "large" && "np-navigation--large",
+        collapsed && "np-navigation--collapsed",
+        responsive && "np-navigation--responsive",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      <ul>
-        {items.map((item) => (
-          <li key={item.href}>
-            <a
-              aria-current={item.href === currentHref ? "page" : undefined}
-              href={item.href}
-              onClick={(event: MouseEvent<HTMLAnchorElement>) => {
-                if (
-                  !onNavigate ||
-                  event.defaultPrevented ||
-                  event.button !== 0 ||
-                  event.metaKey ||
-                  event.ctrlKey ||
-                  event.shiftKey ||
-                  event.altKey
-                )
-                  return;
-                event.preventDefault();
-                onNavigate(item.href);
-              }}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-              {item.meta}
-            </a>
-          </li>
-        ))}
-      </ul>
+      {groups ? (
+        groups.map((group) => (
+          <div className="np-navigation__group" key={group.label}>
+            <p className={collapsed ? "np-visually-hidden" : "np-navigation__heading"}>
+              {group.label}
+            </p>
+            <ul aria-label={group.label}>{group.items.map(entry)}</ul>
+          </div>
+        ))
+      ) : (
+        <ul>{items.map(entry)}</ul>
+      )}
     </nav>
+  );
+}
+
+const navGlyphs = {
+  matches: Swords,
+  history: History,
+  teams: Shield,
+  players: User,
+  champions: Sparkles,
+  tierList: LayoutList,
+  patches: ScrollText,
+  drafts: Columns3,
+  leaderboards: Trophy,
+  models: Activity,
+  schedule: CalendarClock,
+  settings: Settings,
+  search: Search,
+  menu: Menu,
+} as const;
+export type NavIconName = keyof typeof navGlyphs;
+
+/** An application navigation icon, decorative unless given a label. */
+export function NavIcon({ name, label }: { readonly name: NavIconName; readonly label?: string }) {
+  return <Icon icon={navGlyphs[name]} {...(label ? { label } : {})} />;
+}
+
+/** Summoners Net's mark: two nested facets around a gold core. */
+export function BrandMark({ size = 28 }: { readonly size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="np-brand__mark"
+      height={size}
+      viewBox="0 0 32 32"
+      width={size}
+    >
+      <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M16 8 24 16 16 24 8 16Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        opacity="0.55"
+      />
+      <path d="M16 12.5 19.5 16 16 19.5 12.5 16Z" fill="var(--color-text-accent)" />
+    </svg>
+  );
+}
+
+/** The mark and wordmark, linking home. `compact` keeps the mark only. */
+export function Brand({
+  href = "/",
+  compact = false,
+  responsive = false,
+  onClick,
+}: {
+  readonly href?: string;
+  readonly compact?: boolean;
+  /** Keeps the mark only on medium screens (851–1150px), beside a navigation rail. */
+  readonly responsive?: boolean;
+  readonly onClick?: () => void;
+}) {
+  return (
+    <a
+      aria-label={compact ? "Summoners Net home" : undefined}
+      className={responsive ? "np-brand np-brand--responsive" : "np-brand"}
+      href={href}
+      onClick={onClick}
+    >
+      <BrandMark />
+      {compact ? null : (
+        <span className="np-brand__name">
+          Summoners <span className="np-brand__accent">Net</span>
+        </span>
+      )}
+    </a>
   );
 }
 

@@ -29,7 +29,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
         />
         <main
           id="main-content"
-          className="ml-[240px] scroll-mt-[90px] px-[clamp(var(--space-4),2vw,var(--space-8))] pt-8 pb-16 *:animate-[np-enter_var(--motion-duration-standard)_var(--motion-easing-enter)_both] motion-reduce:*:animate-none max-[850px]:ml-0 max-[850px]:scroll-mt-[72px] max-[850px]:px-3 max-[850px]:pt-5 max-[850px]:pb-12"
+          className="ml-[240px] scroll-mt-[90px] max-[1150px]:ml-16 px-[clamp(var(--space-4),2vw,var(--space-8))] pt-8 pb-16 *:animate-[np-enter_var(--motion-duration-standard)_var(--motion-easing-enter)_both] motion-reduce:*:animate-none max-[850px]:ml-0 max-[850px]:scroll-mt-[72px] max-[850px]:px-3 max-[850px]:pt-5 max-[850px]:pb-12"
           tabIndex={-1}
         >
           {children}

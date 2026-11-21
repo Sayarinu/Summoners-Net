@@ -3,9 +3,45 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Icon } from "./internal.js";
-import { Breadcrumb, Footer, Navigation, Pagination } from "./navigation.js";
+import {
+  Brand,
+  Breadcrumb,
+  Footer,
+  Navigation,
+  NavIcon,
+  Pagination,
+  type NavigationGroup,
+} from "./navigation.js";
 
 import "./review.stories.css";
+
+const appGroups: NavigationGroup[] = [
+  {
+    label: "Esports",
+    items: [
+      { href: "/", label: "Matches", icon: <NavIcon name="matches" /> },
+      { href: "/history", label: "Past Matches", icon: <NavIcon name="history" /> },
+      { href: "/teams", label: "Teams", icon: <NavIcon name="teams" /> },
+      { href: "/players", label: "Players", icon: <NavIcon name="players" /> },
+    ],
+  },
+  {
+    label: "Champions",
+    items: [
+      { href: "/champions", label: "Champions", icon: <NavIcon name="champions" /> },
+      { href: "/tier-list", label: "Tier List", icon: <NavIcon name="tierList" /> },
+      { href: "/patches", label: "Patches", icon: <NavIcon name="patches" /> },
+      { href: "/drafts", label: "Drafts", icon: <NavIcon name="drafts" /> },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { href: "/leaderboards", label: "Leaderboards", icon: <NavIcon name="leaderboards" /> },
+      { href: "/models", label: "Models", icon: <NavIcon name="models" /> },
+    ],
+  },
+];
 
 function NavigationGallery() {
   const [page, setPage] = useState(6);
@@ -45,6 +81,25 @@ function NavigationGallery() {
                 { href: "/search", icon: <Icon icon={Search} size="small" />, label: "Search" },
               ]}
             />
+          </div>
+        </section>
+
+        <section className="np-review__section">
+          <header className="np-review__section-header">
+            <span className="np-eyebrow">Application sidebar</span>
+            <h2>Brand, grouped entries and the collapsed rail</h2>
+          </header>
+          <div className="np-review__row" style={{ alignItems: "flex-start", gap: 32 }}>
+            <div className="np-review__stage" style={{ width: 240 }}>
+              <Brand />
+              <div style={{ height: 20 }} />
+              <Navigation currentHref="/champions" groups={appGroups} size="large" />
+            </div>
+            <div className="np-review__stage" style={{ width: 64 }}>
+              <Brand compact />
+              <div style={{ height: 20 }} />
+              <Navigation currentHref="/champions" groups={appGroups} size="large" collapsed />
+            </div>
           </div>
         </section>
 
