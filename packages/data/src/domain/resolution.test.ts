@@ -115,6 +115,20 @@ describe("evidence-based source identity resolution", () => {
         matches.map((m) => ({ ...m, state: "scheduled" })),
       ).links,
     ).toEqual([]);
+    // A lineup for another Oracle team outranks the fixtures instead of making both ambiguous.
+    const withLineup = resolveIdentities({
+      aliases: [...aliases, { id: "oracle:team:1", name: "Acceptance Blue" }],
+      squads: [squad],
+      teams: [
+        { ...team, team: { ...team.team, id: "pandascore:team:10", name: "Acceptance Blue" } },
+      ],
+      games,
+      matches,
+    });
+    expect(withLineup.links.find((l) => l.pandaId === "pandascore:team:10")).toMatchObject({
+      oracleId: "oracle:team:1",
+      evidence: { method: "lineup" },
+    });
   });
   it("links a uniquely corroborated team and players, recording the actual game and observation", () => {
     const result = resolveIdentities({ teams: [team], squads: [squad], aliases });
@@ -167,6 +181,33 @@ describe("evidence-based source identity resolution", () => {
         squads: [squad, { ...squad, teamId: "oracle:team:2" }],
         aliases: [...aliases, { id: "oracle:team:2", name: "Blue Gaming" }],
       }).links,
+    ).toEqual([]);
+  });
+  it("links only the latest of separate, non-overlapping eras", () => {
+    const revived = {
+      ...squad,
+      gameId: "game:2",
+      teamId: "oracle:team:2",
+      playedAt: "2026-03-01T00:00:00Z",
+    };
+    const disbanded = { ...squad, playedAt: "2017-03-01T00:00:00Z" };
+    const eras = resolveIdentities({
+      teams: [team],
+      squads: [disbanded, revived],
+      aliases: [...aliases, { id: "oracle:team:2", name: "Blue Gaming" }],
+    });
+    expect(eras.links.find((l) => l.pandaId === team.team.id)?.oracleId).toBe("oracle:team:2");
+    // Overlapping eras still decide nothing.
+    expect(
+      resolveIdentities({
+        teams: [team],
+        squads: [
+          disbanded,
+          revived,
+          { ...squad, gameId: "game:3", playedAt: "2026-04-01T00:00:00Z" },
+        ],
+        aliases: [...aliases, { id: "oracle:team:2", name: "Blue Gaming" }],
+      }).links.filter((l) => l.pandaId === team.team.id),
     ).toEqual([]);
   });
   it("keeps homonymous players separate even when their teams can be linked", () => {
