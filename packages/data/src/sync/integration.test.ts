@@ -2049,6 +2049,14 @@ describe("Riot match details", () => {
         await w.request({ kind: "aggregate" });
         expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
         expect(await fetched()).toBe(3);
+        // Each match brings its timeline in the same run; this fixture has none (404).
+        expect(
+          (
+            await pool.query(
+              "SELECT timeline_state,count(*)::integer n FROM riot_matches GROUP BY 1",
+            )
+          ).rows,
+        ).toEqual([{ timeline_state: "missing", n: 3 }]);
         // Aggregates for the ingested games are rebuilt with the run.
         expect(
           (await pool.query("SELECT 1 FROM champion_aggregates WHERE source='solo' LIMIT 1"))
@@ -2078,7 +2086,8 @@ describe("Riot match details", () => {
       const w = worker({ maxMs: 250_000 });
       try {
         await w.request({ kind: "riot-match" });
-        expect(await w.runNext()).toMatchObject({ state: "done", records: 3 });
+        // Each match and its timeline take two requests: 200 seconds per match.
+        expect(await w.runNext()).toMatchObject({ state: "done", records: 2 });
         expect(await jobs()).toEqual(["riot-match:done", "riot-match:queued"]);
       } finally {
         await w.close();
@@ -2087,9 +2096,11 @@ describe("Riot match details", () => {
     it("keeps items fetched before a mid-run deferral and resumes when capacity frees up", async () => {
       const served = fetcher.getMockImplementation()!;
       let calls = 0;
-      // Count match requests only; the worker's key check makes its own.
+      // Count match requests only; the worker's key check and the timelines make their own.
       fetcher.mockImplementation((input, init) =>
-        endpoint(input).includes("/lol/match/v5/") && ++calls === 3
+        endpoint(input).includes("/lol/match/v5/") &&
+        !endpoint(input).endsWith("/timeline") &&
+        ++calls === 3
           ? Promise.resolve(
               new Response("", {
                 status: 429,

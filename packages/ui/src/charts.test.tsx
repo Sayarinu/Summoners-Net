@@ -101,6 +101,34 @@ describe("SVG charts", () => {
     },
   );
 
+  it("staggers crowded column labels and keeps each full name as its tooltip", () => {
+    const columns = ["Nautilus", "Thresh", "Rell", "Braum", "Milio", "Lulu", "Nami", "Karma"];
+    const rows = ["Jinx", "Kai'Sa", "Ezreal", "Jhin", "Zeri", "Caitlyn", "Lucian", "Xayah"];
+    render(
+      <HeatGrid
+        title="Bot Lanes"
+        cells={rows.flatMap((row) =>
+          columns.map((column) => ({
+            id: `${row}:${column}`,
+            row,
+            column,
+            value: 0.5,
+            sampleCount: 12,
+          })),
+        )}
+      />,
+    );
+    const labels = [...screen.getByRole("img", { name: "Bot Lanes" }).querySelectorAll("text")]
+      .filter((text) => columns.includes(text.querySelector("title")?.textContent ?? ""))
+      .map((text) => ({
+        name: text.querySelector("title")!.textContent,
+        y: text.getAttribute("y"),
+      }));
+    expect(labels.map((l) => l.name)).toEqual(columns);
+    // Neighbours sit on alternating lines, so their labels do not overlap.
+    expect(labels[0]!.y).not.toBe(labels[1]!.y);
+    expect(labels[0]!.y).toBe(labels[2]!.y);
+  });
   it("preserves empty grid cells, shows sample counts, and scales intensity", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
