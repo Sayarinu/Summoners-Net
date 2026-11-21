@@ -78,6 +78,48 @@ function unambiguous(links: IdentityLink[]): IdentityLink[] {
       unique.set(link.oracleId, link);
   return [...unique.values()];
 }
+/**
+ * Settles team conflicts that evidence can decide before ambiguity is judged. Lineup evidence
+ * outranks fixtures, so a fixture-only candidate that contradicts a lineup candidate is dropped.
+ * When several Oracle teams corroborate one provider team by lineup in separate, non-overlapping
+ * eras (a disbanded and a revived organization), only the latest era keeps its candidates.
+ */
+function settleTeamConflicts(
+  lineup: IdentityLink[],
+  fixtures: IdentityLink[],
+  squads: PlayedSquad[],
+): IdentityLink[] {
+  const oraclesOf = new Map<string, Set<string>>();
+  const pandasOf = new Map<string, Set<string>>();
+  for (const l of lineup) {
+    oraclesOf.set(l.pandaId, (oraclesOf.get(l.pandaId) ?? new Set()).add(l.oracleId));
+    pandasOf.set(l.oracleId, (pandasOf.get(l.oracleId) ?? new Set()).add(l.pandaId));
+  }
+  const agreeing = fixtures.filter(
+    (l) =>
+      (oraclesOf.get(l.pandaId)?.has(l.oracleId) ?? true) &&
+      (pandasOf.get(l.oracleId)?.has(l.pandaId) ?? true),
+  );
+  const periods = new Map<string, { first: string; last: string }>();
+  for (const squad of squads) {
+    const period = periods.get(squad.teamId);
+    if (!period) periods.set(squad.teamId, { first: squad.playedAt, last: squad.playedAt });
+    else {
+      if (squad.playedAt < period.first) period.first = squad.playedAt;
+      if (squad.playedAt > period.last) period.last = squad.playedAt;
+    }
+  }
+  const superseded = new Set<string>();
+  for (const [pandaId, oracles] of oraclesOf) {
+    if (oracles.size < 2) continue;
+    const eras = [...oracles]
+      .map((id) => ({ id, ...periods.get(id)! }))
+      .sort((a, b) => a.first.localeCompare(b.first));
+    const separate = eras.every((era, i) => i === 0 || eras[i - 1]!.last < era.first);
+    if (separate) for (const era of eras.slice(0, -1)) superseded.add(`${era.id}|${pandaId}`);
+  }
+  return [...lineup, ...agreeing].filter((l) => !superseded.has(`${l.oracleId}|${l.pandaId}`));
+}
 export function resolveIdentities(input: {
   aliases: { id: string; name: string }[];
   squads: PlayedSquad[];
@@ -208,7 +250,7 @@ export function resolveIdentities(input: {
       new Set(l.evidence.fixtures!.map((f) => f.playedAt.slice(0, 10))).size >= 2 &&
       new Set(l.evidence.fixtures!.map((f) => f.opponentId)).size >= 2,
   );
-  const teams = unambiguous([...teamCandidates, ...fixtureCandidates]);
+  const teams = unambiguous(settleTeamConflicts(teamCandidates, fixtureCandidates, input.squads));
   const acceptedTeams = new Set(teams.map((t) => `${t.oracleId}|${t.pandaId}`));
   // A player is linked only inside a corroborated team, in the same role and played lineup.
   const playerCandidates: IdentityLink[] = [];
