@@ -39,6 +39,7 @@ export function draftCsv({
   firstSide = "blue",
   missingBan = false,
   unknownResult = false,
+  metrics = {},
 }: {
   id?: string;
   league?: string;
@@ -46,9 +47,11 @@ export function draftCsv({
   firstSide?: "blue" | "red";
   missingBan?: boolean;
   unknownResult?: boolean;
+  /** Extra numeric columns, the same on every row. */
+  metrics?: Record<string, string>;
 } = {}) {
   const participants = draftParticipants(firstSide);
-  const lines = historyCsv({ id, league }).trim().split("\n");
+  const lines = historyCsv({ id, league, metrics }).trim().split("\n");
   const fields = lines[0]!.split(",");
   const draftFields = [
     "firstpick",

@@ -19,7 +19,16 @@ export const sortLabels = {
   winRate: "Win Rate",
   pickRate: "Pick Rate",
   banRate: "Ban Rate",
+  kda: "KDA",
+  damagePerMinute: "Damage per Minute",
+  goldDiffAt15: "Gold Difference at 15",
 } as const;
+/** A per-game average, or "Unknown" when no game reported it; never 0 for missing data. */
+export function average(value: SampledValue, digits = 1, signed = false) {
+  if (value.value === null) return "Unknown";
+  const text = value.value.toFixed(digits);
+  return signed && value.value > 0 ? `+${text}` : text;
+}
 /** A rate as a percentage, or "Unknown" when there is no sample; never 0% for missing data. */
 export function percent(rate: SampledValue) {
   return rate.value === null ? "Unknown" : `${(rate.value * 100).toFixed(1)}%`;

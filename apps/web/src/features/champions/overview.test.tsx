@@ -157,6 +157,24 @@ const overview: ChampionOverview = {
     blindRate: { value: 0.25, sampleCount: 12 },
     counterRate: { value: 0.75, sampleCount: 12 },
     unmapped: [{ name: "Mel", picks: 2, bans: 1 }],
+    performance: {
+      games: 12,
+      kda: { value: 4.5, sampleCount: 12 },
+      killsPerGame: { value: 3.2, sampleCount: 12 },
+      deathsPerGame: { value: 1.8, sampleCount: 12 },
+      assistsPerGame: { value: 4.9, sampleCount: 12 },
+      killParticipation: { value: 0.68, sampleCount: 12 },
+      csPerMinute: { value: 8.9, sampleCount: 12 },
+      goldPerMinute: { value: null, sampleCount: 0 },
+      damagePerMinute: { value: 640.2, sampleCount: 12 },
+      damageShare: { value: 0.29, sampleCount: 12 },
+      goldDiffAt15: { value: 245, sampleCount: 12 },
+      csDiffAt15: { value: -3.5, sampleCount: 12 },
+      xpDiffAt15: { value: 120, sampleCount: 12 },
+      firstBloodParticipation: { value: 0.25, sampleCount: 12 },
+      visionScorePerMinute: { value: 1.42, sampleCount: 12 },
+      gameLength: { value: 1919.6, sampleCount: 12 },
+    },
   },
   proHistory: {
     league: null,
@@ -356,6 +374,21 @@ it("shows pro presence, sides and draft order with samples, and reports unmapped
   );
   expect(screen.getByText("No pro drafts imported yet.")).toBeVisible();
 });
+it("shows how the champion performs in pro play once picked, with unknown values left empty", () => {
+  render(<ChampionOverviewPage overview={overview} error={null} />);
+  const stats = screen.getByLabelText("Pro-Play Performance");
+  for (const text of [
+    "KDA12 Games4.50",
+    "Gold / Minute0 GamesUnknown",
+    "Damage / Minute12 Games640",
+    "Gold Diff @1512 Games+245",
+    "CS Diff @1512 Games-3.5",
+    "Kill Participation12 Games68.0%",
+    "Game Length12 Games32:00",
+  ])
+    expect(stats).toHaveTextContent(text);
+});
+
 it("lists pro play by patch, linking each patch, with unknown rates left empty", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   const table = screen.getByRole("table", { name: "Ahri Pro Play by Patch" });

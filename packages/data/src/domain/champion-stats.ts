@@ -55,7 +55,15 @@ export interface ChampionStats {
   rows: ChampionStatsRow[];
 }
 
-export const tierListSorts = ["winRate", "pickRate", "banRate", "games"] as const;
+export const tierListSorts = [
+  "winRate",
+  "pickRate",
+  "banRate",
+  "games",
+  "kda",
+  "damagePerMinute",
+  "goldDiffAt15",
+] as const;
 /** Tier list filters as they arrive in a query string. */
 export const tierListQuerySchema = z
   .object({
@@ -89,6 +97,12 @@ export interface TierListRow {
   banRate: SampledValue;
   /** From the shared minimum-sample policy, applied to the win rate's sample. */
   sample: "shown" | "low-sample" | "hidden";
+  /** Per-game performance once picked; null for solo queue, which does not compute it yet. */
+  performance: {
+    kda: SampledValue;
+    damagePerMinute: SampledValue;
+    goldDiffAt15: SampledValue;
+  } | null;
 }
 export interface TierList {
   query: ParsedTierListQuery;
