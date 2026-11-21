@@ -116,6 +116,8 @@ export function PastMatchesPage({
     <div className="flex flex-col gap-6">
       <PageHeader title="Past Matches" />
       <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-y border-line py-3">
+        <Filters query={query} history view={view} className="flex-[1_1_440px]" />
+        {/* The view switch trails the filters, at the right like other pages' controls. */}
         <TabNav
           label="Past Matches View"
           variant="segmented"
@@ -126,7 +128,6 @@ export function PastMatchesPage({
             current: view === option,
           }))}
         />
-        <Filters query={query} history view={view} className="flex-[1_1_440px]" />
       </div>
       {view === "series" && series ? (
         <>
