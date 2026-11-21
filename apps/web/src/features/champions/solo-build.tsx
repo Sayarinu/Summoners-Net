@@ -1,7 +1,13 @@
 "use client";
 import { Fragment, useId, type ReactNode } from "react";
 import { ItemIcon, Panel, RuneIcon, SkillOrderGrid, SummonerSpellIcon } from "@summonersnet/ui";
-import type { BuildItem, BuildRow, ChampionBuilds, RuneTree } from "@summonersnet/data/contracts";
+import {
+  skillPathLevels,
+  type BuildItem,
+  type BuildRow,
+  type ChampionBuilds,
+  type RuneTree,
+} from "@summonersnet/data/contracts";
 import { percent } from "./presentation";
 
 const fallbackNames: Record<BuildItem["kind"], string> = {
@@ -15,7 +21,7 @@ export const entryName = (entry: BuildItem) =>
   entry.name ?? `${fallbackNames[entry.kind]} ${entry.id}`;
 const muted = "text-xs text-fg-muted";
 
-/** One build entry: an icon for items, runes and spells; a key for skills; a name for shards. */
+/** One build entry: an icon for items, runes, stat shards and spells; a key for skills. */
 export function BuildIcon({
   entry,
   size = "small",
@@ -28,7 +34,6 @@ export function BuildIcon({
   const name = entryName(entry);
   const icon = { id: entry.catalogId, name, imageUrl: entry.imageUrl, size, state };
   if (entry.kind === "item") return <ItemIcon {...icon} />;
-  if (entry.kind === "rune") return <RuneIcon {...icon} />;
   if (entry.kind === "spell") return <SummonerSpellIcon {...icon} />;
   if (entry.kind === "skill")
     return (
@@ -39,22 +44,18 @@ export function BuildIcon({
         {name}
       </span>
     );
-  return (
-    <span className="rounded-sm border border-line bg-raised px-2 py-1 text-xs text-fg-secondary">
-      {name}
-    </span>
-  );
+  return <RuneIcon {...icon} />;
 }
 
-/** A choice's win rate and games; below the minimum sample only the games are known. */
-export function RowStats({ row, pickRate = false }: { row: BuildRow; pickRate?: boolean }) {
+/** A choice's win rate, pick rate and games. */
+export function RowStats({ row }: { row: BuildRow }) {
   return (
     <span className="flex flex-wrap items-baseline gap-x-2 font-mono text-xs text-fg-muted">
       <strong className="text-sm font-medium text-fg">
-        {row.sample === "hidden" ? "—" : percent(row.winRate)}
+        {row.winRate.value === null ? "—" : percent(row.winRate)}
       </strong>
       <span>WR</span>
-      {pickRate && row.pickRate.value !== null ? <span>{percent(row.pickRate)} Pick</span> : null}
+      {row.pickRate.value !== null ? <span>{percent(row.pickRate)} Pick</span> : null}
       <span>{row.games.toLocaleString()} Games</span>
     </span>
   );
@@ -105,13 +106,11 @@ function Options({
   rows,
   limit = 3,
   sequence = false,
-  pickRate = false,
   empty,
 }: {
   rows: BuildRow[];
   limit?: number;
   sequence?: boolean;
-  pickRate?: boolean;
   empty: string;
 }) {
   if (!rows.length) return <p className={muted}>{empty}</p>;
@@ -136,7 +135,7 @@ function Options({
               ))}
             </span>
           )}
-          <RowStats row={row} pickRate={pickRate} />
+          <RowStats row={row} />
         </li>
       ))}
     </ol>
@@ -209,15 +208,24 @@ export function RunesPanel({ builds }: { builds: ChampionBuilds }) {
               <Sequence row={{ ...page, items: page.items.slice(5) }} size="small" />
             )}
             {shards ? (
-              <section aria-label="Stat Shards" className="flex flex-col items-start gap-2">
+              <section aria-label="Stat Shards" className="flex flex-col items-center gap-3">
                 <span className="text-sm text-fg-secondary">Stat Shards</span>
-                {shards.items.map((entry, i) => (
-                  <BuildIcon key={`${entry.id}:${i}`} entry={entry} />
+                {/* Offense, flex and defense, each row's chosen shard lit. */}
+                {builds.shardRows.map((options, i) => (
+                  <span key={i} className="flex gap-2">
+                    {options.map((entry) => (
+                      <BuildIcon
+                        key={entry.id}
+                        entry={entry}
+                        state={shards.items[i]?.id === entry.id ? "selected" : "muted"}
+                      />
+                    ))}
+                  </span>
                 ))}
               </section>
             ) : null}
           </div>
-          <RowStats row={page} pickRate />
+          <RowStats row={page} />
           {builds.runes.length > 1 ? (
             <Section title="Other Rune Pages">
               <ol className="flex list-none flex-col gap-2">
@@ -241,7 +249,7 @@ export function RunesPanel({ builds }: { builds: ChampionBuilds }) {
                         <BuildIcon key={entry.id} entry={entry} />
                       ))}
                     </span>
-                    <RowStats row={row} pickRate />
+                    <RowStats row={row} />
                   </li>
                 ))}
               </ol>
@@ -261,7 +269,7 @@ export function SpellsAndSkillsPanel({ builds }: { builds: ChampionBuilds }) {
     <Panel title="Summoner Spells and Skills">
       <div className="flex flex-col gap-6">
         <Section title="Summoner Spells">
-          <Options rows={builds.spells} limit={2} pickRate empty="No Games Yet" />
+          <Options rows={builds.spells} limit={2} empty="No Games Yet" />
         </Section>
         <Section title="Skill Priority">
           {max ? (
@@ -291,14 +299,16 @@ export function SpellsAndSkillsPanel({ builds }: { builds: ChampionBuilds }) {
         <Section title="Skill Order">
           {path ? (
             <div className="flex flex-col gap-1 overflow-x-auto">
+              {/* Few games reach level 18, so the last levels follow the max order. */}
               <SkillOrderGrid
                 caption="Most Common Skill Order"
                 path={path.items.map((entry) => entry.id)}
+                projectedFrom={skillPathLevels + 1}
               />
               <RowStats row={path} />
             </div>
           ) : (
-            <p className={muted}>No Games That Reached Level 15 Yet</p>
+            <p className={muted}>No Games With Timelines Yet</p>
           )}
         </Section>
       </div>

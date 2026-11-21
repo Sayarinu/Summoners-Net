@@ -1673,7 +1673,9 @@
       font-size: var(--font-size-xl);
     }
   }
+}
 
+@layer np-components {
   .np-skill-grid {
     border-collapse: separate;
     border-spacing: 2px;
@@ -1713,5 +1715,10 @@
 
   .np-skill-grid tr[data-ability="R"] td[data-ranked] {
     background: var(--color-text-secondary);
+  }
+
+  /* Levels the order is projected to rather than observed. */
+  .np-skill-grid td[data-projected] {
+    opacity: 0.55;
   }
 }

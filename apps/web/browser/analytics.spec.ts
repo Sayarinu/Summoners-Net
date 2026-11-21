@@ -12,12 +12,10 @@ const analyticsRoutes = [
   ["trending champions", "/trending", "Trending Champions"],
   ["patch overview", "/patches/16.4", "Patch 16.4"],
   ["champion page", "/champions/Ahri?source=solo&patch=16.4&role=MIDDLE", "Ahri"],
-  ["champion matchups", "/champions/Ahri/matchups?patch=16.4&role=MIDDLE", "Ahri Matchups"],
   ["role matchup matrix", "/matchups/MIDDLE?patch=16.4", "Mid Matchup Matrix"],
   ["Counter-Pick Values", "/matchups/MIDDLE/counter-picks", "Mid Counter-Pick Values"],
   ["pro drafts", "/drafts?patch=16.4&league=Draft+acceptance", "Pro Drafts"],
   ["draft assistant", "/drafts/assistant?patch=16.4&blue=Ahri:TOP", "Draft Assistant"],
-  ["heatmaps", "/heatmaps?subjectKind=champion&subject=Ahri", "Ahri: positions"],
   ["solo game", "/solo-games/EUW1_7000000001", null],
   ["game map", "/solo-games/EUW1_7000000001/map", null],
   ["champion comparison", "/compare/champions?a=Ahri&b=MonkeyKing", "Champion Against Champion"],
@@ -58,24 +56,6 @@ for (const [name, path, heading] of analyticsRoutes)
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
   });
-
-test("a heatmap subject without stored games shows an empty state and keeps its filters", async ({
-  page,
-}) => {
-  // Wukong is in the catalog but has no stored timeline games.
-  await page.goto("/heatmaps?subjectKind=champion&subject=MonkeyKing");
-  await expect(page.getByRole("heading", { name: "Wukong: positions", level: 1 })).toBeVisible();
-  await expect(page.getByText("No Heatmap Yet")).toBeVisible();
-  await expect(page.getByRole("status")).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Patch" })).toHaveCount(0);
-  await page
-    .getByRole("navigation", { name: "Heatmap Type" })
-    .getByRole("link", { name: "Deaths" })
-    .click();
-  await expect(page).toHaveURL(/kind=death$/);
-  await expect(page.getByRole("heading", { name: "Wukong: deaths", level: 1 })).toBeVisible();
-  await expect(page.getByText("No Heatmap Yet")).toBeVisible();
-});
 
 test("saved views start empty, list a saved view and remove it again", async ({ page }) => {
   await page.goto("/saved-views");

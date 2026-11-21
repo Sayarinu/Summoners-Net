@@ -51,7 +51,6 @@ import {
 } from "../persistence/wp-models.js";
 import { soloGame } from "../persistence/solo-games.js";
 import { soloGameMapEvents, soloGamePositions } from "../persistence/solo-game-positions.js";
-import { heatmap, rebuildHeatmaps } from "../persistence/heatmaps.js";
 import { championJunglePaths } from "../persistence/jungle-paths.js";
 import { matchWpa, scoreMatchWpa } from "../persistence/wpa.js";
 import { wpaLeaderboard } from "../persistence/wpa-leaderboards.js";
@@ -3161,9 +3160,10 @@ describe("Champion aggregates", () => {
           },
         ],
         games: 2,
-        pickRate: { value: null, sampleCount: 0 },
-        // Two results are below the minimum sample, so the win rate is not shown.
-        winRate: { value: null, sampleCount: 2 },
+        // An item's pick rate is its share of every option in the slot.
+        pickRate: { value: 1, sampleCount: 2 },
+        // Rates are shown at any sample; the status still marks a small one.
+        winRate: { value: 0.5, sampleCount: 2 },
         sample: "hidden",
       },
     ]);
@@ -3232,10 +3232,23 @@ describe("Champion aggregates", () => {
         { kind: "spell", id: 14, catalogId: "SummonerDot", name: "Ignite" },
       ],
       games: 2,
-      // Three Ahri games are below the minimum sample: both rates stay unknown.
-      pickRate: { value: null, sampleCount: 3 },
-      winRate: { value: null, sampleCount: 2 },
+      // Rates are shown at any sample, over the champion's three games.
+      pickRate: { value: 2 / 3, sampleCount: 3 },
+      winRate: { value: 0.5, sampleCount: 2 },
     });
+    // The client's shard rows, offense, flex and defense, each option named.
+    expect(builds.shardRows.map((row) => row.map((i) => i.name))).toEqual([
+      ["Adaptive Force", "Attack Speed", "Ability Haste"],
+      ["Adaptive Force", "Move Speed", "Health Scaling"],
+      ["Health", "Tenacity and Slow Resist", "Health Scaling"],
+    ]);
+    // Shard icons are queued for the image cache with their Data Dragon paths.
+    const shardIcons = await pool.query<{ image: string }>(
+      "SELECT DISTINCT image FROM catalog_icon_entries WHERE kind='rune' AND id='5008'",
+    );
+    expect(shardIcons.rows.map((r) => r.image)).toEqual([
+      "perk-images/StatMods/StatModsAdaptiveForceIcon.png",
+    ]);
     // Data Dragon has no stat shard entries; they are named from Riot's shard ids.
     expect(builds.shards[0]!.items.map((i) => [i.kind, i.id, i.name])).toEqual([
       ["shard", 5005, "Attack Speed"],
@@ -3312,12 +3325,11 @@ describe("Champion aggregates", () => {
       ["skill", 3, "E"],
       ["skill", 2, "W"],
     ]);
-    expect(builds.skillmax[0]).toMatchObject({
-      games: 1,
-      winRate: { value: null, sampleCount: 1 },
-    });
+    expect(builds.skillmax[0]).toMatchObject({ games: 1, winRate: { sampleCount: 1 } });
+    expect(builds.skillmax[0]!.winRate.value).not.toBeNull();
     expect(builds.excluded).toEqual({ skills: 1, skillmax: 1 });
-    expect(builds.skillpath[0]!.items.map((i) => i.name).join("")).toBe("QEWQQRQEQEREEWW");
+    // The stored fifteen levels continue to 18 by the client's rules: R, then W twice.
+    expect(builds.skillpath[0]!.items.map((i) => i.name).join("")).toBe("QEWQQRQEQEREEWWRWW");
   });
   it("buckets win rate by game length and by gold and level lead over the lane opponent", async () => {
     serveDataDragon(["16.22.1"]);
@@ -3433,7 +3445,7 @@ describe("Champion aggregates", () => {
     });
 
     // Garen lost one of his games, so the Ahri and Garen pair is expected to win less: the
-    // highest (least negative) delta. Small samples keep the shown values unknown.
+    // highest (least negative) delta. The win rate is shown; a small sample keeps the delta unknown.
     const byDelta = await championSynergies(pool, {
       championKey: 103,
       patch: "16.22",
@@ -3446,9 +3458,10 @@ describe("Champion aggregates", () => {
       allyKey: 86,
       allyRole: "TOP",
       games: 3,
-      winRate: { value: null, sampleCount: 3 },
+      winRate: { sampleCount: 3 },
       delta: { value: null, sampleCount: 3 },
     });
+    expect(byDelta.page.items[0]!.winRate.value).not.toBeNull();
     expect(byDelta.page.items[0]!.expected).toBeCloseTo(2 / 3 + 2 / 3 - 0.5);
     expect(byDelta.page.items.find((r) => r.allyKey === 222)!.expected).toBe(1);
     expect(
@@ -4060,96 +4073,6 @@ describe("Champion aggregates", () => {
     expect(await soloGameMapEvents(pool, "EUW1_2")).toEqual({ events: [], truncated: false });
     expect(await soloGameMapEvents(pool, "EUW1_999")).toBeNull();
     await expect(soloGameMapEvents(pool, "not a match")).rejects.toThrow();
-  });
-  it("bins heatmaps per champion, player and role on the fixed grid with red side mirrored", async () => {
-    serveDataDragon(["16.22.1"]);
-    expect((await run({ kind: "metadata" })).state).toBe("done");
-    await saveLadder(pool, "euw1", [ladderEntry(challenger, "CHALLENGER")], now);
-    await ingest("EUW1_1", challenger);
-    // A game without a stored timeline is not part of any heatmap's sample.
-    await ingest("EUW1_2", challenger);
-    const timeline = JSON.parse(
-      readFileSync(new URL("../../tests/riot/timeline-euw1.json", import.meta.url), "utf8"),
-    ) as { metadata: { matchId: string } };
-    timeline.metadata.matchId = "EUW1_1";
-    await saveTimeline(pool, parseRiotTimeline(timeline, "EUW1_1"), now);
-    // A kill outside the map bounds is not binned.
-    await pool.query(
-      `INSERT INTO riot_timeline_events(match_id,seq,type,timestamp_ms,participant_id,victim_id,x,y)
-       VALUES ('EUW1_1',100,'CHAMPION_KILL',129000,2,8,20000,100)`,
-    );
-    await runAggregate();
-    // One game is below the minimum sample: the sample is reported and nothing is drawn.
-    const below = (await queries.heatmap({ subjectKind: "champion", subject: "Ahri" }))!;
-    expect(below).toMatchObject({
-      label: "Ahri",
-      patch: "16.22",
-      patches: [{ patch: "16.22", games: 1, points: 2 }],
-      games: 1,
-      points: 2,
-      minimumGames: 10,
-      cells: [],
-    });
-    expect((await pool.query("SELECT 1 FROM heatmap_cells")).rowCount).toBe(0);
-
-    await transaction(pool, (c) => rebuildHeatmaps(c, "16.22", now, 1));
-    const cells = async (subjectKind: string, subject: string, kind: string) =>
-      (
-        await pool.query<{ cell_x: number; cell_y: number; points: number }>(
-          `SELECT cell_x,cell_y,points FROM heatmap_cells
-           WHERE subject_kind=$1 AND subject=$2 AND kind=$3 ORDER BY cell_x,cell_y`,
-          [subjectKind, subject, kind],
-        )
-      ).rows.map((r) => [r.cell_x, r.cell_y, r.points]);
-    // Cells are 936.875 x 943.75 world units. Ahri (blue) stands at (610,500) and (620,500)
-    // at minutes 1 and 2; minute 0 is the fountain and is skipped.
-    expect(await cells("champion", "103", "position")).toEqual([[0, 0, 2]]);
-    // Red side is rotated about the centre: (1110,1000) becomes (13640,13860), cell (14,14).
-    expect(await cells("champion", "157", "position")).toEqual([[14, 14, 2]]);
-    expect(await cells("role", "MIDDLE", "position")).toEqual([
-      [0, 0, 2],
-      [14, 14, 2],
-    ]);
-    // The kill at (7200,7100): the blue killer's cell (7,7), the red victim's mirrored (8,8).
-    expect(await cells("champion", "64", "kill")).toEqual([[7, 7, 1]]);
-    expect(await cells("champion", "121", "death")).toEqual([[8, 8, 1]]);
-    expect(await cells("role", "JUNGLE", "death")).toEqual([[8, 8, 1]]);
-    expect(await cells("champion", "121", "kill")).toEqual([]);
-    const killer = (
-      await pool.query<{ puuid: string }>(
-        "SELECT puuid FROM riot_match_participants WHERE match_id='EUW1_1' AND participant_id=2",
-      )
-    ).rows[0]!.puuid;
-    expect(await cells("player", killer, "kill")).toEqual([[7, 7, 1]]);
-    const samples = (
-      await pool.query(
-        `SELECT subject,kind,games,points FROM heatmap_samples
-         WHERE subject_kind='champion' AND subject IN ('64','103') ORDER BY subject,kind`,
-      )
-    ).rows;
-    expect(samples).toEqual([
-      { subject: "103", kind: "death", games: 1, points: 0 },
-      { subject: "103", kind: "kill", games: 1, points: 0 },
-      { subject: "103", kind: "position", games: 1, points: 2 },
-      // The out-of-bounds kill is not counted.
-      { subject: "64", kind: "death", games: 1, points: 0 },
-      { subject: "64", kind: "kill", games: 1, points: 1 },
-      { subject: "64", kind: "position", games: 1, points: 2 },
-    ]);
-
-    // Reads draw cells at their centres once the sample reaches the minimum.
-    await pool.query("UPDATE heatmap_samples SET games=10 WHERE subject_kind='role'");
-    const role = (await heatmap(pool, { subjectKind: "role", subject: "JUNGLE", kind: "death" }))!;
-    expect(role).toMatchObject({ label: null, games: 10, points: 1 });
-    expect(role.cells).toEqual([{ cellX: 8, cellY: 8, x: 7843, y: 7902, points: 1 }]);
-    const player = (await heatmap(pool, { subjectKind: "player", subject: killer, kind: "kill" }))!;
-    expect(player).toMatchObject({ games: 1, points: 1, cells: [] });
-    expect(
-      await heatmap(pool, { subjectKind: "champion", subject: "Ahri", patch: "16.21" }),
-    ).toMatchObject({ patch: "16.21", games: 0, points: 0, cells: [] });
-    expect(await heatmap(pool, { subjectKind: "champion", subject: "NotAChampion" })).toBeNull();
-    expect(await heatmap(pool, { subjectKind: "role", subject: "SUPPORT" })).toBeNull();
-    await expect(heatmap(pool, { subjectKind: "role", subject: "../x" })).rejects.toThrow();
   });
   it("stores inferred jungle paths per game and clusters them per champion and patch", async () => {
     serveDataDragon(["16.22.1"]);
@@ -7146,7 +7069,8 @@ describe("lane matchup aggregates", () => {
     const rated = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
     expect(rated).toMatchObject({ minimumGames: 10, hiddenOpponents: 1, page: { total: 2 } });
     expect(rated?.page.items.map((r) => r.opponent.championKey).sort()).toEqual([20, 62]);
-    // Combined with 16.21, an opponent met on both patches adds up its games and results; one result is still too few for a rate.
+    // Combined with 16.21, an opponent met on both patches adds up its games and results. One
+    // result is shown as observed, but too few to shrink.
     const combined = await queries.championMatchups(
       { champion: "Ahri", patch: ["16.21", "16.22"] },
       everyChampion,
@@ -7154,7 +7078,7 @@ describe("lane matchup aggregates", () => {
     expect(combined).toMatchObject({ patch: "16.22", combined: ["16.22", "16.21"] });
     const byKey = new Map(combined?.page.items.map((r) => [r.opponent.championKey, r]));
     expect(byKey.get(999)).toMatchObject({ games: 2 });
-    expect(byKey.get(999)?.metrics.winRate).toMatchObject({ raw: null, sampleCount: 1 });
+    expect(byKey.get(999)?.metrics.winRate).toMatchObject({ raw: 1, shrunk: null, sampleCount: 1 });
     expect(byKey.get(20)).toMatchObject({ games: 10 });
     const row = data!.page.items[0]!;
     expect(row.opponent).toMatchObject({
@@ -7178,14 +7102,15 @@ describe("lane matchup aggregates", () => {
       baselineSampleCount: 20,
     });
     expect(row.metrics.xp10).toMatchObject({ raw: 200, shrunk: 75, sampleCount: 10 });
+    // Below the minimum sample the observed mean is shown, but not shrunk.
     expect(row.metrics.cs10).toMatchObject({
-      raw: null,
+      raw: 10,
       shrunk: null,
       sampleCount: 9,
       baseline: 10,
       baselineSampleCount: 19,
     });
-    expect(row.metrics.gold15).toMatchObject({ raw: null, shrunk: null, sampleCount: 9 });
+    expect(row.metrics.gold15).toMatchObject({ raw: 100, shrunk: null, sampleCount: 9 });
     expect(row.metrics.firstBlood).toMatchObject({ raw: 0.8, shrunk: 0.55, sampleCount: 10 });
     expect(row.metrics.firstTower).toMatchObject({ raw: 0.2, shrunk: 0.45, sampleCount: 10 });
     const second = await queries.championMatchups(
@@ -7261,7 +7186,7 @@ describe("lane matchup aggregates", () => {
       metrics: {
         winRate: { raw: null, shrunk: null, sampleCount: 0 },
         firstBlood: { raw: null, sampleCount: 0 },
-        gold10: { raw: null, sampleCount: 1 },
+        gold10: { raw: 100, shrunk: null, sampleCount: 1 },
       },
     });
     expect(data?.exclusions.find((r) => r.role === "MIDDLE")).toEqual({
@@ -7319,7 +7244,7 @@ describe("lane matchup aggregates", () => {
     expect(cell.estimate.shrunk).toBeCloseTo((8 + (50 * 10) / 28) / 60);
     expect(
       matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 200)?.estimate,
-    ).toMatchObject({ raw: null, shrunk: null, sampleCount: 1 });
+    ).toMatchObject({ raw: 0, shrunk: null, sampleCount: 1 });
     expect(matrix.cells.find((c) => c.championKey === 103 && c.opponentKey === 103)).toMatchObject({
       games: 0,
       estimate: { raw: null, shrunk: null, sampleCount: 0 },
@@ -7750,7 +7675,7 @@ describe("lane matchup aggregates", () => {
         gold10: { raw: 100, shrunk: 100, sampleCount: 10 },
         xp15: { raw: 400, sampleCount: 10 },
         cs15: { raw: 20, sampleCount: 10 },
-        gold15: { raw: null, sampleCount: 9 },
+        gold15: { shrunk: null, sampleCount: 9 },
         firstBlood: { raw: 1, sampleCount: 10 },
         firstTower: { raw: 0, sampleCount: 10 },
       },

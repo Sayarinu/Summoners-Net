@@ -43,5 +43,17 @@ it("marks the ability ranked at each level in a grid of abilities by level", () 
   ]);
   expect(row("Q")).toHaveTextContent(/^QQQQ$/);
   expect(row("Q").querySelectorAll("td[data-ranked]")).toHaveLength(3);
+  expect(row("Q").querySelectorAll("td[data-projected]")).toHaveLength(0);
   expect(row("R").querySelectorAll("td[data-ranked]")).toHaveLength(1);
+});
+
+it("dims the levels that are projected rather than observed", () => {
+  render(<SkillOrderGrid caption="Projected Order" path={[1, 3, 2, 4]} projectedFrom={3} />);
+  const cells = screen.getByRole("row", { name: /^Q/ }).querySelectorAll("td");
+  expect([...cells].map((c) => c.hasAttribute("data-projected"))).toEqual([
+    false,
+    false,
+    true,
+    true,
+  ]);
 });

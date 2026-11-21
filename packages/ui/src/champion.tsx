@@ -61,10 +61,12 @@ export interface SkillOrderGridProps {
   readonly className?: string;
   /** The ability ranked at each level, from level 1: 1 Q, 2 W, 3 E, 4 R. */
   readonly path: readonly number[];
+  /** The first level that is projected rather than observed; those levels are dimmed. */
+  readonly projectedFrom?: number;
 }
 
 /** Which ability was ranked at each level, as a grid of abilities by level. */
-export function SkillOrderGrid({ caption, className, path }: SkillOrderGridProps) {
+export function SkillOrderGrid({ caption, className, path, projectedFrom }: SkillOrderGridProps) {
   return (
     <table className={cx("np-skill-grid", className)}>
       <caption className="np-visually-hidden">{caption}</caption>
@@ -85,7 +87,13 @@ export function SkillOrderGrid({ caption, className, path }: SkillOrderGridProps
           <tr key={key} data-ability={key}>
             <th scope="row">{key}</th>
             {path.map((ranked, level) => (
-              <td key={level} data-ranked={ranked === slot + 1 ? "" : undefined}>
+              <td
+                key={level}
+                data-ranked={ranked === slot + 1 ? "" : undefined}
+                data-projected={
+                  projectedFrom !== undefined && level + 1 >= projectedFrom ? "" : undefined
+                }
+              >
                 {ranked === slot + 1 ? key : ""}
               </td>
             ))}

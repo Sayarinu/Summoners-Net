@@ -9,9 +9,11 @@ import {
   type ItemInfo,
   type RuneTree,
   statShardNames,
+  statShardRows,
 } from "../domain/builds.js";
 import { applySamplePolicy } from "../domain/statistics.js";
 import {
+  completeSkillPath,
   deriveSkillOrder,
   deriveSkillPath,
   skillNames,
@@ -268,7 +270,8 @@ export async function championBuilds(
     /** The champion's games in the selection, the denominator of pick rates. */
     championGames: number;
   },
-  perKind = 5,
+  /** Options listed per kind: the page shows the top few and lists the rest on request. */
+  perKind = 25,
 ): Promise<ChampionBuilds> {
   const rows = await db.query<{
     kind: (typeof buildKinds)[number];
@@ -276,10 +279,13 @@ export async function championBuilds(
     games: number;
     result_games: number;
     wins: number;
+    kind_games: number;
   }>(
-    `SELECT kind,build,games,result_games,wins FROM (
+    `SELECT kind,build,games,result_games,wins,kind_games FROM (
        SELECT kind,build,sum(games)::integer AS games,sum(result_games)::integer AS result_games,
          sum(wins)::integer AS wins,
+         -- Every option of a kind, listed or not, for the share of each option.
+         (sum(sum(games)) OVER(PARTITION BY kind))::integer AS kind_games,
          row_number() OVER(PARTITION BY kind ORDER BY sum(games) DESC,build) AS n
        FROM champion_builds
        WHERE patch_key=ANY($1::text[]) AND champion_key=$2 AND ($3='ALL' OR role=$3)
@@ -340,10 +346,16 @@ export async function championBuilds(
        WHERE c.spell_key=ANY($2::integer[]) ORDER BY c.spell_key,(c.patch_key=$1) DESC,p.release_order DESC`,
       ids("spell"),
     ),
+    // Stat shards are named here; their icons are cached as runes by id.
     shard: new Map(
-      Object.entries(statShardNames).map(([id, name]) => [
-        Number(id),
-        { catalog_id: id, name, asset_hash: null as string | null },
+      (
+        await db.query<{ id: number; asset_hash: string | null }>(
+          `SELECT s.id,${icon("rune", "s.id::text")} FROM unnest($2::integer[]) s(id)`,
+          [input.patch, Object.keys(statShardNames).map(Number)],
+        )
+      ).rows.map((r) => [
+        r.id,
+        { catalog_id: String(r.id), name: statShardNames[r.id]!, asset_hash: r.asset_hash },
       ]),
     ),
     skill: new Map(
@@ -370,31 +382,32 @@ export async function championBuilds(
   const result = {
     ...(Object.fromEntries(buildKinds.map((k) => [k, [] as BuildRow[]])) as Omit<
       ChampionBuilds,
-      "excluded" | "runeTrees"
+      "excluded" | "runeTrees" | "shardRows"
     >),
     excluded: {
       skills: excludedGames("skills_incomplete"),
       skillmax: excludedGames("skillmax_incomplete"),
     },
     runeTrees: [],
+    shardRows: [],
   } as ChampionBuilds;
   for (const r of rows.rows) {
     const kind = entryKind(r.kind);
-    const win = applySamplePolicy({
+    // Rates are shown at any sample; `sample` keeps the policy's status for styling.
+    const win = {
       value: r.result_games ? r.wins / r.result_games : null,
       sampleCount: r.result_games,
-    });
-    // Loadouts come from every game, so their pick rate is over the champion's games. Items
-    // come only from games with timelines, which the aggregates do not count, so they have none.
-    const pick =
-      kind === "item"
-        ? { value: null, sampleCount: 0 }
-        : applySamplePolicy({
-            value: input.championGames ? r.games / input.championGames : null,
-            sampleCount: input.championGames,
-          });
+    };
+    const status = applySamplePolicy(win).status;
+    // Loadouts come from every game, so their pick rate is over the champion's games. Items come
+    // only from games with timelines, so theirs is the share among every option of the kind.
+    const pool = kind === "item" ? r.kind_games : input.championGames;
+    const pick = { value: pool ? r.games / pool : null, sampleCount: pool };
+    const ids = r.build.split(",");
+    // A skill path is continued to the last level by the client's rules.
+    const path = r.kind === "skillpath" ? completeSkillPath(ids.map(Number)).map(String) : ids;
     result[r.kind].push({
-      items: r.build.split(",").map((raw) => {
+      items: path.map((raw) => {
         const id = Number(raw);
         const entry = catalogs[kind].get(id);
         return {
@@ -406,11 +419,23 @@ export async function championBuilds(
         };
       }),
       games: r.games,
-      pickRate: { value: pick.value, sampleCount: pick.sampleCount },
-      winRate: { value: win.value, sampleCount: win.sampleCount },
-      sample: win.status,
+      pickRate: pick,
+      winRate: win,
+      sample: status,
     });
   }
+  result.shardRows = statShardRows.map((row) =>
+    row.map((id) => {
+      const entry = catalogs.shard.get(id);
+      return {
+        kind: "shard" as const,
+        id,
+        catalogId: String(id),
+        name: entry?.name ?? null,
+        imageUrl: entry?.asset_hash ? `/api/images/${entry.asset_hash}` : null,
+      };
+    }),
+  );
   result.runeTrees = await runeTrees(
     db,
     input.patch,

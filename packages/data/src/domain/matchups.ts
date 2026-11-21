@@ -29,18 +29,20 @@ export interface MetricCounts {
   total: number | null;
   count: number;
 }
-/** A fixed-strength prior at the champion's pooled same-role baseline, with small samples hidden. */
+/**
+ * The observed value at any sample, and a fixed-strength prior at the champion's pooled same-role
+ * baseline once the sample reaches the minimum; the shrunk value ranks opponents.
+ */
 export function matchupEstimate(value: MetricCounts, baseline: MetricCounts): MatchupEstimate {
   const base =
     baseline.total !== null && baseline.count >= matchupMinimumSample
       ? baseline.total / baseline.count
       : null;
-  const raw =
-    value.total !== null && value.count >= matchupMinimumSample ? value.total / value.count : null;
+  const raw = value.total !== null && value.count > 0 ? value.total / value.count : null;
   return {
     raw,
     shrunk:
-      raw === null || base === null
+      raw === null || base === null || value.count < matchupMinimumSample
         ? null
         : (value.total! + matchupPriorGames * base) / (value.count + matchupPriorGames),
     sampleCount: value.count,

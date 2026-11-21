@@ -49,8 +49,10 @@ function known(value: number | null): value is number {
   return value !== null && Number.isFinite(value);
 }
 
+/** A figure for axes and tables: whole numbers as they are, others to three significant digits. */
 function display(value: number | null): string {
-  return known(value) ? String(value) : "Unknown";
+  if (!known(value)) return "Unknown";
+  return Number.isInteger(value) ? String(value) : String(Number(value.toPrecision(3)));
 }
 
 function colorValue(color: ChartColor): string {

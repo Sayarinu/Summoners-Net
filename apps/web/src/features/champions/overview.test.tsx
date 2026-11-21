@@ -1,6 +1,10 @@
 import { it, expect, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { ChampionOverview, MatchupRow } from "@summonersnet/data/contracts";
+import {
+  matchupMetrics,
+  type ChampionOverview,
+  type MatchupRow,
+} from "@summonersnet/data/contracts";
 import { ChampionOverviewPage } from "./overview";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -122,6 +126,7 @@ const overview: ChampionOverview = {
     skillpath: [],
     excluded: { skills: 2, skillmax: 7 },
     runeTrees: [],
+    shardRows: [],
     spells: [
       {
         items: [
@@ -300,7 +305,12 @@ const pro: ChampionOverview = {
     ],
   },
 };
-it("shows rates with samples, the tier and its basis, and the trend", () => {
+/** Opens a collapsed section; its body renders once the toggle event arrives. */
+async function open(title: string, ready: () => Promise<unknown>) {
+  fireEvent.click(screen.getByText(title));
+  await ready();
+}
+it("shows rates with samples, the tier and its basis, and the trend", async () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   // Source and role are tabs; each role shows the share of the champion's games.
@@ -322,6 +332,9 @@ it("shows rates with samples, the tier and its basis, and the trend", () => {
     "A",
   );
   // Patches label the x-axis; a rate with no observations draws no axis.
+  await open("Patch Trends and When It Wins", () =>
+    screen.findByRole("img", { name: "Ahri Win Rate by Patch" }),
+  );
   for (const rate of ["Win", "Pick"])
     expect(screen.getByRole("img", { name: `Ahri ${rate} Rate by Patch` })).toHaveTextContent(
       /16\.21.*16\.22/,
@@ -351,6 +364,7 @@ it("draws the rune page over its trees, with spells, skills and items in build o
     name,
     imageUrl: null,
   });
+  const shard = (id: number, name: string) => ({ ...rune(id, name), kind: "shard" as const });
   const skill = (id: number) => ({
     kind: "skill" as const,
     id,
@@ -402,9 +416,27 @@ it("draws the rune page over its trees, with spells, skills and items in build o
                   name: "Adaptive Force",
                   imageUrl: null,
                 },
+                { kind: "shard", id: 5010, catalogId: "5010", name: "Move Speed", imageUrl: null },
                 { kind: "shard", id: 5011, catalogId: "5011", name: "Health", imageUrl: null },
               ],
             },
+          ],
+          shardRows: [
+            [
+              shard(5008, "Adaptive Force"),
+              shard(5005, "Attack Speed"),
+              shard(5007, "Ability Haste"),
+            ],
+            [
+              shard(5008, "Adaptive Force"),
+              shard(5010, "Move Speed"),
+              shard(5001, "Health Scaling"),
+            ],
+            [
+              shard(5011, "Health"),
+              shard(5013, "Tenacity and Slow Resist"),
+              shard(5001, "Health Scaling"),
+            ],
           ],
           skillmax: [{ ...builds.skills[0]!, items: [skill(1), skill(3), skill(2)] }],
           skillpath: [{ ...builds.skills[0]!, items: [1, 3, 2, 1, 1, 4].map(skill), games: 12 }],
@@ -431,9 +463,15 @@ it("draws the rune page over its trees, with spells, skills and items in build o
     "data-state",
     "selected",
   );
-  expect(within(runes).getByRole("region", { name: "Stat Shards" })).toHaveTextContent(
-    "Adaptive ForceHealth",
-  );
+  // Each shard row lights its chosen shard among the client's options.
+  const shards = within(runes).getByRole("region", { name: "Stat Shards" });
+  expect(
+    within(shards)
+      .getAllByRole("img")
+      .filter((icon) => icon.getAttribute("data-state") === "selected")
+      .map((icon) => icon.getAttribute("aria-label") ?? icon.getAttribute("alt")),
+  ).toEqual(["Adaptive Force", "Move Speed", "Health"]);
+  expect(within(shards).getAllByRole("img")).toHaveLength(9);
   expect(runes).toHaveTextContent("56.0%WR62.5% Pick25 Games");
   const skills = screen.getByRole("region", { name: "Summoner Spells and Skills" });
   expect(within(skills).getByRole("group", { name: "Q then E then W" })).toBeVisible();
@@ -447,7 +485,7 @@ it("draws the rune page over its trees, with spells, skills and items in build o
       name: "Shadowflame then Item 3089 then Zhonya's Hourglass",
     }),
   ).toBeVisible();
-  // Below the minimum sample only the games are known.
+  // A rate without results stays unknown; items show their share among the slot's options.
   expect(items).toHaveTextContent("—WR4 Games");
   expect(within(items).getByRole("region", { name: "Fourth Item" })).toHaveTextContent(
     "60.0%WR9 Games",
@@ -473,10 +511,10 @@ it("keeps every build option in tables under All Builds", async () => {
   await openAllBuilds();
   const start = screen.getByRole("table", { name: "Starting Items" });
   expect(start).toHaveTextContent(/Doran's Ring.*Health Potion/);
-  expect(start).toHaveTextContent("60.0% · 30 results");
+  expect(start).toHaveTextContent("60.0%");
   const paths = screen.getByRole("table", { name: "Core Paths" });
   expect(paths).toHaveTextContent(/Shadowflame.*Item 3089.*Zhonya's Hourglass/);
-  expect(paths).toHaveTextContent("Too Few Games (4)");
+  expect(paths).not.toHaveTextContent(/Too Few/);
   expect(screen.getByRole("table", { name: "Boots" })).toHaveTextContent(
     "No games with timelines yet.",
   );
@@ -487,47 +525,53 @@ it("shows rune pages, shards and spells with pick and win rates", async () => {
   const keystones = screen.getByRole("table", { name: "Keystones" });
   expect(keystones).toHaveTextContent("Electrocute");
   expect(keystones).toHaveTextContent("62.5%");
-  expect(keystones).toHaveTextContent("56.0% · 25 results");
+  expect(keystones).toHaveTextContent("56.0%");
   expect(screen.getByRole("table", { name: "Stat Shards" })).toHaveTextContent(
     /Stat Shard 5005.*Stat Shard 5008/,
   );
   expect(screen.getByRole("table", { name: "Summoner Spells" })).toHaveTextContent(/Flash.*Ignite/);
   expect(screen.getByRole("table", { name: "Rune Pages" })).toHaveTextContent("No games yet.");
 });
-it("shows skill orders and how many games were left out", async () => {
+it("shows first levels, max orders and full skill orders", async () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   await openAllBuilds();
   expect(screen.getByRole("table", { name: "First Levels" })).toHaveTextContent(/Q.*E.*W/);
   expect(screen.getByRole("table", { name: "Max Order" })).toHaveTextContent(
     "No games with a decided max order yet.",
   );
-  // The tables sit in the All Builds section, which renders them once opened.
-  expect(
-    screen.getByText(/Games left out: 2 for the first levels, 7 for the max order/),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("table", { name: "Skill Orders" })).toBeInTheDocument();
+  expect(screen.queryByText(/left out/)).toBeNull();
 });
-it("charts win rate by game length with gaps and a data table", () => {
+it("charts win rate by game length with gaps and a data table", async () => {
   const view = render(<ChampionOverviewPage overview={overview} error={null} />);
+  await open("Patch Trends and When It Wins", () =>
+    screen.findByRole("region", { name: "When It Wins" }),
+  );
   const section = screen.getByRole("region", { name: "When It Wins" });
   expect(section).toHaveTextContent("Win Rate by Game Length");
-  expect(section).toHaveTextContent("Under 20 min · 30 games");
-  expect(section).toHaveTextContent("20–25 min · 0 games");
+  expect(section).toHaveTextContent("Under 20 min");
+  expect(section).toHaveTextContent("20–25 min");
   expect(section).toHaveTextContent("Unknown");
   view.rerender(<ChampionOverviewPage overview={{ ...overview, buckets: null }} error={null} />);
   expect(screen.queryByRole("region", { name: "When It Wins" })).toBeNull();
 });
 it("lists allies with expected rates and deltas, keeps filters when sorting, and maps bot lanes", () => {
   const { container } = render(<ChampionOverviewPage overview={overview} error={null} />);
-  const allies = screen.getByRole("table", { name: "Allies" });
+  // The top allies show first; the full list and bot-lane pairs open below them.
+  const allies = screen.getByRole("table", { name: "Top Allies" });
   expect(within(allies).getByRole("img", { name: "Thresh" })).toBeVisible();
   expect(allies).toHaveTextContent(/Support.*80.*60\.0%.*55\.0%.*\+3\.1 pts/);
-  expect(screen.getByRole("link", { name: "Thresh" })).toHaveAttribute("href", "/champions/Thresh");
+  expect(within(allies).getByRole("link", { name: "Thresh" })).toHaveAttribute(
+    "href",
+    "/champions/Thresh",
+  );
   const hidden = [...container.querySelectorAll<HTMLInputElement>("input[type=hidden]")].map(
     (i) => `${i.name}=${i.value}`,
   );
   expect(hidden).toEqual(expect.arrayContaining(["source=solo", "role=MIDDLE", "tier=CHALLENGER"]));
   expect(screen.getAllByText("Bot-Lane Pairs: Win Rate (%)")[0]).toBeInTheDocument();
-  expect(screen.getByText("1 allies · Page 1")).toBeVisible();
+  expect(screen.getByText("Show All 1 Allies")).toBeVisible();
+  expect(screen.getByText("1 allies · Page 1")).toBeInTheDocument();
 });
 it("shows pro presence, sides and draft order with samples, and reports unmapped names", () => {
   const view = render(<ChampionOverviewPage overview={pro} error={null} />);
@@ -646,9 +690,14 @@ it("shows the stored counter-pick value for a lane role", () => {
 const opponent = (name: string, key: number, shrunk: number | null, games: number): MatchupRow => ({
   opponent: { championKey: key, championId: name, name, imageUrl: null },
   games,
-  metrics: {
-    winRate: { raw: shrunk, shrunk, sampleCount: games, baseline: 0.5, baselineSampleCount: 400 },
-  } as MatchupRow["metrics"],
+  metrics: Object.fromEntries(
+    matchupMetrics.map((metric) => [
+      metric,
+      metric === "winRate"
+        ? { raw: shrunk, shrunk, sampleCount: games, baseline: 0.5, baselineSampleCount: 400 }
+        : { raw: 120, shrunk: 100, sampleCount: games, baseline: 0, baselineSampleCount: 400 },
+    ]),
+  ) as MatchupRow["metrics"],
 });
 it("shows the best and worst lane opponents as cards with signed differences", () => {
   const view = render(
@@ -662,24 +711,25 @@ it("shows the best and worst lane opponents as cards with signed differences", (
         opponents: 12,
         best: [opponent("Zed", 238, 0.556, 80)],
         worst: [opponent("Annie", 1, 0.47, 64)],
+        all: [opponent("Zed", 238, 0.556, 80), opponent("Annie", 1, 0.47, 64)],
       }}
     />,
   );
   const cards = screen.getByRole("region", { name: "Matchups Mid" });
   expect(within(cards).getByRole("region", { name: "Good Against" })).toHaveTextContent(
-    "+5.6%80 Games",
+    "+5.6%55.6% WR · 80 Games",
   );
   expect(within(cards).getByRole("region", { name: "Bad Against" })).toHaveTextContent(
-    "-3.0%64 Games",
+    "-3.0%47.0% WR · 64 Games",
   );
-  expect(within(cards).getByRole("link", { name: /Zed/ })).toHaveAttribute(
+  expect(within(cards).getAllByRole("link", { name: /Zed/ })[0]).toHaveAttribute(
     "href",
     "/champions/Zed",
   );
-  expect(within(cards).getByRole("link", { name: "Full List (12)" })).toHaveAttribute(
-    "href",
-    "/champions/Ahri/matchups?source=solo&role=MIDDLE&patch=16.22",
-  );
+  // Every opponent is listed in place, with its lane differences.
+  expect(screen.getByText("Show All 12 Opponents")).toBeVisible();
+  const all = within(cards).getByRole("table", { name: "All Lane Opponents" });
+  expect(all).toHaveTextContent(/Zed.*80.*55\.6%.*\+120/);
   view.rerender(
     <ChampionOverviewPage
       overview={overview}
@@ -691,6 +741,7 @@ it("shows the best and worst lane opponents as cards with signed differences", (
         opponents: 0,
         best: [],
         worst: [],
+        all: [],
       }}
     />,
   );

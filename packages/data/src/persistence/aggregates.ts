@@ -29,7 +29,6 @@ import {
 import { transaction, type Executor } from "./database.js";
 import { championBuilds, rebuildBuilds } from "./builds.js";
 import { championBuckets, rebuildBuckets } from "./buckets.js";
-import { rebuildHeatmaps } from "./heatmaps.js";
 import { rebuildJunglePaths } from "./jungle-paths.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
 import {
@@ -185,7 +184,6 @@ export async function rebuildPatch(
       source === "solo"
         ? (await rebuildBuilds(c, patchKey, now)) +
           (await rebuildBuckets(c, patchKey, now)) +
-          (await rebuildHeatmaps(c, patchKey, now)) +
           (await rebuildJunglePaths(c, patchKey, now)) +
           (await rebuildDuos(c, patchKey, now)) +
           (await rebuildSoloPerformance(c, patchKey, soloGames, now)) +

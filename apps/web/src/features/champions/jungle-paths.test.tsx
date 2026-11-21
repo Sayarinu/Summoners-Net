@@ -38,8 +38,8 @@ it("tables clustered paths with samples and draws them on the minimap", () => {
   expect(screen.getByRole("heading", { name: "Early Jungle Paths" })).toBeVisible();
   expect(screen.getByText(/Inferred from 15 jungle games on patch 16.22/)).toBeVisible();
   const table = screen.getByRole("table", { name: "Jungle Paths" });
-  expect(table).toHaveTextContent("Blue buff sideCrosses to the other sideTop1275.0% (12)");
-  expect(table).toHaveTextContent("UnknownUnknownUnknown3Too few games (2)");
+  expect(table).toHaveTextContent("Blue buff sideCrosses to the other sideTop1275.0%");
+  expect(table).toHaveTextContent("UnknownUnknownUnknown3—");
   // The second path has one located minute, so only the first can be drawn as a line.
   expect(container.querySelectorAll(".np-minimap__path")).toHaveLength(1);
   expect(

@@ -35,7 +35,6 @@ import {
 import { ChampionFilters } from "./filters";
 import { ItemsPanel, RunesPanel, SpellsAndSkillsPanel } from "./solo-build";
 import { MatchupCards } from "./matchup-cards";
-import { ChampionPages, championHeatmapsHref } from "./champion-pages";
 import { appendPatches, patchesLabel, percent, type MatchupSummary } from "./presentation";
 
 const tierNotes = {
@@ -53,9 +52,6 @@ const tierColors = {
   D: "text-loss",
 } as const;
 const roleTabs = ["ALL", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
-/** Two related panels side by side, the first wider, stacking on narrow screens. */
-const pairGrid =
-  "grid grid-cols-[minmax(0,1.7fr)_minmax(270px,1fr)] items-start gap-4 max-[1150px]:grid-cols-1";
 
 type Query = ChampionOverview["query"];
 /** The champion page URL for this query with its source or role changed. */
@@ -167,16 +163,18 @@ export function ChampionOverviewPage({
   const roleShare = new Map<string, ChampionOverview["roles"][number]["share"]>(
     overview.roles.map((r) => [r.role, r.share]),
   );
-  const matchupRole = q.role === "ALL" ? (overview.roles[0]?.role ?? "MIDDLE") : q.role;
-  const counterPick = draftValue ? (
-    <Panel title="Counter-Pick Value">
-      <CounterPickSummary
-        value={draftValue}
-        listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}
-      />
-    </Panel>
-  ) : null;
-  const matchups = <MatchupCards championId={champion.id} summary={matchupSummary} />;
+  // Counter-pick value shows once it has a stored score.
+  const counterPick =
+    draftValue?.score !== null && draftValue?.score !== undefined ? (
+      <Panel title="Counter-Pick Value">
+        <CounterPickSummary
+          value={draftValue}
+          listHref={`/matchups/${q.role}/counter-picks?source=${q.source}&patch=${overview.patch}`}
+        />
+      </Panel>
+    ) : null;
+  // Jungle paths are shown for junglers: the jungle role, or a champion played mostly there.
+  const jungler = q.role === "JUNGLE" || (q.role === "ALL" && overview.roles[0]?.role === "JUNGLE");
   return (
     <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
       <PageHeader
@@ -241,12 +239,6 @@ export function ChampionOverviewPage({
           </div>
         </div>
       </Panel>
-      <ChampionPages
-        current="overview"
-        overviewHref={championHref(champion.id, q, {})}
-        matchupsHref={`/champions/${champion.id}/matchups?${appendPatches(new URLSearchParams({ source: q.source, role: matchupRole }), overview.combined)}`}
-        heatmapsHref={championHeatmapsHref(champion.id, q.source, overview.patch)}
-      />
       {error ? (
         <p role="alert">{error}</p>
       ) : !overview.patch ? (
@@ -277,19 +269,9 @@ export function ChampionOverviewPage({
               <ProPlayersSection overview={overview} />
             </>
           ) : null}
-          {counterPick &&
-          matchupSummary &&
-          (matchupSummary.best.length || matchupSummary.worst.length) ? (
-            <div className={pairGrid}>
-              {matchups}
-              {counterPick}
-            </div>
-          ) : (
-            <>
-              {matchups}
-              {counterPick}
-            </>
-          )}
+          <MatchupCards summary={matchupSummary} />
+          {counterPick}
+          <SynergiesSection overview={overview} />
           {overview.performance && overview.performance.games > 0 ? (
             <Panel title="Game Statistics">
               <PerformanceStats
@@ -299,34 +281,35 @@ export function ChampionOverviewPage({
               />
             </Panel>
           ) : null}
-          <Panel title="Patch Trends">
-            <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
-              <TrendChart
-                title={`${champion.name} Win Rate by Patch`}
-                rate="winRate"
-                trend={overview.trend}
-                color={1}
-              />
-              <TrendChart
-                title={`${champion.name} Pick Rate by Patch`}
-                rate="pickRate"
-                trend={overview.trend}
-                color={2}
-              />
-              <TrendChart
-                title={`${champion.name} Ban Rate by Patch`}
-                rate="banRate"
-                trend={overview.trend}
-                color={3}
-              />
-            </div>
-          </Panel>
           {q.source === "pro" ? <ProHistorySection overview={overview} /> : null}
-          <BucketsSection buckets={overview.buckets} />
-          {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
+          {jungler && junglePaths ? (
             <JunglePathsSection paths={junglePaths} champion={champion.name} />
           ) : null}
-          <SynergiesSection overview={overview} />
+          <DisclosurePanel title="Patch Trends and When It Wins">
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-3 gap-4 max-[1150px]:grid-cols-2 max-[700px]:grid-cols-1">
+                <TrendChart
+                  title={`${champion.name} Win Rate by Patch`}
+                  rate="winRate"
+                  trend={overview.trend}
+                  color={1}
+                />
+                <TrendChart
+                  title={`${champion.name} Pick Rate by Patch`}
+                  rate="pickRate"
+                  trend={overview.trend}
+                  color={2}
+                />
+                <TrendChart
+                  title={`${champion.name} Ban Rate by Patch`}
+                  rate="banRate"
+                  trend={overview.trend}
+                  color={3}
+                />
+              </div>
+              <BucketsSection buckets={overview.buckets} />
+            </div>
+          </DisclosurePanel>
           {overview.builds ? (
             <DisclosurePanel title="All Builds, Runes and Skills">
               <div className="flex flex-col gap-6">
