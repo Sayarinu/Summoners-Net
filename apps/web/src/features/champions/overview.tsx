@@ -24,7 +24,7 @@ import { SavedViewsPanel } from "../saved-views/panel";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
-import { ProHistorySection, ProSection } from "./pro";
+import { PerformanceStats, ProHistorySection, ProSection } from "./pro";
 import { ChampionFilters } from "./filters";
 import { BuildCard } from "./build-card";
 import { MatchupCards } from "./matchup-cards";
@@ -280,6 +280,15 @@ export function ChampionOverviewPage({
               />
             </div>
           </Panel>
+          {overview.performance && overview.performance.games > 0 ? (
+            <Panel title="Performance">
+              <PerformanceStats
+                label="Solo-Queue Performance"
+                performance={overview.performance}
+                omitUnrecorded
+              />
+            </Panel>
+          ) : null}
           <ProSection overview={overview} />
           <ProHistorySection overview={overview} />
           <BucketsSection buckets={overview.buckets} />

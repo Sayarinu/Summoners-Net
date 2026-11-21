@@ -78,6 +78,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
                   />
                 ),
               },
+              { id: "tier", header: "Tier", align: "center", render: (r) => r.tier ?? "—" },
               { id: "games", header: "Games", align: "end", render: (r) => r.games },
               { id: "win", header: "Win Rate", align: "end", render: (r) => percent(r.winRate) },
               {
@@ -88,28 +89,25 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               },
               { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
               { id: "ban", header: "Ban Rate", align: "end", render: (r) => percent(r.banRate) },
+              {
+                id: "kda",
+                header: "KDA",
+                align: "end" as const,
+                render: (r: TierListRow) => average(r.performance.kda, 2),
+              },
+              {
+                id: "dpm",
+                header: "DPM",
+                align: "end" as const,
+                render: (r: TierListRow) => average(r.performance.damagePerMinute, 0),
+              },
               ...(list.query.source === "pro"
                 ? [
-                    {
-                      id: "kda",
-                      header: "KDA",
-                      align: "end" as const,
-                      render: (r: TierListRow) =>
-                        r.performance ? average(r.performance.kda, 2) : "Unknown",
-                    },
-                    {
-                      id: "dpm",
-                      header: "DPM",
-                      align: "end" as const,
-                      render: (r: TierListRow) =>
-                        r.performance ? average(r.performance.damagePerMinute, 0) : "Unknown",
-                    },
                     {
                       id: "gd15",
                       header: "GD@15",
                       align: "end" as const,
-                      render: (r: TierListRow) =>
-                        r.performance ? average(r.performance.goldDiffAt15, 0, true) : "Unknown",
+                      render: (r: TierListRow) => average(r.performance.goldDiffAt15, 0, true),
                     },
                   ]
                 : []),

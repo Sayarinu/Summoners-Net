@@ -4,7 +4,8 @@ import { championRoles, tierListSorts, type TierList } from "@summonersnet/data/
 import { roleLabels, sortLabels } from "./presentation";
 
 const all = { label: "All", value: "all" };
-const performanceSorts = new Set<string>(["kda", "damagePerMinute", "goldDiffAt15"]);
+// Solo queue has no gold difference at 15 yet.
+const proOnlySorts = new Set<string>(["goldDiffAt15"]);
 interface Filters {
   source: "solo" | "pro";
   patch?: string | undefined;
@@ -94,9 +95,8 @@ export function ChampionFilters({
             label="Sort By"
             name="sort"
             defaultValue={query?.sort ?? "games"}
-            // Performance sorts need per-game rows, which only pro play has so far.
             options={tierListSorts
-              .filter((s) => pro || !performanceSorts.has(s))
+              .filter((s) => pro || !proOnlySorts.has(s))
               .map((s) => ({ label: sortLabels[s], value: s }))}
           />
           <Select

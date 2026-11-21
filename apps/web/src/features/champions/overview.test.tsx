@@ -176,6 +176,24 @@ const overview: ChampionOverview = {
       gameLength: { value: 1919.6, sampleCount: 12 },
     },
   },
+  performance: {
+    games: 60,
+    kda: { value: 3.1, sampleCount: 60 },
+    killsPerGame: { value: 6.2, sampleCount: 60 },
+    deathsPerGame: { value: 4.4, sampleCount: 60 },
+    assistsPerGame: { value: 7.5, sampleCount: 60 },
+    killParticipation: { value: 0.55, sampleCount: 60 },
+    csPerMinute: { value: 7.8, sampleCount: 60 },
+    goldPerMinute: { value: 402.1, sampleCount: 60 },
+    damagePerMinute: { value: 812.6, sampleCount: 60 },
+    damageShare: { value: 0.27, sampleCount: 60 },
+    goldDiffAt15: { value: null, sampleCount: 0 },
+    csDiffAt15: { value: null, sampleCount: 0 },
+    xpDiffAt15: { value: null, sampleCount: 0 },
+    firstBloodParticipation: { value: null, sampleCount: 0 },
+    visionScorePerMinute: { value: 0.91, sampleCount: 60 },
+    gameLength: { value: 1745, sampleCount: 60 },
+  },
   proHistory: {
     league: null,
     page: {
@@ -387,6 +405,16 @@ it("shows how the champion performs in pro play once picked, with unknown values
     "Game Length12 Games32:00",
   ])
     expect(stats).toHaveTextContent(text);
+});
+
+it("shows solo-queue performance once picked, leaving out what solo queue does not record", () => {
+  render(<ChampionOverviewPage overview={overview} error={null} />);
+  const stats = screen.getByLabelText("Solo-Queue Performance");
+  expect(stats).toHaveTextContent("KDA60 Games3.10");
+  expect(stats).toHaveTextContent("Damage / Minute60 Games813");
+  expect(stats).toHaveTextContent("Game Length60 Games29:05");
+  expect(stats).not.toHaveTextContent("Gold Diff @15");
+  expect(stats).not.toHaveTextContent("First Blood");
 });
 
 it("lists pro play by patch, linking each patch, with unknown rates left empty", () => {

@@ -22,6 +22,7 @@ export const sortLabels = {
   kda: "KDA",
   damagePerMinute: "Damage per Minute",
   goldDiffAt15: "Gold Difference at 15",
+  tier: "Tier",
 } as const;
 /** A per-game average, or "Unknown" when no game reported it; never 0 for missing data. */
 export function average(value: SampledValue, digits = 1, signed = false) {
