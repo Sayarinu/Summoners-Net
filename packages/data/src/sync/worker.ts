@@ -618,9 +618,50 @@ export function worker(pool: Pool, options: WorkerOptions) {
           return false;
         }
         await saveRiotMatch(pool, match, payload, clock());
+        // Builds, skills and heatmaps come from timelines, so each match brings its timeline
+        // rather than waiting for every match first. A failed timeline stays pending for the
+        // timeline job; running out of budget defers this run as any request does.
+        try {
+          await fetchTimeline({ matchId, region });
+        } catch (error) {
+          if (!(error instanceof ProviderError)) throw error;
+        }
         return true;
       },
     );
+  }
+  /** Fetches, validates and stores one match's timeline; a 404 or invalid one is recorded. */
+  async function fetchTimeline({ matchId, region }: { matchId: string; region: string }) {
+    const response = await riot!(
+      riotRoutingSchema.parse(region),
+      "match-v5.getTimeline",
+      `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
+    );
+    if (response.status === 404) {
+      await markTimelineUnavailable(pool, matchId, "missing", clock());
+      return false;
+    }
+    if (!response.ok)
+      throw new ProviderError(
+        `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
+        response.status === 429 || response.status >= 500,
+      );
+    let timeline;
+    try {
+      timeline = parseRiotTimeline(await response.json(), matchId);
+    } catch {
+      await markTimelineUnavailable(pool, matchId, "invalid", clock());
+      return false;
+    }
+    try {
+      await saveTimeline(pool, timeline, clock());
+      return true;
+    } catch (error) {
+      // A timeline naming participants the ingested match does not have (foreign key).
+      if ((error as { code?: string }).code !== "23503") throw error;
+      await markTimelineUnavailable(pool, matchId, "invalid", clock());
+      return false;
+    }
   }
   /**
    * Fetches timelines for ingested matches, oldest first. Each timeline is validated and written
@@ -628,41 +669,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
    */
   async function ingestTimelines(): Promise<number> {
     if (!riot) return 0;
-    return drainRiot(
-      (limit) => pendingTimelines(pool, limit),
-      async ({ matchId, region }) => {
-        const response = await riot(
-          riotRoutingSchema.parse(region),
-          "match-v5.getTimeline",
-          `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
-        );
-        if (response.status === 404) {
-          await markTimelineUnavailable(pool, matchId, "missing", clock());
-          return false;
-        }
-        if (!response.ok)
-          throw new ProviderError(
-            `Riot returned HTTP ${response.status} for a timeline; ingested timelines are kept.`,
-            response.status === 429 || response.status >= 500,
-          );
-        let timeline;
-        try {
-          timeline = parseRiotTimeline(await response.json(), matchId);
-        } catch {
-          await markTimelineUnavailable(pool, matchId, "invalid", clock());
-          return false;
-        }
-        try {
-          await saveTimeline(pool, timeline, clock());
-          return true;
-        } catch (error) {
-          // A timeline naming participants the ingested match does not have (foreign key).
-          if ((error as { code?: string }).code !== "23503") throw error;
-          await markTimelineUnavailable(pool, matchId, "invalid", clock());
-          return false;
-        }
-      },
-    );
+    return drainRiot((limit) => pendingTimelines(pool, limit), fetchTimeline);
   }
   /**
    * Keeps solo-queue data for the current patch and the configured previous patches. Prunes in

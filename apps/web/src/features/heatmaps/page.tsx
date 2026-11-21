@@ -104,7 +104,10 @@ export function HeatmapPage({ heatmap, error }: { heatmap: Heatmap | null; error
         ) : null}
       </div>
       {!drawable ? (
-        <EmptyState title="No Heatmap Yet" />
+        <EmptyState
+          title="No Heatmap Yet"
+          description="Heatmaps are drawn from solo-queue match timelines. This one fills in as the sync worker downloads timelines for the patch."
+        />
       ) : (
         <div className="grid grid-cols-[minmax(0,560px)_minmax(240px,1fr)] items-start gap-4 max-[900px]:grid-cols-1">
           <Panel title="Map">

@@ -90,6 +90,7 @@ it("explains missing heatmaps, unresolved players and invalid queries", () => {
   );
   expect(screen.getByRole("heading", { name: "Riot ID not resolved: positions" })).toBeVisible();
   expect(screen.getByText("No Heatmap Yet")).toBeVisible();
+  expect(screen.getByText(/drawn from solo-queue match timelines/)).toBeVisible();
   expect(screen.queryByRole("navigation", { name: "Patch" })).toBeNull();
   unmount();
   render(<HeatmapPage heatmap={null} error="Choose a champion." />);
