@@ -941,6 +941,12 @@ test("missing and failed portraits show a person across search and profiles", as
     failedRequests++;
     return route.abort();
   });
+  await page.goto("/players?role=mid");
+  await expect(page.getByRole("button", { name: /Role/ })).toHaveText(/Mid/);
+  const mids = page.getByRole("list", { name: "Players" }).getByRole("listitem");
+  await expect(mids.first()).toBeVisible();
+  for (const card of await mids.all())
+    await expect(card.locator('[aria-label="Mid"]')).toHaveCount(1);
   await page.goto("/players?q=Observed+Player");
   const result = page.getByRole("link", { name: /Observed Player/ });
   await expect(result.locator('[data-entity-kind="player"] svg')).toBeVisible();

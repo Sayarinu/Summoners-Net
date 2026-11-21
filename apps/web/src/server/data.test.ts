@@ -33,6 +33,8 @@ it("clamps directory page sizes to a bounded range with a default for links with
   expect((await directoryQuery(Promise.resolve({ pageSize: "36", page: "2" }))).pageSize).toBe(36);
   expect((await directoryQuery(Promise.resolve({ pageSize: "5000" }))).pageSize).toBe(120);
   expect((await directoryQuery(Promise.resolve({ pageSize: "-3" }))).pageSize).toBe(1);
+  expect((await directoryQuery(Promise.resolve({ role: "support" }))).role).toBe("support");
+  expect((await directoryQuery(Promise.resolve({ role: "all" }))).role).toBeUndefined();
   expect((await directoryQuery(Promise.resolve({ pageSize: ["12", "18"] }))).pageSize).toBe(24);
   await expect(browseQuery(Promise.resolve({ pageSize: "5000" }))).rejects.toThrow();
 });

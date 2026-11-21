@@ -173,7 +173,11 @@ export const querySchema = z.object({
 export type BrowseQuery = z.input<typeof querySchema>;
 /** Directory grids size their pages to whole rows of the visible area, within these bounds. */
 export const directoryPageSize = { default: 24, max: 120 } as const;
+/** The lane roles the player directory filters by. */
+export const playerRoles = ["top", "jungle", "mid", "bottom", "support"] as const;
 export const directoryQuerySchema = querySchema.extend({
+  /** A lane role; spellings such as `sup` or `adc` count as their lane. Players only. */
+  role: z.enum(playerRoles).optional(),
   // Out-of-range sizes clamp rather than fail, so a resized or shared link still renders.
   pageSize: z.coerce
     .number()
@@ -181,6 +185,7 @@ export const directoryQuerySchema = querySchema.extend({
     .catch(directoryPageSize.default)
     .transform((size) => Math.min(Math.max(size, 1), directoryPageSize.max)),
 });
+export type DirectoryQuery = BrowseQuery & { role?: (typeof playerRoles)[number] | undefined };
 export type ParsedQuery = z.output<typeof querySchema>;
 export const syncRequestSchema = z.discriminatedUnion("kind", [
   z.strictObject({

@@ -12,19 +12,27 @@ import {
   Select,
   TeamIdentity,
 } from "@summonersnet/ui";
-import type { BrowseQuery, Page, PlayerDirectoryEntry } from "@summonersnet/data";
-import { regions } from "@summonersnet/data/contracts";
+import type { DirectoryQuery, Page, PlayerDirectoryEntry } from "@summonersnet/data";
+import { playerRoles, regions } from "@summonersnet/data/contracts";
 import { Pages } from "./components";
 import { FillingGrid } from "./page-fill";
 import { identityHref } from "./presentation";
 import { directoryGrid } from "../teams/pages";
+
+const roleLabels: Record<(typeof playerRoles)[number], string> = {
+  top: "Top",
+  jungle: "Jungle",
+  mid: "Mid",
+  bottom: "Bottom",
+  support: "Support",
+};
 
 function PlayerFilters({
   query,
   pageSize,
   className,
 }: {
-  query: BrowseQuery;
+  query: DirectoryQuery;
   pageSize: number;
   className?: string;
 }) {
@@ -80,6 +88,16 @@ function PlayerFilters({
           ...regions.map((r) => ({ value: r, label: r })),
         ]}
       />
+      <Select
+        label="Role"
+        name="role"
+        defaultValue={query.role ?? "all"}
+        onValueChange={schedule}
+        options={[
+          { value: "all", label: "All Roles" },
+          ...playerRoles.map((r) => ({ value: r, label: roleLabels[r] })),
+        ]}
+      />
       <input type="hidden" name="pageSize" value={pageSize} />
     </FilterBar>
   );
@@ -90,7 +108,7 @@ export function PlayerFinder({
   query,
 }: {
   data: Page<PlayerDirectoryEntry>;
-  query: BrowseQuery;
+  query: DirectoryQuery;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">

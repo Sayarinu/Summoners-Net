@@ -240,6 +240,12 @@ describe("real PostgreSQL persistence through sync and query interfaces", () => 
     ).toBeNull();
     expect((await queries.playerDirectory({ league: "LCK" })).total).toBe(10);
     expect((await queries.playerDirectory({ league: "LEC" })).total).toBe(0);
+    // Archive spellings such as "jng" and "sup" count as their lane.
+    const junglers = await queries.playerDirectory({ role: "jungle" });
+    expect(junglers.total).toBe(4);
+    expect(junglers.items.every((i) => i.name.endsWith("jng"))).toBe(true);
+    expect((await queries.playerDirectory({ role: "support", league: "LCK" })).total).toBe(2);
+    await expect(queries.playerDirectory({ role: "carry" as "top" })).rejects.toThrow();
     // Directory pages clamp their size instead of rejecting a link from a larger screen.
     expect((await queries.playerDirectory({ pageSize: 500 })).pageSize).toBe(120);
     expect((await queries.teamDirectory({ pageSize: "many" })).pageSize).toBe(24);
