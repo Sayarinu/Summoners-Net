@@ -6,6 +6,7 @@ import {
   type ProPatchHistory,
 } from "../domain/pro-stats.js";
 import { defaultPatchMinimumGames } from "../domain/champion-stats.js";
+import { applySamplePolicy } from "../domain/statistics.js";
 import type { Executor } from "./database.js";
 
 /** A game's split, or 'Unknown' when the archive did not record one. */
@@ -135,6 +136,11 @@ const rate = (count: number, total: number) => ({
   value: total ? count / total : null,
   sampleCount: total,
 });
+/** A win rate, null below the minimum sample with its sample kept. */
+const winRate = (wins: number, results: number) => {
+  const sampled = applySamplePolicy(rate(wins, results));
+  return { value: sampled.value, sampleCount: sampled.sampleCount };
+};
 /**
  * A champion's pro-play use on a patch, summed over leagues unless one is chosen. The patch
  * defaults to the newest with enough pro games (`defaultPatchMinimumGames`).
@@ -225,7 +231,44 @@ export async function proChampionStats(
       ).rows
     : [];
   const ordered = n("blind_picks") + n("counter_picks");
+  const byLeague = patch
+    ? (
+        await db.query<{
+          league: string;
+          games: number;
+          picks: number;
+          bans: number;
+          wins: number;
+          result_picks: number;
+        }>(
+          `WITH league_games AS (
+             SELECT league,sum(games)::integer AS games FROM pro_league_games
+             WHERE patch_key=$1 AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
+             GROUP BY league),
+           champion AS (
+             SELECT league,sum(picks)::integer AS picks,sum(bans)::integer AS bans,
+               sum(wins)::integer AS wins,sum(result_picks)::integer AS result_picks
+             FROM pro_champion_stats
+             WHERE patch_key=$1 AND ($2::text IS NULL OR split=$2) AND ($3::text IS NULL OR stage=$3)
+               AND champion_key=$4
+             GROUP BY league)
+           SELECT * FROM champion JOIN league_games USING (league)
+           WHERE picks+bans>0 ORDER BY picks+bans DESC,games DESC,league`,
+          [patch, input.split ?? null, input.stage ?? null, input.championKey],
+        )
+      ).rows.map((r) => {
+        return {
+          league: r.league,
+          games: r.games,
+          picks: r.picks,
+          bans: r.bans,
+          presence: rate(r.picks + r.bans, r.games),
+          winRate: winRate(r.wins, r.result_picks),
+        };
+      })
+    : [];
   return {
+    byLeague,
     patch,
     league: input.league ?? null,
     leagues,
@@ -238,14 +281,18 @@ export async function proChampionStats(
     presence: rate(n("picks") + n("bans"), games),
     pickRate: rate(n("picks"), games),
     banRate: rate(n("bans"), games),
-    winRate: rate(n("wins"), n("result_picks")),
+    winRate: winRate(n("wins"), n("result_picks")),
     sides: [
       {
         side: "blue",
         picks: n("blue_picks"),
-        winRate: rate(n("blue_wins"), n("blue_result_picks")),
+        winRate: winRate(n("blue_wins"), n("blue_result_picks")),
       },
-      { side: "red", picks: n("red_picks"), winRate: rate(n("red_wins"), n("red_result_picks")) },
+      {
+        side: "red",
+        picks: n("red_picks"),
+        winRate: winRate(n("red_wins"), n("red_result_picks")),
+      },
     ],
     blindRate: rate(n("blind_picks"), ordered),
     counterRate: rate(n("counter_picks"), ordered),
@@ -413,9 +460,9 @@ export async function proChampionHistory(
           presence: rate(r.picks + r.bans, total),
           pickRate: rate(r.picks, total),
           banRate: rate(r.bans, total),
-          winRate: rate(r.wins, r.result_picks),
-          blueWinRate: rate(r.blue_wins, r.blue_result_picks),
-          redWinRate: rate(r.red_wins, r.red_result_picks),
+          winRate: winRate(r.wins, r.result_picks),
+          blueWinRate: winRate(r.blue_wins, r.blue_result_picks),
+          redWinRate: winRate(r.red_wins, r.red_result_picks),
         };
       }),
     },

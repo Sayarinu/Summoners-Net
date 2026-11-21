@@ -51,11 +51,14 @@ export type { BotLaneMatrix, Synergies, SynergyRow } from "./domain/synergies.js
 export { synergySorts } from "./domain/synergies.js";
 export type {
   ProChampionPerformance,
+  ProChampionPlayer,
+  ProChampionPlayers,
   ProChampionStats,
+  ProLeagueRow,
   ProPatchHistory,
   ProPatchHistoryRow,
 } from "./domain/pro-stats.js";
-export { proHistoryPageSize } from "./domain/pro-stats.js";
+export { proChampionPlayersLimit, proHistoryPageSize } from "./domain/pro-stats.js";
 export type {
   SoloGame,
   SoloGameMarker,
