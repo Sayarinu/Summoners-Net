@@ -1489,6 +1489,41 @@ describe("Riot accounts", () => {
       await worker.close();
     }
   });
+  it("ends a run when the shared limit runs out instead of waiting ahead of the match crawl", async () => {
+    await saveLadder(pool, "euw1", [entry(puuids[0]!), entry(puuids[1]!)], now);
+    const worker = createSync(connection, {
+      clock: () => instant,
+      fetch: fetcher,
+      pause: () => Promise.resolve(),
+      riot: { key, kind: "development" },
+    });
+    try {
+      // Riot reports one request per two minutes, so the second lookup cannot reserve.
+      fetcher.mockImplementation((input) => {
+        const puuid = decodeURIComponent(new URL(endpoint(input)).pathname.split("/").pop()!);
+        return Promise.resolve(
+          json({ puuid, gameName: "Named", tagLine: "EUW" }, { "x-app-rate-limit": "1:120" }),
+        );
+      });
+      await worker.request({ kind: "riot-accounts" });
+      let result;
+      do result = await worker.runNext();
+      while (result.state !== "idle" && !("records" in result && result.records === 1));
+      expect(result).toMatchObject({ state: "done", records: 1 });
+      expect(await account(pool, puuids[0]!)).toMatchObject({ gameName: "Named" });
+      expect(await account(pool, puuids[1]!)).toBeNull();
+      // Nothing holds the queue: the next scheduled run resolves the rest.
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::integer n FROM sync_jobs WHERE state='queued' AND request->>'kind'='riot-accounts'",
+          )
+        ).rows[0],
+      ).toEqual({ n: 0 });
+    } finally {
+      await worker.close();
+    }
+  });
 });
 describe("Riot match id crawl", () => {
   const key = "RGAPI-01234567-89ab-cdef-0123-456789abcdef";
