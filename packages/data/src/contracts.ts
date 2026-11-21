@@ -244,3 +244,4 @@ export { gameReplayUrl, isRecording, recordingUrl } from "./domain/broadcasts.js
 
 export type { ChampionPool, ChampionPoolRow } from "./domain/player-performance.js";
 export { championPoolQuerySchema, championPoolSorts } from "./domain/player-performance.js";
+export type { TeamStatistics } from "./domain/team-statistics.js";

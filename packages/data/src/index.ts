@@ -268,3 +268,4 @@ export {
 
 export { draftFeatures, type DraftInput, type DraftWinProbability } from "./domain/draft-model.js";
 export type { ChampionDirectory, PatchDirectory } from "./domain/directories.js";
+export type { TeamStatistics } from "./domain/team-statistics.js";
