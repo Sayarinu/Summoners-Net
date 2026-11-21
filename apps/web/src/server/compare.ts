@@ -57,7 +57,11 @@ export async function loadPatchComparison(params: Params) {
     };
   const q = parsed.data;
   const [list, other] = await Promise.all([
-    data().tierList({ source: q.source, role: q.role, patch: q.a, page: q.page, sort: "games" }),
+    // Compared side by side with every champion of the other patch, so none is left out.
+    data().tierList(
+      { source: q.source, role: q.role, patch: q.a, page: q.page, sort: "games" },
+      { minimumGames: 0 },
+    ),
     data().championStats({ source: q.source, role: q.role, patch: q.b }),
   ]);
   return {

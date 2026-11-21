@@ -5,6 +5,7 @@ import {
   type ProChampionStats,
   type ProPatchHistory,
 } from "../domain/pro-stats.js";
+import { defaultPatchMinimumGames } from "../domain/champion-stats.js";
 import type { Executor } from "./database.js";
 
 /** A game's split, or 'Unknown' when the archive did not record one. */
@@ -136,7 +137,7 @@ const rate = (count: number, total: number) => ({
 });
 /**
  * A champion's pro-play use on a patch, summed over leagues unless one is chosen. The patch
- * defaults to the newest with pro draft statistics.
+ * defaults to the newest with enough pro games (`defaultPatchMinimumGames`).
  */
 export async function proChampionStats(
   db: Executor,
@@ -153,9 +154,13 @@ export async function proChampionStats(
     input.patch ??
     (
       await db.query<{ patch_key: string }>(
+        // The newest patch with enough pro games, else the newest with any.
         `SELECT p.patch_key FROM patches p
+         JOIN (SELECT patch_key,sum(games) AS games FROM pro_league_games GROUP BY patch_key) g
+           USING (patch_key)
          WHERE EXISTS (SELECT 1 FROM pro_champion_stats s WHERE s.patch_key=p.patch_key)
-         ORDER BY p.release_order DESC LIMIT 1`,
+         ORDER BY g.games>=$1 DESC,p.release_order DESC LIMIT 1`,
+        [defaultPatchMinimumGames.pro],
       )
     ).rows[0]?.patch_key ??
     null;

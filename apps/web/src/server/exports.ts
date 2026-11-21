@@ -80,7 +80,9 @@ const exporters: Record<
   async "tier-list"(params) {
     const q = tierListQuerySchema.omit({ page: true }).safeParse(params);
     if (!q.success) return null;
-    const first = await data().tierList({ ...q.data, page: 1 });
+    // The export is the raw table: champions below the page's minimum sample are included.
+    const every = { minimumGames: 0 };
+    const first = await data().tierList({ ...q.data, page: 1 }, every);
     return {
       filename: name("tier-list", q.data.source, first.patch, q.data.role),
       header: [
@@ -98,7 +100,8 @@ const exporters: Record<
       ],
       rows: map(
         paged(
-          async (page) => (page === 1 ? first : await data().tierList({ ...q.data, page })).page,
+          async (page) =>
+            (page === 1 ? first : await data().tierList({ ...q.data, page }, every)).page,
         ),
         (r) => [
           q.data.source,

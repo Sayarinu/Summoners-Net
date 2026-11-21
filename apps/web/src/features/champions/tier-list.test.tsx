@@ -2,7 +2,7 @@ import { it, expect, vi, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { TierList } from "@summonersnet/data/contracts";
 import { TierListPage } from "./tier-list";
-import { interval, percent } from "./presentation";
+import { percent } from "./presentation";
 
 afterEach(() => vi.unstubAllGlobals());
 const list: TierList = {
@@ -16,6 +16,8 @@ const list: TierList = {
   },
   patch: "16.22",
   sliceGames: 120,
+  minimumGames: 10,
+  hiddenChampions: 3,
   facets: { patches: ["16.22", "16.21"], regions: ["europe"], tiers: ["CHALLENGER", "MASTER"] },
   page: {
     page: 1,
@@ -63,17 +65,20 @@ const list: TierList = {
     ],
   },
 };
-it("shows rates, intervals and samples, with unknown values never shown as zero", () => {
+it("shows rates without intervals, counts left-out champions, and never shows unknown as zero", () => {
   const view = render(<TierListPage list={list} error={null} />);
   const table = screen.getByRole("table", { name: "Champion Tier List" });
   const [ahri, unknown] = within(table).getAllByRole("row").slice(1);
   expect(within(ahri!).getByRole("img", { name: "Ahri" })).toBeVisible();
-  expect(ahri).toHaveTextContent("A6055.0%42.0–67.0%50.0%10.0%3.50702");
-  expect(ahri).toHaveTextContent("60 results");
+  expect(ahri).toHaveTextContent("A6055.0%50.0%10.0%3.50702");
+  expect(table).not.toHaveTextContent("42.0–67.0%");
+  expect(screen.queryByRole("columnheader", { name: /Interval|Sample/ })).toBeNull();
   expect(within(unknown!).getByRole("img", { name: "Champion 950" })).toBeVisible();
   expect(unknown).toHaveTextContent("—0Unknown");
   expect(unknown).toHaveTextContent("0.0%");
-  expect(unknown).toHaveTextContent("Too Few Games");
+  expect(
+    screen.getByText(/2 champions · Page 1 · 3 with fewer than 10 games not listed/),
+  ).toBeVisible();
   const trigger = (label: string) =>
     screen
       .getAllByRole("button")
@@ -139,8 +144,7 @@ it("shows an empty state without data and an error for an invalid query", () => 
   view.rerender(<TierListPage list={null} error="Choose filters from the lists" />);
   expect(screen.getByRole("alert")).toHaveTextContent("Choose filters from the lists");
 });
-it("formats rates and intervals", () => {
+it("formats rates", () => {
   expect(percent({ value: null, sampleCount: 0 })).toBe("Unknown");
   expect(percent({ value: 0, sampleCount: 5 })).toBe("0.0%");
-  expect(interval({ lower: null, upper: 0.2 })).toBe("Unknown");
 });

@@ -29,7 +29,7 @@ import { ChampionFilters } from "./filters";
 import { BuildCard } from "./build-card";
 import { MatchupCards } from "./matchup-cards";
 import { ChampionPages, championHeatmapsHref } from "./champion-pages";
-import { interval, percent, type MatchupSummary } from "./presentation";
+import { percent, type MatchupSummary } from "./presentation";
 
 const tierNotes = {
   S: "well above",
@@ -113,7 +113,7 @@ function Performance({ overview }: { overview: ChampionOverview }) {
         <Stat
           label="Win Rate"
           value={percent(overview.winRate)}
-          detail={`${interval(overview.winRate)} · ${overview.winRate.sampleCount.toLocaleString()} Results`}
+          detail={`${overview.winRate.sampleCount.toLocaleString()} Games`}
         />
         <Stat
           label="Pick Rate"

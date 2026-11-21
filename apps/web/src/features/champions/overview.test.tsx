@@ -246,7 +246,7 @@ const overview: ChampionOverview = {
     cells: [{ carry: 222, support: 412, games: 80, winRate: { value: 0.6, sampleCount: 80 } }],
   },
 };
-it("shows rates with samples, the interval, the tier and its basis, and the trend", () => {
+it("shows rates with samples, the tier and its basis, and the trend", () => {
   render(<ChampionOverviewPage overview={overview} error={null} />);
   expect(screen.getByRole("heading", { name: "Ahri", level: 1 })).toBeVisible();
   // Source and role are tabs; each role shows the share of the champion's games.
@@ -261,7 +261,8 @@ it("shows rates with samples, the interval, the tier and its basis, and the tren
   expect(within(sources).getByRole("link", { current: "page" })).toHaveTextContent("Solo Queue");
   const stats = screen.getByRole("region", { name: "Champion Statistics" });
   expect(stats).toHaveTextContent("TierA");
-  expect(stats).toHaveTextContent("Win Rate40.0–69.0% · 40 Results55.0%");
+  expect(stats).toHaveTextContent("Win Rate40 Games55.0%");
+  expect(stats).not.toHaveTextContent("40.0–69.0%");
   expect(stats).toHaveTextContent("Ban Rate0 GamesUnknown");
   expect(screen.getByTitle(/Shrunk win rate 52\.0%, above the 50\.0% average/)).toHaveTextContent(
     "A",
