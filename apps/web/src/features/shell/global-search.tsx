@@ -1,6 +1,7 @@
 "use client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { NavIcon } from "@summonersnet/ui";
 import type { SearchSuggestion } from "../browse/presentation";
 
 const suggestionKind = {
@@ -31,6 +32,20 @@ export function GlobalSearch() {
     setOpen(false);
   }, [path, currentQuery]);
 
+  // "/" jumps to search from anywhere except a field that takes typing.
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true'], [role='combobox']"))
+        return;
+      event.preventDefault();
+      input.current?.focus();
+    };
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, []);
+
   useEffect(() => {
     if (!open || query.length < 2) return;
     const controller = new AbortController();
@@ -55,7 +70,7 @@ export function GlobalSearch() {
   return (
     <form
       action="/search"
-      className="relative w-[min(100%,26rem)] min-w-0 max-[850px]:flex-1"
+      className="relative mx-auto w-[min(100%,36rem)] min-w-0 max-[850px]:flex-1"
       role="search"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
@@ -80,7 +95,11 @@ export function GlobalSearch() {
       }}
     >
       <div className="np-input-shell">
+        <span className="np-input-shell__affix np-input-shell__affix--start text-fg-muted">
+          <NavIcon name="search" />
+        </span>
         <input
+          aria-keyshortcuts="/"
           aria-label="Search App"
           autoComplete="off"
           maxLength={100}
@@ -90,11 +109,17 @@ export function GlobalSearch() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search..."
+          placeholder="Search teams, players, champions and matches"
           ref={input}
           type="search"
           value={value}
         />
+        <kbd
+          aria-hidden="true"
+          className="np-input-shell__affix np-input-shell__affix--end rounded-sm border border-line px-1.5 font-mono text-xs text-fg-muted max-[850px]:hidden"
+        >
+          /
+        </kbd>
       </div>
       {suggestions.length ? (
         <ul

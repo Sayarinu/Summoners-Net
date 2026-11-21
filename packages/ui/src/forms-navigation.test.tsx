@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Combobox, Input, Select, Switch } from "./forms.js";
 import { Icon } from "./internal.js";
-import { Breadcrumb, Footer, Navigation, Pagination, getPaginationRange } from "./navigation.js";
+import {
+  Brand,
+  Breadcrumb,
+  Footer,
+  Navigation,
+  NavIcon,
+  Pagination,
+  getPaginationRange,
+} from "./navigation.js";
 import { SkipLink } from "./support.js";
 
 const options = [
@@ -147,5 +155,42 @@ describe("navigation", () => {
 
     expect(screen.getByRole("contentinfo")).toHaveTextContent("Nouvelle Lune Atelier");
     expect(screen.queryByRole("navigation", { name: "Footer" })).not.toBeInTheDocument();
+  });
+});
+
+describe("application navigation", () => {
+  it("lists grouped entries, keeps labels as names in the collapsed rail and links the brand home", () => {
+    const groups = [
+      {
+        label: "Esports",
+        items: [{ href: "/", label: "Matches", icon: <NavIcon name="matches" /> }],
+      },
+      {
+        label: "Champions",
+        items: [{ href: "/champions", label: "Champions", icon: <NavIcon name="champions" /> }],
+      },
+    ];
+    const view = render(<Navigation currentHref="/champions" groups={groups} size="large" />);
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(within(nav).getByRole("list", { name: "Esports" })).toHaveTextContent("Matches");
+    expect(within(nav).getByText("Champions", { selector: "p" })).toBeVisible();
+    const current = within(nav).getByRole("link", { name: "Champions" });
+    expect(current).toHaveAttribute("aria-current", "page");
+    expect(current).not.toHaveAttribute("title");
+    view.rerender(<Navigation currentHref="/champions" groups={groups} collapsed />);
+    const rail = screen.getByRole("link", { name: "Matches" });
+    expect(rail).toHaveAttribute("title", "Matches");
+    expect(rail.querySelector(".np-visually-hidden")).toHaveTextContent("Matches");
+    view.rerender(
+      <>
+        <Brand />
+        <Brand compact href="/home" />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Summoners Net" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Summoners Net home" })).toHaveAttribute(
+      "href",
+      "/home",
+    );
   });
 });

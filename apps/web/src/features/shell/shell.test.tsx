@@ -1,5 +1,5 @@
 import { it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ShellHeader, sectionOf } from "./shell";
 import { defaultPreferences } from "../preferences/model";
 const path = vi.hoisted(() => ({ value: "/matches/1" }));
@@ -83,4 +83,35 @@ it("links every analytics section and marks the one a page belongs to", () => {
     "/patches",
     "/",
   ]);
+});
+
+it("groups the navigation by task and focuses search with the slash key", () => {
+  path.value = "/";
+  render(<ShellHeader preferences={defaultPreferences} />);
+  const nav = screen.getByRole("navigation", { name: "Primary" });
+  for (const [group, names] of [
+    ["Esports", ["Matches", "Past Matches", "Teams", "Players"]],
+    ["Champions", ["Champions", "Tier List", "Patches", "Drafts"]],
+    ["Insights", ["Leaderboards", "Models"]],
+  ] as const) {
+    const list = within(nav).getByRole("list", { name: group });
+    expect(
+      within(list)
+        .getAllByRole("link")
+        .map((l) => l.textContent),
+    ).toEqual(names);
+  }
+  expect(screen.getAllByRole("link", { name: /Summoners Net/ }).length).toBeGreaterThan(0);
+  const search = screen.getByRole("searchbox", { name: "Search App" });
+  expect(search).toHaveAttribute("placeholder", "Search teams, players, champions and matches");
+  fireEvent.keyDown(document.body, { key: "/" });
+  expect(search).toHaveFocus();
+  // Typing "/" in another field is left alone.
+  search.blur();
+  const other = document.createElement("input");
+  document.body.append(other);
+  other.focus();
+  fireEvent.keyDown(other, { key: "/" });
+  expect(other).toHaveFocus();
+  other.remove();
 });
