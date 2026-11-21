@@ -241,3 +241,6 @@ export { draftFeatures, type DraftInput, type DraftWinProbability } from "./doma
 export type { ChampionDirectory, PatchDirectory } from "./domain/directories.js";
 
 export { gameReplayUrl, isRecording, recordingUrl } from "./domain/broadcasts.js";
+
+export type { ChampionPool, ChampionPoolRow } from "./domain/player-performance.js";
+export { championPoolQuerySchema, championPoolSorts } from "./domain/player-performance.js";

@@ -354,7 +354,15 @@ test("search, history, observed rosters and independently accessible played line
       .getByRole("region", { name: "Player Blue mid" })
       .getByRole("link", { name: /Acceptance Blue/ }),
   ).toBeVisible();
-  await expect(page.getByText("100.0%")).toBeVisible();
+  await expect(page.getByText("100.0%", { exact: true }).first()).toBeVisible();
+  // The champion pool lists each champion the player played with its statistics.
+  const pool = page.getByRole("table", { name: "Champion Pool" });
+  await expect(pool.getByRole("row").nth(1)).toContainText("Ahri");
+  await page
+    .getByRole("navigation", { name: "Sort Champion Pool" })
+    .getByRole("link", { name: "KDA" })
+    .click();
+  await expect(page).toHaveURL(/poolSort=kda/);
   await page
     .getByRole("link", { name: /^Game \d+: / })
     .first()
