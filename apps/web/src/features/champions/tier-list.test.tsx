@@ -34,7 +34,12 @@ const list: TierList = {
         pickRate: { value: 0.5, sampleCount: 120 },
         banRate: { value: 0.1, sampleCount: 120 },
         sample: "shown",
-        performance: null,
+        tier: "A",
+        performance: {
+          kda: { value: 3.5, sampleCount: 60 },
+          damagePerMinute: { value: 702.4, sampleCount: 60 },
+          goldDiffAt15: { value: null, sampleCount: 0 },
+        },
       },
       {
         championKey: 950,
@@ -48,7 +53,12 @@ const list: TierList = {
         pickRate: { value: 0, sampleCount: 120 },
         banRate: { value: null, sampleCount: 0 },
         sample: "hidden",
-        performance: null,
+        tier: null,
+        performance: {
+          kda: { value: null, sampleCount: 0 },
+          damagePerMinute: { value: null, sampleCount: 0 },
+          goldDiffAt15: { value: null, sampleCount: 0 },
+        },
       },
     ],
   },
@@ -58,9 +68,10 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
   const table = screen.getByRole("table", { name: "Champion Tier List" });
   const [ahri, unknown] = within(table).getAllByRole("row").slice(1);
   expect(within(ahri!).getByRole("img", { name: "Ahri" })).toBeVisible();
-  expect(ahri).toHaveTextContent("6055.0%42.0–67.0%50.0%10.0%60 results");
+  expect(ahri).toHaveTextContent("A6055.0%42.0–67.0%50.0%10.0%3.50702");
+  expect(ahri).toHaveTextContent("60 results");
   expect(within(unknown!).getByRole("img", { name: "Champion 950" })).toBeVisible();
-  expect(unknown).toHaveTextContent("0Unknown");
+  expect(unknown).toHaveTextContent("—0Unknown");
   expect(unknown).toHaveTextContent("0.0%");
   expect(unknown).toHaveTextContent("Too Few Games");
   const trigger = (label: string) =>

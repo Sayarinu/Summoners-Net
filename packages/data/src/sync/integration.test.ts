@@ -35,6 +35,7 @@ import { gunzipSync } from "node:zlib";
 import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
+import { soloChampionPerformance } from "../persistence/solo-performance.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
 import {
   proChampionHistory,
@@ -2522,6 +2523,41 @@ describe("Champion aggregates", () => {
     // An empty patch with nothing to count.
     await pool.query("INSERT INTO aggregate_dirty VALUES('solo','16.21',$1)", [now]);
     await runAggregate();
+    // Solo-queue performance: Ahri goes 3/2/5 with 190 CS, 11,000 gold, 20,000 of her team's
+    // 100,010 damage and 25 vision in a 1,834-second game, in each challenger game.
+    const minutes = 1834 / 60;
+    const ahriPerformance = await soloChampionPerformance(pool, {
+      championKey: 103,
+      patch: "16.22",
+      tier: "CHALLENGER",
+      role: "MIDDLE",
+    });
+    expect(ahriPerformance).toMatchObject({
+      games: 2,
+      kda: { value: 4, sampleCount: 2 },
+      killsPerGame: { value: 3, sampleCount: 2 },
+      killParticipation: { value: 16 / 50, sampleCount: 2 },
+      gameLength: { value: 1834, sampleCount: 2 },
+      // Not computed for solo queue: unknown, never zero.
+      goldDiffAt15: { value: null, sampleCount: 0 },
+      firstBloodParticipation: { value: null, sampleCount: 0 },
+    });
+    expect(ahriPerformance.csPerMinute.value).toBeCloseTo(190 / minutes);
+    expect(ahriPerformance.goldPerMinute.value).toBeCloseTo(11000 / minutes);
+    expect(ahriPerformance.damagePerMinute.value).toBeCloseTo(20000 / minutes);
+    expect(ahriPerformance.damageShare.value).toBeCloseTo(20000 / 100010);
+    expect(ahriPerformance.visionScorePerMinute.value).toBeCloseTo(25 / minutes);
+    // The master game counts too without a tier filter; the remake never does.
+    expect((await soloChampionPerformance(pool, { championKey: 103, patch: "16.22" })).games).toBe(
+      3,
+    );
+    // The tier list carries KDA and DPM for solo queue, and a tier from the shrunk win rate.
+    const soloList = await tierList(pool, { source: "solo", role: "MIDDLE", sort: "tier" });
+    const ahriRow = soloList.page.items.find((r) => r.championKey === 103)!;
+    // Every tier, so the master game counts as well.
+    expect(ahriRow.performance.kda).toEqual({ value: 4, sampleCount: 3 });
+    expect(ahriRow.performance.goldDiffAt15).toEqual({ value: null, sampleCount: 0 });
+    expect(["S", "A", "B", "C", "D", null]).toContain(ahriRow.tier);
     // Ahri (103), always mid for the winning blue side in the fixture.
     expect(await aggregates("source='solo' AND champion_key=103")).toEqual([
       {

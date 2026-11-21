@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SampledValue } from "./historical.js";
 import type { ChampionBuilds } from "./builds.js";
 import type { ChampionBuckets } from "./buckets.js";
-import type { ProChampionStats, ProPatchHistory } from "./pro-stats.js";
+import type { ProChampionPerformance, ProChampionStats, ProPatchHistory } from "./pro-stats.js";
 import { synergyQuerySchema, type BotLaneMatrix, type Synergies } from "./synergies.js";
 
 export const championRoles = [
@@ -63,6 +63,7 @@ export const tierListSorts = [
   "kda",
   "damagePerMinute",
   "goldDiffAt15",
+  "tier",
 ] as const;
 /** Tier list filters as they arrive in a query string. */
 export const tierListQuerySchema = z
@@ -97,12 +98,10 @@ export interface TierListRow {
   banRate: SampledValue;
   /** From the shared minimum-sample policy, applied to the win rate's sample. */
   sample: "shown" | "low-sample" | "hidden";
-  /** Per-game performance once picked; null for solo queue, which does not compute it yet. */
-  performance: {
-    kda: SampledValue;
-    damagePerMinute: SampledValue;
-    goldDiffAt15: SampledValue;
-  } | null;
+  /** S–D from the win rate shrunk toward the slice's baseline, as on the champion page. */
+  tier: ChampionTier | null;
+  /** Per-game performance once picked. Solo queue has no gold difference at 15 yet. */
+  performance: { kda: SampledValue; damagePerMinute: SampledValue; goldDiffAt15: SampledValue };
 }
 export interface TierList {
   query: ParsedTierListQuery;
@@ -182,6 +181,11 @@ export interface ChampionOverview {
   buckets: ChampionBuckets | null;
   /** Pro-play draft statistics, shown with either source. */
   pro: ProChampionStats;
+  /**
+   * Solo-queue per-game averages once picked, in the selected region, tier and role; null for pro
+   * play, whose averages are in `pro.performance`.
+   */
+  performance: ProChampionPerformance | null;
   /** The champion's pro play on every patch, newest first, filtered by league. */
   proHistory: ProPatchHistory;
   /** Solo-queue allies, one page sorted in SQL; null for pro play. */

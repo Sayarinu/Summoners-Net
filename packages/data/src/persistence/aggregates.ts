@@ -31,6 +31,7 @@ import { rebuildHeatmaps } from "./heatmaps.js";
 import { rebuildJunglePaths } from "./jungle-paths.js";
 import { botLaneMatrix, championSynergies, rebuildDuos } from "./duos.js";
 import { proChampionHistory, proChampionStats, rebuildProStats } from "./pro-stats.js";
+import { rebuildSoloPerformance, soloChampionPerformance } from "./solo-performance.js";
 import { computeFeatures } from "./wp-features.js";
 
 export type AggregateSource = "solo" | "pro";
@@ -178,6 +179,7 @@ export async function rebuildPatch(
           (await rebuildHeatmaps(c, patchKey, now)) +
           (await rebuildJunglePaths(c, patchKey, now)) +
           (await rebuildDuos(c, patchKey, now)) +
+          (await rebuildSoloPerformance(c, patchKey, soloGames, now)) +
           (await computeFeatures(c, patchKey, now))
         : await rebuildProStats(c, patchKey, now);
     await c.query("DELETE FROM aggregate_dirty WHERE source=$1 AND patch_key=$2", [
@@ -304,7 +306,20 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
     )
   ).rows[0]!.n;
   // Sort keys are fixed column names, never user text.
+  // The slice's win-rate prior, so each row's tier matches the champion page.
+  const prior = fitRatePrior(
+    (
+      await db.query<{ wins: number; result_games: number }>(
+        `SELECT sum(wins)::integer AS wins,sum(result_games)::integer AS result_games
+         FROM champion_aggregates WHERE source=$1 AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+           AND ($4::text IS NULL OR tier=$4) AND role=$5
+         GROUP BY champion_key`,
+        [...filters, q.role],
+      )
+    ).rows.map((r) => ({ successes: r.wins, trials: r.result_games })),
+  );
   const sortColumn = {
+    tier: "shrunk",
     winRate: "win_rate",
     pickRate: "games",
     banRate: "bans",
@@ -331,17 +346,25 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
     dpm_n: number | null;
     gd15: number | null;
     gd15_n: number | null;
+    shrunk: number | null;
   }>(
     `WITH performance AS (
-       -- Pro play only: per-game averages once picked, in the same league and role.
+       -- Per-game averages once picked, in the same league or region, tier and role.
        SELECT champion_key,
          (sum(kills)+sum(assists))/greatest(sum(deaths),1) AS kda_raw,
          sum(kda_n)::integer AS kda_n,
          sum(dpm_sum)/nullif(sum(dpm_n),0) AS dpm,sum(dpm_n)::integer AS dpm_n,
          sum(gd15_sum)/nullif(sum(gd15_n),0) AS gd15,sum(gd15_n)::integer AS gd15_n
-       FROM pro_champion_performance
-       WHERE $1='pro' AND patch_key=$2 AND ($3::text IS NULL OR league=$3)
-         AND ($5='ALL' OR role=$5)
+       FROM (
+         SELECT champion_key,kills,deaths,assists,kda_n,dpm_sum,dpm_n,gd15_sum,gd15_n
+         FROM pro_champion_performance
+         WHERE $1='pro' AND patch_key=$2 AND ($3::text IS NULL OR league=$3)
+           AND ($5='ALL' OR role=$5)
+         UNION ALL
+         SELECT champion_key,kills,deaths,assists,kda_n,dpm_sum,dpm_n,0,0
+         FROM solo_champion_performance
+         WHERE $1='solo' AND patch_key=$2 AND ($3::text IS NULL OR region=$3)
+           AND ($4::text IS NULL OR tier=$4) AND ($5='ALL' OR role=$5)) f
        GROUP BY champion_key),
      summed AS (
        SELECT champion_key,role,sum(games)::integer AS games,
@@ -357,6 +380,9 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
        FROM catalog_champions c JOIN patches p USING (patch_key)
        ORDER BY c.champion_key,(c.patch_key=$2) DESC,p.release_order DESC)
      SELECT s.*,n.champion_id,n.name,i.asset_hash,count(*) OVER()::integer AS total,
+       CASE WHEN $8::double precision IS NOT NULL AND s.result_games>0
+         THEN (s.wins+$8::double precision*$9::double precision)/(s.result_games+$9::double precision)
+       END AS shrunk,
        CASE WHEN f.kda_n>0 THEN f.kda_raw END AS kda,f.kda_n,f.dpm,f.dpm_n,f.gd15,f.gd15_n
      FROM summed s LEFT JOIN names n USING (champion_key)
      LEFT JOIN performance f USING (champion_key)
@@ -364,7 +390,14 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
        AND i.catalog_id=n.champion_id
      ORDER BY ${sortColumn} ${direction} NULLS LAST,s.champion_key
      LIMIT $6 OFFSET $7`,
-    [...filters, q.role, tierListPageSize, (q.page - 1) * tierListPageSize],
+    [
+      ...filters,
+      q.role,
+      tierListPageSize,
+      (q.page - 1) * tierListPageSize,
+      prior?.baseline ?? null,
+      prior?.strength ?? null,
+    ],
   );
   return {
     query: q,
@@ -389,14 +422,12 @@ export async function tierList(db: Executor, input: TierListQuery = {}): Promise
             sampleCount: r.bans === null ? 0 : sliceGames,
           },
           sample: applySamplePolicy(winRate).status,
-          performance:
-            q.source === "pro"
-              ? {
-                  kda: { value: r.kda, sampleCount: r.kda_n ?? 0 },
-                  damagePerMinute: { value: r.dpm, sampleCount: r.dpm_n ?? 0 },
-                  goldDiffAt15: { value: r.gd15, sampleCount: r.gd15_n ?? 0 },
-                }
-              : null,
+          tier: tierFromDelta(r.shrunk !== null && prior ? r.shrunk - prior.baseline : null),
+          performance: {
+            kda: { value: r.kda, sampleCount: r.kda_n ?? 0 },
+            damagePerMinute: { value: r.dpm, sampleCount: r.dpm_n ?? 0 },
+            goldDiffAt15: { value: r.gd15, sampleCount: r.gd15_n ?? 0 },
+          },
         };
       }),
       page: q.page,
@@ -596,6 +627,16 @@ export async function championOverview(
       league: q.league,
       role: q.role,
     }),
+    performance:
+      q.source === "solo" && list.patch
+        ? await soloChampionPerformance(db, {
+            championKey: champion.champion_key,
+            patch: list.patch,
+            region: q.region,
+            tier: q.tier,
+            role: q.role,
+          })
+        : null,
     proHistory: await proChampionHistory(db, {
       championKey: champion.champion_key,
       league: q.league,

@@ -9,7 +9,7 @@ import {
   Table,
   TextLink,
 } from "@summonersnet/ui";
-import type { ChampionOverview } from "@summonersnet/data/contracts";
+import type { ChampionOverview, ProChampionPerformance } from "@summonersnet/data/contracts";
 import { goToPage, PageFooter } from "./paging";
 import { average, percent } from "./presentation";
 
@@ -77,56 +77,11 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
             />
           </StatGroup>
           {pro.performance.games > 0 ? (
-            <StatGroup
+            <PerformanceStats
               label="Pro-Play Performance"
-              className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5 border-t border-line pt-4"
-            >
-              {(
-                [
-                  ["KDA", pro.performance.kda, 2, false],
-                  ["Kills / Game", pro.performance.killsPerGame, 1, false],
-                  ["Deaths / Game", pro.performance.deathsPerGame, 1, false],
-                  ["Assists / Game", pro.performance.assistsPerGame, 1, false],
-                  ["CS / Minute", pro.performance.csPerMinute, 1, false],
-                  ["Gold / Minute", pro.performance.goldPerMinute, 0, false],
-                  ["Damage / Minute", pro.performance.damagePerMinute, 0, false],
-                  ["Gold Diff @15", pro.performance.goldDiffAt15, 0, true],
-                  ["CS Diff @15", pro.performance.csDiffAt15, 1, true],
-                  ["XP Diff @15", pro.performance.xpDiffAt15, 0, true],
-                  ["Vision / Minute", pro.performance.visionScorePerMinute, 2, false],
-                ] as const
-              ).map(([label, value, digits, signed]) => (
-                <Stat
-                  key={label}
-                  label={label}
-                  value={average(value, digits, signed)}
-                  detail={`${value.sampleCount} Games`}
-                />
-              ))}
-              {(
-                [
-                  ["Kill Participation", pro.performance.killParticipation],
-                  ["Damage Share", pro.performance.damageShare],
-                  ["First Blood", pro.performance.firstBloodParticipation],
-                ] as const
-              ).map(([label, value]) => (
-                <Stat
-                  key={label}
-                  label={label}
-                  value={percent(value)}
-                  detail={`${value.sampleCount} Games`}
-                />
-              ))}
-              <Stat
-                label="Game Length"
-                value={
-                  pro.performance.gameLength.value === null
-                    ? "Unknown"
-                    : clock(pro.performance.gameLength.value)
-                }
-                detail={`${pro.performance.gameLength.sampleCount} Games`}
-              />
-            </StatGroup>
+              performance={pro.performance}
+              className="border-t border-line pt-4"
+            />
           ) : null}
           {pro.unmapped.length > 0 && (
             <p className="np-meta">
@@ -204,5 +159,76 @@ export function ProHistorySection({ overview }: { overview: ChampionOverview }) 
         onPageChange={(page) => goToPage("historyPage", page)}
       />
     </Panel>
+  );
+}
+
+/**
+ * Per-game averages once picked. Values the source never records (`sampleCount` 0 and absent from
+ * every game, such as solo queue's early leads) are left out rather than shown as unknown.
+ */
+export function PerformanceStats({
+  label,
+  performance,
+  className = "",
+  omitUnrecorded = false,
+}: {
+  label: string;
+  performance: ProChampionPerformance;
+  className?: string;
+  omitUnrecorded?: boolean;
+}) {
+  return (
+    <StatGroup
+      label={label}
+      className={`grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5 ${className}`}
+    >
+      {(
+        [
+          ["KDA", performance.kda, 2, false],
+          ["Kills / Game", performance.killsPerGame, 1, false],
+          ["Deaths / Game", performance.deathsPerGame, 1, false],
+          ["Assists / Game", performance.assistsPerGame, 1, false],
+          ["CS / Minute", performance.csPerMinute, 1, false],
+          ["Gold / Minute", performance.goldPerMinute, 0, false],
+          ["Damage / Minute", performance.damagePerMinute, 0, false],
+          ["Gold Diff @15", performance.goldDiffAt15, 0, true],
+          ["CS Diff @15", performance.csDiffAt15, 1, true],
+          ["XP Diff @15", performance.xpDiffAt15, 0, true],
+          ["Vision / Minute", performance.visionScorePerMinute, 2, false],
+        ] as const
+      )
+        .filter(([, value]) => !omitUnrecorded || value.sampleCount > 0)
+        .map(([name, value, digits, signed]) => (
+          <Stat
+            key={name}
+            label={name}
+            value={average(value, digits, signed)}
+            detail={`${value.sampleCount} Games`}
+          />
+        ))}
+      {(
+        [
+          ["Kill Participation", performance.killParticipation],
+          ["Damage Share", performance.damageShare],
+          ["First Blood", performance.firstBloodParticipation],
+        ] as const
+      )
+        .filter(([, value]) => !omitUnrecorded || value.sampleCount > 0)
+        .map(([name, value]) => (
+          <Stat
+            key={name}
+            label={name}
+            value={percent(value)}
+            detail={`${value.sampleCount} Games`}
+          />
+        ))}
+      <Stat
+        label="Game Length"
+        value={
+          performance.gameLength.value === null ? "Unknown" : clock(performance.gameLength.value)
+        }
+        detail={`${performance.gameLength.sampleCount} Games`}
+      />
+    </StatGroup>
   );
 }
