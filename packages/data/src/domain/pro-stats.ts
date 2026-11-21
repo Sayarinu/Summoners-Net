@@ -16,7 +16,7 @@ export interface ProChampionStats {
   presence: SampledValue;
   pickRate: SampledValue;
   banRate: SampledValue;
-  /** Over picks with a known result. */
+  /** Over picks with a known result; null below the minimum sample. */
   winRate: SampledValue;
   sides: { side: "blue" | "red"; picks: number; winRate: SampledValue }[];
   /** Picked before the opposing champion in the same role, or after it. */
@@ -26,6 +26,39 @@ export interface ProChampionStats {
   unmapped: { name: string; picks: number; bans: number }[];
   /** How the champion played once picked, in the selected role (or every role). */
   performance: ProChampionPerformance;
+  /**
+   * Each league where the champion was picked or banned in the selected split and stage, most
+   * picks and bans first. Win rates below the minimum sample are null, with their sample kept.
+   */
+  byLeague: ProLeagueRow[];
+}
+export interface ProLeagueRow {
+  league: string;
+  /** The league's games with a complete derived draft; the denominator of its rates. */
+  games: number;
+  picks: number;
+  bans: number;
+  presence: SampledValue;
+  winRate: SampledValue;
+}
+/** One player's games on a champion, in the patch's pro games. */
+export interface ProChampionPlayer {
+  /** The archive's player name, as recorded in the latest of these games. */
+  name: string;
+  team: string | null;
+  leagues: string[];
+  /** The player's profile, when their archive identity resolves to one. */
+  profile: { name: string; publicSlug: string | null } | null;
+  games: number;
+  /** Null below the minimum sample. */
+  winRate: SampledValue;
+  kda: SampledValue;
+}
+export const proChampionPlayersLimit = 20;
+export interface ProChampionPlayers {
+  /** Players with at least one game, most games first, at most `proChampionPlayersLimit`. */
+  items: ProChampionPlayer[];
+  total: number;
 }
 /**
  * Per-game averages from each player's archive row. Every value carries the number of games that

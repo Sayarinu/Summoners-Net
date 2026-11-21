@@ -594,17 +594,21 @@ test("a champion page shows rates, tier and trend, and unknown champions are not
   ).toHaveAccessibleName("All Roles");
   // The seeded pro draft picks Ahri once.
   await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Presence1 Games100.0%");
-  const proPanel = page.getByRole("region", { name: "Pro Play" });
-  await proPanel.locator(".np-select", { hasText: "League" }).getByRole("button").click();
+  // The league breakdown lists the drafted league; the page's League filter narrows every panel.
+  await expect(page.getByRole("table", { name: "Ahri by League" })).toContainText(
+    "Draft acceptance",
+  );
+  await page.locator(".np-select", { hasText: "League" }).getByRole("button").click();
   await page.getByRole("option", { name: "Draft acceptance", exact: true }).click();
-  await page.getByRole("button", { name: "Apply League" }).click();
-  await expect(page).toHaveURL(/league=Draft\+acceptance/);
+  await page.getByRole("button", { name: "Apply Filters" }).click();
+  await expect(page).toHaveURL(/region=Draft\+acceptance/);
   await expect(page.getByLabel("Pro-Play Statistics")).toContainText("Picks / BansDrafts1 / 0");
+  await expect(page.getByRole("table", { name: "Ahri Pro Players" })).toBeVisible();
   // Patch history lists the drafted patch for the chosen league and opens that patch's page.
   const history = page.getByRole("table", { name: "Ahri Pro Play by Patch · Draft acceptance" });
   await expect(history.getByRole("row")).toHaveCount(2);
   await history.getByRole("row").nth(1).getByRole("link").click();
-  await expect(page).toHaveURL(/source=pro.*patch=\d+\.\d+.*league=Draft\+acceptance/);
+  await expect(page).toHaveURL(/source=pro.*patch=\d+\.\d+.*region=Draft\+acceptance/);
   const missing = await page.goto("/champions/NotAChampion");
   expect(missing?.status()).toBe(404);
 });

@@ -34,6 +34,11 @@ export function average(value: SampledValue, digits = 1, signed = false) {
 export function percent(rate: SampledValue) {
   return rate.value === null ? "Unknown" : `${(rate.value * 100).toFixed(1)}%`;
 }
+/** A sampled rate, or a dash when the sample is below the minimum; never 0% for missing data. */
+export function sampledRate(rate: SampledValue) {
+  if (rate.value !== null) return percent(rate);
+  return rate.sampleCount > 0 ? "—" : "Unknown";
+}
 export const sampleLabels: Record<TierListRow["sample"], string> = {
   shown: "",
   "low-sample": "Low Sample",
