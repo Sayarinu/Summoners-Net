@@ -38,6 +38,7 @@ const overview: Pick<ChampionOverview, "players" | "query" | "champion"> = {
     synergySort: "games",
     synergyPage: 2,
     playersSort: "games",
+    historyPage: 1,
     playersPage: 1,
   },
   players: {

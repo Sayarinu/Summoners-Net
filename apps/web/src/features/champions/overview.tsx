@@ -24,7 +24,7 @@ import { SavedViewsPanel } from "../saved-views/panel";
 import { BuildsSection, LoadoutsSection, SkillsSection } from "./builds";
 import { BucketsSection } from "./buckets";
 import { SynergiesSection } from "./synergies";
-import { ProSection } from "./pro";
+import { ProHistorySection, ProSection } from "./pro";
 import { ChampionFilters } from "./filters";
 import { BuildCard } from "./build-card";
 import { MatchupCards } from "./matchup-cards";
@@ -281,6 +281,7 @@ export function ChampionOverviewPage({
             </div>
           </Panel>
           <ProSection overview={overview} />
+          <ProHistorySection overview={overview} />
           <BucketsSection buckets={overview.buckets} />
           {junglePaths && (junglePaths.games > 0 || q.role === "JUNGLE") ? (
             <JunglePathsSection paths={junglePaths} champion={champion.name} />

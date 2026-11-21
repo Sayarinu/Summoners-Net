@@ -21,3 +21,25 @@ export interface ProChampionStats {
   /** Oracle names in these drafts with no champion mapping, reported rather than guessed. */
   unmapped: { name: string; picks: number; bans: number }[];
 }
+
+/** Patch history rows per page. */
+export const proHistoryPageSize = 12;
+/** One patch of a champion's pro play, with every rate over that patch's selected games. */
+export interface ProPatchHistoryRow {
+  patch: string;
+  /** Games with a complete derived draft on this patch in the selection. */
+  games: number;
+  picks: number;
+  bans: number;
+  presence: SampledValue;
+  pickRate: SampledValue;
+  banRate: SampledValue;
+  winRate: SampledValue;
+  blueWinRate: SampledValue;
+  redWinRate: SampledValue;
+}
+/** A champion's pro play across patches, newest first, paginated in SQL. */
+export interface ProPatchHistory {
+  league: string | null;
+  page: { items: ProPatchHistoryRow[]; page: number; pageSize: number; total: number };
+}

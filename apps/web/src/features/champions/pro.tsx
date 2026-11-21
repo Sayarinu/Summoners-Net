@@ -1,6 +1,16 @@
 "use client";
-import { Button, FilterBar, Panel, Select, Stat, StatGroup } from "@summonersnet/ui";
+import {
+  Button,
+  FilterBar,
+  Panel,
+  Select,
+  Stat,
+  StatGroup,
+  Table,
+  TextLink,
+} from "@summonersnet/ui";
 import type { ChampionOverview } from "@summonersnet/data/contracts";
+import { goToPage, PageFooter } from "./paging";
 import { percent } from "./presentation";
 
 export function ProSection({ overview }: { overview: ChampionOverview }) {
@@ -68,6 +78,73 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
           )}
         </div>
       )}
+    </Panel>
+  );
+}
+
+/** The champion's pro play on every patch, newest first; each patch opens its own page. */
+export function ProHistorySection({ overview }: { overview: ChampionOverview }) {
+  const { proHistory: history, query: q, champion } = overview;
+  if (!history.page.total) return null;
+  const href = (patch: string) => {
+    const params = new URLSearchParams({ source: "pro", role: q.role, patch });
+    if (q.league) params.set("league", q.league);
+    return `/champions/${encodeURIComponent(champion.id)}?${params}`;
+  };
+  const sided = (side: "blue" | "red", value: (typeof history.page.items)[number]["winRate"]) => (
+    <span className={side === "blue" ? "text-side-blue" : "text-side-red"}>{percent(value)}</span>
+  );
+  return (
+    <Panel title="Patch History" padding="none">
+      <Table
+        caption={`${champion.name} Pro Play by Patch${history.league ? ` · ${history.league}` : ""}`}
+        rows={history.page.items}
+        getRowKey={(r) => r.patch}
+        columns={[
+          {
+            id: "patch",
+            header: "Patch",
+            render: (r) => (
+              <TextLink
+                href={href(r.patch)}
+                aria-current={r.patch === overview.pro.patch ? "page" : undefined}
+              >
+                {r.patch}
+              </TextLink>
+            ),
+          },
+          { id: "games", header: "Games", align: "end", render: (r) => r.games },
+          { id: "presence", header: "Presence", align: "end", render: (r) => percent(r.presence) },
+          { id: "picks", header: "Picks", align: "end", render: (r) => r.picks },
+          { id: "bans", header: "Bans", align: "end", render: (r) => r.bans },
+          {
+            id: "win",
+            header: "Win Rate",
+            align: "end",
+            render: (r) => `${percent(r.winRate)} (${r.winRate.sampleCount})`,
+          },
+          {
+            id: "blue",
+            header: "Blue Side",
+            align: "end",
+            render: (r) => sided("blue", r.blueWinRate),
+          },
+          {
+            id: "red",
+            header: "Red Side",
+            align: "end",
+            render: (r) => sided("red", r.redWinRate),
+          },
+        ]}
+      />
+      <PageFooter
+        summary={`${history.page.total} ${history.page.total === 1 ? "patch" : "patches"}${history.league ? ` in ${history.league}` : ""}`}
+        label="Patch History Pages"
+        page={history.page.page}
+        total={history.page.total}
+        pageSize={history.page.pageSize}
+        onPageChange={(page) => goToPage("historyPage", page)}
+      />
     </Panel>
   );
 }

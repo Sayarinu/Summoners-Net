@@ -16,6 +16,7 @@ const overview: ChampionOverview = {
     synergyPage: 1,
     playersSort: "games",
     playersPage: 1,
+    historyPage: 1,
   },
   champion: { id: "Ahri", key: 103, name: "Ahri", imageUrl: null },
   patch: "16.22",
@@ -156,6 +157,28 @@ const overview: ChampionOverview = {
     blindRate: { value: 0.25, sampleCount: 12 },
     counterRate: { value: 0.75, sampleCount: 12 },
     unmapped: [{ name: "Mel", picks: 2, bans: 1 }],
+  },
+  proHistory: {
+    league: null,
+    page: {
+      page: 1,
+      pageSize: 12,
+      total: 13,
+      items: [
+        {
+          patch: "16.22",
+          games: 40,
+          picks: 12,
+          bans: 8,
+          presence: { value: 0.5, sampleCount: 40 },
+          pickRate: { value: 0.3, sampleCount: 40 },
+          banRate: { value: 0.2, sampleCount: 40 },
+          winRate: { value: 0.5, sampleCount: 12 },
+          blueWinRate: { value: 0.6, sampleCount: 5 },
+          redWinRate: { value: null, sampleCount: 0 },
+        },
+      ],
+    },
   },
   synergies: {
     sort: "delta",
@@ -333,6 +356,19 @@ it("shows pro presence, sides and draft order with samples, and reports unmapped
   );
   expect(screen.getByText("No pro drafts imported yet.")).toBeVisible();
 });
+it("lists pro play by patch, linking each patch, with unknown rates left empty", () => {
+  render(<ChampionOverviewPage overview={overview} error={null} />);
+  const table = screen.getByRole("table", { name: "Ahri Pro Play by Patch" });
+  const [row] = within(table).getAllByRole("row").slice(1);
+  expect(row).toHaveTextContent("16.224050.0%12850.0% (12)60.0%Unknown");
+  expect(within(row!).getByRole("link", { name: "16.22" })).toHaveAttribute(
+    "href",
+    "/champions/Ahri?source=pro&role=MIDDLE&patch=16.22",
+  );
+  expect(screen.getByText("13 patches")).toBeVisible();
+  expect(screen.getByRole("navigation", { name: "Patch History Pages" })).toBeVisible();
+});
+
 it("shows the stored counter-pick value for a lane role", () => {
   const view = render(
     <ChampionOverviewPage
