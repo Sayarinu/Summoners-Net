@@ -156,8 +156,10 @@ it("exports matchups, pairs and counter-pick values with samples and source iden
       new URLSearchParams("champion=Ahri&role=MIDDLE&value=raw"),
     ),
   );
+  // The export keeps opponents below the page's minimum sample.
   expect(mocks.championMatchups).toHaveBeenLastCalledWith(
     expect.objectContaining({ champion: "Ahri", role: "MIDDLE", page: 1, pageSize: 100 }),
+    { minimumGames: 0 },
   );
   expect(
     matchups.lines[1]!.startsWith(

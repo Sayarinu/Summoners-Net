@@ -12,6 +12,7 @@ import {
 } from "../domain/matchups.js";
 import type { PatchChampion } from "../domain/patch-overview.js";
 import type { Executor } from "./database.js";
+import { defaultPatch } from "./aggregates.js";
 // Both matchup queries bind source at $2 and the optional patch at $3.
 export const matchupPatchScope = `available AS (
       SELECT p.patch_key FROM patches p
@@ -23,18 +24,25 @@ export const matchupPatchScope = `available AS (
         ORDER BY p.release_order DESC LIMIT 1))
 
     )`;
-/** Aggregate-only, bounded opponent pages. The pooled baseline is computed before pagination. */
+/**
+ * Aggregate-only, bounded opponent pages. The pooled baseline is computed before pagination.
+ * Opponents with fewer than `minimumGames` win-rate observations are left out and counted. With
+ * no patch chosen, the page opens on the newest patch with enough games, as the tier list does.
+ */
 export async function championMatchups(
   db: Executor,
   input: ChampionMatchupsQuery,
+  { minimumGames = matchupMinimumSample }: { minimumGames?: number } = {},
 ): Promise<ChampionMatchups | null> {
   const q = championMatchupsQuerySchema.parse(input);
+  const patch = q.patch ?? (await defaultPatch(db, q.source, null, null, null));
   const row = (
     await db.query<{
       champion: PatchChampion | null;
       patch: string | null;
       patches: string[];
       total: number;
+      hidden: number;
       baseline: Record<MatchupMetric, MetricCounts> | null;
       items: {
         opponent: PatchChampion;
@@ -66,6 +74,7 @@ export async function championMatchups(
             (b.metrics->$5->>'total')::double precision/nullif((b.metrics->$5->>'count')::integer,0)) /
             ((a.metrics->$5->>'count')::integer+${matchupPriorGames}) END END AS sort_value
       FROM scoped a CROSS JOIN baseline b
+      WHERE coalesce((a.metrics->'winRate'->>'count')::integer,0)>=$9
     ), selected AS (
       SELECT * FROM sortable ORDER BY sort_value ${q.order === "asc" ? "ASC" : "DESC"} NULLS LAST,opponent_key LIMIT $7 OFFSET $8
     ), rows AS (
@@ -85,19 +94,22 @@ export async function championMatchups(
       coalesce((SELECT jsonb_agg(patch_key ORDER BY release_order DESC) FROM (
         SELECT a.patch_key,p.release_order FROM available a JOIN patches p USING(patch_key)
         ORDER BY p.release_order DESC LIMIT 50) p),'[]') AS patches,
-      (SELECT count(*)::integer FROM scoped) AS total,(SELECT metrics FROM baseline) AS baseline,
+      (SELECT count(*)::integer FROM sortable) AS total,
+      (SELECT count(*)::integer FROM scoped)-(SELECT count(*)::integer FROM sortable) AS hidden,
+      (SELECT metrics FROM baseline) AS baseline,
       coalesce((SELECT jsonb_agg(to_jsonb(rows) ORDER BY sort_value ${q.order === "asc" ? "ASC" : "DESC"} NULLS LAST,opponent_key) FROM rows),'[]') AS items,
       coalesce((SELECT jsonb_agg(to_jsonb(exclusions) ORDER BY role) FROM exclusions),'[]') AS exclusions
   `,
       [
         q.champion,
         q.source,
-        q.patch ?? null,
+        patch,
         q.role,
         q.sort,
         q.value,
         q.pageSize,
         (q.page - 1) * q.pageSize,
+        minimumGames,
       ],
     )
   ).rows[0]!;
@@ -108,6 +120,8 @@ export async function championMatchups(
     patch: row.patch,
     patches: row.patches,
     exclusions: row.exclusions,
+    minimumGames,
+    hiddenOpponents: row.hidden,
     page: {
       page: q.page,
       pageSize: q.pageSize,

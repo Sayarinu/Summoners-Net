@@ -7101,13 +7101,20 @@ describe("lane matchup aggregates", () => {
     await game(999, true, 9000, { patch: "16.21" });
     await aggregate();
     const calls = fetcher.mock.calls.length;
-    const data = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-    });
+    const data = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+      },
+      everyChampion,
+    );
     expect(data?.page).toMatchObject({ total: 3, pageSize: 1 });
+    // By default, opponents below the minimum sample are left out and counted.
+    const rated = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    expect(rated).toMatchObject({ minimumGames: 10, hiddenOpponents: 1, page: { total: 2 } });
+    expect(rated?.page.items.map((r) => r.opponent.championKey).sort()).toEqual([20, 62]);
     const row = data!.page.items[0]!;
     expect(row.opponent).toMatchObject({
       championKey: 20,
@@ -7140,49 +7147,66 @@ describe("lane matchup aggregates", () => {
     expect(row.metrics.gold15).toMatchObject({ raw: null, shrunk: null, sampleCount: 9 });
     expect(row.metrics.firstBlood).toMatchObject({ raw: 0.8, shrunk: 0.55, sampleCount: 10 });
     expect(row.metrics.firstTower).toMatchObject({ raw: 0.2, shrunk: 0.45, sampleCount: 10 });
-    const second = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-      page: 2,
-    });
+    const second = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+        page: 2,
+      },
+      everyChampion,
+    );
     expect(second?.page.items[0]?.opponent.championKey).toBe(62);
     expect(second?.page.items[0]?.metrics.gold10.shrunk).toBe(12.5);
     expect(
       (
-        await queries.championMatchups({
-          champion: "Ahri",
-          patch: "16.22",
-          sort: "winRate",
-          value: "raw",
-          order: "asc",
-        })
+        await queries.championMatchups(
+          {
+            champion: "Ahri",
+            patch: "16.22",
+            sort: "winRate",
+            value: "raw",
+            order: "asc",
+          },
+          everyChampion,
+        )
       )?.page.items[0]?.opponent.championKey,
     ).toBe(62);
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.22", page: 10000 }))?.page,
+      (
+        await queries.championMatchups(
+          { champion: "Ahri", patch: "16.22", page: 10000 },
+          everyChampion,
+        )
+      )?.page,
     ).toMatchObject({ total: 3, items: [] });
-    const last = await queries.championMatchups({
-      champion: "Ahri",
-      patch: "16.22",
-      sort: "winRate",
-      pageSize: 1,
-      page: 3,
-    });
+    const last = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        patch: "16.22",
+        sort: "winRate",
+        pageSize: 1,
+        page: 3,
+      },
+      everyChampion,
+    );
     expect(last?.page.items[0]).toMatchObject({
       opponent: { championKey: 999, championId: null, name: null, imageUrl: null },
       metrics: { winRate: { raw: null, shrunk: null, sampleCount: 0 } },
     });
     expect(fetcher.mock.calls.length).toBe(calls);
-    expect(await queries.championMatchups({ champion: "Unknown" })).toBeNull();
+    expect(await queries.championMatchups({ champion: "Unknown" }, everyChampion)).toBeNull();
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.99" }))?.patch,
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.99" }, everyChampion))?.patch,
     ).toBeNull();
-    expect((await queries.championMatchups({ champion: "Ahri", role: "TOP" }))?.page.items).toEqual(
-      [],
-    );
-    expect((await queries.championMatchups({ champion: "Ahri", source: "pro" }))?.patch).toBeNull();
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", role: "TOP" }, everyChampion))?.page
+        .items,
+    ).toEqual([]);
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", source: "pro" }, everyChampion))?.patch,
+    ).toBeNull();
   });
   it("counts unpairable games once per role and preserves missing metrics through rebuilds", async () => {
     await catalog();
@@ -7190,7 +7214,7 @@ describe("lane matchup aggregates", () => {
     await game(20, true, 100, { ambiguous: true });
     await game(20, true, 100, { missingOpponent: true });
     await aggregate();
-    let data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    let data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion);
     expect(data?.page.items[0]).toMatchObject({
       games: 1,
       metrics: {
@@ -7216,19 +7240,20 @@ describe("lane matchup aggregates", () => {
     // A replacement timeline changes its sample, without duplicating the game or other source rows.
     await saveTimeline(pool, { matchId: valid, frames: [], events: [] }, now);
     await aggregate();
-    data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" });
+    data = await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion);
     expect(data?.page.items[0]?.games).toBe(1);
     expect(data?.page.items[0]?.metrics.gold10).toMatchObject({ raw: null, sampleCount: 0 });
     expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
-    expect((await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page).toEqual(
-      data?.page,
-    );
+    expect(
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion))?.page,
+    ).toEqual(data?.page);
     await pool.query("UPDATE riot_matches SET remake=true WHERE match_id=$1", [valid]);
     expect((await run({ kind: "aggregate", rebuild: true })).state).toBe("done");
     expect(
-      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }))?.page.items,
+      (await queries.championMatchups({ champion: "Ahri", patch: "16.22" }, everyChampion))?.page
+        .items,
     ).toEqual([]);
-    const excluded = await queries.championMatchups({ champion: "Ahri" });
+    const excluded = await queries.championMatchups({ champion: "Ahri" }, everyChampion);
     expect(excluded).toMatchObject({ patch: "16.22", patches: ["16.22"], page: { items: [] } });
     expect(excluded?.exclusions.find((r) => r.role === "MIDDLE")?.games).toBe(2);
   });
@@ -7667,11 +7692,14 @@ describe("lane matchup aggregates", () => {
       }
     }
     await importCsv(header + "\n" + rows.join("\n") + "\n");
-    const data = await queries.championMatchups({
-      champion: "Ahri",
-      source: "pro",
-      patch: "16.22",
-    });
+    const data = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        source: "pro",
+        patch: "16.22",
+      },
+      everyChampion,
+    );
     expect(data?.page.items).toHaveLength(1);
     expect(data?.page.items[0]).toMatchObject({
       games: 10,
@@ -7686,11 +7714,14 @@ describe("lane matchup aggregates", () => {
         firstTower: { raw: 0, sampleCount: 10 },
       },
     });
-    const missing = await queries.championMatchups({
-      champion: "Ahri",
-      source: "pro",
-      role: "TOP",
-    });
+    const missing = await queries.championMatchups(
+      {
+        champion: "Ahri",
+        source: "pro",
+        role: "TOP",
+      },
+      everyChampion,
+    );
     expect(missing?.exclusions).toEqual([
       {
         role: "TOP",
@@ -7703,12 +7734,16 @@ describe("lane matchup aggregates", () => {
       },
     ]);
     for (const role of ["JUNGLE", "BOTTOM", "UTILITY"] as const) {
-      const skipped = await queries.championMatchups({ champion: "Ahri", source: "pro", role });
+      const skipped = await queries.championMatchups(
+        { champion: "Ahri", source: "pro", role },
+        everyChampion,
+      );
       expect(skipped?.exclusions).toHaveLength(1);
       expect(skipped?.exclusions[0]).toMatchObject({ role, games: 10, unmappedChampion: 20 });
     }
     expect(
-      (await queries.championMatchups({ champion: "Ahri", source: "solo" }))?.page.items,
+      (await queries.championMatchups({ champion: "Ahri", source: "solo" }, everyChampion))?.page
+        .items,
     ).toEqual([]);
   });
 });
