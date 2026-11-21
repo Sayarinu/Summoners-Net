@@ -88,6 +88,11 @@ Open <http://127.0.0.1:3000>. Keep `pnpm sync` running in another terminal for c
 Everything binds to loopback. Stop PostgreSQL with `docker compose stop`; never use
 `docker compose down -v` on a library you want to keep.
 
+After the first setup, `pnpm prod` runs the routine steps in one terminal: it starts PostgreSQL,
+builds, applies migrations, then runs the web server and the sync worker side by side, with each
+line prefixed `[web]` or `[sync]`. `pnpm prod --skip-build` reuses the last build. Ctrl+C stops
+both, and if either one exits the other stops too.
+
 Settings live in the ignored `.env` (see `.env.example`): `DATABASE_URL`, `TEST_DATABASE_URL`,
 `PANDASCORE_TOKEN`, `GOOGLE_DRIVE_API_KEY` (used when anonymous Google Drive downloads are
 quota-blocked) and `ORACLE_CURRENT_FILE` (a local current-year CSV that the daily refresh rereads).

@@ -22,6 +22,7 @@
     "build": "turbo run build",
     "dev": "pnpm --filter @summonersnet/web dev",
     "start": "pnpm --filter @summonersnet/web start",
+    "prod": "node scripts/prod.mjs",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
