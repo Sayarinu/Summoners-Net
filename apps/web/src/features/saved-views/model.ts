@@ -5,7 +5,7 @@ export const savedViewsKey = "summonersnet-saved-views";
 export const savedViewLimit = 50;
 /** Only the app's filterable pages can be saved; anything else read back is dropped. */
 const savablePath =
-  /^\/(?:tier-list|heatmaps|compare\/(?:champions|patches)|champions\/[A-Za-z0-9]{1,40}|matchups\/[A-Z]{3,7})$/;
+  /^\/(?:tier-list|compare\/(?:champions|patches)|champions\/[A-Za-z0-9]{1,40}|matchups\/[A-Z]{3,7})$/;
 export const savedViewSchema = z.strictObject({
   id: z.string().regex(/^[a-z0-9-]{1,40}$/),
   name: z.string().trim().min(1).max(60),

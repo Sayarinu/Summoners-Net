@@ -22,8 +22,9 @@ it("shrinks rates and signed means toward the champion baseline while preserving
   expect(matchupEstimate({ total: -100, count: 10 }, { total: 0, count: 20 }).shrunk).toBeCloseTo(
     -100 / 60,
   );
+  // Below the minimum the observed value is shown, but it is not shrunk or ranked.
   expect(matchupEstimate({ total: 90, count: 9 }, { total: 100, count: 10 })).toMatchObject({
-    raw: null,
+    raw: 10,
     shrunk: null,
     sampleCount: 9,
     baseline: 10,

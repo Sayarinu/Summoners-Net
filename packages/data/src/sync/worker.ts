@@ -622,7 +622,7 @@ export function worker(pool: Pool, options: WorkerOptions) {
           return false;
         }
         await saveRiotMatch(pool, match, payload, clock());
-        // Builds, skills and heatmaps come from timelines, so each match brings its timeline
+        // Builds and skills come from timelines, so each match brings its timeline
         // rather than waiting for every match first. A failed timeline stays pending for the
         // timeline job; running out of budget defers this run as any request does.
         try {

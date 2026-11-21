@@ -57,7 +57,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             getRowKey={(r) => `${r.championKey}:${r.role}`}
             emptyMessage={
               list.hiddenChampions
-                ? `No champion has ${list.minimumGames} games in this selection yet.`
+                ? "No champion has enough games in this selection yet."
                 : "No champions match these filters."
             }
             columns={[
@@ -105,7 +105,7 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
             ]}
           />
           <PageFooter
-            summary={`${list.page.total} champions · Page ${list.page.page}${list.hiddenChampions ? ` · ${list.hiddenChampions} with fewer than ${list.minimumGames} games not listed` : ""}`}
+            summary={`${list.page.total} champions · Page ${list.page.page}`}
             label="Tier List Pages"
             page={list.page.page}
             total={list.page.total}

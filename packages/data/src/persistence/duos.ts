@@ -115,10 +115,11 @@ export async function championSynergies(
     sort: input.sort,
     page: {
       items: rows.rows.map((r): SynergyRow => {
-        const win = applySamplePolicy({
+        // The win rate is shown at any sample; the delta keeps the minimum.
+        const win = {
           value: r.result_games ? r.wins / r.result_games : null,
           sampleCount: r.result_games,
-        });
+        };
         const delta = applySamplePolicy({ value: r.delta, sampleCount: r.result_games });
         return {
           allyKey: r.ally_key,

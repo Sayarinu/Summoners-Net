@@ -44,15 +44,7 @@ export function SummonerPage({
   }
   return (
     <div className="mx-auto flex w-full max-w-content min-w-0 flex-col gap-6">
-      <PageHeader
-        eyebrow="Solo Queue"
-        title={name}
-        actions={
-          <TextLink href={`/heatmaps?subjectKind=player&subject=${encodeURIComponent(puuid)}`}>
-            Heatmaps
-          </TextLink>
-        }
-      />
+      <PageHeader eyebrow="Solo Queue" title={name} />
       <div className="overflow-x-auto border-y border-line py-3">
         <TabNav
           label="Player Regions"

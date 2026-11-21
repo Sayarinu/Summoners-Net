@@ -95,10 +95,12 @@ export async function loadChampionOverview(
   };
 }
 
-const summarySize = 5;
+const summarySize = 10;
+/** Opponents listed when the full matchup list is expanded, most played first. */
+const allOpponentsSize = 100;
 /**
  * The opponents with the highest and lowest shrunk win rates, among those with enough games for
- * an estimate. Sorting and the minimum sample are applied in SQL.
+ * an estimate, and every opponent met for the full list. Sorting and limits are applied in SQL.
  */
 async function loadMatchupSummary(
   champion: string,
@@ -115,7 +117,22 @@ async function loadMatchupSummary(
       order,
       pageSize: summarySize,
     });
-  const [best, worst] = await Promise.all([page("desc"), page("asc")]);
+  const [best, worst, all] = await Promise.all([
+    page("desc"),
+    page("asc"),
+    data().championMatchups(
+      {
+        source: scope.source,
+        role: scope.role,
+        patch: scope.patches,
+        champion,
+        sort: "games",
+        order: "desc",
+        pageSize: allOpponentsSize,
+      },
+      { minimumGames: 0 },
+    ),
+  ]);
   if (!best || !worst || best.patch !== scope.patches[0]) return null;
   const known = (rows: MatchupRow[]) => rows.filter((r) => r.metrics.winRate.shrunk !== null);
   // An opponent is a strength above the champion's own win rate and a weakness below it.
@@ -126,8 +143,9 @@ async function loadMatchupSummary(
     role: scope.role,
     source: scope.source,
     patches: best.combined,
-    opponents: best.page.total,
+    opponents: all?.page.total ?? best.page.total,
     best: strong,
     worst: weak,
+    all: all?.page.items ?? [],
   };
 }

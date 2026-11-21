@@ -64,24 +64,35 @@ export function SynergiesSection({ overview }: { overview: ChampionOverview }) {
         </FilterBar>
       }
     >
-      <AlliesTable synergies={synergies} />
-      <PageFooter
-        summary={`${synergies.page.total} allies · Page ${synergies.page.page}`}
-        label="Ally Pages"
-        page={synergies.page.page}
-        total={synergies.page.total}
-        pageSize={synergies.page.pageSize}
-        onPageChange={(page) => goToPage("synergyPage", page)}
-      />
-      {botLane && botLane.cells.length > 0 ? <Matrix matrix={botLane} /> : null}
+      {/* The first page opens on its top allies; later pages keep the full list open. */}
+      {synergies.page.page === 1 ? (
+        <AlliesTable caption="Top Allies" rows={synergies.page.items.slice(0, topAllies)} />
+      ) : null}
+      <details className="border-t border-line" open={synergies.page.page > 1 || undefined}>
+        <summary className="cursor-pointer px-4 py-3 text-sm text-accent">
+          Show All {synergies.page.total.toLocaleString()} Allies
+        </summary>
+        <AlliesTable caption="Allies" rows={synergies.page.items} />
+        <PageFooter
+          summary={`${synergies.page.total} allies · Page ${synergies.page.page}`}
+          label="Ally Pages"
+          page={synergies.page.page}
+          total={synergies.page.total}
+          pageSize={synergies.page.pageSize}
+          onPageChange={(page) => goToPage("synergyPage", page)}
+        />
+        {botLane && botLane.cells.length > 0 ? <Matrix matrix={botLane} /> : null}
+      </details>
     </Panel>
   );
 }
-function AlliesTable({ synergies }: { synergies: Synergies }) {
+/** Allies listed before the full list is opened. */
+const topAllies = 5;
+function AlliesTable({ caption, rows }: { caption: string; rows: Synergies["page"]["items"] }) {
   return (
     <Table
-      caption="Allies"
-      rows={synergies.page.items}
+      caption={caption}
+      rows={rows}
       getRowKey={(r) => `${r.allyKey}:${r.allyRole}`}
       emptyMessage="No allies in this selection yet."
       columns={[

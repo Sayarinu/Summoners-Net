@@ -7,7 +7,6 @@ import { championBlindability, counterPickList } from "./blindability.js";
 import { draftAssistant } from "./draft-assistant.js";
 import { championDirectory, patchDirectory } from "./directories.js";
 import { matchupPairs } from "./matchup-matrix.js";
-import { heatmap } from "./heatmaps.js";
 import { championJunglePaths } from "./jungle-paths.js";
 import { storedDraftLookup } from "./draft-model.js";
 
@@ -29,8 +28,6 @@ const largeTables = [
   "wpa_aggregates",
   "blindability_scores",
   "matchup_aggregates",
-  "heatmap_samples",
-  "heatmap_cells",
   "jungle_path_clusters",
 ];
 /** Planner cost units; the seeded reads stay well below it when an index supports them. */
@@ -96,16 +93,6 @@ beforeAll(async () => {
     FROM (SELECT * FROM patches WHERE minor>20) p, generate_series(1,170) c, generate_series(1,20) o,
       unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) role, unnest(ARRAY['solo','pro']) source
     ON CONFLICT DO NOTHING`);
-  const subjects = `(SELECT * FROM patches WHERE minor>20) p,
-    (SELECT 'champion' AS kind,c::text AS subject,64 AS cells FROM generate_series(1,170) c
-     UNION ALL SELECT 'player','puuid-'||s,20 FROM generate_series(1,1000) s
-     UNION ALL SELECT 'role',r,256 FROM unnest(ARRAY['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY']) r) s,
-    unnest(ARRAY['position','death','kill']) k`;
-  await seed(`INSERT INTO heatmap_samples(patch_key,subject_kind,subject,kind,games,points,built_at)
-    SELECT p.patch_key,s.kind,s.subject,k,20,400,$1 FROM ${subjects}`);
-  await pool.query(`INSERT INTO heatmap_cells(patch_key,subject_kind,subject,kind,cell_x,cell_y,points)
-    SELECT p.patch_key,s.kind,s.subject,k,i%16,i/16,1+i%5 FROM ${subjects},
-      generate_series(0,255) i WHERE i<s.cells`);
   await seed(`INSERT INTO jungle_path_clusters(patch_key,champion_key,start_side,route,gank_lane,games,
       result_games,wins,path_x,path_y,built_at)
     SELECT p.patch_key,c,s,r,g,5+c%20,5+c%20,2+c%7,ARRAY[3871,3783,6943],ARRAY[7901,6495,5422],$1
@@ -226,13 +213,6 @@ const reads: [string, (db: Executor) => Promise<unknown>][] = [
     (db) =>
       championBlindability(db, { championKey: 42, source: "solo", patch: "16.24", role: "TOP" }),
   ],
-  ["champion heatmap", (db) => heatmap(db, { subjectKind: "champion", subject: "Champ42" })],
-  [
-    "player heatmap, one patch",
-    (db) =>
-      heatmap(db, { subjectKind: "player", subject: "puuid-7", kind: "death", patch: "16.22" }),
-  ],
-  ["role heatmap", (db) => heatmap(db, { subjectKind: "role", subject: "JUNGLE", kind: "kill" })],
 ];
 
 it.each(reads)("%s stays within the plan budget on large aggregate tables", async (_, read) => {

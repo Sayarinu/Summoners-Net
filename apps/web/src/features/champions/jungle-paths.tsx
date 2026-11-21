@@ -39,8 +39,7 @@ export function JunglePathsSection({
           Inferred from {paths.games} jungle {paths.games === 1 ? "game" : "games"} on patch{" "}
           {paths.patch}: the side of the camp waited at at 1:00, the side reached by 3:00, and the
           lane of the first kill the jungler took part in before 10:00. Red side is rotated onto
-          blue side. Parts that cannot be inferred are unknown. Win rates need {paths.minimumSample}{" "}
-          games with a result.
+          blue side. Parts that cannot be inferred are unknown.
         </p>
         {paths.clusters.length ? (
           <div className="grid grid-cols-[minmax(0,360px)_minmax(0,1fr)] items-start gap-4 max-[900px]:grid-cols-1">
@@ -79,10 +78,7 @@ export function JunglePathsSection({
                   id: "win",
                   header: "Win Rate",
                   align: "end",
-                  render: (c) =>
-                    c.winRate === null
-                      ? `Too few games (${c.resultGames})`
-                      : `${(c.winRate * 100).toFixed(1)}% (${c.resultGames})`,
+                  render: (c) => (c.winRate === null ? "—" : `${(c.winRate * 100).toFixed(1)}%`),
                 },
               ]}
             />

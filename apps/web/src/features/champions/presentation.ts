@@ -51,10 +51,12 @@ export interface MatchupSummary {
   source: "solo" | "pro";
   /** The combined patches, newest first. */
   patches: string[];
-  /** Opponents with enough games in this role and these patches. */
+  /** Every opponent met in this role and these patches. */
   opponents: number;
   best: MatchupRow[];
   worst: MatchupRow[];
+  /** Every opponent met, most played first, up to the listed limit. */
+  all: MatchupRow[];
 }
 /** A signed percentage-point difference, such as +2.4%; unknown stays unknown. */
 export function signedPoints(value: number | null) {

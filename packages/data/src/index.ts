@@ -96,20 +96,6 @@ export type {
   SoloGameMapEvents,
 } from "./domain/solo-games.js";
 export { mapEventLimit, soloMatchIdSchema, timelineMinuteLimit } from "./domain/solo-games.js";
-export {
-  heatmapKinds,
-  heatmapMinimumGames,
-  heatmapQuerySchema,
-  heatmapRoles,
-  heatmapSubjectKinds,
-} from "./domain/heatmaps.js";
-export type {
-  Heatmap,
-  HeatmapKind,
-  HeatmapQuery,
-  HeatmapSample,
-  HeatmapSubjectKind,
-} from "./domain/heatmaps.js";
 export { clearMinutes, junglePathMinimumSample } from "./domain/jungle-paths.js";
 export type {
   ChampionJunglePaths,

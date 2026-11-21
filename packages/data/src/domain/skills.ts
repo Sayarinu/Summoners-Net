@@ -59,3 +59,28 @@ export function deriveSkillPath(events: readonly SkillEvent[]): number[] | null 
     .map((e) => e.skillSlot!);
   return ups.length >= skillPathLevels ? ups.slice(0, skillPathLevels) : null;
 }
+
+/** A champion's last level; its skill grid covers every level. */
+export const maxChampionLevel = 18;
+const ultimateLevels = [6, 11, 16];
+/**
+ * A skill path continued to level 18 by the client's rules: the ultimate at 16, then points into
+ * the basic ability with the most ranks that is not yet maxed, so it follows the max order.
+ */
+export function completeSkillPath(path: readonly number[]): number[] {
+  const ranks = new Map<number, number>();
+  for (const slot of path) ranks.set(slot, (ranks.get(slot) ?? 0) + 1);
+  const rank = (slot: number) => ranks.get(slot) ?? 0;
+  const full = [...path];
+  while (full.length < maxChampionLevel) {
+    const level = full.length + 1;
+    const next =
+      ultimateLevels.includes(level) && rank(4) < 3
+        ? 4
+        : basicSlots.filter((s) => rank(s) < maxRank).sort((a, b) => rank(b) - rank(a))[0];
+    if (next === undefined) break;
+    full.push(next);
+    ranks.set(next, rank(next) + 1);
+  }
+  return full;
+}

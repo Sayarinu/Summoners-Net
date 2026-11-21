@@ -131,6 +131,8 @@ export type ChampionBuilds = Record<(typeof buildKinds)[number], BuildRow[]> & {
   excluded: { skills: number; skillmax: number };
   /** Every tree used by a listed rune page, by tree id. */
   runeTrees: RuneTree[];
+  /** The rune page's offense, flex and defense shard choices, in `statShardRows` order. */
+  shardRows: BuildItem[][];
 };
 /**
  * Riot's stat shard ids, which Data Dragon does not list. Names follow the client's rune page;
@@ -147,3 +149,9 @@ export const statShardNames: Record<number, string> = {
   5011: "Health",
   5013: "Tenacity and Slow Resist",
 };
+/** The client's stat shard rows: offense, flex and defense. */
+export const statShardRows = [
+  [5008, 5005, 5007],
+  [5008, 5010, 5001],
+  [5011, 5013, 5001],
+] as const;

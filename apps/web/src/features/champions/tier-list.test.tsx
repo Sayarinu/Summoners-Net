@@ -77,9 +77,9 @@ it("shows rates without intervals, counts left-out champions, and never shows un
   expect(within(unknown!).getByRole("img", { name: "Champion 950" })).toBeVisible();
   expect(unknown).toHaveTextContent("—0Unknown");
   expect(unknown).toHaveTextContent("0.0%");
-  expect(
-    screen.getByText(/2 champions · Page 1 · 3 with fewer than 10 games not listed/),
-  ).toBeVisible();
+  // Champions left out for too few games are not mentioned.
+  expect(screen.getByText("2 champions · Page 1")).toBeVisible();
+  expect(screen.queryByText(/not listed/)).toBeNull();
   const trigger = (label: string) =>
     screen
       .getAllByRole("button")

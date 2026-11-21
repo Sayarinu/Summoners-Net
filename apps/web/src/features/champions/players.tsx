@@ -1,10 +1,6 @@
 "use client";
 import { Button, FilterBar, Panel, Select, Table, TextLink } from "@summonersnet/ui";
-import {
-  championPlayerMinimumGames,
-  championPlayerSorts,
-  type ChampionOverview,
-} from "@summonersnet/data/contracts";
+import { championPlayerSorts, type ChampionOverview } from "@summonersnet/data/contracts";
 import { useRouter } from "next/navigation";
 import { identityHref } from "../browse/presentation";
 import { PageFooter } from "./paging";
@@ -19,7 +15,7 @@ export function PlayersSection({
   if (!players) return null;
   return (
     <Panel
-      title="Top Sampled Ladder Players"
+      title="Top Ladder Players"
       padding="none"
       actions={
         <FilterBar action={`/champions/${overview.champion.id}`} method="get" key={players.sort}>
@@ -46,17 +42,14 @@ export function PlayersSection({
       }
     >
       <p className="max-w-reading px-4 pt-3 text-sm text-fg-muted">
-        At least {championPlayerMinimumGames} retained ranked solo games on this champion in the
-        selected patch and role. Win rate needs {championPlayerMinimumGames} known results; its
-        sample is shown separately. These samples do not cover every game played. Only players in
-        the last successful apex ladder snapshot appear. Rank is from that snapshot, not the time of
-        each game. The tier filter uses the player&apos;s ladder tier.
+        Players on the latest apex ladder with the most stored ranked games on this champion. Rank
+        is from that ladder snapshot.
       </p>
       <Table
-        caption="Sampled Champion Players"
+        caption="Champion Players"
         rows={players.page.items}
         getRowKey={(r) => `${r.platform}:${r.puuid}`}
-        emptyMessage="No current ladder players have enough sampled games for this selection."
+        emptyMessage="No ladder players on this champion in this selection yet."
         columns={[
           {
             id: "player",
@@ -70,15 +63,15 @@ export function PlayersSection({
               </div>
             ),
           },
-          { id: "games", header: "Sampled Games", render: (r) => r.games },
+          { id: "games", header: "Games", render: (r) => r.games },
           {
             id: "win",
             header: "Win Rate",
-            render: (r) => `${percent(r.winRate)} · n=${r.winRate.sampleCount} known results`,
+            render: (r) => percent(r.winRate),
           },
           {
             id: "rank",
-            header: "Current Stored Rank",
+            header: "Rank",
             render: (r) => (
               <div className="flex flex-col gap-1">
                 <span>
