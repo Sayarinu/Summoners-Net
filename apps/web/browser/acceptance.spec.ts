@@ -386,6 +386,8 @@ test("search, history, observed rosters and independently accessible played line
     const filter = page.getByRole("searchbox", { name: "Filter Games" });
     const [toggles, input] = await Promise.all([bar.boundingBox(), filter.boundingBox()]);
     expect(Math.abs(toggles!.y + toggles!.height - input!.y - input!.height)).toBeLessThan(2);
+    // The view switch sits at the right, after the filters.
+    expect(toggles!.x).toBeGreaterThan(input!.x + input!.width);
   }
   await page.goto("/history?year=2014");
   await expect(page.getByText("No Past Matches in This View")).toBeVisible();
