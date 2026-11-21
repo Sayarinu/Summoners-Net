@@ -36,7 +36,11 @@ import { saveRiotMatch } from "../persistence/riot-matches.js";
 import { pruneBatch } from "../persistence/riot-retention.js";
 import { championOverview, championStats, tierList } from "../persistence/aggregates.js";
 import { botLaneMatrix, championSynergies } from "../persistence/duos.js";
-import { proChampionHistory, proChampionStats } from "../persistence/pro-stats.js";
+import {
+  proChampionHistory,
+  proChampionPerformance,
+  proChampionStats,
+} from "../persistence/pro-stats.js";
 import { matchFeatures } from "../persistence/wp-features.js";
 import {
   activeWinProbabilityModel,
@@ -3082,6 +3086,65 @@ describe("Champion aggregates", () => {
     expect(
       (await championOverview(pool, { champion: "Ahri", source: "pro" }))!.synergies,
     ).toBeNull();
+  });
+  it("averages pro champion performance per role and league from each player's row", async () => {
+    serveDataDragon(["16.4.1"]);
+    expect((await run({ kind: "metadata" })).state).toBe("done");
+    // Every row: 5/2/7, 15 team kills, 600 damage and 8.5 CS a minute, +500 gold at 15, first blood.
+    const metrics = {
+      teamkills: "15",
+      dpm: "600",
+      cspm: "8.5",
+      damageshare: "0.25",
+      golddiffat15: "500",
+      vspm: "1.2",
+      firstbloodkill: "1",
+      firstbloodassist: "0",
+      gamelength: "1800",
+    };
+    await importCsv(draftCsv({ id: "perf-1", league: "LCK", metrics }));
+    await importCsv(draftCsv({ id: "perf-2", league: "LEC", metrics }), 2026);
+    // Ahri is red's mid in each game.
+    const mid = await proChampionPerformance(pool, {
+      championKey: 103,
+      patch: "16.4",
+      role: "MIDDLE",
+    });
+    expect(mid).toMatchObject({
+      games: 2,
+      kda: { value: 6, sampleCount: 2 },
+      killsPerGame: { value: 5, sampleCount: 2 },
+      killParticipation: { value: 0.8, sampleCount: 2 },
+      damagePerMinute: { value: 600, sampleCount: 2 },
+      csPerMinute: { value: 8.5, sampleCount: 2 },
+      damageShare: { value: 0.25, sampleCount: 2 },
+      goldDiffAt15: { value: 500, sampleCount: 2 },
+      firstBloodParticipation: { value: 1, sampleCount: 2 },
+      visionScorePerMinute: { value: 1.2, sampleCount: 2 },
+      gameLength: { value: 1800, sampleCount: 2 },
+      // Not in the file: unknown, never zero.
+      csDiffAt15: { value: null, sampleCount: 0 },
+      goldPerMinute: { value: null, sampleCount: 0 },
+    });
+    expect(
+      await proChampionPerformance(pool, { championKey: 103, patch: "16.4", league: "LEC" }),
+    ).toMatchObject({ games: 1, kda: { value: 6, sampleCount: 1 } });
+    expect(
+      await proChampionPerformance(pool, { championKey: 103, patch: "16.4", role: "TOP" }),
+    ).toMatchObject({ games: 0, kda: { value: null, sampleCount: 0 } });
+    expect(
+      (await championOverview(pool, { champion: "Ahri", source: "pro", role: "MIDDLE" }))!.pro
+        .performance,
+    ).toMatchObject({ games: 2, damagePerMinute: { value: 600, sampleCount: 2 } });
+    // The pro tier list carries the same averages and sorts by them.
+    const list = await tierList(pool, { source: "pro", role: "MIDDLE", sort: "kda" });
+    const ahri = list.page.items.find((r) => r.championKey === 103)!;
+    expect(ahri.performance).toEqual({
+      kda: { value: 6, sampleCount: 2 },
+      damagePerMinute: { value: 600, sampleCount: 2 },
+      goldDiffAt15: { value: 500, sampleCount: 2 },
+    });
+    expect((await tierList(pool, { source: "solo", role: "MIDDLE" })).page.items).toEqual([]);
   });
   it("aggregates pro draft use per champion and league, reporting unmapped names", async () => {
     serveDataDragon(["16.4.1"]);

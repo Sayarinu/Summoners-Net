@@ -20,6 +20,32 @@ export interface ProChampionStats {
   counterRate: SampledValue;
   /** Oracle names in these drafts with no champion mapping, reported rather than guessed. */
   unmapped: { name: string; picks: number; bans: number }[];
+  /** How the champion played once picked, in the selected role (or every role). */
+  performance: ProChampionPerformance;
+}
+/**
+ * Per-game averages from each player's archive row. Every value carries the number of games that
+ * reported it; a value no game reported is null.
+ */
+export interface ProChampionPerformance {
+  games: number;
+  /** (Kills + assists) / deaths over the games, with deaths counted as at least one. */
+  kda: SampledValue;
+  killsPerGame: SampledValue;
+  deathsPerGame: SampledValue;
+  assistsPerGame: SampledValue;
+  killParticipation: SampledValue;
+  csPerMinute: SampledValue;
+  goldPerMinute: SampledValue;
+  damagePerMinute: SampledValue;
+  damageShare: SampledValue;
+  goldDiffAt15: SampledValue;
+  csDiffAt15: SampledValue;
+  xpDiffAt15: SampledValue;
+  firstBloodParticipation: SampledValue;
+  visionScorePerMinute: SampledValue;
+  /** Seconds. */
+  gameLength: SampledValue;
 }
 
 /** Patch history rows per page. */

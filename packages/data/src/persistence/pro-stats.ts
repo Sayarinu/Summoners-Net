@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import {
   proHistoryPageSize,
+  type ProChampionPerformance,
   type ProChampionStats,
   type ProPatchHistory,
 } from "../domain/pro-stats.js";
@@ -41,6 +42,7 @@ export async function rebuildProStats(c: PoolClient, patchKey: string, now: Date
      WHERE k.name IS NULL AND e.champion IS NOT NULL GROUP BY e.league,e.champion`,
     [patchKey],
   );
+  await rebuildProPerformance(c, patchKey, now);
   const inserted = await c.query(
     `WITH ${scope},
      league_games AS (SELECT league,count(*)::integer AS games FROM scoped GROUP BY league),
@@ -68,6 +70,56 @@ export async function rebuildProStats(c: PoolClient, patchKey: string, now: Date
   return inserted.rowCount ?? 0;
 }
 
+const number = (key: string) =>
+  `CASE WHEN jsonb_typeof(p.statistics->'${key}')='number' THEN (p.statistics->>'${key}')::double precision END`;
+/** Each averaged metric: its column prefix and per-player value. */
+const performanceMetrics: [string, string][] = [
+  ["cspm", number("cspm")],
+  ["gpm", `p.total_gold/nullif(${number("gamelength")}/60.0,0)`],
+  ["dpm", number("dpm")],
+  ["damage_share", number("damageshare")],
+  ["gd15", number("golddiffat15")],
+  ["csd15", number("csdiffat15")],
+  ["xpd15", number("xpdiffat15")],
+  [
+    "first_blood",
+    `CASE WHEN ${number("firstbloodkill")} IS NOT NULL AND ${number("firstbloodassist")} IS NOT NULL
+       THEN (${number("firstbloodkill")}+${number("firstbloodassist")}>0)::integer END`,
+  ],
+  ["vspm", number("vspm")],
+  ["game_length", number("gamelength")],
+];
+
+/** Rebuilds one patch's pro champion performance from each player's archive row. */
+async function rebuildProPerformance(c: PoolClient, patchKey: string, now: Date) {
+  await c.query("DELETE FROM pro_champion_performance WHERE patch_key=$1", [patchKey]);
+  const kda = "p.kills IS NOT NULL AND p.deaths IS NOT NULL AND p.assists IS NOT NULL";
+  const teamKills = number("teamkills");
+  await c.query(
+    `WITH ${scope},
+     players AS (
+       SELECT s.league,k.champion_key,p.*,
+         CASE p.position WHEN 'top' THEN 'TOP' WHEN 'jng' THEN 'JUNGLE' WHEN 'mid' THEN 'MIDDLE'
+           WHEN 'bot' THEN 'BOTTOM' WHEN 'sup' THEN 'UTILITY' END AS lane
+       FROM scoped s JOIN oracle_archive_participants p ON p.game_id=s.id
+       JOIN keys k ON k.name=p.champion
+       WHERE p.position IN ('top','jng','mid','bot','sup'))
+     INSERT INTO pro_champion_performance(patch_key,league,role,champion_key,games,result_games,wins,
+       kills,deaths,assists,kda_n,kp_takedowns,kp_team_kills,kp_n,
+       ${performanceMetrics.map(([m]) => `${m}_sum,${m}_n`).join(",")},built_at)
+     SELECT $1,p.league,p.lane,p.champion_key,count(*)::integer,
+       count(p.result)::integer,count(*) FILTER(WHERE p.result)::integer,
+       coalesce(sum(p.kills) FILTER(WHERE ${kda}),0),coalesce(sum(p.deaths) FILTER(WHERE ${kda}),0),
+       coalesce(sum(p.assists) FILTER(WHERE ${kda}),0),(count(*) FILTER(WHERE ${kda}))::integer,
+       coalesce(sum(p.kills+p.assists) FILTER(WHERE ${kda} AND ${teamKills} IS NOT NULL),0),
+       coalesce(sum(${teamKills}) FILTER(WHERE ${kda} AND ${teamKills} IS NOT NULL),0),
+       (count(*) FILTER(WHERE ${kda} AND ${teamKills} IS NOT NULL))::integer,
+       ${performanceMetrics.map(([, v]) => `coalesce(sum(${v}),0),count(${v})::integer`).join(",")},$2
+     FROM players p GROUP BY p.league,p.lane,p.champion_key`,
+    [patchKey, now],
+  );
+}
+
 const rate = (count: number, total: number) => ({
   value: total ? count / total : null,
   sampleCount: total,
@@ -78,7 +130,12 @@ const rate = (count: number, total: number) => ({
  */
 export async function proChampionStats(
   db: Executor,
-  input: { championKey: number; patch?: string | undefined; league?: string | undefined },
+  input: {
+    championKey: number;
+    patch?: string | undefined;
+    league?: string | undefined;
+    role?: string | undefined;
+  },
 ): Promise<ProChampionStats> {
   const patch =
     input.patch ??
@@ -163,6 +220,73 @@ export async function proChampionStats(
     blindRate: rate(n("blind_picks"), ordered),
     counterRate: rate(n("counter_picks"), ordered),
     unmapped,
+    performance: await proChampionPerformance(db, {
+      championKey: input.championKey,
+      patch,
+      league: input.league,
+      role: input.role,
+    }),
+  };
+}
+
+const lanes = new Set(["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]);
+/** A champion's per-game pro averages on one patch; every role when `role` is not a lane. */
+export async function proChampionPerformance(
+  db: Executor,
+  input: {
+    championKey: number;
+    patch: string | null;
+    league?: string | undefined;
+    role?: string | undefined;
+  },
+): Promise<ProChampionPerformance> {
+  const role = input.role && lanes.has(input.role) ? input.role : null;
+  const sums = input.patch
+    ? (
+        await db.query<Record<string, number | null>>(
+          `SELECT sum(games)::integer AS games,sum(kills) AS kills,sum(deaths) AS deaths,
+             sum(assists) AS assists,sum(kda_n)::integer AS kda_n,sum(kp_takedowns) AS kp_takedowns,
+             sum(kp_team_kills) AS kp_team_kills,sum(kp_n)::integer AS kp_n,
+             ${performanceMetrics.map(([m]) => `sum(${m}_sum) AS ${m}_sum,sum(${m}_n)::integer AS ${m}_n`).join(",")}
+           FROM pro_champion_performance
+           WHERE champion_key=$1 AND patch_key=$2 AND ($3::text IS NULL OR league=$3)
+             AND ($4::text IS NULL OR role=$4)`,
+          [input.championKey, input.patch, input.league ?? null, role],
+        )
+      ).rows[0]!
+    : {};
+  const n = (key: string) => Number(sums[key] ?? 0);
+  const mean = (metric: string) => ({
+    value: n(`${metric}_n`) ? n(`${metric}_sum`) / n(`${metric}_n`) : null,
+    sampleCount: n(`${metric}_n`),
+  });
+  const perGame = (key: string) => ({
+    value: n("kda_n") ? n(key) / n("kda_n") : null,
+    sampleCount: n("kda_n"),
+  });
+  return {
+    games: n("games"),
+    kda: {
+      value: n("kda_n") ? (n("kills") + n("assists")) / Math.max(n("deaths"), 1) : null,
+      sampleCount: n("kda_n"),
+    },
+    killsPerGame: perGame("kills"),
+    deathsPerGame: perGame("deaths"),
+    assistsPerGame: perGame("assists"),
+    killParticipation: {
+      value: n("kp_n") && n("kp_team_kills") ? n("kp_takedowns") / n("kp_team_kills") : null,
+      sampleCount: n("kp_n"),
+    },
+    csPerMinute: mean("cspm"),
+    goldPerMinute: mean("gpm"),
+    damagePerMinute: mean("dpm"),
+    damageShare: mean("damage_share"),
+    goldDiffAt15: mean("gd15"),
+    csDiffAt15: mean("csd15"),
+    xpDiffAt15: mean("xpd15"),
+    firstBloodParticipation: mean("first_blood"),
+    visionScorePerMinute: mean("vspm"),
+    gameLength: mean("game_length"),
   };
 }
 

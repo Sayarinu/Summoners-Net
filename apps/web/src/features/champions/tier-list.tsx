@@ -8,12 +8,12 @@ import {
   StatusIndicator,
   Table,
 } from "@summonersnet/ui";
-import type { TierList } from "@summonersnet/data/contracts";
+import type { TierList, TierListRow } from "@summonersnet/data/contracts";
 import { SavedViewsPanel } from "../saved-views/panel";
 import { ChampionViews } from "./directory";
 import { ChampionFilters } from "./filters";
 import { goToPage, PageFooter } from "./paging";
-import { interval, percent, roleLabels, sampleLabels } from "./presentation";
+import { average, interval, percent, roleLabels, sampleLabels } from "./presentation";
 export function TierListPage({ list, error }: { list: TierList | null; error: string | null }) {
   const q = list?.query;
   return (
@@ -88,6 +88,31 @@ export function TierListPage({ list, error }: { list: TierList | null; error: st
               },
               { id: "pick", header: "Pick Rate", align: "end", render: (r) => percent(r.pickRate) },
               { id: "ban", header: "Ban Rate", align: "end", render: (r) => percent(r.banRate) },
+              ...(list.query.source === "pro"
+                ? [
+                    {
+                      id: "kda",
+                      header: "KDA",
+                      align: "end" as const,
+                      render: (r: TierListRow) =>
+                        r.performance ? average(r.performance.kda, 2) : "Unknown",
+                    },
+                    {
+                      id: "dpm",
+                      header: "DPM",
+                      align: "end" as const,
+                      render: (r: TierListRow) =>
+                        r.performance ? average(r.performance.damagePerMinute, 0) : "Unknown",
+                    },
+                    {
+                      id: "gd15",
+                      header: "GD@15",
+                      align: "end" as const,
+                      render: (r: TierListRow) =>
+                        r.performance ? average(r.performance.goldDiffAt15, 0, true) : "Unknown",
+                    },
+                  ]
+                : []),
               {
                 id: "sample",
                 header: "Sample",

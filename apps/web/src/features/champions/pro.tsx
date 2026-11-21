@@ -11,7 +11,13 @@ import {
 } from "@summonersnet/ui";
 import type { ChampionOverview } from "@summonersnet/data/contracts";
 import { goToPage, PageFooter } from "./paging";
-import { percent } from "./presentation";
+import { average, percent } from "./presentation";
+
+/** Seconds as m:ss, rounded to the nearest second. */
+const clock = (seconds: number) => {
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
 
 export function ProSection({ overview }: { overview: ChampionOverview }) {
   const { pro, query: q, champion } = overview;
@@ -70,6 +76,58 @@ export function ProSection({ overview }: { overview: ChampionOverview }) {
               detail={`${pro.blindRate.sampleCount} Picks`}
             />
           </StatGroup>
+          {pro.performance.games > 0 ? (
+            <StatGroup
+              label="Pro-Play Performance"
+              className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5 border-t border-line pt-4"
+            >
+              {(
+                [
+                  ["KDA", pro.performance.kda, 2, false],
+                  ["Kills / Game", pro.performance.killsPerGame, 1, false],
+                  ["Deaths / Game", pro.performance.deathsPerGame, 1, false],
+                  ["Assists / Game", pro.performance.assistsPerGame, 1, false],
+                  ["CS / Minute", pro.performance.csPerMinute, 1, false],
+                  ["Gold / Minute", pro.performance.goldPerMinute, 0, false],
+                  ["Damage / Minute", pro.performance.damagePerMinute, 0, false],
+                  ["Gold Diff @15", pro.performance.goldDiffAt15, 0, true],
+                  ["CS Diff @15", pro.performance.csDiffAt15, 1, true],
+                  ["XP Diff @15", pro.performance.xpDiffAt15, 0, true],
+                  ["Vision / Minute", pro.performance.visionScorePerMinute, 2, false],
+                ] as const
+              ).map(([label, value, digits, signed]) => (
+                <Stat
+                  key={label}
+                  label={label}
+                  value={average(value, digits, signed)}
+                  detail={`${value.sampleCount} Games`}
+                />
+              ))}
+              {(
+                [
+                  ["Kill Participation", pro.performance.killParticipation],
+                  ["Damage Share", pro.performance.damageShare],
+                  ["First Blood", pro.performance.firstBloodParticipation],
+                ] as const
+              ).map(([label, value]) => (
+                <Stat
+                  key={label}
+                  label={label}
+                  value={percent(value)}
+                  detail={`${value.sampleCount} Games`}
+                />
+              ))}
+              <Stat
+                label="Game Length"
+                value={
+                  pro.performance.gameLength.value === null
+                    ? "Unknown"
+                    : clock(pro.performance.gameLength.value)
+                }
+                detail={`${pro.performance.gameLength.sampleCount} Games`}
+              />
+            </StatGroup>
+          ) : null}
           {pro.unmapped.length > 0 && (
             <p className="np-meta">
               Not counted because they have no champion mapping:{" "}

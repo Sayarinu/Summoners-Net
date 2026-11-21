@@ -34,6 +34,7 @@ const list: TierList = {
         pickRate: { value: 0.5, sampleCount: 120 },
         banRate: { value: 0.1, sampleCount: 120 },
         sample: "shown",
+        performance: null,
       },
       {
         championKey: 950,
@@ -47,6 +48,7 @@ const list: TierList = {
         pickRate: { value: 0, sampleCount: 120 },
         banRate: { value: null, sampleCount: 0 },
         sample: "hidden",
+        performance: null,
       },
     ],
   },
@@ -75,9 +77,39 @@ it("shows rates, intervals and samples, with unknown values never shown as zero"
   expect(trigger("Region")).toHaveTextContent("All");
   expect(screen.getByText(/Patch 16.22 · 120 games/)).toBeVisible();
   // Pro play is sliced by league, with no ranked tier.
+  const known = (value: number) => ({ value, sampleCount: 12 });
+  const missing = { value: null, sampleCount: 0 };
   view.rerender(
-    <TierListPage list={{ ...list, query: { ...list.query, source: "pro" } }} error={null} />,
+    <TierListPage
+      list={{
+        ...list,
+        query: { ...list.query, source: "pro" },
+        page: {
+          ...list.page,
+          items: [
+            {
+              ...list.page.items[0]!,
+              performance: {
+                kda: known(4.25),
+                damagePerMinute: known(612.4),
+                goldDiffAt15: known(310),
+              },
+            },
+            {
+              ...list.page.items[1]!,
+              performance: { kda: missing, damagePerMinute: missing, goldDiffAt15: missing },
+            },
+          ],
+        },
+      }}
+      error={null}
+    />,
   );
+  const [proAhri, proUnknown] = within(screen.getByRole("table", { name: "Champion Tier List" }))
+    .getAllByRole("row")
+    .slice(1);
+  expect(proAhri).toHaveTextContent("4.25612+310");
+  expect(proUnknown).toHaveTextContent("UnknownUnknownUnknown");
   expect(trigger("League")).toHaveTextContent("All");
   expect(trigger("Tier")).toBeUndefined();
   expect(trigger("Region")).toBeUndefined();
